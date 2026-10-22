@@ -95,45 +95,9 @@ pub fn get_scripts() -> &'static str {
             }
 
             for (const child of ast.root.children) {
-                if (child.type === "Section") {
+                if (child.type === "Section" || child.type === "Container") {
                     flushLooseWidgets();
                     normalizedTopChildren.push(child);
-                } else if (child.type === "Container") {
-                    flushLooseWidgets();
-                    const cs = child.styles || {};
-                    const secStyles = {};
-                    const contStyles = {};
-                    if (cs.background_color) secStyles.background_color = cs.background_color;
-                    if (cs.text_color) secStyles.text_color = cs.text_color;
-                    if (cs.padding_top) secStyles.padding_top = cs.padding_top;
-                    if (cs.padding_bottom) secStyles.padding_bottom = cs.padding_bottom;
-                    if (cs.padding_left) secStyles.padding_left = cs.padding_left;
-                    if (cs.padding_right) secStyles.padding_right = cs.padding_right;
-                    if (cs.margin_top) secStyles.margin_top = cs.margin_top;
-                    if (cs.margin_bottom) secStyles.margin_bottom = cs.margin_bottom;
-                    if (cs.text_align) {
-                        contStyles.text_align = cs.text_align;
-                    } else if (
-                        (child.data && child.data.align === "center") ||
-                        (Array.isArray(child.children) && child.children.some(c => c.type === "Heading" && c.styles && c.styles.text_align === "center"))
-                    ) {
-                        contStyles.text_align = "center";
-                    }
-                    if (cs.gap) contStyles.gap = cs.gap;
-                    normalizedTopChildren.push({
-                        id: child.id,
-                        type: "Section",
-                        styles: secStyles,
-                        children: [
-                            {
-                                id: child.id + "_inner",
-                                type: "Container",
-                                data: child.data || {},
-                                styles: contStyles,
-                                children: child.children || []
-                            }
-                        ]
-                    });
                 } else {
                     looseWidgetsBuffer.push(child);
                 }
@@ -170,29 +134,42 @@ pub fn get_scripts() -> &'static str {
     let currentPanelView = "elements"; // "elements" | "globals" | "menu" | "site-settings-colors" | "site-settings-fonts" | "site-settings-buttons" | "site-settings-identity" | "site-settings-layout" | "user-preferences"
     let selectedIconTarget = null;
     let tempSelectedIcon = null;
+    window._userModifiedGlobalStyles = false;
 
-    if (!pageAst.global_styles) {
-        pageAst.global_styles = {
+    const rootComputed = window.getComputedStyle(document.documentElement);
+    const readCssVar = (name, fallback) => {
+        const val = rootComputed.getPropertyValue(name);
+        return (val && val.trim()) ? val.trim() : fallback;
+    };
+
+    if (!pageAst.global_styles || !Array.isArray(pageAst.global_styles.system_colors)) {
+        const existingGs = (pageAst.global_styles && typeof pageAst.global_styles === "object") ? pageAst.global_styles : {};
+        pageAst.global_styles = Object.assign({}, existingGs, {
             system_colors: [
-                { id: "primary", title: "Primary", color: "#6EC1E4" },
-                { id: "secondary", title: "Secondary", color: "#54595F" },
-                { id: "text", title: "Text", color: "#7A7A7A" },
-                { id: "accent", title: "Accent", color: "#61CE70" }
+                { id: "primary", title: "Primary", color: readCssVar("--e-global-color-primary", "#9CC13C") },
+                { id: "secondary", title: "Secondary", color: readCssVar("--e-global-color-secondary", "#1F1C17") },
+                { id: "text", title: "Text", color: readCssVar("--e-global-color-text", "#1F1C17") },
+                { id: "accent", title: "Accent", color: readCssVar("--e-global-color-accent", "#9CC13C") }
             ],
-            custom_colors: [],
-            system_typography: [
-                { id: "primary", title: "Primary", font_family: "Roboto, sans-serif", font_size: "32px", font_weight: "600" },
-                { id: "secondary", title: "Secondary", font_family: "Roboto Slab, serif", font_size: "24px", font_weight: "400" },
-                { id: "text", title: "Text", font_family: "Roboto, sans-serif", font_size: "16px", font_weight: "400" },
-                { id: "accent", title: "Accent", font_family: "Roboto, sans-serif", font_size: "14px", font_weight: "500" }
+            custom_colors: existingGs.custom_colors || [],
+            system_typography: existingGs.system_typography || [
+                { id: "primary", title: "Primary", font_family: readCssVar("--e-global-typography-primary-font-family", "Fira Sans, sans-serif"), font_size: "32px", font_weight: "500" },
+                { id: "secondary", title: "Secondary", font_family: readCssVar("--e-global-typography-secondary-font-family", "Fira Sans, sans-serif"), font_size: "24px", font_weight: "500" },
+                { id: "text", title: "Text", font_family: readCssVar("--e-global-typography-text-font-family", "Fira Sans, sans-serif"), font_size: "15px", font_weight: "300" },
+                { id: "accent", title: "Accent", font_family: readCssVar("--e-global-typography-accent-font-family", "Fira Sans, sans-serif"), font_size: "15px", font_weight: "500" }
             ],
-            content_width: 1140,
-            widgets_space: 20
-        };
+            content_width: existingGs.content_width || parseInt(readCssVar("--e-content-width", "1140")) || 1140,
+            widgets_space: existingGs.widgets_space || 20
+        });
     }
 
     function applyGlobalStyles() {
         if (!pageAst.global_styles) return;
+        const kitStyleEl = document.getElementById("neopress-elementor-kit-css");
+        const hasServerKitCss = kitStyleEl && kitStyleEl.textContent && kitStyleEl.textContent.trim().length > 0;
+        if (hasServerKitCss && !window._userModifiedGlobalStyles) {
+            return;
+        }
         const gs = pageAst.global_styles;
         let css = ":root { ";
         if (gs.content_width) css += `--e-content-width: ${gs.content_width}px; `;
@@ -751,42 +728,219 @@ pub fn get_scripts() -> &'static str {
         canvas.innerHTML = "";
         if (!pageAst || !pageAst.root) return;
 
-        function buildDomNode(node) {
+        function attachSectionHandleAndDrag(el, node) {
+            el.classList.add("elementor-section");
+            if (node.id === activeElementId) {
+                el.classList.add("active-element");
+            }
+            if (!el.style.position) {
+                el.style.position = "relative";
+            }
+
+            const handle = document.createElement("div");
+            handle.className = "elementor-section-handle";
+            handle.innerHTML = `
+                <button class="sec-handle-btn sec-add" title="Add Section Above"><i class="fa-solid fa-plus"></i></button>
+                <button class="sec-handle-btn sec-drag" title="Drag to Reorder Section" draggable="true"><i class="fa-solid fa-grip-vertical"></i></button>
+                <button class="sec-handle-btn sec-del" title="Delete Section"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            handle.querySelector(".sec-add").onclick = (e) => {
+                e.stopPropagation();
+                insertSectionAbove(node.id);
+            };
+            handle.querySelector(".sec-del").onclick = (e) => {
+                e.stopPropagation();
+                deleteElement(node.id);
+            };
+
+            const secDragBtn = handle.querySelector(".sec-drag");
+            secDragBtn.ondragstart = (e) => {
+                e.stopPropagation();
+                window._activeDragData = { action: "move_section", id: node.id };
+                e.dataTransfer.setData("application/json", JSON.stringify(window._activeDragData));
+                e.dataTransfer.setData("text/plain", JSON.stringify(window._activeDragData));
+                e.dataTransfer.effectAllowed = "move";
+                el.classList.add("is-dragging");
+            };
+            secDragBtn.ondragend = () => {
+                el.classList.remove("is-dragging");
+                window._activeDragData = null;
+                hideDropIndicator();
+            };
+
+            el.appendChild(handle);
+
+            el.ondragover = (e) => {
+                const data = getDragData(e);
+                if (!data) return;
+
+                if (data.action === "move_section") {
+                    if (data.id === node.id) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const rect = el.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    const pos = e.clientY < midY ? "before" : "after";
+                    showDropIndicator(el, pos);
+                    return;
+                }
+
+                if (data.type === "new_widget" || data.action === "move_widget") {
+                    const rect = el.getBoundingClientRect();
+                    if (e.clientY < rect.top + 35) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
+                        showDropIndicator(el, "before");
+                    } else if (e.clientY > rect.bottom - 35) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
+                        showDropIndicator(el, "after");
+                    } else {
+                        e.preventDefault();
+                        if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
+                    }
+                }
+            };
+
+            el.ondragleave = (e) => {
+                if (!el.contains(e.relatedTarget)) {
+                    hideDropIndicator();
+                }
+            };
+
+            el.ondrop = (e) => {
+                const data = getDragData(e);
+                if (!data) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+                hideDropIndicator();
+
+                if (data.action === "move_section" && data.id !== node.id) {
+                    const rect = el.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    const pos = e.clientY < midY ? "before" : "after";
+                    executeSectionMove(data.id, node.id, pos);
+                    return;
+                }
+
+                if (data.type === "new_widget" || data.action === "move_widget") {
+                    const rect = el.getBoundingClientRect();
+                    if (e.clientY < rect.top + 30) {
+                        insertNewSectionNear(node.id, "before", data);
+                    } else if (e.clientY > rect.bottom - 30) {
+                        insertNewSectionNear(node.id, "after", data);
+                    } else {
+                        const targetCol = findFirstColumn(node) || node;
+                        if (targetCol) {
+                            handleDropOnContainer(targetCol.id, data);
+                        } else {
+                            insertNewSectionNear(node.id, "after", data);
+                        }
+                    }
+                }
+            };
+
+            el.onclick = (e) => {
+                e.stopPropagation();
+                selectElement(node.id);
+            };
+        }
+
+        function buildDomNode(node, isTopLevel) {
             const el = document.createElement("div");
             el.id = node.id;
             el.dataset.nodeId = node.id;
 
-            // Styles mapping
+            // Styles mapping (supports both flat and nested AST StyleProperties)
             if (node.styles) {
                 const s = node.styles;
                 const isBtn = node.type === "Button";
-                if (s.background_color && !isBtn) {
-                    el.style.backgroundColor = s.background_color;
-                    if (!s.text_color && isDarkColor(s.background_color)) {
-                        el.style.color = "#f8fafc";
-                        el.dataset.darkBg = "true";
-                    }
+                const bgCol = s.background_color || (s.background && s.background.color);
+                if (bgCol && !isBtn) {
+                    el.style.backgroundColor = bgCol;
                 }
-                if (s.text_color && !isBtn) el.style.color = s.text_color;
-                if (s.font_size && !isBtn) el.style.fontSize = s.font_size;
-                if (s.font_weight && !isBtn) el.style.fontWeight = s.font_weight;
-                if (s.line_height) el.style.lineHeight = s.line_height;
-                if (s.text_align) el.style.textAlign = s.text_align;
+                const bgImg = s.background_image || (s.background && s.background.image_url);
+                if (bgImg && !isBtn) {
+                    el.style.backgroundImage = `url('${bgImg}')`;
+                    el.style.backgroundRepeat = "no-repeat";
+                }
+                const bgPos = s.background_position || (s.background && s.background.position);
+                if (bgPos && !isBtn) {
+                    el.style.backgroundPosition = bgPos;
+                }
+                const bgSize = s.background_size || (s.background && s.background.size);
+                if (bgSize && !isBtn) {
+                    el.style.backgroundSize = bgSize;
+                }
+                if (s.background_gradient && !isBtn) {
+                    el.style.backgroundImage = s.background_gradient;
+                }
+
+                const textCol = s.text_color || (s.typography && s.typography.color);
+                if (textCol && !isBtn) el.style.color = textCol;
+                const fontFam = s.font_family || (s.typography && s.typography.font_family);
+                if (fontFam && !isBtn) el.style.fontFamily = fontFam;
+                const fontSz = s.font_size || (s.typography && s.typography.font_size);
+                if (fontSz && !isBtn) el.style.fontSize = fontSz;
+                const fontWt = s.font_weight || (s.typography && s.typography.font_weight);
+                if (fontWt && !isBtn) el.style.fontWeight = fontWt;
+                const lineHt = s.line_height || (s.typography && s.typography.line_height);
+                if (lineHt && !isBtn) el.style.lineHeight = lineHt;
+                const letSp = s.letter_spacing || (s.typography && s.typography.letter_spacing);
+                if (letSp && !isBtn) el.style.letterSpacing = letSp;
+                const txtTr = s.text_transform || (s.typography && s.typography.text_transform);
+                if (txtTr && !isBtn) el.style.textTransform = txtTr;
+                const txtAl = s.text_align || (s.typography && s.typography.align);
+                if (txtAl) el.style.textAlign = txtAl;
+
                 if (!isBtn) {
-                    if (s.padding_top) el.style.paddingTop = s.padding_top;
-                    if (s.padding_bottom) el.style.paddingBottom = s.padding_bottom;
-                    if (s.padding_left) el.style.paddingLeft = s.padding_left;
-                    if (s.padding_right) el.style.paddingRight = s.padding_right;
-                    if (s.border_radius) el.style.borderRadius = s.border_radius;
-                    if (s.border_width && s.border_style) {
-                        el.style.border = `${s.border_width} ${s.border_style} ${s.border_color || '#e2e8f0'}`;
+                    const padT = s.padding_top || (s.padding && s.padding.top !== undefined ? `${s.padding.top}${s.padding.unit || 'px'}` : null);
+                    const padR = s.padding_right || (s.padding && s.padding.right !== undefined ? `${s.padding.right}${s.padding.unit || 'px'}` : null);
+                    const padB = s.padding_bottom || (s.padding && s.padding.bottom !== undefined ? `${s.padding.bottom}${s.padding.unit || 'px'}` : null);
+                    const padL = s.padding_left || (s.padding && s.padding.left !== undefined ? `${s.padding.left}${s.padding.unit || 'px'}` : null);
+                    if (padT) el.style.paddingTop = padT;
+                    if (padR) el.style.paddingRight = padR;
+                    if (padB) el.style.paddingBottom = padB;
+                    if (padL) el.style.paddingLeft = padL;
+
+                    const bRad = s.border_radius || (s.border && s.border.radius);
+                    if (bRad) el.style.borderRadius = bRad;
+                    const bWidth = s.border_width || (s.border && s.border.width);
+                    const bStyle = s.border_style || (s.border && s.border.style);
+                    const bColor = s.border_color || (s.border && s.border.color);
+                    if (bWidth && bStyle) {
+                        el.style.border = `${bWidth} ${bStyle} ${bColor || '#e2e8f0'}`;
                     }
+                    if (s.border_top) el.style.borderTop = s.border_top;
+                    if (s.border_right) el.style.borderRight = s.border_right;
+                    if (s.border_bottom) el.style.borderBottom = s.border_bottom;
+                    if (s.border_left) el.style.borderLeft = s.border_left;
                 }
-                if (s.margin_top) el.style.marginTop = s.margin_top;
-                if (s.margin_bottom) el.style.marginBottom = s.margin_bottom;
-                if (s.margin_left) el.style.marginLeft = s.margin_left;
-                if (s.margin_right) el.style.marginRight = s.margin_right;
+
+                const marT = s.margin_top || (s.margin && s.margin.top !== undefined ? `${s.margin.top}${s.margin.unit || 'px'}` : null);
+                const marR = s.margin_right || (s.margin && s.margin.right !== undefined ? `${s.margin.right}${s.margin.unit || 'px'}` : null);
+                const marB = s.margin_bottom || (s.margin && s.margin.bottom !== undefined ? `${s.margin.bottom}${s.margin.unit || 'px'}` : null);
+                const marL = s.margin_left || (s.margin && s.margin.left !== undefined ? `${s.margin.left}${s.margin.unit || 'px'}` : null);
+                if (marT) el.style.marginTop = marT;
+                if (marR) el.style.marginRight = marR;
+                if (marB) el.style.marginBottom = marB;
+                if (marL) el.style.marginLeft = marL;
+
                 if (s.box_shadow) el.style.boxShadow = s.box_shadow;
+                if (s.width) el.style.width = s.width;
+                if (s.max_width) el.style.maxWidth = s.max_width;
+                if (s.height && node.type !== "Spacer") el.style.height = s.height;
+                if (s.min_height) el.style.minHeight = s.min_height;
+                if (s.z_index !== undefined && s.z_index !== null) el.style.zIndex = String(s.z_index);
+                if (s.position) el.style.position = s.position;
+
+                if (s.css_classes) {
+                    s.css_classes.split(/\s+/).filter(Boolean).forEach(cls => el.classList.add(cls));
+                }
             }
 
             if (node.id === activeElementId) {
@@ -795,135 +949,23 @@ pub fn get_scripts() -> &'static str {
 
             // SECTION NODE
             if (node.type === "Section") {
-                el.className = "elementor-section" + (node.id === activeElementId ? " active-element" : "");
-                el.style.position = "relative";
-
-                // Section Handle Pill [ + | ⠿ | × ]
-                const handle = document.createElement("div");
-                handle.className = "elementor-section-handle";
-                handle.innerHTML = `
-                    <button class="sec-handle-btn sec-add" title="Add Section Above"><i class="fa-solid fa-plus"></i></button>
-                    <button class="sec-handle-btn sec-drag" title="Drag to Reorder Section" draggable="true"><i class="fa-solid fa-grip-vertical"></i></button>
-                    <button class="sec-handle-btn sec-del" title="Delete Section"><i class="fa-solid fa-xmark"></i></button>
-                `;
-
-                handle.querySelector(".sec-add").onclick = (e) => {
-                    e.stopPropagation();
-                    insertSectionAbove(node.id);
-                };
-                handle.querySelector(".sec-del").onclick = (e) => {
-                    e.stopPropagation();
-                    deleteElement(node.id);
-                };
-
-                // Drag Section to reorder
-                const secDragBtn = handle.querySelector(".sec-drag");
-                secDragBtn.ondragstart = (e) => {
-                    e.stopPropagation();
-                    window._activeDragData = { action: "move_section", id: node.id };
-                    e.dataTransfer.setData("application/json", JSON.stringify(window._activeDragData));
-                    e.dataTransfer.setData("text/plain", JSON.stringify(window._activeDragData));
-                    e.dataTransfer.effectAllowed = "move";
-                    el.classList.add("is-dragging");
-                };
-                secDragBtn.ondragend = () => {
-                    el.classList.remove("is-dragging");
-                    window._activeDragData = null;
-                    hideDropIndicator();
-                };
-
-                el.appendChild(handle);
-
-                // Section Dragover / Drop target (to reorder sections or insert widgets)
-                el.ondragover = (e) => {
-                    const data = getDragData(e);
-                    if (!data) return;
-
-                    if (data.action === "move_section") {
-                        if (data.id === node.id) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const rect = el.getBoundingClientRect();
-                        const midY = rect.top + rect.height / 2;
-                        const pos = e.clientY < midY ? "before" : "after";
-                        showDropIndicator(el, pos);
-                        return;
-                    }
-
-                    if (data.type === "new_widget" || data.action === "move_widget") {
-                        const rect = el.getBoundingClientRect();
-                        if (e.clientY < rect.top + 35) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
-                            showDropIndicator(el, "before");
-                        } else if (e.clientY > rect.bottom - 35) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
-                            showDropIndicator(el, "after");
-                        } else {
-                            // In middle of section: allow column/widget to receive event cleanly
-                            e.preventDefault();
-                            if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
-                        }
-                    }
-                };
-
-                el.ondragleave = (e) => {
-                    if (!el.contains(e.relatedTarget)) {
-                        hideDropIndicator();
-                    }
-                };
-
-                el.ondrop = (e) => {
-                    const data = getDragData(e);
-                    if (!data) return;
-
-                    e.preventDefault();
-                    e.stopPropagation();
-                    hideDropIndicator();
-
-                    if (data.action === "move_section" && data.id !== node.id) {
-                        const rect = el.getBoundingClientRect();
-                        const midY = rect.top + rect.height / 2;
-                        const pos = e.clientY < midY ? "before" : "after";
-                        executeSectionMove(data.id, node.id, pos);
-                        return;
-                    }
-
-                    if (data.type === "new_widget" || data.action === "move_widget") {
-                        const rect = el.getBoundingClientRect();
-                        if (e.clientY < rect.top + 30) {
-                            insertNewSectionNear(node.id, "before", data);
-                        } else if (e.clientY > rect.bottom - 30) {
-                            insertNewSectionNear(node.id, "after", data);
-                        } else {
-                            const targetCol = findFirstColumn(node);
-                            if (targetCol) {
-                                handleDropOnContainer(targetCol.id, data);
-                            } else {
-                                insertNewSectionNear(node.id, "after", data);
-                            }
-                        }
-                    }
-                };
+                attachSectionHandleAndDrag(el, node);
 
                 const container = document.createElement("div");
                 container.className = "elementor-container";
 
                 if (node.children && node.children.length > 0) {
                     node.children.forEach(child => {
-                        container.appendChild(buildDomNode(child));
+                        container.appendChild(buildDomNode(child, false));
                     });
                 }
                 el.appendChild(container);
                 return el;
             }
 
-                        // GRID NODE (RESPONSIVE MULTI-COLUMN CONTAINER)
+            // GRID NODE (RESPONSIVE MULTI-COLUMN CONTAINER)
             if (node.type === "Grid") {
-                el.className = "elementor-grid-container";
+                el.classList.add("elementor-grid-container");
                 el.style.position = "relative";
                 el.style.display = "grid";
                 const cols = (node.data && node.data.columns) || 3;
@@ -933,7 +975,6 @@ pub fn get_scripts() -> &'static str {
                 el.style.marginBottom = "24px";
                 el.style.minHeight = "60px";
 
-                // Grid edit handle
                 const handle = document.createElement("div");
                 handle.className = "elementor-grid-handle";
                 handle.style.position = "absolute";
@@ -951,7 +992,6 @@ pub fn get_scripts() -> &'static str {
                 handle.onclick = (e) => { e.stopPropagation(); selectElement(node.id); };
                 el.appendChild(handle);
 
-                // Grid dragover & drop
                 el.ondragover = (e) => {
                     const data = getDragData(e);
                     if (!data) return;
@@ -970,52 +1010,79 @@ pub fn get_scripts() -> &'static str {
 
                 if (node.children && node.children.length > 0) {
                     node.children.forEach(child => {
-                        el.appendChild(buildDomNode(child));
+                        el.appendChild(buildDomNode(child, false));
                     });
                 }
                 el.onclick = (e) => { e.stopPropagation(); selectElement(node.id); };
                 return el;
             }
 
-            // FLEX ROW / CONTAINER / COLUMN NODE
+            // ELEMENTOR FLEXBOX CONTAINER / COLUMN / FLEX NODE
             if (node.type === "Container" || node.type === "Column" || node.type === "Flex") {
-                const isFlexRow = (
-                    (node.type === "Flex" && node.data && node.data.direction === "row") ||
-                    (node.type === "Container" && node.children && node.children.length > 1 && node.children.every(c => c.type === "Column" || (c.type === "Flex" && (!c.data || c.data.direction !== "row"))))
-                );
-
-                if (isFlexRow) {
-                    el.className = "elementor-flex-row" + (node.id === activeElementId ? " active-element" : "");
-                    el.style.position = "relative";
-                    el.style.display = "flex";
-                    el.style.flexDirection = "row";
-                    el.style.flexWrap = (node.data && node.data.wrap === false) ? "nowrap" : "wrap";
-                    el.style.justifyContent = (node.data && node.data.justify) || "flex-start";
-                    el.style.alignItems = (node.data && node.data.align) || "stretch";
-                    el.style.gap = (node.styles && node.styles.gap) || "24px";
-                    el.style.width = "100%";
-                    if (!node.styles || !node.styles.margin_bottom) {
-                        el.style.marginBottom = "16px";
+                const s = node.styles || {};
+                if (node.type === "Container") {
+                    el.classList.add("np-container");
+                    if (isTopLevel) {
+                        attachSectionHandleAndDrag(el, node);
+                    } else {
+                        el.onclick = (e) => {
+                            e.stopPropagation();
+                            selectElement(node.id);
+                        };
                     }
+                    el.style.position = s.position || "relative";
+                    el.style.display = s.display || "flex";
+                    el.style.flexDirection = s.flex_direction || "column";
+                    if (s.justify_content) el.style.justifyContent = s.justify_content;
+                    if (s.align_items) el.style.alignItems = s.align_items;
+                    if (s.flex_wrap) el.style.flexWrap = s.flex_wrap;
+                    if (s.gap) el.style.gap = s.gap;
                 } else {
-                    el.className = "elementor-column" + (node.id === activeElementId ? " active-element" : "");
-                    el.style.position = "relative";
-                    el.style.display = "flex";
-                    el.style.flexDirection = "column";
-                    el.style.gap = (node.styles && node.styles.gap) || "16px";
+                    const isFlexRow = (node.type === "Flex" && node.data && node.data.direction === "row");
+                    if (isFlexRow) {
+                        el.classList.add("elementor-flex-row");
+                        el.style.position = "relative";
+                        el.style.display = "flex";
+                        el.style.flexDirection = "row";
+                        el.style.flexWrap = (node.data && node.data.wrap === false) ? "nowrap" : "wrap";
+                        el.style.justifyContent = (node.data && node.data.justify) || "flex-start";
+                        el.style.alignItems = (node.data && node.data.align) || "stretch";
+                        el.style.gap = s.gap || "24px";
+                        el.style.width = "100%";
+                    } else {
+                        el.classList.add("elementor-column");
+                        el.style.position = "relative";
+                        el.style.display = "flex";
+                        el.style.flexDirection = "column";
+                        el.style.gap = s.gap || "16px";
+                        if (node.type === "Flex" && node.data && node.data.basis) {
+                            el.style.flex = `1 1 ${node.data.basis}`;
+                        }
+                    }
+                    el.onclick = (e) => {
+                        e.stopPropagation();
+                        selectElement(node.id);
+                    };
+                }
+
+                const isBoxed = el.classList.contains("np-container-boxed");
+                let childHost = el;
+                if (isBoxed) {
+                    childHost = document.createElement("div");
+                    childHost.className = "np-container-inner";
+                    el.appendChild(childHost);
                 }
 
                 if (node.children && node.children.length > 0) {
                     node.children.forEach(child => {
-                        const containerChild = buildDomNode(child);
-                        el.appendChild(containerChild);
+                        const containerChild = buildDomNode(child, false);
+                        childHost.appendChild(containerChild);
                     });
-                } else {
-                    // Empty column dropzone
+                } else if (!s.background_image && !(s.background && s.background.image_url) && !s.min_height) {
                     const empty = document.createElement("div");
                     empty.className = "elementor-empty-view";
                     empty.innerHTML = `<i class="fa-solid fa-plus"></i><span>Drop widget here</span>`;
-                    
+
                     empty.ondragover = (e) => {
                         const data = getDragData(e);
                         if (!data) return;
@@ -1039,42 +1106,43 @@ pub fn get_scripts() -> &'static str {
                         e.stopPropagation();
                         selectElement(node.id);
                     };
-                    el.appendChild(empty);
+                    childHost.appendChild(empty);
                 }
 
-                // Column dragover: show indicator at column insertion point
-                el.ondragover = (e) => {
-                    const data = getDragData(e);
-                    if (!data || data.action === "move_section") return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
+                if (!isTopLevel) {
+                    el.ondragover = (e) => {
+                        const data = getDragData(e);
+                        if (!data || data.action === "move_section") return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.dataTransfer) e.dataTransfer.dropEffect = data.type === "new_widget" ? "copy" : "move";
 
-                    const widgetEls = el.querySelectorAll(".elementor-widget");
-                    if (widgetEls.length === 0) {
-                        showDropIndicator(el, "inside");
-                    } else {
-                        const lastW = widgetEls[widgetEls.length - 1];
-                        const lastRect = lastW.getBoundingClientRect();
-                        if (e.clientY > lastRect.bottom) {
-                            showDropIndicator(lastW, "after");
+                        const widgetEls = el.querySelectorAll(".elementor-widget");
+                        if (widgetEls.length === 0) {
+                            showDropIndicator(el, "inside");
+                        } else {
+                            const lastW = widgetEls[widgetEls.length - 1];
+                            const lastRect = lastW.getBoundingClientRect();
+                            if (e.clientY > lastRect.bottom) {
+                                showDropIndicator(lastW, "after");
+                            }
                         }
-                    }
-                };
-                el.ondrop = (e) => {
-                    const data = getDragData(e);
-                    if (!data || data.action === "move_section") return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    hideDropIndicator();
-                    handleDropOnContainer(node.id, data);
-                };
+                    };
+                    el.ondrop = (e) => {
+                        const data = getDragData(e);
+                        if (!data || data.action === "move_section") return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        hideDropIndicator();
+                        handleDropOnContainer(node.id, data);
+                    };
+                }
 
                 return el;
             }
 
             // WIDGET NODE
-            el.className = "elementor-widget" + (node.id === activeElementId ? " active-element" : "");
+            el.classList.add("elementor-widget");
 
             // Widget Handle Badge [ ✎ | ⠿ | ⧉ | 🗑 ]
             const wHandle = document.createElement("div");
@@ -1163,17 +1231,28 @@ pub fn get_scripts() -> &'static str {
             };
 
             const data = node.data || {};
+            const s = node.styles || {};
             const widgetContent = document.createElement("div");
 
             switch(node.type) {
                 case "Heading":
                     const tag = "h" + (data.level || 2);
                     const h = document.createElement(tag);
-                    h.textContent = data.text || "Heading Text";
+                    h.className = "np-heading";
+                    h.innerHTML = data.text || "Heading Text";
                     h.contentEditable = "true";
                     h.style.outline = "none";
+                    h.style.margin = "0";
+                    if (s.text_color) h.style.color = s.text_color;
+                    if (s.font_family) h.style.fontFamily = s.font_family;
+                    if (s.font_size) h.style.fontSize = s.font_size;
+                    if (s.font_weight) h.style.fontWeight = s.font_weight;
+                    if (s.line_height) h.style.lineHeight = s.line_height;
+                    if (s.letter_spacing) h.style.letterSpacing = s.letter_spacing;
+                    if (s.text_transform) h.style.textTransform = s.text_transform;
+                    if (s.text_align) h.style.textAlign = s.text_align;
                     h.onblur = () => {
-                        data.text = h.textContent;
+                        data.text = h.innerHTML;
                         updateRawAst();
                     };
                     widgetContent.appendChild(h);
@@ -1181,6 +1260,7 @@ pub fn get_scripts() -> &'static str {
 
                 case "Text":
                     const t = document.createElement("div");
+                    t.className = "np-text";
                     t.innerHTML = data.content_html || "<p>Click to edit paragraph text...</p>";
                     t.contentEditable = "true";
                     t.style.outline = "none";
@@ -1193,16 +1273,25 @@ pub fn get_scripts() -> &'static str {
 
                 case "Button":
                     const btn = document.createElement("a");
+                    btn.className = "np-button";
                     btn.href = data.url || "#";
-                    btn.style.display = "inline-flex";
-                    btn.style.alignItems = "center";
-                    btn.style.gap = "8px";
-                    btn.style.textDecoration = "none";
-                    btn.style.padding = (node.styles && node.styles.padding_top ? node.styles.padding_top : "12px") + " " + (node.styles && node.styles.padding_left ? node.styles.padding_left : "28px");
-                    btn.style.borderRadius = (node.styles && node.styles.border_radius ? node.styles.border_radius : "6px");
-                    btn.style.background = (node.styles && node.styles.background_color ? node.styles.background_color : "var(--e-color-accent)");
-                    btn.style.color = (node.styles && node.styles.text_color ? node.styles.text_color : "#ffffff");
-                    btn.style.fontWeight = "600";
+                    btn.onclick = (e) => { e.preventDefault(); };
+                    if (s.background_color) btn.style.backgroundColor = s.background_color;
+                    if (s.text_color) btn.style.color = s.text_color;
+                    if (s.font_family) btn.style.fontFamily = s.font_family;
+                    if (s.font_size) btn.style.fontSize = s.font_size;
+                    if (s.font_weight) btn.style.fontWeight = s.font_weight;
+                    if (s.line_height) btn.style.lineHeight = s.line_height;
+                    if (s.letter_spacing) btn.style.letterSpacing = s.letter_spacing;
+                    if (s.text_transform) btn.style.textTransform = s.text_transform;
+                    if (s.border_radius) btn.style.borderRadius = s.border_radius;
+                    if (s.padding_top) btn.style.paddingTop = s.padding_top;
+                    if (s.padding_right) btn.style.paddingRight = s.padding_right;
+                    if (s.padding_bottom) btn.style.paddingBottom = s.padding_bottom;
+                    if (s.padding_left) btn.style.paddingLeft = s.padding_left;
+                    if (s.border_width && s.border_style) {
+                        btn.style.border = `${s.border_width} ${s.border_style} ${s.border_color || 'currentColor'}`;
+                    }
 
                     let iconHtml = "";
                     if (data.icon) {
@@ -1214,49 +1303,61 @@ pub fn get_scripts() -> &'static str {
 
                 case "Image":
                     const img = document.createElement("img");
+                    img.className = "np-image";
                     img.src = data.src || data.url || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80";
-                    img.alt = data.alt || "Image";
-                    img.style.maxWidth = "100%";
-                    img.style.height = "auto";
-                    img.style.borderRadius = (node.styles && node.styles.border_radius ? node.styles.border_radius : "4px");
+                    img.alt = data.alt || "";
+                    img.style.maxWidth = s.max_width || "100%";
+                    img.style.height = s.height || "auto";
+                    if (data.width) {
+                        img.style.width = (typeof data.width === "number" ? data.width + "px" : String(data.width));
+                    } else if (s.width) {
+                        img.style.width = s.width;
+                    }
+                    if (data.height) {
+                        img.style.height = (typeof data.height === "number" ? data.height + "px" : String(data.height));
+                    }
+                    if (s.border_radius) {
+                        img.style.borderRadius = s.border_radius;
+                    }
                     widgetContent.appendChild(img);
                     break;
 
                 case "Icon":
                     const ic = document.createElement("div");
-                    ic.style.fontSize = (node.styles && node.styles.font_size ? node.styles.font_size : "36px");
-                    ic.style.color = (node.styles && node.styles.text_color ? node.styles.text_color : "var(--e-color-accent)");
+                    ic.style.fontSize = s.font_size || "36px";
+                    ic.style.color = s.text_color || "var(--e-global-color-primary, var(--e-color-accent))";
                     ic.innerHTML = `<i class="${data.icon || data.name || 'fa-solid fa-star'}"></i>`;
                     widgetContent.appendChild(ic);
                     break;
 
                 case "IconBox":
                     const ib = document.createElement("div");
-                    ib.style.textAlign = (node.styles && node.styles.text_align ? node.styles.text_align : "left");
+                    ib.className = "np-iconbox";
+                    ib.style.textAlign = s.text_align || "left";
                     ib.innerHTML = `
-                        <div style="font-size: 32px; color: ${node.styles && node.styles.text_color ? node.styles.text_color : 'var(--e-color-accent)'}; margin-bottom: 12px;">
+                        <div style="font-size: 32px; color: ${s.text_color || 'var(--e-global-color-primary, var(--e-color-accent))'}; margin-bottom: 12px;">
                             <i class="${data.icon || 'fa-solid fa-cubes'}"></i>
                         </div>
-                        <h4 style="font-size: 18px; margin-bottom: 8px; color: inherit; font-weight: 700;">${data.title || 'Feature Title'}</h4>
-                        <p style="color: inherit; opacity: 0.8; font-size: 14px; line-height: 1.5;">${data.description || 'Feature description explaining the key technical benefit.'}</p>
+                        <h4 class="np-iconbox-title" style="font-size: 18px; margin-bottom: 8px; font-weight: 700;">${data.title || 'Feature Title'}</h4>
+                        <p class="np-iconbox-desc" style="opacity: 0.85; font-size: 14px; line-height: 1.5;">${data.description || 'Feature description explaining the key technical benefit.'}</p>
                     `;
                     widgetContent.appendChild(ib);
                     break;
 
                 case "ImageBox":
                     const imgb = document.createElement("div");
-                    imgb.style.textAlign = (node.styles && node.styles.text_align ? node.styles.text_align : "left");
+                    imgb.className = "np-imagebox";
+                    imgb.style.textAlign = s.text_align || "left";
                     const imgBoxUrl = data.image_url || data.url || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80";
                     imgb.innerHTML = `
-                        <div style="margin-bottom: 14px; overflow: hidden; border-radius: 6px;">
-                            <img src="${imgBoxUrl}" alt="${data.title || 'Image Feature'}" style="width: 100%; height: auto; display: block; border-radius: 6px;" />
+                        <div style="margin-bottom: 14px; overflow: hidden;">
+                            <img src="${imgBoxUrl}" alt="${data.title || 'Image Feature'}" style="width: 100%; height: auto; display: block;" />
                         </div>
-                        <h4 style="font-size: 18px; margin-bottom: 8px; color: inherit; font-weight: 700;">${data.title || 'Image Feature'}</h4>
-                        <p style="color: inherit; opacity: 0.8; font-size: 14px; line-height: 1.5;">${data.description || 'Feature description explaining the visual showcase.'}</p>
+                        <h4 class="np-imagebox-title" style="font-size: 18px; margin-bottom: 8px; font-weight: 700;">${data.title || 'Image Feature'}</h4>
+                        <p class="np-imagebox-desc" style="opacity: 0.85; font-size: 14px; line-height: 1.5;">${data.description || 'Feature description explaining the visual showcase.'}</p>
                     `;
                     widgetContent.appendChild(imgb);
                     break;
-
 
                 case "Counter":
                     const cnt = document.createElement("div");
@@ -1266,7 +1367,7 @@ pub fn get_scripts() -> &'static str {
                     const cntDisplay = `${data.prefix || ''}${cntNumVal}${data.suffix || ''}`;
                     const cntLabel = data.title || data.label || "Lighthouse Score";
                     cnt.innerHTML = `
-                        <div style="font-size: 42px; font-weight: 800; color: ${node.styles && node.styles.text_color ? node.styles.text_color : '#38bdf8'};">
+                        <div style="font-size: 42px; font-weight: 800; color: ${s.text_color || '#38bdf8'};">
                             ${escapeHtml(String(cntDisplay))}
                         </div>
                         <div style="font-size: 13px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">
@@ -1278,6 +1379,7 @@ pub fn get_scripts() -> &'static str {
 
                 case "Divider":
                     const div = document.createElement("hr");
+                    div.className = "np-divider";
                     div.style.border = "none";
                     div.style.borderTop = `${data.weight || '1px'} ${data.style || 'solid'} ${data.color || '#e2e8f0'}`;
                     div.style.margin = "20px 0";
@@ -1286,9 +1388,10 @@ pub fn get_scripts() -> &'static str {
 
                 case "Spacer":
                     const sp = document.createElement("div");
-                    sp.style.height = (node.styles && node.styles.height ? node.styles.height : "50px");
-                    sp.style.background = "rgba(4, 150, 255, 0.05)";
-                    sp.style.border = "1px dashed rgba(4, 150, 255, 0.2)";
+                    const spHeight = (data.height !== undefined && data.height !== null)
+                        ? (typeof data.height === "number" ? data.height + "px" : String(data.height))
+                        : (s.height || "50px");
+                    sp.style.height = spHeight;
                     widgetContent.appendChild(sp);
                     break;
 
@@ -1357,17 +1460,15 @@ pub fn get_scripts() -> &'static str {
                 case "Accordion":
                 case "Toggle":
                     const acc = document.createElement("div");
-                    acc.style.border = "1px solid #e2e8f0";
-                    acc.style.borderRadius = "6px";
-                    acc.style.overflow = "hidden";
+                    acc.className = "np-accordion";
                     const accItems = data.items || [
                         { title: "Item 1", content: "Accordion content text." },
                         { title: "Item 2", content: "More detailed technical explanation." }
                     ];
                     acc.innerHTML = accItems.map((item, idx) => `
-                        <details style="border-bottom: 1px solid #e2e8f0; padding: 12px 16px; background: #ffffff;" ${idx === 0 ? 'open' : ''}>
-                            <summary style="font-weight: 600; cursor: pointer; color: #0f172a;">${item.title || 'Section'}</summary>
-                            <div style="margin-top: 10px; color: #475569; font-size: 14px; line-height: 1.5;">${item.content_html || item.content || ''}</div>
+                        <details class="np-accordion-item" style="border-bottom: 1px solid #e2e8f0; padding: 12px 16px; background: #ffffff;" ${idx === 0 ? 'open' : ''}>
+                            <summary style="font-weight: 600; cursor: pointer;">${item.title || 'Section'}</summary>
+                            <div class="np-accordion-body" style="margin-top: 10px; font-size: 14px; line-height: 1.5;">${item.content_html || item.content || ''}</div>
                         </details>
                     `).join("");
                     widgetContent.appendChild(acc);
@@ -1410,10 +1511,10 @@ pub fn get_scripts() -> &'static str {
 
                 case "PriceTable":
                     const pt = document.createElement("div");
-                    pt.style.background = (node.styles && node.styles.background_color) || "#1e293b";
-                    pt.style.color = (node.styles && node.styles.text_color) || "#f8fafc";
+                    pt.style.background = s.background_color || "#1e293b";
+                    pt.style.color = s.text_color || "#f8fafc";
                     pt.style.border = "1px solid rgba(148, 163, 184, 0.25)";
-                    pt.style.borderRadius = (node.styles && node.styles.border_radius) || "12px";
+                    pt.style.borderRadius = s.border_radius || "12px";
                     pt.style.padding = "28px 24px";
                     pt.style.textAlign = "center";
                     const ptFeatures = Array.isArray(data.features) ? data.features : [
@@ -1445,8 +1546,8 @@ pub fn get_scripts() -> &'static str {
 
                 case "CallToAction":
                     const cta = document.createElement("div");
-                    cta.style.background = (node.styles && node.styles.background_color) || "#0f172a";
-                    cta.style.color = (node.styles && node.styles.text_color) || "#ffffff";
+                    cta.style.background = s.background_color || "#0f172a";
+                    cta.style.color = s.text_color || "#ffffff";
                     cta.style.padding = "32px 24px";
                     cta.style.borderRadius = "10px";
                     cta.style.textAlign = "center";
@@ -1462,7 +1563,7 @@ pub fn get_scripts() -> &'static str {
 
                 case "CustomHtml":
                     const ch = document.createElement("div");
-                    ch.innerHTML = data.raw_html || data.content_html || "<pre>Custom HTML Block</pre>";
+                    ch.innerHTML = data.raw || data.raw_html || data.content_html || "<pre>Custom HTML Block</pre>";
                     widgetContent.appendChild(ch);
                     break;
 
@@ -1512,15 +1613,14 @@ pub fn get_scripts() -> &'static str {
 
                 case "SocialIcons":
                     const soc = document.createElement("div");
-                    soc.style.display = "flex";
-                    soc.style.gap = "10px";
+                    soc.className = "np-social-icons";
                     const socItems = data.items || [
                         { icon: "fa-brands fa-github", link: "#" },
                         { icon: "fa-brands fa-x-twitter", link: "#" },
                         { icon: "fa-brands fa-discord", link: "#" }
                     ];
                     soc.innerHTML = socItems.map(item => `
-                        <a href="${item.link}" style="width: 36px; height: 36px; border-radius: 50%; background: #0f172a; color: #ffffff; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 16px; transition: transform 0.15s;">
+                        <a href="${item.link || '#'}" class="np-social-icon" onclick="event.preventDefault()">
                             <i class="${item.icon}"></i>
                         </a>
                     `).join("");
@@ -1529,38 +1629,49 @@ pub fn get_scripts() -> &'static str {
 
                 case "IconList":
                     const il = document.createElement("ul");
-                    il.style.listStyle = "none";
-                    il.style.padding = "0";
-                    il.style.margin = "0";
+                    il.className = "np-iconlist";
                     const ilItems = data.items || [
                         { icon: "fa-solid fa-check", text: "Zero Client-Side JavaScript Overhead" },
                         { icon: "fa-solid fa-bolt", text: "Sub-millisecond Server Response Times" }
                     ];
-                    il.innerHTML = ilItems.map(item => `
-                        <li style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #334155;">
-                            <i class="${item.icon}" style="color: var(--e-color-accent); font-size: 16px;"></i>
-                            <span>${item.text}</span>
-                        </li>
-                    `).join("");
+                    il.innerHTML = ilItems.map(item => {
+                        const iconSpan = item.icon ? `<span class="np-iconlist-icon"><i class="${item.icon}"></i></span>` : "";
+                        const inner = `${iconSpan}<span class="np-iconlist-text">${item.text || ''}</span>`;
+                        return `<li class="np-iconlist-item">${item.link ? `<a href="${item.link}" onclick="event.preventDefault()">${inner}</a>` : inner}</li>`;
+                    }).join("");
                     widgetContent.appendChild(il);
                     break;
 
-                                case "Form":
+                case "Form":
                 case "NativeForm":
-                    const frm = document.createElement("div");
-                    frm.style.background = "#f8fafc";
-                    frm.style.border = "1px solid #e2e8f0";
-                    frm.style.borderRadius = "8px";
-                    frm.style.padding = "24px";
-                    frm.innerHTML = `
-                        <h4 style="font-size: 16px; margin-bottom: 14px; color: #0f172a; font-weight: 700;">${data.title || 'Smart Antispam Form'}</h4>
-                        <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <input type="text" placeholder="Full Name" disabled style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; font-size: 13px;">
-                            <input type="email" placeholder="Email Address" disabled style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; font-size: 13px;">
-                            <textarea placeholder="Your Message..." rows="3" disabled style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; font-size: 13px;"></textarea>
-                            <button type="button" style="background: var(--e-color-accent); color: #ffffff; padding: 10px 20px; border: none; border-radius: 4px; font-weight: 600; cursor: default;">${data.button_text || 'Send Message'}</button>
-                        </div>
-                    `;
+                    const frm = document.createElement("form");
+                    frm.className = "np-form";
+                    frm.onsubmit = (e) => { e.preventDefault(); return false; };
+                    if (node.children && node.children.length > 0) {
+                        node.children.forEach(child => {
+                            if (child.type === "CustomHtml" && child.data) {
+                                const childDiv = document.createElement("div");
+                                childDiv.innerHTML = child.data.raw || child.data.raw_html || child.data.content_html || "";
+                                frm.appendChild(childDiv);
+                            } else {
+                                frm.appendChild(buildDomNode(child, false));
+                            }
+                        });
+                    } else {
+                        frm.style.background = "#f8fafc";
+                        frm.style.border = "1px solid #e2e8f0";
+                        frm.style.borderRadius = "8px";
+                        frm.style.padding = "24px";
+                        frm.innerHTML = `
+                            ${data.title ? `<h4 style="font-size: 16px; margin-bottom: 14px; color: #0f172a; font-weight: 700;">${data.title}</h4>` : ''}
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <input type="text" placeholder="Full Name" disabled style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; font-size: 13px;">
+                                <input type="email" placeholder="Email Address" disabled style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; font-size: 13px;">
+                                <textarea placeholder="Your Message..." rows="3" disabled style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; font-size: 13px;"></textarea>
+                                <button type="button" class="np-button">${data.button_text || 'Send Message'}</button>
+                            </div>
+                        `;
+                    }
                     widgetContent.appendChild(frm);
                     break;
 
@@ -1579,7 +1690,7 @@ pub fn get_scripts() -> &'static str {
                     widgetContent.appendChild(bmrk);
                     break;
 
-default:
+                default:
                     const generic = document.createElement("div");
                     generic.style.padding = "16px";
                     generic.style.background = "#f1f5f9";
@@ -1594,7 +1705,7 @@ default:
 
         if (pageAst.root.children && pageAst.root.children.length > 0) {
             pageAst.root.children.forEach(sec => {
-                canvas.appendChild(buildDomNode(sec));
+                canvas.appendChild(buildDomNode(sec, true));
             });
         }
         updateNavigator();
@@ -2030,6 +2141,7 @@ default:
 
             bodyEl.querySelectorAll(".system-color-input").forEach(input => {
                 input.oninput = (e) => {
+                    window._userModifiedGlobalStyles = true;
                     const cid = e.target.dataset.colorId;
                     const val = e.target.value;
                     const c = colors.find(x => x.id === cid);
@@ -2044,6 +2156,7 @@ default:
 
             bodyEl.querySelectorAll(".custom-color-input").forEach(input => {
                 input.oninput = (e) => {
+                    window._userModifiedGlobalStyles = true;
                     const idx = parseInt(e.target.dataset.customIdx);
                     if (customColors[idx]) {
                         customColors[idx].color = e.target.value;
@@ -2054,6 +2167,7 @@ default:
 
             bodyEl.querySelectorAll(".btn-del-color").forEach(btn => {
                 btn.onclick = () => {
+                    window._userModifiedGlobalStyles = true;
                     const idx = parseInt(btn.dataset.delIdx);
                     customColors.splice(idx, 1);
                     applyGlobalStyles();
@@ -2066,6 +2180,7 @@ default:
                 addCustomBtn.onclick = () => {
                     const name = prompt("Enter Custom Color Title:", "Brand Highlight");
                     if (name) {
+                        window._userModifiedGlobalStyles = true;
                         const newId = "custom_" + Math.random().toString(36).substr(2, 6);
                         customColors.push({ id: newId, title: name, color: "#8b5cf6" });
                         applyGlobalStyles();
@@ -2075,6 +2190,7 @@ default:
             }
 
             document.getElementById("btn-save-colors").onclick = () => {
+                window._userModifiedGlobalStyles = true;
                 applyGlobalStyles();
                 savePage();
                 showToast("Global Colors updated & saved!");
@@ -2098,7 +2214,7 @@ default:
             `;
 
             const typography = pageAst.global_styles.system_typography || [];
-            const fontFamilies = ["Roboto, sans-serif", "Inter, sans-serif", "Poppins, sans-serif", "Montserrat, sans-serif", "Roboto Slab, serif", "Playfair Display, serif", "system-ui, sans-serif"];
+            const fontFamilies = ["Fira Sans, sans-serif", "Roboto, sans-serif", "Inter, sans-serif", "Poppins, sans-serif", "Montserrat, sans-serif", "Roboto Slab, serif", "Playfair Display, serif", "system-ui, sans-serif"];
 
             let fontsHtml = `
                 <div class="elementor-subpanel-body">
@@ -3202,13 +3318,26 @@ default:
                     </div>
                 `;
             } else if (node.type === "Spacer") {
+                const spVal = (d.height !== undefined && d.height !== null) ? parseInt(d.height) : parseInt(s.height || '50');
                 controlsHtml += `
                     <div class="elementor-control-section">
                         <div class="elementor-control-section-header"><span>Spacer</span><i class="fa-solid fa-chevron-down"></i></div>
                         <div class="elementor-control-section-body">
                             <div class="elementor-control-row">
                                 <label class="elementor-control-label">Height (px)</label>
-                                <input type="number" min="10" max="400" class="elementor-input" id="ctrl-sp-height" value="${parseInt(s.height || '50')}">
+                                <input type="number" min="5" max="600" class="elementor-input" id="ctrl-sp-height" value="${isNaN(spVal) ? 50 : spVal}">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (node.type === "CustomHtml") {
+                controlsHtml += `
+                    <div class="elementor-control-section">
+                        <div class="elementor-control-section-header"><span>Custom HTML</span><i class="fa-solid fa-chevron-down"></i></div>
+                        <div class="elementor-control-section-body">
+                            <div class="elementor-control-row">
+                                <label class="elementor-control-label">HTML Code</label>
+                                <textarea class="elementor-textarea" id="ctrl-custom-html" rows="8" style="font-family: monospace; font-size: 11.5px;">${escapeHtml(d.raw || d.raw_html || d.content_html || '')}</textarea>
                             </div>
                         </div>
                     </div>
@@ -3230,20 +3359,41 @@ default:
                     </div>
                 `;
             } else if (node.type === "Section" || node.type === "Container" || node.type === "Column" || node.type === "Flex") {
+                const bgImgVal = s.background_image || (s.background && s.background.image_url) || '';
+                const bgColVal = s.background_color || (s.background && s.background.color) || '';
                 controlsHtml += `
                     <div class="elementor-control-section">
-                        <div class="elementor-control-section-header"><span>Section Layout</span><i class="fa-solid fa-chevron-down"></i></div>
+                        <div class="elementor-control-section-header"><span>Container / Section Layout</span><i class="fa-solid fa-chevron-down"></i></div>
                         <div class="elementor-control-section-body">
                             <div class="elementor-control-row">
+                                <label class="elementor-control-label">Flex Direction</label>
+                                <select class="elementor-select" id="ctrl-cont-dir">
+                                    <option value="column" ${(s.flex_direction || 'column') === 'column' ? 'selected' : ''}>Column (Vertical)</option>
+                                    <option value="row" ${s.flex_direction === 'row' ? 'selected' : ''}>Row (Horizontal)</option>
+                                </select>
+                            </div>
+                            <div class="elementor-control-row">
+                                <label class="elementor-control-label">Width</label>
+                                <input type="text" class="elementor-input" id="ctrl-cont-width" value="${escapeHtml(s.width || '')}" placeholder="e.g. 100%, 50%, 25%">
+                            </div>
+                            <div class="elementor-control-row">
+                                <label class="elementor-control-label">Min Height</label>
+                                <input type="text" class="elementor-input" id="ctrl-cont-minh" value="${escapeHtml(s.min_height || '')}" placeholder="e.g. 625px, 275px">
+                            </div>
+                            <div class="elementor-control-row">
                                 <label class="elementor-control-label">Vertical Padding</label>
-                                <input type="text" class="elementor-input" id="ctrl-sec-pad" value="${s.padding_top || '60px'}" placeholder="e.g. 60px">
+                                <input type="text" class="elementor-input" id="ctrl-sec-pad" value="${escapeHtml(s.padding_top || '')}" placeholder="e.g. 60px">
                             </div>
                             <div class="elementor-control-row">
                                 <label class="elementor-control-label">Background Color</label>
                                 <div class="color-picker-control">
-                                    <input type="color" class="color-swatch" id="ctrl-bg-swatch" value="${s.background_color || '#ffffff'}">
-                                    <input type="text" class="elementor-input" id="ctrl-bg-input" value="${s.background_color || ''}" placeholder="#ffffff">
+                                    <input type="color" class="color-swatch" id="ctrl-bg-swatch" value="${bgColVal.startsWith('#') ? bgColVal : '#ffffff'}">
+                                    <input type="text" class="elementor-input" id="ctrl-bg-input" value="${escapeHtml(bgColVal)}" placeholder="#ffffff">
                                 </div>
+                            </div>
+                            <div class="elementor-control-row">
+                                <label class="elementor-control-label">Background Image URL</label>
+                                <input type="text" class="elementor-input" id="ctrl-cont-bgimg" value="${escapeHtml(bgImgVal)}" placeholder="/wp-content/uploads/...">
                             </div>
                         </div>
                     </div>
@@ -3647,17 +3797,52 @@ default:
 
         // Spacer events
         const spHeight = document.getElementById("ctrl-sp-height");
-        if (spHeight) spHeight.oninput = (e) => { s.height = e.target.value + "px"; renderCanvas(); };
+        if (spHeight) spHeight.oninput = (e) => {
+            const hVal = parseInt(e.target.value) || 50;
+            d.height = hVal;
+            s.height = hVal + "px";
+            renderCanvas();
+        };
+
+        // CustomHtml events
+        const customHtmlEl = document.getElementById("ctrl-custom-html");
+        if (customHtmlEl) customHtmlEl.oninput = (e) => {
+            d.raw = e.target.value;
+            renderCanvas();
+        };
 
         // Divider events
         const divStyle = document.getElementById("ctrl-div-style");
         if (divStyle) divStyle.onchange = (e) => { d.style = e.target.value; renderCanvas(); };
 
-        // Section & Layout
+        // Section / Container & Layout
         const secPad = document.getElementById("ctrl-sec-pad");
         if (secPad) secPad.oninput = (e) => {
             s.padding_top = e.target.value;
             s.padding_bottom = e.target.value;
+            renderCanvas();
+        };
+        const contDir = document.getElementById("ctrl-cont-dir");
+        if (contDir) contDir.onchange = (e) => {
+            s.flex_direction = e.target.value;
+            renderCanvas();
+        };
+        const contWidth = document.getElementById("ctrl-cont-width");
+        if (contWidth) contWidth.oninput = (e) => {
+            s.width = e.target.value;
+            renderCanvas();
+        };
+        const contMinH = document.getElementById("ctrl-cont-minh");
+        if (contMinH) contMinH.oninput = (e) => {
+            s.min_height = e.target.value;
+            renderCanvas();
+        };
+        const contBgImg = document.getElementById("ctrl-cont-bgimg");
+        if (contBgImg) contBgImg.oninput = (e) => {
+            s.background_image = e.target.value;
+            if (s.background && typeof s.background === "object") {
+                s.background.image_url = e.target.value;
+            }
             renderCanvas();
         };
 
@@ -4476,18 +4661,8 @@ function selectElement(id) {
     };
 
     async function savePage() {
-        const saveBtn = document.getElementById("elementor-panel-saver-button-publish");
         const saveText = document.getElementById("btn-save-text");
         saveText.textContent = "SAVING...";
-
-        // Generate semantic pre-compiled HTML
-        const canvas = document.getElementById("elementor-canvas");
-        const canvasClone = canvas.cloneNode(true);
-        canvasClone.querySelectorAll(".elementor-section-handle, .elementor-widget-handle, .elementor-grid-handle, .elementor-empty-column, .elementor-column-empty-placeholder, .elementor-drop-indicator, .elementor-add-section-area").forEach(el => el.remove());
-        canvasClone.querySelectorAll("[contenteditable]").forEach(el => el.removeAttribute("contenteditable"));
-        canvasClone.querySelectorAll("[draggable]").forEach(el => el.removeAttribute("draggable"));
-        canvasClone.querySelectorAll(".active-element").forEach(el => el.classList.remove("active-element"));
-        const compiledHtml = canvasClone.innerHTML;
 
         try {
             const res = await fetch("/wp-json/neopress/v1/layout/" + POST_ID, {
@@ -4496,8 +4671,7 @@ function selectElement(id) {
                 credentials: "include",
                 body: JSON.stringify({
                     layout: pageAst,
-                    layout_json: pageAst,
-                    rendered_html: compiledHtml
+                    layout_json: pageAst
                 })
             });
 

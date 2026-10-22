@@ -7,25 +7,28 @@ pub fn get_markup(
     post_slug: &str,
     post_type: &str,
     site_title: &str,
-    preview_nav_html: &str,
+    preview_header_html: &str,
+    preview_footer_html: &str,
+    extra_head_css: &str,
     layout_json_raw: &str,
 ) -> String {
     let styles = get_styles();
     let scripts = get_scripts();
 
     let template = r###"<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="elementor-theme-active">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Elementor Visual Builder &ndash; __POST_TITLE__ &ndash; __SITE_TITLE__</title>
-    <!-- Google Fonts: Roboto & Inter -->
+    <!-- Google Fonts: Roboto, Inter & Fira Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Roboto:wght@300;400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome 6 Free Vector Icons (Extensive Icon Library) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>__STYLES__</style>
+    <style id="neopress-elementor-kit-css">__EXTRA_HEAD_CSS__</style>
 </head>
 <body>
 
@@ -136,17 +139,10 @@ pub fn get_markup(
         <!-- Responsive Viewport Wrapper -->
         <div id="elementor-preview-responsive-wrapper">
             <!-- Live Website Header Preview -->
-            <header class="preview-site-header">
-                <a href="/" class="preview-site-brand">
-                    <i class="fa-solid fa-bolt" style="color: #ff4f00;"></i> __SITE_TITLE__
-                </a>
-                <nav class="preview-site-nav">
-                    __PREVIEW_NAV_ITEMS__
-                </nav>
-            </header>
+            __PREVIEW_HEADER_HTML__
 
             <!-- Editable Canvas Sections -->
-            <div id="elementor-canvas"></div>
+            <div id="elementor-canvas" class="np-visual-canvas"></div>
 
             <!-- Bottom "Add New Section" Dashed Area -->
             <div class="elementor-add-section-area" id="elementor-bottom-dropzone">
@@ -194,9 +190,7 @@ pub fn get_markup(
             </div>
 
             <!-- Live Website Footer Preview -->
-            <footer class="preview-site-footer">
-                <p>&copy; 2026 __SITE_TITLE__. Built in Native Rust with Zero JavaScript Overhead.</p>
-            </footer>
+            __PREVIEW_FOOTER_HTML__
         </div>
     </main>
 
@@ -394,12 +388,14 @@ pub fn get_markup(
 
     template
         .replace("__STYLES__", styles)
+        .replace("__EXTRA_HEAD_CSS__", extra_head_css)
         .replace("__SCRIPTS__", scripts)
         .replace("__POST_ID__", &post_id.to_string())
         .replace("__POST_TITLE__", post_title)
         .replace("__POST_SLUG__", post_slug)
         .replace("__POST_TYPE__", post_type)
         .replace("__SITE_TITLE__", site_title)
-        .replace("__PREVIEW_NAV_ITEMS__", preview_nav_html)
+        .replace("__PREVIEW_HEADER_HTML__", preview_header_html)
+        .replace("__PREVIEW_FOOTER_HTML__", preview_footer_html)
         .replace("__LAYOUT_JSON_RAW__", layout_json_raw)
 }

@@ -1537,7 +1537,19 @@ async fn save_layout_handler(
     let layout_str = serde_json::to_string(&payload.layout)
         .map_err(|e| AppError::BadRequest(format!("Invalid layout JSON: {}", e)))?;
 
-    db.save_post_layout(id, &layout_str, payload.rendered_html.as_deref())?;
+    let compiled_ssr = if payload.rendered_html.is_none() {
+        serde_json::from_value::<neopress_ast::NeopressLayout>(payload.layout.clone())
+            .ok()
+            .map(|parsed| neopress_ast::render_layout_to_html(&parsed))
+    } else {
+        None
+    };
+
+    db.save_post_layout(
+        id,
+        &layout_str,
+        payload.rendered_html.as_deref().or(compiled_ssr.as_deref()),
+    )?;
 
     Ok(Json(serde_json::json!({
         "success": true,

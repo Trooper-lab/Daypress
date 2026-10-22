@@ -2206,5 +2206,311 @@ pub fn get_styles() -> &'static str {
         #elementor-canvas .elementor-widget ol {
             padding-left: 22px;
             line-height: 1.7;
+        }
+
+        /* ==========================================================================
+           Elementor Theme Builder, Flexbox Container, Menu, Form & Responsive Parity
+           ========================================================================== */
+        #elementor-preview-responsive-wrapper {
+            font-family: var(--e-global-typography-text-font-family, 'Fira Sans', 'Roboto', sans-serif);
+            font-size: var(--e-global-typography-text-font-size, 15px);
+            font-weight: var(--e-global-typography-text-font-weight, 300);
+            line-height: 1.65;
+            color: var(--e-global-color-text, #1F1C17);
+        }
+
+        #elementor-canvas {
+            font-family: var(--e-global-typography-text-font-family, 'Fira Sans', 'Roboto', sans-serif);
+            font-size: var(--e-global-typography-text-font-size, 15px);
+            font-weight: var(--e-global-typography-text-font-weight, 300);
+            line-height: 1.65;
+            color: var(--e-global-color-text, #1F1C17);
+        }
+
+        #elementor-preview-responsive-wrapper p {
+            margin-bottom: 1em;
+        }
+        #elementor-preview-responsive-wrapper p:last-child {
+            margin-bottom: 0;
+        }
+
+        #elementor-preview-responsive-wrapper a {
+            color: var(--e-global-color-primary, #9CC13C);
+            text-decoration: none;
+        }
+
+        .np-elementor-header {
+            width: 100%;
+            background: #ffffff;
+            position: relative;
+        }
+
+        .np-elementor-footer {
+            width: 100%;
+            position: relative;
+        }
+
+        .np-visual-canvas .np-container,
+        .np-elementor-header .np-container,
+        .np-elementor-footer .np-container {
+            max-width: 100%;
+            margin: 0;
+            position: relative;
+            gap: var(--e-widgets-space, 20px);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        #elementor-canvas .np-container:hover {
+            outline: 1px dashed rgba(4, 150, 255, 0.55);
+        }
+
+        #elementor-canvas .np-container.active-element {
+            outline: 2px solid var(--e-color-blue) !important;
+        }
+
+        .np-container.np-container-boxed {
+            max-width: 100%;
+            width: 100%;
+        }
+
+        .np-container-boxed > .np-container-inner {
+            max-width: var(--e-content-width, 1140px);
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: inherit;
+            justify-content: inherit;
+            align-items: inherit;
+            gap: inherit;
+            flex-wrap: inherit;
+            min-height: inherit;
+        }
+
+        .np-container[style*="flex-direction: row"] > .np-container:not([style*="width:"]),
+        .np-container[style*="flex-direction: row"] > .np-container-inner > .np-container:not([style*="width:"]) {
+            flex: 1 1 0%;
+            min-width: 0;
+        }
+
+        .np-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background-color: var(--e-global-color-primary, var(--e-color-accent));
+            color: #ffffff;
+            border-radius: 3px;
+            font-family: var(--e-global-typography-accent-font-family, inherit);
+            font-weight: var(--e-global-typography-accent-font-weight, 500);
+            text-decoration: none;
+            line-height: 1.2;
+            transition: all 0.2s ease;
+        }
+
+        .np-image {
+            max-width: 100%;
+            height: auto;
+            display: inline-block;
+        }
+
+        .np-nav-menu .np-nav-menu-list,
+        .np-nav-menu .np-nav-list,
+        #elementor-canvas .elementor-widget .np-nav-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .np-nav-menu.np-nav-align-right .np-nav-menu-list {
+            justify-content: flex-end;
+        }
+
+        .np-nav-menu.np-nav-align-center .np-nav-menu-list {
+            justify-content: center;
+        }
+
+        .np-nav-menu.np-nav-layout-vertical .np-nav-menu-list,
+        .np-nav-menu.np-nav-layout-vertical .np-nav-list,
+        #elementor-canvas .elementor-widget .np-nav-menu.np-nav-layout-vertical ul {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .np-nav-menu .np-nav-menu-item {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .np-elementor-header .np-nav-menu.np-nav-layout-horizontal .np-nav-menu-item + .np-nav-menu-item::before {
+            content: "";
+            display: inline-block;
+            width: 1px;
+            height: 15px;
+            background: currentColor;
+            opacity: 0.65;
+            margin-right: 24px;
+        }
+
+        .np-nav-menu .np-nav-menu-link,
+        .np-nav-menu .np-nav-link {
+            font-family: inherit;
+            font-size: inherit;
+            font-weight: inherit;
+            color: inherit !important;
+            text-decoration: none;
+        }
+
+        .np-iconlist,
+        .np-icon-list,
+        #elementor-canvas .elementor-widget ul.np-iconlist {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .np-iconlist-item,
+        .np-icon-list-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            line-height: 1.65;
+        }
+
+        .np-iconlist-icon,
+        .np-icon-list-item i {
+            color: var(--e-global-color-primary, #9CC13C);
+            font-size: 16px;
+            width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .np-iconlist-item a,
+        .np-icon-list-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: inherit !important;
+            text-decoration: none;
+        }
+
+        .np-social-icons {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 36px;
+            flex-wrap: wrap;
+        }
+
+        .np-social-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--e-global-color-secondary, #1F1C17);
+            color: #ffffff !important;
+            font-size: 17px;
+            text-decoration: none;
+        }
+
+        .np-elementor-form-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .np-elementor-form-grid .np-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .np-elementor-form-grid .np-field-w100 { width: 100%; }
+        .np-elementor-form-grid .np-field-w50 { width: calc(50% - 8px); }
+        .np-elementor-form-grid .np-field-w33 { width: calc(33.333% - 11px); }
+        .np-elementor-form-grid .np-field-w25 { width: calc(25% - 12px); }
+
+        .np-elementor-form-grid .np-field-label {
+            font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
+            font-weight: 500;
+            font-size: 15px;
+            color: var(--e-global-color-secondary, #1F1C17);
+        }
+
+        .np-elementor-form-grid .np-input,
+        .np-elementor-form-grid .np-textarea,
+        .np-elementor-form-grid .np-form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #d4d4d8;
+            border-radius: 4px;
+            background: #ffffff;
+            color: #1F1C17;
+            font-family: inherit;
+            font-size: 15px;
+        }
+
+        .np-elementor-form-grid .np-field-subgroup,
+        .np-elementor-form-grid .np-Subgroup {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 6px 0;
+        }
+
+        .np-elementor-form-grid .np-field-subgroup.np-Subgroup-inline,
+        .np-elementor-form-grid .np-Subgroup.np-Subgroup-inline {
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+
+        .np-elementor-form-grid .np-option-label,
+        .np-elementor-form-grid .np-checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        /* Responsive Device Switcher Visibility Parity */
+        #elementor-preview:not(.mode-tablet):not(.mode-mobile) .np-hide-desktop {
+            display: none !important;
+        }
+        #elementor-preview.mode-tablet .np-hide-tablet {
+            display: none !important;
+        }
+        #elementor-preview.mode-mobile .np-hide-mobile {
+            display: none !important;
+        }
+        #elementor-preview.mode-mobile .np-container[style*="flex-direction: row"],
+        #elementor-preview.mode-mobile .np-container[style*="flex-direction: row"] > .np-container-inner {
+            flex-wrap: wrap;
+        }
+        #elementor-preview.mode-mobile .np-container[style*="flex-direction: row"] > .np-container,
+        #elementor-preview.mode-mobile .np-container[style*="flex-direction: row"] > .np-container-inner > .np-container {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+        #elementor-preview.mode-mobile .np-elementor-form-grid .np-field-w50 {
+            width: 100%;
         }"###
 }
