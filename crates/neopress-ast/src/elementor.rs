@@ -77,14 +77,22 @@ impl ElementorContext {
     }
 
     pub fn normalize_html(&self, raw_html: &str) -> String {
-        if let Some(ref base) = self.source_site_url {
+        let mut out = if let Some(ref base) = self.source_site_url {
             let https_base = format!("{}/", base.replacen("http://", "https://", 1));
             let http_base = format!("{}/", base.replacen("https://", "http://", 1));
-            return raw_html
+            raw_html
                 .replace(&https_base, "/")
-                .replace(&http_base, "/");
+                .replace(&http_base, "/")
+        } else {
+            raw_html.to_string()
+        };
+        if out.contains("src=https://") {
+            out = out.replace("src=https://", "src=\"https://");
         }
-        raw_html.to_string()
+        if out.contains("src=http://") {
+            out = out.replace("src=http://", "src=\"http://");
+        }
+        out
     }
 }
 
@@ -1561,11 +1569,17 @@ fn compile_elementor_form_fields(
             _ => "np-field-group np-field-w100",
         };
 
+        let label_clean = label
+            .replace("<strong>", "")
+            .replace("</strong>", "")
+            .replace("<b>", "")
+            .replace("</b>", "");
+
         html.push_str(&format!("<div class=\"{}\">\n", col_class));
-        if !label.is_empty() {
+        if !label_clean.is_empty() {
             html.push_str(&format!(
                 "<label class=\"np-field-label\">{}{}</label>\n",
-                escape_html_attr(label),
+                escape_html_attr(&label_clean),
                 req_mark
             ));
         }
@@ -1861,7 +1875,7 @@ fn extract_elementor_styles(settings: &Value, ctx: &ElementorContext) -> StylePr
                 .or_else(|| settings.get("color_menu_item"))
                 .or_else(|| settings.get("icon_color"))
                 .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
+                .filter(|s| !s.is_empty() && *s != "custom" && *s != "default")
                 .map(|s| s.to_string())
         });
 

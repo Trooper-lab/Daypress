@@ -402,12 +402,41 @@ pub fn import_wxr_stream<R: BufRead>(
         buf.clear();
     }
 
-    // 1. Commit Site Settings
+    // 1. Commit Site Settings (and clear initial demo seed data if this is the first site migration)
     let wxr_site_title = site_settings
         .title
         .clone()
         .unwrap_or_else(|| "Neopress".to_string());
     if let Some(t) = site_settings.title {
+        let is_already_migrated: bool = tx
+            .query_row(
+                "SELECT 1 FROM wp_options WHERE option_name = 'neopress_site_migrated' AND option_value = '1' LIMIT 1",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+        let current_blogname: String = tx
+            .query_row(
+                "SELECT option_value FROM wp_options WHERE option_name = 'blogname' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or_default();
+        if !is_already_migrated && current_blogname == "Neopress" && t != "Neopress" {
+            let _ = tx.execute_batch(
+                r#"
+                DELETE FROM wp_posts;
+                DELETE FROM wp_postmeta;
+                DELETE FROM wp_comments;
+                DELETE FROM wp_term_relationships;
+                "#,
+            );
+        }
+        let _ = tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_site_migrated', '1')
+             ON CONFLICT(option_name) DO UPDATE SET option_value = '1';",
+            [],
+        );
         tx.execute(
             "INSERT INTO wp_options (option_name, option_value) VALUES ('blogname', ?1)
              ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
@@ -1078,7 +1107,7 @@ pub fn import_wxr_stream<R: BufRead>(
                     "popup" => {
                         let popup_key = old_id_opt.unwrap_or(post_id);
                         popups_html.push_str(&format!(
-                            "<div id=\"np-popup-{}\" class=\"np-popup-modal\" onclick=\"if(event.target===this)this.classList.remove('active')\"><div class=\"np-popup-dialog\"><button type=\"button\" class=\"np-popup-close\" aria-label=\"Close\" onclick=\"this.closest('.np-popup-modal').classList.remove('active')\">&times;</button>{}</div></div>\n",
+                            "<div id=\"np-popup-{}\" class=\"np-popup-modal\" role=\"dialog\" aria-modal=\"true\"><div class=\"np-popup-backdrop\" onclick=\"this.parentElement.classList.remove('active')\"></div><div class=\"np-popup-dialog\"><button type=\"button\" class=\"np-popup-close\" aria-label=\"Close\" onclick=\"this.closest('.np-popup-modal').classList.remove('active')\">&times;</button>{}</div></div>\n",
                             popup_key, body_without_kit_style
                         ));
                     }

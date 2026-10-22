@@ -395,10 +395,45 @@ pub fn parse_dynamic_media_request(
             let candidate_rel = if parent.as_os_str().is_empty() {
                 candidate_name
             } else {
-                format!("{}/{}", parent.to_string_lossy(), candidate_name)
+                format!("{}/{}", parent.to_string_lossy().replace('\\', "/"), candidate_name)
             };
             if uploads_dir.join(&candidate_rel).exists() {
                 return Some((candidate_rel, None, None, "webp".to_string()));
+            }
+        }
+    }
+
+    // Pattern C: Base unscaled image requested (e.g. stem.jpg), but only stem-scaled.jpg or stem-1024x1024.jpg exists
+    if let (Some(stem), Some(ext)) = (
+        path.file_stem().and_then(|s| s.to_str()),
+        path.extension().and_then(|s| s.to_str()),
+    ) {
+        let dir_to_scan = if parent.as_os_str().is_empty() {
+            uploads_dir.to_path_buf()
+        } else {
+            uploads_dir.join(parent)
+        };
+        if let Ok(entries) = fs::read_dir(&dir_to_scan) {
+            let prefix = format!("{}-", stem.to_lowercase());
+            let mut best_match: Option<(u64, String)> = None;
+            for entry in entries.flatten() {
+                if let Some(ename) = entry.file_name().to_str() {
+                    let elower = ename.to_lowercase();
+                    if elower.starts_with(&prefix) {
+                        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                        let rel = if parent.as_os_str().is_empty() {
+                            ename.to_string()
+                        } else {
+                            format!("{}/{}", parent.to_string_lossy().replace('\\', "/"), ename)
+                        };
+                        if best_match.as_ref().map(|(s, _)| size > *s).unwrap_or(true) {
+                            best_match = Some((size, rel));
+                        }
+                    }
+                }
+            }
+            if let Some((_, best_rel)) = best_match {
+                return Some((best_rel, None, None, ext.to_string()));
             }
         }
     }

@@ -1197,12 +1197,17 @@ pub fn render_base_layout(
 			width: 100%;
 			background: #ffffff;
 			position: relative;
-			z-index: 1000;
 		}}
 
 		.np-elementor-footer {{
 			width: 100%;
 			position: relative;
+		}}
+
+		.np-elementor-footer section.np-section {{
+			padding-left: max(24px, calc((100% - 960px) / 2)) !important;
+			padding-right: max(24px, calc((100% - 960px) / 2)) !important;
+			border-bottom: none;
 		}}
 
 		.np-visual-canvas .np-container,
@@ -1212,6 +1217,7 @@ pub fn render_base_layout(
 			max-width: 100%;
 			margin: 0;
 			position: relative;
+			gap: var(--e-widgets-space, 20px);
 			background-size: cover;
 			background-position: center;
 			background-repeat: no-repeat;
@@ -1269,35 +1275,79 @@ pub fn render_base_layout(
 			border-top-color: rgba(31, 28, 23, 0.15);
 		}}
 
+		html.elementor-theme-active .np-accordion-item {{
+			background: #ffffff;
+			border: 1px solid #d4d4d8;
+			border-radius: 4px;
+		}}
+
+		html.elementor-theme-active .np-accordion-item summary {{
+			color: var(--e-global-color-secondary, #3A3633);
+			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
+		}}
+
+		html.elementor-theme-active .np-accordion-body {{
+			color: var(--e-global-color-text, #1F1C17);
+			font-family: var(--e-global-typography-text-font-family, 'Fira Sans', sans-serif);
+		}}
+
+		.np-nav-menu .np-nav-menu-list,
 		.np-nav-menu .np-nav-list {{
 			list-style: none;
 			margin: 0;
 			padding: 0;
 			display: flex;
 			flex-wrap: wrap;
-			gap: 28px;
+			gap: 24px;
 			align-items: center;
 		}}
 
+		.np-nav-menu.np-nav-align-right .np-nav-menu-list {{
+			justify-content: flex-end;
+		}}
+
+		.np-nav-menu.np-nav-align-center .np-nav-menu-list {{
+			justify-content: center;
+		}}
+
+		.np-nav-menu.np-nav-layout-vertical .np-nav-menu-list,
 		.np-nav-menu.np-nav-layout-vertical .np-nav-list {{
 			flex-direction: column;
 			align-items: flex-start;
 			gap: 8px;
 		}}
 
-		.np-nav-menu .np-nav-link {{
-			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
-			font-size: 16px;
-			font-weight: 400;
-			color: var(--e-global-color-secondary, #1F1C17);
-			text-decoration: none;
-			transition: color 0.15s ease;
+		.np-nav-menu .np-nav-menu-item {{
+			display: inline-flex;
+			align-items: center;
 		}}
 
+		.np-elementor-header .np-nav-menu.np-nav-layout-horizontal .np-nav-menu-item + .np-nav-menu-item::before {{
+			content: "";
+			display: inline-block;
+			width: 1px;
+			height: 15px;
+			background: currentColor;
+			opacity: 0.65;
+			margin-right: 24px;
+		}}
+
+		.np-nav-menu .np-nav-menu-link,
+		.np-nav-menu .np-nav-link {{
+			font-family: inherit;
+			font-size: inherit;
+			font-weight: inherit;
+			color: inherit;
+			text-decoration: none;
+			transition: color 0.15s ease, opacity 0.15s ease;
+		}}
+
+		.np-nav-menu .np-nav-menu-link:hover,
 		.np-nav-menu .np-nav-link:hover {{
 			color: var(--e-global-color-primary, #9CC13C);
 		}}
 
+		.np-iconlist,
 		.np-icon-list {{
 			list-style: none;
 			margin: 0;
@@ -1307,6 +1357,7 @@ pub fn render_base_layout(
 			gap: 8px;
 		}}
 
+		.np-iconlist-item,
 		.np-icon-list-item {{
 			display: flex;
 			align-items: center;
@@ -1314,14 +1365,19 @@ pub fn render_base_layout(
 			line-height: 1.65;
 		}}
 
+		.np-iconlist-icon,
 		.np-icon-list-item i {{
 			color: var(--e-global-color-primary, #9CC13C);
 			font-size: 16px;
 			width: 18px;
 			text-align: center;
 			flex-shrink: 0;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
 		}}
 
+		.np-iconlist-item a,
 		.np-icon-list-link {{
 			display: inline-flex;
 			align-items: center;
@@ -1330,6 +1386,7 @@ pub fn render_base_layout(
 			text-decoration: none;
 		}}
 
+		.np-iconlist-item a:hover,
 		.np-icon-list-link:hover {{
 			color: var(--e-global-color-primary, #9CC13C);
 		}}
@@ -1337,7 +1394,8 @@ pub fn render_base_layout(
 		.np-social-icons {{
 			display: flex;
 			align-items: center;
-			gap: 12px;
+			justify-content: center;
+			gap: 36px;
 			flex-wrap: wrap;
 		}}
 
@@ -1380,6 +1438,14 @@ pub fn render_base_layout(
 			width: calc(50% - 8px);
 		}}
 
+		.np-elementor-form-grid .np-field-w33 {{
+			width: calc(33.333% - 11px);
+		}}
+
+		.np-elementor-form-grid .np-field-w25 {{
+			width: calc(25% - 12px);
+		}}
+
 		.np-elementor-form-grid .np-field-label {{
 			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
 			font-weight: 500;
@@ -1387,6 +1453,8 @@ pub fn render_base_layout(
 			color: var(--e-global-color-secondary, #1F1C17);
 		}}
 
+		.np-elementor-form-grid .np-input,
+		.np-elementor-form-grid .np-textarea,
 		.np-elementor-form-grid .np-form-input {{
 			width: 100%;
 			padding: 12px 16px;
@@ -1398,6 +1466,7 @@ pub fn render_base_layout(
 			font-size: 15px;
 		}}
 
+		.np-elementor-form-grid .np-field-subgroup,
 		.np-elementor-form-grid .np-Subgroup {{
 			display: flex;
 			flex-direction: column;
@@ -1405,12 +1474,14 @@ pub fn render_base_layout(
 			padding: 6px 0;
 		}}
 
+		.np-elementor-form-grid .np-field-subgroup.np-Subgroup-inline,
 		.np-elementor-form-grid .np-Subgroup.np-Subgroup-inline {{
 			flex-direction: row;
 			flex-wrap: wrap;
 			gap: 18px;
 		}}
 
+		.np-elementor-form-grid .np-option-label,
 		.np-elementor-form-grid .np-checkbox-label {{
 			display: inline-flex;
 			align-items: center;
@@ -1423,10 +1494,14 @@ pub fn render_base_layout(
 			position: fixed;
 			inset: 0;
 			z-index: 99999;
-			display: flex;
+			display: none;
 			align-items: center;
 			justify-content: center;
 			padding: 24px;
+		}}
+
+		.np-popup-modal.active, .np-lightbox-modal.active {{
+			display: flex;
 		}}
 
 		.np-popup-backdrop, .np-lightbox-backdrop {{
@@ -1540,9 +1615,9 @@ pub fn render_base_layout(
 	{site_footer_html}
 
 	{elementor_popups_html}
-	<div id="np-lightbox-modal" class="np-lightbox-modal" style="display:none;" role="dialog" aria-modal="true">
-		<div class="np-lightbox-backdrop" onclick="this.parentElement.style.display='none'"></div>
-		<button type="button" class="np-lightbox-close" aria-label="Close" onclick="document.getElementById('np-lightbox-modal').style.display='none'">&times;</button>
+	<div id="np-lightbox-modal" class="np-lightbox-modal" role="dialog" aria-modal="true">
+		<div class="np-lightbox-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
+		<button type="button" class="np-lightbox-close" aria-label="Close" onclick="document.getElementById('np-lightbox-modal').classList.remove('active')">&times;</button>
 		<div class="np-lightbox-content">
 			<img id="np-lightbox-img" src="" alt="" />
 		</div>
@@ -1556,7 +1631,7 @@ pub fn render_base_layout(
 				var targetId = popupLink.getAttribute('href').slice(1);
 				var modal = document.getElementById(targetId) || document.querySelector('.np-popup-modal');
 				if (modal) {{
-					modal.style.display = 'flex';
+					modal.classList.add('active');
 				}}
 				return;
 			}}
@@ -1568,14 +1643,14 @@ pub fn render_base_layout(
 				var lbImg = document.getElementById('np-lightbox-img');
 				if (lbModal && lbImg && imgUrl) {{
 					lbImg.src = imgUrl;
-					lbModal.style.display = 'flex';
+					lbModal.classList.add('active');
 				}}
 			}}
 		}});
 		document.addEventListener('keydown', function(e) {{
 			if (e.key === 'Escape') {{
 				document.querySelectorAll('.np-popup-modal, .np-lightbox-modal').forEach(function(m) {{
-					m.style.display = 'none';
+					m.classList.remove('active');
 				}});
 			}}
 		}});

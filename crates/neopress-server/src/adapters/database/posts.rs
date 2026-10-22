@@ -539,7 +539,11 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0)
-               FROM wp_posts WHERE post_name = ?1"#,
+               FROM wp_posts
+               WHERE post_name = ?1 AND post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
+               ORDER BY CASE WHEN post_type IN ('page', 'post') THEN 0 ELSE 1 END,
+                        CASE WHEN post_status = 'publish' THEN 0 ELSE 1 END,
+                        ID DESC"#,
         )?;
 
         let mut rows = stmt.query_map(params![slug], Self::map_post_row)?;
