@@ -1,0 +1,34 @@
+[
+    {
+        "input": "Hello World!",
+        "expected_output": "hello-world"
+    },
+    {
+        "input": "Neopress: Ultra-Fast Rust CMS",
+        "expected_output": "neopress-ultra-fast-rust-cms"
+    },
+    {
+        "input": "Special $#@ Characters & Punctuation!",
+        "expected_output": "special-characters-punctuation"
+    },
+    {
+        "input": "Multiple---Hyphens   and Spaces",
+        "expected_output": "multiple-hyphens-and-spaces"
+    },
+    {
+        "input": "123 Numbers and Letters",
+        "expected_output": "123-numbers-and-letters"
+    },
+    {
+        "input": "Café & Crème Brûlée",
+        "expected_output": "cafe-creme-brulee"
+    },
+    {
+        "input": "Übermensch",
+        "expected_output": "ubermensch"
+    },
+    {
+        "input": "Español & Niño",
+        "expected_output": "espanol-nino"
+    }
+]

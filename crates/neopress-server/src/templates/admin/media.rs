@@ -1,0 +1,266 @@
+use super::layout::render_wp_admin_shell;
+use crate::models::{WpMediaResponse, WpSettingsResponse};
+use crate::templates::utils::escape_html;
+
+pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaResponse]) -> String {
+    let mut media_cards = String::new();
+
+    if media.is_empty() {
+        media_cards.push_str(r#"
+            <div style="grid-column: 1 / -1; text-align: center; padding: 48px; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 10px;">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: #f1f5f9; color: #94a3b8; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 20px;">🖼️</div>
+                <h3 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 4px;">Media library is empty</h3>
+                <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Drop files into the zone above or browse from your computer.</p>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaUploadInput').click()">Select Images to Upload</button>
+            </div>
+        "#);
+    } else {
+        for m in media {
+            let is_img = m.mime_type.starts_with("image/");
+            let title_escaped = escape_html(&m.title.rendered);
+            let url_escaped = escape_html(&m.source_url);
+            let mime_escaped = escape_html(&m.mime_type);
+            let date_escaped = escape_html(&m.date);
+
+            let preview_html = if is_img {
+                format!(
+                    r#"<div style="height: 150px; background: #0f172a; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                        <img src="{url_escaped}" alt="{title_escaped}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy" />
+                    </div>"#
+                )
+            } else {
+                format!(
+                    r#"<div style="height: 150px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #64748b;">
+                        <svg style="width: 38px; height: 38px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        <span style="font-family: var(--font-mono); font-size: 11px; margin-top: 6px; font-weight: 600;">{mime_escaped}</span>
+                    </div>"#
+                )
+            };
+
+            media_cards.push_str(&format!(
+                r#"
+                <div class="neo-card" style="display: flex; flex-direction: column; overflow: hidden;">
+                    {preview_html}
+                    <div style="padding: 12px; flex: 1;">
+                        <div style="font-weight: 600; font-size: 13px; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{title_escaped}">{title_escaped}</div>
+                        <div style="font-size: 11.5px; color: #64748b; margin-top: 4px; display: flex; justify-content: space-between;">
+                            <span style="font-family: var(--font-mono);">{mime_escaped}</span>
+                            <span>{date_escaped}</span>
+                        </div>
+                    </div>
+                    <div style="padding: 8px 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                        <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;" onclick="copyMediaUrl('{url_escaped}')">Copy Link</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px; color: #ef4444;" onclick="deleteMedia({id})">Delete</button>
+                    </div>
+                </div>
+                "#,
+                preview_html = preview_html,
+                title_escaped = title_escaped,
+                url_escaped = url_escaped,
+                mime_escaped = mime_escaped,
+                date_escaped = date_escaped,
+                id = m.id
+            ));
+        }
+    }
+
+    let media_count = media.len();
+
+    let body = format!(
+        r##"
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Media Library</h1>
+                <p class="page-subtitle">Upload and manage images, video, and documents stored directly in embedded Rusqlite</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="badge badge-published" style="padding: 6px 12px; font-size: 12px;">{media_count} Assets</span>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaUploadInput').click()">+ Upload Files</button>
+                <input type="file" id="mediaUploadInput" multiple accept="image/*,video/*,application/pdf" style="display: none;" onchange="uploadFiles(this.files)" />
+            </div>
+        </div>
+
+        <!-- Drag & Drop Upload Zone -->
+        <div id="dropZone" style="border: 2px dashed #cbd5e1; background: #ffffff; border-radius: 10px; padding: 36px 20px; text-align: center; margin-bottom: 24px; transition: all 0.2s ease; cursor: pointer;"
+             onclick="document.getElementById('mediaUploadInput').click()"
+             ondragover="event.preventDefault(); this.style.borderColor = '#2563eb'; this.style.background = '#eff6ff';"
+             ondragleave="event.preventDefault(); this.style.borderColor = '#cbd5e1'; this.style.background = '#ffffff';"
+             ondrop="event.preventDefault(); this.style.borderColor = '#cbd5e1'; this.style.background = '#ffffff'; uploadFiles(event.dataTransfer.files);">
+            <div style="width: 44px; height: 44px; margin: 0 auto 10px auto; color: #2563eb; background: #eff6ff; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <svg style="width: 22px; height: 22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+            <h2 style="font-size: 15px; font-weight: 600; margin: 0 0 4px 0; color: #0f172a;">Drop files here to upload to Neopress storage</h2>
+            <p style="font-size: 12.5px; color: #64748b; margin: 0 0 12px 0;">Supports PNG, JPG, WebP, SVG, GIF, PDF &bull; Fast async streaming pipeline</p>
+            <button type="button" class="btn btn-secondary" style="font-size: 12px; pointer-events: none;">Select Files from Computer</button>
+        </div>
+
+        <!-- Media Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px;">
+            {media_cards}
+        </div>
+
+        <script>
+            async function uploadFiles(files) {{
+                if (!files || files.length === 0) return;
+                showToast('Uploading ' + files.length + ' file(s) to SQLite storage...');
+                let successCount = 0;
+
+                for (let i = 0; i < files.length; i++) {{
+                    const file = files[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {{
+                        const res = await fetch('/wp-json/wp/v2/media', {{
+                            method: 'POST',
+                            body: formData
+                        }});
+                        if (res.ok) {{
+                            successCount++;
+                        }}
+                    }} catch (e) {{
+                        console.error('Upload failed for ' + file.name, e);
+                    }}
+                }}
+
+                if (successCount > 0) {{
+                    showToast('✓ Successfully uploaded ' + successCount + ' file(s)!');
+                    setTimeout(() => window.location.reload(), 600);
+                }} else {{
+                    showToast('Failed to upload files', true);
+                }}
+            }}
+
+            function copyMediaUrl(url) {{
+                const fullUrl = window.location.origin + url;
+                navigator.clipboard.writeText(fullUrl);
+                showToast('✓ Media URL copied: ' + fullUrl);
+            }}
+
+            async function deleteMedia(id) {{
+                if (!confirm('Are you sure you want to permanently delete this media file?')) return;
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/media/' + id, {{
+                        method: 'DELETE'
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ Media asset deleted successfully');
+                        setTimeout(() => window.location.reload(), 500);
+                    }} else {{
+                        showToast('Failed to delete media asset', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Error: ' + e, true);
+                }}
+            }}
+        </script>
+        "##,
+        media_count = media_count,
+        media_cards = media_cards
+    );
+
+    render_wp_admin_shell("media", "Media Library", &body, settings)
+}
+
+pub fn render_wp_media_new_view(settings: &WpSettingsResponse) -> String {
+    let body = r##"
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Upload New Media</h1>
+                <p class="page-subtitle">Add images, audio, video, or documents to your Neopress asset storage</p>
+            </div>
+            <div>
+                <a href="/n-admin/upload.php" class="btn btn-secondary">&larr; Return to Library</a>
+            </div>
+        </div>
+
+        <div class="neo-card" style="padding: 48px; text-align: center; border: 2px dashed var(--border-hover); background: #fafafa; border-radius: 12px;" id="dropZone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+            <input type="file" id="multiFileInput" multiple style="display: none;" onchange="handleFileSelect(event)" />
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+                <svg style="width: 28px; height: 28px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+            <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">Drop files anywhere to upload</h2>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Or choose files from your device to automatically scale and convert to WebP variants</p>
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('multiFileInput').click()" style="padding: 10px 22px; font-size: 14px;">Select Files</button>
+            <div style="font-size: 11.5px; color: #94a3b8; margin-top: 18px;">Maximum upload file size: 64 MB. Supports JPEG, PNG, WebP, GIF, SVG, PDF.</div>
+        </div>
+
+        <div id="uploadProgressContainer" style="display: none; margin-top: 24px;">
+            <div class="neo-card" style="padding: 20px;">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #0f172a;">Uploading Assets...</h3>
+                <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                    <div id="uploadProgressBar" style="width: 0%; height: 100%; background: #2563eb; transition: width 0.2s;"></div>
+                </div>
+                <div id="uploadedFilesList" style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+        </div>
+
+        <script>
+            function handleDragOver(e) {
+                e.preventDefault();
+                document.getElementById('dropZone').style.borderColor = '#2563eb';
+                document.getElementById('dropZone').style.background = '#f0f7ff';
+            }
+            function handleDragLeave(e) {
+                e.preventDefault();
+                document.getElementById('dropZone').style.borderColor = 'var(--border-hover)';
+                document.getElementById('dropZone').style.background = '#fafafa';
+            }
+            function handleDrop(e) {
+                e.preventDefault();
+                handleDragLeave(e);
+                if (e.dataTransfer && e.dataTransfer.files) {
+                    uploadFiles(e.dataTransfer.files);
+                }
+            }
+            function handleFileSelect(e) {
+                if (e.target.files) {
+                    uploadFiles(e.target.files);
+                }
+            }
+            async function uploadFiles(files) {
+                if (!files || files.length === 0) return;
+                const container = document.getElementById('uploadProgressContainer');
+                const bar = document.getElementById('uploadProgressBar');
+                const list = document.getElementById('uploadedFilesList');
+                container.style.display = 'block';
+                list.innerHTML = '';
+
+                let completed = 0;
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const res = await fetch('/wp-json/wp/v2/media', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        completed++;
+                        const pct = Math.round((completed / files.length) * 100);
+                        bar.style.width = pct + '%';
+                        if (res.ok) {
+                            const data = await res.json();
+                            const item = document.createElement('div');
+                            item.style.display = 'flex';
+                            item.style.justifyContent = 'space-between';
+                            item.style.fontSize = '13px';
+                            item.style.padding = '8px 12px';
+                            item.style.background = '#f8fafc';
+                            item.style.borderRadius = '6px';
+                            item.innerHTML = '<span>✓ ' + file.name + '</span><a href="' + data.source_url + '" target="_blank" style="color: #2563eb; text-decoration: none;">View File &nearr;</a>';
+                            list.appendChild(item);
+                        } else {
+                            showToast('Failed to upload ' + file.name, true);
+                        }
+                    } catch (err) {
+                        showToast('Error uploading ' + file.name, true);
+                    }
+                }
+                showToast('✓ Upload complete! ' + completed + ' files processed');
+            }
+        </script>
+    "##;
+
+    render_wp_admin_shell("media-new", "Upload New Media", body, settings)
+}

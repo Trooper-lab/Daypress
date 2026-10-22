@@ -1,0 +1,46 @@
+# Build artifacts
+/target
+target/
+**/*.rs.bk
+
+# Dynamic runtime database & uploads
+/data/*.sqlite
+/data/*.sqlite-shm
+/data/*.sqlite-wal
+*.sqlite-shm
+*.sqlite-wal
+!schemas/wordpress-core.sqlite
+
+/uploads/*
+!uploads/.gitkeep
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# IDE & Editor files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+Thumbs.db
+[Dd]esktop.ini
+.DS_Store
+
+# Logs & temp artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+node_modules/
+chrome-temp/
+scratch/
+backups/
+err.txt
+out.txt
+test.png

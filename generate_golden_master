@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if command -v node >/dev/null 2>&1; then
+    exec node "$SCRIPT_DIR/generate_golden_master.js" "$@"
+elif command -v php >/dev/null 2>&1; then
+    exec php "$SCRIPT_DIR/generate_golden_master.php" "$@"
+else
+    echo "Error: Neither node nor php found on PATH" >&2
+    exit 1
+fi

@@ -1,0 +1,52 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/neopress-server",
+    "crates/neopress-transpiler",
+    "crates/generated_slugify",
+    "crates/neopress-ast",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Neopress Core Team"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/neopress/neopress"
+
+[workspace.dependencies]
+# Async Runtime & Web Framework
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+tower = "0.5"
+
+# Database & Storage
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+
+# Serialization & Formats
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+quick-xml = "0.37"
+
+# Media & Image Processing
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+
+# Cryptography & Authentication
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+
+# CLI & Utilities
+clap = { version = "4", features = ["derive", "env"] }
+regex = "1.10"
+
+# Error Handling & Observability
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# AI / Transpiler Pipeline
+rig-core = { version = "0.45.0", features = ["rustls"] }

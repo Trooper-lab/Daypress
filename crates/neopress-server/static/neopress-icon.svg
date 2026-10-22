@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" fill="none">
+  <!-- Circular container echoing the iconic WP circle -->
+  <circle cx="24" cy="24" r="22" fill="#090d16" stroke="#1e293b" stroke-width="2"/>
+  <circle cx="24" cy="24" r="19" stroke="url(#neo-glow)" stroke-width="1" stroke-opacity="0.3"/>
+  <!-- Modern Geometric N -->
+  <path d="M15 33V15h4.6l9.6 13.6V15H33v18h-4.6L18.8 19.4V33H15z" fill="url(#neo-grad)"/>
+  <!-- Electric speed node -->
+  <circle cx="33" cy="15" r="2.2" fill="#38bdf8"/>
+  <defs>
+    <linearGradient id="neo-glow" x1="5" y1="5" x2="43" y2="43" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="neo-grad" x1="15" y1="15" x2="33" y2="33" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="0.6" stop-color="#f1f5f9"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+</svg>

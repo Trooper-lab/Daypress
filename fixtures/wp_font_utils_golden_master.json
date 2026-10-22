@@ -1,0 +1,22 @@
+[
+    {
+        "input": "Inter, sans-serif",
+        "expected_output": "Inter, sans-serif"
+    },
+    {
+        "input": "Open Sans, generic(sans-serif)",
+        "expected_output": "\"Open Sans\", generic(sans-serif)"
+    },
+    {
+        "input": "Roboto Mono",
+        "expected_output": "\"Roboto Mono\""
+    },
+    {
+        "input": "\"Playfair Display\", serif",
+        "expected_output": "\"Playfair Display\", serif"
+    },
+    {
+        "input": "",
+        "expected_output": ""
+    }
+]

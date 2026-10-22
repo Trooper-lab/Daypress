@@ -1,0 +1,402 @@
+{
+  "wp_commentmeta": [
+    {
+      "column": "meta_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "comment_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "meta_key",
+      "definition": "varchar(255) DEFAULT NULL"
+    },
+    {
+      "column": "meta_value",
+      "definition": "longtext DEFAULT NULL"
+    }
+  ],
+  "wp_comments": [
+    {
+      "column": "comment_ID",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "comment_post_ID",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "comment_author",
+      "definition": "tinytext NOT NULL"
+    },
+    {
+      "column": "comment_author_email",
+      "definition": "varchar(100) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "comment_author_url",
+      "definition": "varchar(200) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "comment_author_IP",
+      "definition": "varchar(100) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "comment_date",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "comment_date_gmt",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "comment_content",
+      "definition": "text NOT NULL"
+    },
+    {
+      "column": "comment_karma",
+      "definition": "int(11) NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "comment_approved",
+      "definition": "varchar(20) NOT NULL DEFAULT '1'"
+    },
+    {
+      "column": "comment_agent",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "comment_type",
+      "definition": "varchar(20) NOT NULL DEFAULT 'comment'"
+    },
+    {
+      "column": "comment_parent",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "user_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    }
+  ],
+  "wp_links": [
+    {
+      "column": "link_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "link_url",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "link_name",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "link_image",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "link_target",
+      "definition": "varchar(25) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "link_description",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "link_visible",
+      "definition": "varchar(20) NOT NULL DEFAULT 'Y'"
+    },
+    {
+      "column": "link_owner",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 1"
+    },
+    {
+      "column": "link_rating",
+      "definition": "int(11) NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "link_updated",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "link_rel",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "link_notes",
+      "definition": "mediumtext NOT NULL"
+    },
+    {
+      "column": "link_rss",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    }
+  ],
+  "wp_options": [
+    {
+      "column": "option_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "option_name",
+      "definition": "varchar(191) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "option_value",
+      "definition": "longtext NOT NULL"
+    },
+    {
+      "column": "autoload",
+      "definition": "varchar(20) NOT NULL DEFAULT 'yes'"
+    }
+  ],
+  "wp_postmeta": [
+    {
+      "column": "meta_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "post_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "meta_key",
+      "definition": "varchar(255) DEFAULT NULL"
+    },
+    {
+      "column": "meta_value",
+      "definition": "longtext DEFAULT NULL"
+    }
+  ],
+  "wp_posts": [
+    {
+      "column": "ID",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "post_author",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "post_date",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "post_date_gmt",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "post_content",
+      "definition": "longtext NOT NULL"
+    },
+    {
+      "column": "post_title",
+      "definition": "text NOT NULL"
+    },
+    {
+      "column": "post_excerpt",
+      "definition": "text NOT NULL"
+    },
+    {
+      "column": "post_status",
+      "definition": "varchar(20) NOT NULL DEFAULT 'publish'"
+    },
+    {
+      "column": "comment_status",
+      "definition": "varchar(20) NOT NULL DEFAULT 'open'"
+    },
+    {
+      "column": "ping_status",
+      "definition": "varchar(20) NOT NULL DEFAULT 'open'"
+    },
+    {
+      "column": "post_password",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "post_name",
+      "definition": "varchar(200) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "to_ping",
+      "definition": "text NOT NULL"
+    },
+    {
+      "column": "pinged",
+      "definition": "text NOT NULL"
+    },
+    {
+      "column": "post_modified",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "post_modified_gmt",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "post_content_filtered",
+      "definition": "longtext NOT NULL"
+    },
+    {
+      "column": "post_parent",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "guid",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "menu_order",
+      "definition": "int(11) NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "post_type",
+      "definition": "varchar(20) NOT NULL DEFAULT 'post'"
+    },
+    {
+      "column": "post_mime_type",
+      "definition": "varchar(100) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "comment_count",
+      "definition": "bigint(20) NOT NULL DEFAULT 0"
+    }
+  ],
+  "wp_term_relationships": [
+    {
+      "column": "object_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "term_taxonomy_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "term_order",
+      "definition": "int(11) NOT NULL DEFAULT 0"
+    }
+  ],
+  "wp_term_taxonomy": [
+    {
+      "column": "term_taxonomy_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "term_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "taxonomy",
+      "definition": "varchar(32) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "description",
+      "definition": "longtext NOT NULL"
+    },
+    {
+      "column": "parent",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "count",
+      "definition": "bigint(20) NOT NULL DEFAULT 0"
+    }
+  ],
+  "wp_termmeta": [
+    {
+      "column": "meta_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "term_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "meta_key",
+      "definition": "varchar(255) DEFAULT NULL"
+    },
+    {
+      "column": "meta_value",
+      "definition": "longtext DEFAULT NULL"
+    }
+  ],
+  "wp_terms": [
+    {
+      "column": "term_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "name",
+      "definition": "varchar(200) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "slug",
+      "definition": "varchar(200) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "term_group",
+      "definition": "bigint(10) NOT NULL DEFAULT 0"
+    }
+  ],
+  "wp_usermeta": [
+    {
+      "column": "umeta_id",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "user_id",
+      "definition": "bigint(20) unsigned NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "meta_key",
+      "definition": "varchar(255) DEFAULT NULL"
+    },
+    {
+      "column": "meta_value",
+      "definition": "longtext DEFAULT NULL"
+    }
+  ],
+  "wp_users": [
+    {
+      "column": "ID",
+      "definition": "bigint(20) unsigned NOT NULL AUTO_INCREMENT"
+    },
+    {
+      "column": "user_login",
+      "definition": "varchar(60) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "user_pass",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "user_nicename",
+      "definition": "varchar(50) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "user_email",
+      "definition": "varchar(100) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "user_url",
+      "definition": "varchar(100) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "user_registered",
+      "definition": "datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+    },
+    {
+      "column": "user_activation_key",
+      "definition": "varchar(255) NOT NULL DEFAULT ''"
+    },
+    {
+      "column": "user_status",
+      "definition": "int(11) NOT NULL DEFAULT 0"
+    },
+    {
+      "column": "display_name",
+      "definition": "varchar(250) NOT NULL DEFAULT ''"
+    }
+  ]
+}
