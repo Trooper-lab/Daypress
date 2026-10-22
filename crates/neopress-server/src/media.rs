@@ -368,16 +368,21 @@ pub fn parse_dynamic_media_request(
         let h: u32 = caps.name("h")?.as_str().parse().ok()?;
         let ext = caps.name("ext")?.as_str();
 
-        // Search for potential base files: stem.ext, stem.png, stem.jpg, stem.jpeg
-        for candidate_ext in [ext, "png", "jpg", "jpeg", "webp"] {
-            let candidate_name = format!("{}.{}", stem, candidate_ext);
-            let candidate_rel = if parent.as_os_str().is_empty() {
-                candidate_name
-            } else {
-                format!("{}/{}", parent.to_string_lossy(), candidate_name)
-            };
-            if uploads_dir.join(&candidate_rel).exists() {
-                return Some((candidate_rel, Some(w), Some(h), ext.to_string()));
+        // Search for potential base files: stem.ext, stem-scaled.ext, stem.png, stem.jpg, stem.jpeg
+        for base_stem in [stem.to_string(), format!("{}-scaled", stem)] {
+            for candidate_ext in [ext, "png", "jpg", "jpeg", "webp"] {
+                let candidate_name = format!("{}.{}", base_stem, candidate_ext);
+                let candidate_rel = if parent.as_os_str().is_empty() {
+                    candidate_name.clone()
+                } else {
+                    format!("{}/{}", parent.to_string_lossy().replace('\\', "/"), candidate_name)
+                };
+                if uploads_dir.join(&candidate_rel).exists() {
+                    return Some((candidate_rel, Some(w), Some(h), ext.to_string()));
+                }
+                if !parent.as_os_str().is_empty() && uploads_dir.join(&candidate_name).exists() {
+                    return Some((candidate_name, Some(w), Some(h), ext.to_string()));
+                }
             }
         }
     }

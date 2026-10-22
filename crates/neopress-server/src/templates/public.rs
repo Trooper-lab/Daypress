@@ -254,6 +254,31 @@ pub fn render_base_layout(
         String::new()
     };
 
+    let has_elementor_theme = !settings.elementor_kit_css.trim().is_empty()
+        || !settings.elementor_header_html.trim().is_empty()
+        || !settings.elementor_footer_html.trim().is_empty();
+
+    let elementor_kit_css_block = if !settings.elementor_kit_css.trim().is_empty() {
+        format!(
+            "\n\t<style id=\"neopress-elementor-kit-css\">\n{}\n\t</style>",
+            settings.elementor_kit_css
+        )
+    } else {
+        String::new()
+    };
+
+    let favicon_href = if !settings.site_favicon_url.trim().is_empty() {
+        escape_html(settings.site_favicon_url.trim())
+    } else {
+        "/static/favicon.svg".to_string()
+    };
+
+    let html_theme_class = if has_elementor_theme {
+        "elementor-theme-active"
+    } else {
+        "dark"
+    };
+
     let (nav_links_html, footer_nav_html) = if !settings.nav_menu_items.is_empty() {
         let mut items_html = String::new();
         let mut f_html = String::new();
@@ -297,9 +322,88 @@ pub fn render_base_layout(
         "WebSite".to_string()
     };
 
+    let site_header_html = if !settings.elementor_header_html.trim().is_empty() {
+        format!(
+            r#"<header class="np-elementor-header">{}</header>"#,
+            settings.elementor_header_html
+        )
+    } else {
+        format!(
+            r##"<header class="neo-header">
+		<div class="header-container">
+			<a href="/" class="logo-brand">
+				<span class="badge-neo">CMS</span>
+				<span>{brand_display}</span>
+			</a>
+
+			<nav class="neo-nav">
+				{nav_links_html}
+			</nav>
+
+			<div class="header-actions">
+				<form action="/" method="GET" class="header-search">
+					<input type="text" name="s" placeholder="Search site..." aria-label="Search" />
+				</form>
+				{header_login_btn}
+			</div>
+		</div>
+	</header>"##,
+            brand_display = brand_display,
+            nav_links_html = nav_links_html,
+            header_login_btn = header_login_btn
+        )
+    };
+
+    let site_footer_html = if !settings.elementor_footer_html.trim().is_empty() {
+        format!(
+            r#"<footer class="np-elementor-footer">{}</footer>"#,
+            settings.elementor_footer_html
+        )
+    } else {
+        format!(
+            r##"<footer class="neo-footer">
+		<div class="footer-grid">
+			<div class="footer-brand">
+				<div class="logo-brand">
+					<span class="badge-neo">CMS</span>
+					<span>{brand_display}</span>
+				</div>
+				<p>{site_desc}</p>
+			</div>
+			<div>
+				<div class="footer-col-title">Navigation</div>
+				<div class="footer-links">
+					{footer_nav_html}
+				</div>
+			</div>
+			<div>
+				<div class="footer-col-title">Feeds &amp; Endpoints</div>
+				<div class="footer-links">
+					<a href="/sitemap.xml">XML Sitemap</a>
+					<a href="/wp-json/wp/v2/posts">REST API v2</a>
+					<a href="/n-admin/">Admin Portal</a>
+				</div>
+			</div>
+		</div>
+
+		<div class="footer-bottom">
+			<div>
+				&copy; 2026 {brand_display}. Powered by Neopress Native Rust CMS.
+			</div>
+			<div class="engine-chip">
+				<span>⚡</span> Neopress AST &bull; Embedded SQLite WAL
+			</div>
+		</div>
+	</footer>"##,
+            brand_display = brand_display,
+            site_desc = escape_html(site_desc),
+            footer_nav_html = footer_nav_html
+        )
+    };
+
     format!(
         r##"<!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="nl-NL" class="{html_theme_class}">
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -318,12 +422,12 @@ pub fn render_base_layout(
 	<meta name="twitter:title" content="{page_title}" />
 	<meta name="twitter:description" content="{meta_desc}" />
 	{og_image_tags}
-	<link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+	<link rel="icon" href="{favicon_href}" />
 
-	<!-- Typography: Inter & JetBrains Mono -->
+	<!-- Typography: Fira Sans, Roboto, Inter & JetBrains Mono -->
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,600&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet">
 	<!-- FontAwesome 6 -->
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
@@ -1081,6 +1185,336 @@ pub fn render_base_layout(
 			left: auto;
 		}}
 
+		/* ==========================================================================
+		   Elementor Theme Builder, Flexbox Container, Menu, Form & Modal System
+		   ========================================================================== */
+		html.elementor-theme-active body {{
+			background-color: #ffffff;
+			color: var(--e-global-color-text, #1F1C17);
+		}}
+
+		.np-elementor-header {{
+			width: 100%;
+			background: #ffffff;
+			position: relative;
+			z-index: 1000;
+		}}
+
+		.np-elementor-footer {{
+			width: 100%;
+			position: relative;
+		}}
+
+		.np-visual-canvas .np-container,
+		.np-elementor-header .np-container,
+		.np-elementor-footer .np-container,
+		.np-popup-modal .np-container {{
+			max-width: 100%;
+			margin: 0;
+			position: relative;
+			background-size: cover;
+			background-position: center;
+			background-repeat: no-repeat;
+		}}
+
+		.np-container.np-container-boxed {{
+			max-width: 100%;
+			width: 100%;
+		}}
+
+		.np-container-boxed > .np-container-inner {{
+			max-width: var(--e-content-width, 1140px);
+			width: 100%;
+			margin: 0 auto;
+			display: flex;
+			flex-direction: inherit;
+			justify-content: inherit;
+			align-items: inherit;
+			gap: inherit;
+			flex-wrap: inherit;
+			min-height: inherit;
+		}}
+
+		.np-container[style*="flex-direction: row"] > .np-container:not([style*="width:"]),
+		.np-container[style*="flex-direction: row"] > .np-container-inner > .np-container:not([style*="width:"]) {{
+			flex: 1 1 0%;
+			min-width: 0;
+		}}
+
+		html.elementor-theme-active .np-image {{
+			border-radius: 0;
+		}}
+
+		html.elementor-theme-active .np-imagebox,
+		html.elementor-theme-active .np-iconbox {{
+			background: transparent;
+			border: none;
+			border-radius: 0;
+			padding: 0;
+			align-items: center;
+		}}
+
+		html.elementor-theme-active .np-imagebox-title,
+		html.elementor-theme-active .np-iconbox-title {{
+			color: var(--e-global-color-secondary, #1F1C17);
+			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
+		}}
+
+		html.elementor-theme-active .np-imagebox-desc,
+		html.elementor-theme-active .np-iconbox-desc {{
+			color: var(--e-global-color-text, #1F1C17);
+		}}
+
+		html.elementor-theme-active .np-divider {{
+			border-top-color: rgba(31, 28, 23, 0.15);
+		}}
+
+		.np-nav-menu .np-nav-list {{
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 28px;
+			align-items: center;
+		}}
+
+		.np-nav-menu.np-nav-layout-vertical .np-nav-list {{
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 8px;
+		}}
+
+		.np-nav-menu .np-nav-link {{
+			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
+			font-size: 16px;
+			font-weight: 400;
+			color: var(--e-global-color-secondary, #1F1C17);
+			text-decoration: none;
+			transition: color 0.15s ease;
+		}}
+
+		.np-nav-menu .np-nav-link:hover {{
+			color: var(--e-global-color-primary, #9CC13C);
+		}}
+
+		.np-icon-list {{
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}}
+
+		.np-icon-list-item {{
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			line-height: 1.65;
+		}}
+
+		.np-icon-list-item i {{
+			color: var(--e-global-color-primary, #9CC13C);
+			font-size: 16px;
+			width: 18px;
+			text-align: center;
+			flex-shrink: 0;
+		}}
+
+		.np-icon-list-link {{
+			display: inline-flex;
+			align-items: center;
+			gap: 10px;
+			color: inherit;
+			text-decoration: none;
+		}}
+
+		.np-icon-list-link:hover {{
+			color: var(--e-global-color-primary, #9CC13C);
+		}}
+
+		.np-social-icons {{
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+		}}
+
+		.np-social-icon {{
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 38px;
+			height: 38px;
+			border-radius: 50%;
+			background: var(--e-global-color-secondary, #1F1C17);
+			color: #ffffff !important;
+			font-size: 17px;
+			transition: opacity 0.15s ease, transform 0.15s ease;
+		}}
+
+		.np-social-icon:hover {{
+			opacity: 0.85;
+			transform: translateY(-1px);
+		}}
+
+		.np-elementor-form-grid {{
+			display: flex;
+			flex-wrap: wrap;
+			gap: 16px;
+			width: 100%;
+		}}
+
+		.np-elementor-form-grid .np-field-group {{
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}}
+
+		.np-elementor-form-grid .np-field-w100 {{
+			width: 100%;
+		}}
+
+		.np-elementor-form-grid .np-field-w50 {{
+			width: calc(50% - 8px);
+		}}
+
+		.np-elementor-form-grid .np-field-label {{
+			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
+			font-weight: 500;
+			font-size: 15px;
+			color: var(--e-global-color-secondary, #1F1C17);
+		}}
+
+		.np-elementor-form-grid .np-form-input {{
+			width: 100%;
+			padding: 12px 16px;
+			border: 1px solid #d4d4d8;
+			border-radius: 4px;
+			background: #ffffff;
+			color: #1F1C17;
+			font-family: inherit;
+			font-size: 15px;
+		}}
+
+		.np-elementor-form-grid .np-Subgroup {{
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			padding: 6px 0;
+		}}
+
+		.np-elementor-form-grid .np-Subgroup.np-Subgroup-inline {{
+			flex-direction: row;
+			flex-wrap: wrap;
+			gap: 18px;
+		}}
+
+		.np-elementor-form-grid .np-checkbox-label {{
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 15px;
+			cursor: pointer;
+		}}
+
+		.np-popup-modal, .np-lightbox-modal {{
+			position: fixed;
+			inset: 0;
+			z-index: 99999;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 24px;
+		}}
+
+		.np-popup-backdrop, .np-lightbox-backdrop {{
+			position: absolute;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.72);
+			backdrop-filter: blur(3px);
+		}}
+
+		.np-popup-dialog {{
+			position: relative;
+			z-index: 1;
+			background: #ffffff;
+			border-radius: 8px;
+			max-width: 680px;
+			width: 100%;
+			max-height: 90vh;
+			overflow-y: auto;
+			box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+			padding: 32px;
+		}}
+
+		.np-popup-close, .np-lightbox-close {{
+			position: absolute;
+			top: 12px;
+			right: 16px;
+			z-index: 2;
+			background: transparent;
+			border: none;
+			font-size: 28px;
+			line-height: 1;
+			color: #1F1C17;
+			cursor: pointer;
+		}}
+
+		.np-lightbox-close {{
+			color: #ffffff;
+			font-size: 36px;
+			top: 20px;
+			right: 28px;
+		}}
+
+		.np-lightbox-content {{
+			position: relative;
+			z-index: 1;
+			max-width: 92vw;
+			max-height: 88vh;
+		}}
+
+		.np-lightbox-content img {{
+			max-width: 92vw;
+			max-height: 88vh;
+			object-fit: contain;
+			border-radius: 4px;
+			box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+			display: block;
+		}}
+
+		@media (min-width: 1025px) {{
+			.np-hide-desktop {{
+				display: none !important;
+			}}
+		}}
+
+		@media (min-width: 768px) and (max-width: 1024px) {{
+			.np-hide-tablet {{
+				display: none !important;
+			}}
+		}}
+
+		@media (max-width: 767px) {{
+			.np-hide-mobile {{
+				display: none !important;
+			}}
+			.np-elementor-form-grid .np-field-w50 {{
+				width: 100%;
+			}}
+			.np-container[style*="flex-direction: row"],
+			.np-container[style*="flex-direction: row"] > .np-container-inner {{
+				flex-wrap: wrap;
+			}}
+			.np-container[style*="flex-direction: row"] > .np-container,
+			.np-container[style*="flex-direction: row"] > .np-container-inner > .np-container {{
+				width: 100% !important;
+				flex: 1 1 100% !important;
+			}}
+		}}
+
 		@media (max-width: 900px) {{
 			.footer-grid, .np-grid {{
 				grid-template-columns: 1fr !important;
@@ -1089,31 +1523,13 @@ pub fn render_base_layout(
 				display: none;
 			}}
 		}}
-	</style>{custom_css_block}
+	</style>{elementor_kit_css_block}{custom_css_block}
 </head>
 <body class="{body_class_admin}">
 	{admin_bar_html}
 
 	<!-- Global Site Header (100% Database-Driven) -->
-	<header class="neo-header">
-		<div class="header-container">
-			<a href="/" class="logo-brand">
-				<span class="badge-neo">CMS</span>
-				<span>{brand_display}</span>
-			</a>
-
-			<nav class="neo-nav">
-				{nav_links_html}
-			</nav>
-
-			<div class="header-actions">
-				<form action="/" method="GET" class="header-search">
-					<input type="text" name="s" placeholder="Search site..." aria-label="Search" />
-				</form>
-				{header_login_btn}
-			</div>
-		</div>
-	</header>
+	{site_header_html}
 
 	<!-- Main Content Area (Rendered via Neopress AST Elements) -->
 	<main class="neo-main">
@@ -1121,64 +1537,74 @@ pub fn render_base_layout(
 	</main>
 
 	<!-- Global Site Footer (100% Database-Driven) -->
-	<footer class="neo-footer">
-		<div class="footer-grid">
-			<div class="footer-brand">
-				<div class="logo-brand">
-					<span class="badge-neo">CMS</span>
-					<span>{brand_display}</span>
-				</div>
-				<p>{site_desc}</p>
-			</div>
-			<div>
-				<div class="footer-col-title">Navigation</div>
-				<div class="footer-links">
-					{footer_nav_html}
-				</div>
-			</div>
-			<div>
-				<div class="footer-col-title">Feeds &amp; Endpoints</div>
-				<div class="footer-links">
-					<a href="/sitemap.xml">XML Sitemap</a>
-					<a href="/wp-json/wp/v2/posts">REST API v2</a>
-					<a href="/n-admin/">Admin Portal</a>
-				</div>
-			</div>
-		</div>
+	{site_footer_html}
 
-		<div class="footer-bottom">
-			<div>
-				&copy; 2026 {brand_display}. Powered by Neopress Native Rust CMS.
-			</div>
-			<div class="engine-chip">
-				<span>⚡</span> Neopress AST &bull; Embedded SQLite WAL
-			</div>
+	{elementor_popups_html}
+	<div id="np-lightbox-modal" class="np-lightbox-modal" style="display:none;" role="dialog" aria-modal="true">
+		<div class="np-lightbox-backdrop" onclick="this.parentElement.style.display='none'"></div>
+		<button type="button" class="np-lightbox-close" aria-label="Close" onclick="document.getElementById('np-lightbox-modal').style.display='none'">&times;</button>
+		<div class="np-lightbox-content">
+			<img id="np-lightbox-img" src="" alt="" />
 		</div>
-	</footer>
-
+	</div>
+	<script>
+	(function(){{
+		document.addEventListener('click', function(e) {{
+			var popupLink = e.target.closest('a[href^="#np-popup-"]');
+			if (popupLink) {{
+				e.preventDefault();
+				var targetId = popupLink.getAttribute('href').slice(1);
+				var modal = document.getElementById(targetId) || document.querySelector('.np-popup-modal');
+				if (modal) {{
+					modal.style.display = 'flex';
+				}}
+				return;
+			}}
+			var lbLink = e.target.closest('a.np-lightbox-trigger');
+			if (lbLink) {{
+				e.preventDefault();
+				var imgUrl = lbLink.getAttribute('href');
+				var lbModal = document.getElementById('np-lightbox-modal');
+				var lbImg = document.getElementById('np-lightbox-img');
+				if (lbModal && lbImg && imgUrl) {{
+					lbImg.src = imgUrl;
+					lbModal.style.display = 'flex';
+				}}
+			}}
+		}});
+		document.addEventListener('keydown', function(e) {{
+			if (e.key === 'Escape') {{
+				document.querySelectorAll('.np-popup-modal, .np-lightbox-modal').forEach(function(m) {{
+					m.style.display = 'none';
+				}});
+			}}
+		}});
+	}})();
+	</script>
 </body>
 </html>
 "##,
+        html_theme_class = html_theme_class,
         page_title = escape_html(&page_title),
         site_name = escape_html(site_name),
-        site_desc = escape_html(site_desc),
         meta_desc = escape_html(&meta_desc),
         robots_meta = robots_meta,
         canonical_tag = canonical_tag,
         og_image_tags = og_image_tags,
+        favicon_href = favicon_href,
         schema_type = schema_type,
         site_name_json = escape_json(site_name),
         title_json = escape_json(title),
         meta_desc_json = escape_json(&meta_desc),
         brand_color = escape_html(brand_color),
+        elementor_kit_css_block = elementor_kit_css_block,
         custom_css_block = custom_css_block,
-        brand_display = brand_display,
-        nav_links_html = nav_links_html,
-        footer_nav_html = footer_nav_html,
+        site_header_html = site_header_html,
+        site_footer_html = site_footer_html,
+        elementor_popups_html = settings.elementor_popups_html,
         content = content,
         body_class_admin = body_class_admin,
-        admin_bar_html = admin_bar_html,
-        header_login_btn = header_login_btn
+        admin_bar_html = admin_bar_html
     )
 }
 
@@ -1445,6 +1871,7 @@ pub fn render_single_post(
         .map(|l| neopress_ast::render_layout_to_html(&l))
         .filter(|h| !h.trim().is_empty());
 
+    let has_ast_layout = ast_rendered.is_some();
     let clean_content = ast_rendered.unwrap_or_else(|| clean_wp_content(&post.content.rendered));
     let is_page = post.post_type == "page";
     let site_name = if settings.title.trim().is_empty() {
@@ -1453,32 +1880,47 @@ pub fn render_single_post(
         settings.title.trim()
     };
 
-    let global_css = if let Some(layout_str) = layout_json {
-        if let Ok(val) = serde_json::from_str::<serde_json::Value>(layout_str) {
-            if let Some(gs) = val.get("global_styles") {
-                if let Ok(kit) = serde_json::from_value::<neopress_ast::ElementorKit>(gs.clone()) {
-                    kit.compile_to_css()
-                } else {
-                    neopress_ast::ElementorKit::default().compile_to_css()
-                }
-            } else {
-                neopress_ast::ElementorKit::default().compile_to_css()
-            }
-        } else {
-            neopress_ast::ElementorKit::default().compile_to_css()
-        }
+    let fallback_kit_css = if !settings.elementor_kit_css.trim().is_empty() {
+        String::new()
     } else {
         neopress_ast::ElementorKit::default().compile_to_css()
     };
 
+    let global_css = if let Some(layout_str) = layout_json {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(layout_str) {
+            if let Some(gs) = val.get("global_styles") {
+                if !gs.is_null() {
+                    if let Ok(kit) = serde_json::from_value::<neopress_ast::ElementorKit>(gs.clone()) {
+                        kit.compile_to_css()
+                    } else {
+                        fallback_kit_css
+                    }
+                } else {
+                    fallback_kit_css
+                }
+            } else {
+                fallback_kit_css
+            }
+        } else {
+            fallback_kit_css
+        }
+    } else {
+        fallback_kit_css
+    };
+
     // Full-bleed Visual Builder page vs standard article/page with header shell
-    let is_full_bleed_visual = is_page
-        && (clean_content.contains("elem_hero_sec")
-            || clean_content.contains("divi_section_")
-            || clean_content.contains("divi_node_")
-            || clean_content.contains("elementor-section")
-            || post.template == "canvas"
-            || post.template == "full-width");
+    let is_full_bleed_visual = has_ast_layout
+        || (is_page
+            && (clean_content.contains("elem_hero_sec")
+                || clean_content.contains("divi_section_")
+                || clean_content.contains("divi_node_")
+                || clean_content.contains("elementor-section")
+                || post.template == "canvas"
+                || post.template == "full-width"));
+
+    let has_elementor_theme = !settings.elementor_kit_css.trim().is_empty()
+        || !settings.elementor_header_html.trim().is_empty()
+        || !settings.elementor_footer_html.trim().is_empty();
 
     let content = if is_full_bleed_visual {
         format!(
@@ -1489,6 +1931,23 @@ pub fn render_single_post(
             </div>
             "##,
             global_css = global_css,
+            body = clean_content
+        )
+    } else if is_page && has_elementor_theme {
+        format!(
+            r##"
+            <style>{global_css}</style>
+            <section class="np-section" style="border-bottom: none; padding: 48px 24px;">
+                <div class="np-container" style="max-width: var(--e-content-width, 1140px); margin: 0 auto;">
+                    <h1 class="np-heading entry-title" style="margin-bottom: 24px;">{title}</h1>
+                    <div class="np-text entry-content">
+                        {body}
+                    </div>
+                </div>
+            </section>
+            "##,
+            global_css = global_css,
+            title = post.title.rendered,
             body = clean_content
         )
     } else {

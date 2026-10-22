@@ -23,6 +23,8 @@ struct ParsedWxrItem {
     attachment_url: String,
     categories: Vec<String>,
     tags: Vec<String>,
+    nav_menu_slug: Option<String>,
+    elementor_library_type: Option<String>,
     postmeta: HashMap<String, String>,
     comments: Vec<ParsedWxrComment>,
 }
@@ -101,6 +103,9 @@ fn process_xml_text(
     text: &str,
     tag_stack: &[String],
     site_settings: &mut ImportSiteSettings,
+    source_site_url: &mut Option<String>,
+    site_language: &mut Option<String>,
+    site_favicon_url: &mut Option<String>,
     current_term: &mut Option<ParsedWxrTerm>,
     current_item: &mut Option<ParsedWxrItem>,
     current_comment: &mut Option<ParsedWxrComment>,
@@ -125,8 +130,18 @@ fn process_xml_text(
         match current_tag {
             "title" => site_settings.title = Some(text.to_string()),
             "description" => site_settings.description = Some(text.to_string()),
+            "wp:base_site_url" | "link" => {
+                if source_site_url.is_none() && (text.starts_with("http://") || text.starts_with("https://")) {
+                    *source_site_url = Some(text.trim_end_matches('/').to_string());
+                }
+            }
+            "language" => {
+                *site_language = Some(text.to_string());
+            }
             _ => (),
         }
+    } else if parent_tag == "image" && current_tag == "url" {
+        *site_favicon_url = Some(text.to_string());
     }
 
     // Taxonomy parsing
@@ -205,6 +220,20 @@ fn process_xml_text(
                             generated_slugify::slugify(text)
                         };
                         item.tags.push(slug);
+                    } else if current_category_domain == "nav_menu" {
+                        let slug = if !current_category_nicename.is_empty() {
+                            current_category_nicename.to_string()
+                        } else {
+                            generated_slugify::slugify(text)
+                        };
+                        item.nav_menu_slug = Some(slug);
+                    } else if current_category_domain == "elementor_library_type" {
+                        let lib_type = if !current_category_nicename.is_empty() {
+                            current_category_nicename.to_string()
+                        } else {
+                            text.to_string()
+                        };
+                        item.elementor_library_type = Some(lib_type);
                     }
                 }
                 _ => (),
@@ -232,6 +261,9 @@ pub fn import_wxr_stream<R: BufRead>(
     let mut tag_stack: Vec<String> = Vec::new();
 
     let mut site_settings = ImportSiteSettings::default();
+    let mut source_site_url = Option::<String>::None;
+    let mut site_language = Option::<String>::None;
+    let mut site_favicon_url = Option::<String>::None;
     let mut current_term = Option::<ParsedWxrTerm>::None;
     let mut current_item = Option::<ParsedWxrItem>::None;
     let mut current_comment = Option::<ParsedWxrComment>::None;
@@ -299,6 +331,9 @@ pub fn import_wxr_stream<R: BufRead>(
                     text.trim(),
                     &tag_stack,
                     &mut site_settings,
+                    &mut source_site_url,
+                    &mut site_language,
+                    &mut site_favicon_url,
                     &mut current_term,
                     &mut current_item,
                     &mut current_comment,
@@ -314,6 +349,9 @@ pub fn import_wxr_stream<R: BufRead>(
                     text.trim(),
                     &tag_stack,
                     &mut site_settings,
+                    &mut source_site_url,
+                    &mut site_language,
+                    &mut site_favicon_url,
                     &mut current_term,
                     &mut current_item,
                     &mut current_comment,
@@ -381,6 +419,28 @@ pub fn import_wxr_stream<R: BufRead>(
             "INSERT INTO wp_options (option_name, option_value) VALUES ('blogdescription', ?1)
              ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
             params![d],
+        )?;
+    }
+    if let Some(ref src_url) = source_site_url {
+        tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_source_site_url', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![src_url],
+        )?;
+    }
+    if let Some(ref lang) = site_language {
+        tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('WPLANG', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![lang],
+        )?;
+    }
+    if let Some(ref fav_raw) = site_favicon_url {
+        let fav_norm = normalize_menu_url(fav_raw);
+        tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_site_favicon', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![fav_norm],
         )?;
     }
 
@@ -451,15 +511,31 @@ pub fn import_wxr_stream<R: BufRead>(
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     let mut old_to_new_post_id: HashMap<i64, i64> = HashMap::new();
+    let mut post_urls: HashMap<String, String> = HashMap::new();
     let mut pending_parent_remaps: Vec<(i64, i64)> = Vec::new();
     let mut old_to_new_comment_id: HashMap<i64, i64> = HashMap::new();
     let mut pending_comment_parent_remaps: Vec<(i64, i64)> = Vec::new();
-    let mut raw_nav_menu_items: Vec<(i64, String, i64, HashMap<String, String>)> = Vec::new();
+    let mut raw_nav_menu_items: Vec<(
+        i64,
+        String,
+        i64,
+        Option<String>,
+        HashMap<String, String>,
+    )> = Vec::new();
 
-    // 3a. First Pass for Contact Form 7 / WPForms CPTs inside WXR stream
+    // 3a. First Pass for Contact Form 7 / WPForms CPTs and Elementor Forms inside WXR stream
     let mut form_id_map: HashMap<i64, i64> = HashMap::new();
     let mut first_migrated_form_id: Option<i64> = None;
+    let mut has_elementor_forms = false;
     for item in &posts_to_insert {
+        if item
+            .postmeta
+            .get("_elementor_data")
+            .map(|d| d.contains("\"widgetType\":\"form\""))
+            .unwrap_or(false)
+        {
+            has_elementor_forms = true;
+        }
         if let Some((fields, settings)) = crate::convergence::parse_cf7_or_wpforms_to_schema(
             &item.post_type,
             &item.title,
@@ -491,9 +567,32 @@ pub fn import_wxr_stream<R: BufRead>(
             }
         }
     }
-    if !form_id_map.is_empty() {
+    if has_elementor_forms {
+        let existing_forms: i64 = tx
+            .query_row("SELECT COUNT(*) FROM wp_neopress_forms", [], |r| r.get(0))
+            .unwrap_or(0);
+        if existing_forms == 0 {
+            let _ = tx.execute(
+                "INSERT INTO wp_neopress_forms (id, title, schema_json, settings_json, created_at, updated_at) VALUES (1, 'Migrated Elementor Form', '[]', '{}', ?1, ?1)",
+                params![now],
+            );
+        }
+    }
+    if !form_id_map.is_empty() || has_elementor_forms {
         let _ = crate::convergence::activate_builtin_plugin_tx(&tx, "neopress-forms", None);
     }
+
+    let mut detected_logo_url: Option<String> = None;
+    let mut detected_kit_raw_settings: Option<String> = None;
+    let mut pending_ast_items: Vec<(
+        i64,
+        Option<i64>,
+        String,
+        String,
+        String,
+        Option<String>,
+        HashMap<String, String>,
+    )> = Vec::new();
 
     let mut seo_meta_converged = false;
     for mut item in posts_to_insert {
@@ -519,7 +618,7 @@ pub fn import_wxr_stream<R: BufRead>(
                 generated_slugify::slugify(&item.title)
             }
         } else {
-            item.slug
+            item.slug.clone()
         };
         let p_date = if item.post_date.is_empty() {
             &now
@@ -556,23 +655,75 @@ pub fn import_wxr_stream<R: BufRead>(
             String::new()
         };
 
-        // AST Transpilation Check: Detect Elementor / Divi / Gutenberg and transpile to canonical NeopressLayout
-        let mut final_content = item.content.clone();
-        let mut layout_json_str: Option<String> = None;
-
-        if let Some(transpiled_layout) =
-            neopress_ast::transpile_content(&item.content, &item.postmeta)
-        {
-            let rendered_html = neopress_ast::render_layout_to_html(&transpiled_layout);
-            if !rendered_html.trim().is_empty()
-                || item.content.trim().is_empty()
-                || item.content.contains("[et_pb_")
+        // Detect Site Logo attachment
+        if p_type == "attachment" {
+            let url_candidate = if !item.attachment_url.is_empty() {
+                normalize_menu_url(&item.attachment_url)
+            } else if let Some(af) = item.postmeta.get("_wp_attached_file") {
+                format!("/wp-content/uploads/{}", af.trim_start_matches('/'))
+            } else {
+                normalize_menu_url(&guid)
+            };
+            let slug_lower = slug.to_lowercase();
+            let title_lower = item.title.to_lowercase();
+            if (slug_lower.contains("logo") || title_lower.contains("logo"))
+                && !url_candidate.is_empty()
             {
-                final_content = rendered_html;
+                let is_better = detected_logo_url
+                    .as_ref()
+                    .map(|prev| !prev.ends_with(".svg") && url_candidate.ends_with(".svg"))
+                    .unwrap_or(true);
+                if is_better {
+                    detected_logo_url = Some(url_candidate);
+                }
             }
-            if let Ok(json) = serde_json::to_string(&transpiled_layout) {
-                layout_json_str = Some(json);
+        }
+
+        // Detect Elementor Default Kit (`default-kit`)
+        let is_kit = p_type == "elementor_library"
+            && (slug == "default-kit"
+                || item.postmeta.get("_elementor_template_type").map(|s| s.as_str()) == Some("kit")
+                || item.elementor_library_type.as_deref() == Some("kit"));
+        if is_kit {
+            if let Some(raw_kit) = item.postmeta.get("_elementor_page_settings") {
+                if !raw_kit.trim().is_empty() {
+                    if let Some(kit) = neopress_ast::ElementorKit::from_raw_settings(raw_kit) {
+                        let kit_css = kit.compile_to_css();
+                        let _ = tx.execute(
+                            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_elementor_kit_css', ?1)
+                             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+                            params![kit_css],
+                        );
+                        if let Ok(kit_json) = serde_json::to_string(&kit) {
+                            let _ = tx.execute(
+                                "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_elementor_kit_json', ?1)
+                                 ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+                                params![kit_json],
+                            );
+                            detected_kit_raw_settings = Some(kit_json);
+                        }
+                        if let Some(prim) = kit.system_colors.iter().find(|c| c.id == "primary") {
+                            if !prim.color.trim().is_empty() {
+                                let _ = tx.execute(
+                                    "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_brand_color', ?1)
+                                     ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+                                    params![prim.color.trim()],
+                                );
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        // Normalize hardcoded source domain links in standard HTML content
+        let mut initial_content = item.content.clone();
+        if let Some(ref base) = source_site_url {
+            let https_base = format!("{}/", base.replacen("http://", "https://", 1));
+            let http_base = format!("{}/", base.replacen("https://", "http://", 1));
+            initial_content = initial_content
+                .replace(&https_base, "/")
+                .replace(&http_base, "/");
         }
 
         let post_id: i64 = match tx.query_row(
@@ -581,39 +732,47 @@ pub fn import_wxr_stream<R: BufRead>(
             |r| r.get(0),
         ) {
             Ok(id) => {
-                if let Some(ref lj) = layout_json_str {
-                    tx.execute(
-                        "UPDATE wp_posts SET post_title = ?1, post_content = ?2, post_excerpt = ?3, post_status = ?4, post_date = ?5, post_mime_type = ?6, post_parent = ?7, menu_order = ?8, layout_json = ?9 WHERE ID = ?10",
-                        params![item.title, final_content, item.excerpt, p_status, p_date, inferred_mime, item.parent, item.menu_order, lj, id],
-                    )?;
-                } else {
-                    tx.execute(
-                        "UPDATE wp_posts SET post_title = ?1, post_content = ?2, post_excerpt = ?3, post_status = ?4, post_date = ?5, post_mime_type = ?6, post_parent = ?7, menu_order = ?8 WHERE ID = ?9",
-                        params![item.title, final_content, item.excerpt, p_status, p_date, inferred_mime, item.parent, item.menu_order, id],
-                    )?;
-                }
+                tx.execute(
+                    "UPDATE wp_posts SET post_title = ?1, post_content = ?2, post_excerpt = ?3, post_status = ?4, post_date = ?5, post_mime_type = ?6, post_parent = ?7, menu_order = ?8 WHERE ID = ?9",
+                    params![item.title, initial_content, item.excerpt, p_status, p_date, inferred_mime, item.parent, item.menu_order, id],
+                )?;
                 id
             }
             Err(_) => {
-                if let Some(ref lj) = layout_json_str {
-                    tx.execute(
-                        r#"INSERT INTO wp_posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_mime_type, post_parent, menu_order, layout_json)
-                           VALUES (1, ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?1, ?1, ?7, ?8, ?9, ?10, ?11, ?12)"#,
-                        params![p_date, final_content, item.title, item.excerpt, p_status, slug, guid, p_type, inferred_mime, item.parent, item.menu_order, lj],
-                    )?;
-                } else {
-                    tx.execute(
-                        r#"INSERT INTO wp_posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_mime_type, post_parent, menu_order)
-                           VALUES (1, ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?1, ?1, ?7, ?8, ?9, ?10, ?11)"#,
-                        params![p_date, final_content, item.title, item.excerpt, p_status, slug, guid, p_type, inferred_mime, item.parent, item.menu_order],
-                    )?;
-                }
+                tx.execute(
+                    r#"INSERT INTO wp_posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_mime_type, post_parent, menu_order)
+                       VALUES (1, ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?1, ?1, ?7, ?8, ?9, ?10, ?11)"#,
+                    params![p_date, initial_content, item.title, item.excerpt, p_status, slug, guid, p_type, inferred_mime, item.parent, item.menu_order],
+                )?;
                 tx.last_insert_rowid()
             }
         };
 
+        let is_front_page = p_type == "page"
+            && p_status == "publish"
+            && (slug.eq_ignore_ascii_case("home") || slug.eq_ignore_ascii_case("front-page"));
+        if is_front_page {
+            let _ = tx.execute(
+                "INSERT INTO wp_options (option_name, option_value) VALUES ('show_on_front', 'page')
+                 ON CONFLICT(option_name) DO UPDATE SET option_value = 'page';",
+                [],
+            );
+            let _ = tx.execute(
+                "INSERT INTO wp_options (option_name, option_value) VALUES ('page_on_front', ?1)
+                 ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+                params![post_id.to_string()],
+            );
+        }
+
+        let permalink = if is_front_page {
+            "/".to_string()
+        } else {
+            format!("/{}/", slug)
+        };
+        post_urls.insert(post_id.to_string(), permalink.clone());
         if let Some(old_id) = item.id {
             old_to_new_post_id.insert(old_id, post_id);
+            post_urls.insert(old_id.to_string(), permalink);
         }
         if item.parent > 0 {
             pending_parent_remaps.push((post_id, item.parent));
@@ -623,16 +782,29 @@ pub fn import_wxr_stream<R: BufRead>(
                 post_id,
                 item.title.clone(),
                 item.menu_order,
+                item.nav_menu_slug.clone(),
                 item.postmeta.clone(),
             ));
         }
 
-        // If layout was transpiled, also sync to wp_postmeta for WP headless compatibility
-        if let Some(ref lj) = layout_json_str {
-            let _ = tx.execute(
-                "INSERT OR REPLACE INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, '_neopress_layout', ?2)",
-                params![post_id, lj],
-            );
+        // Queue for Pass 2 AST transpilation if it has Elementor, Divi, or Gutenberg content
+        let needs_ast = item
+            .postmeta
+            .get("_elementor_data")
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+            || initial_content.contains("[et_pb_")
+            || initial_content.contains("<!-- wp:");
+        if needs_ast {
+            pending_ast_items.push((
+                post_id,
+                item.id,
+                p_type.clone(),
+                p_status.clone(),
+                initial_content,
+                item.elementor_library_type.clone(),
+                item.postmeta.clone(),
+            ));
         }
 
         // Term relationships (categories and tags)
@@ -689,12 +861,20 @@ pub fn import_wxr_stream<R: BufRead>(
         match p_type.as_str() {
             "page" => page_count += 1,
             "attachment" => media_count += 1,
-            "nav_menu_item" => {}
+            "nav_menu_item" | "elementor_library" => {}
             _ => post_count += 1,
         }
     }
 
-    // 4. Second Pass: Relational ID Remapping (post_parent, _thumbnail_id, comment_parent, nav_menu_items)
+    if let Some(ref logo_url) = detected_logo_url {
+        let _ = tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_site_logo', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![logo_url],
+        );
+    }
+
+    // 4. Relational ID Remapping (post_parent, _thumbnail_id, comment_parent, nav_menu_items)
     for (child_new_id, old_parent_id) in pending_parent_remaps {
         if let Some(&new_parent_id) = old_to_new_post_id.get(&old_parent_id) {
             tx.execute(
@@ -732,9 +912,11 @@ pub fn import_wxr_stream<R: BufRead>(
         }
     }
 
+    let mut menus_by_slug: HashMap<String, Vec<neopress_ast::NavMenuItem>> = HashMap::new();
+
     if !raw_nav_menu_items.is_empty() {
         let mut nav_items: Vec<NavMenuItemDto> = Vec::with_capacity(raw_nav_menu_items.len());
-        for (new_item_id, item_title, menu_order, meta) in raw_nav_menu_items {
+        for (new_item_id, item_title, menu_order, menu_slug_opt, meta) in raw_nav_menu_items {
             let mut resolved_title = item_title;
             let mut resolved_url = meta
                 .get("_menu_item_url")
@@ -756,7 +938,11 @@ pub fn import_wxr_stream<R: BufRead>(
                             resolved_title = target_title;
                         }
                         if resolved_url.is_empty() && !target_slug.is_empty() {
-                            resolved_url = format!("/{}/", target_slug);
+                            if let Some(permalink) = post_urls.get(&target_post_id.to_string()) {
+                                resolved_url = permalink.clone();
+                            } else {
+                                resolved_url = format!("/{}/", target_slug);
+                            }
                         }
                     }
                 }
@@ -782,6 +968,16 @@ pub fn import_wxr_stream<R: BufRead>(
                 0
             };
 
+            let slug_key = menu_slug_opt.unwrap_or_else(|| "primary".to_string());
+            menus_by_slug
+                .entry(slug_key)
+                .or_default()
+                .push(neopress_ast::NavMenuItem {
+                    title: resolved_title.clone(),
+                    url: resolved_url.clone(),
+                    order: menu_order,
+                });
+
             nav_items.push(NavMenuItemDto {
                 id: new_item_id,
                 title: resolved_title,
@@ -792,6 +988,17 @@ pub fn import_wxr_stream<R: BufRead>(
             });
         }
 
+        for list in menus_by_slug.values_mut() {
+            list.sort_by_key(|i| i.order);
+        }
+        if let Ok(menus_json) = serde_json::to_string(&menus_by_slug) {
+            let _ = tx.execute(
+                "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_nav_menus_by_slug', ?1)
+                 ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+                params![menus_json],
+            );
+        }
+
         nav_items.sort_by_key(|i| i.menu_order);
         if let Ok(json_str) = serde_json::to_string(&nav_items) {
             let _ = tx.execute(
@@ -800,6 +1007,107 @@ pub fn import_wxr_stream<R: BufRead>(
                 params![json_str],
             );
         }
+    }
+
+    // 5. Pass 2: Transpile all Elementor, Divi, and Gutenberg items with complete site context
+    let post_urls_json = serde_json::to_string(&post_urls).unwrap_or_else(|_| "{}".to_string());
+    let menus_json = serde_json::to_string(&menus_by_slug).unwrap_or_else(|_| "{}".to_string());
+
+    let mut header_html = String::new();
+    let mut footer_html = String::new();
+    let mut popups_html = String::new();
+
+    for (post_id, old_id_opt, p_type, p_status, raw_content, lib_type_opt, mut meta) in
+        pending_ast_items
+    {
+        meta.insert("__np_post_urls_json".to_string(), post_urls_json.clone());
+        meta.insert("__np_menus_json".to_string(), menus_json.clone());
+        if let Some(ref logo) = detected_logo_url {
+            meta.insert("__np_site_logo_url".to_string(), logo.clone());
+        }
+        if let Some(ref src) = source_site_url {
+            meta.insert("__np_source_site_url".to_string(), src.clone());
+        }
+        if let Some(ref kit_str) = detected_kit_raw_settings {
+            meta.insert("_elementor_kit_settings".to_string(), kit_str.clone());
+        }
+
+        if let Some(transpiled_layout) = neopress_ast::transpile_content(&raw_content, &meta) {
+            let rendered_html = neopress_ast::render_layout_to_html(&transpiled_layout);
+            let final_content = if !rendered_html.trim().is_empty()
+                || raw_content.trim().is_empty()
+                || raw_content.contains("[et_pb_")
+            {
+                rendered_html.clone()
+            } else {
+                raw_content
+            };
+            let layout_json_str = serde_json::to_string(&transpiled_layout).ok();
+
+            if let Some(ref lj) = layout_json_str {
+                tx.execute(
+                    "UPDATE wp_posts SET post_content = ?1, layout_json = ?2 WHERE ID = ?3",
+                    params![final_content, lj, post_id],
+                )?;
+                let _ = tx.execute(
+                    "INSERT OR REPLACE INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, '_neopress_layout', ?2)",
+                    params![post_id, lj],
+                );
+            } else {
+                tx.execute(
+                    "UPDATE wp_posts SET post_content = ?1 WHERE ID = ?2",
+                    params![final_content, post_id],
+                )?;
+            }
+
+            if p_type == "elementor_library" && p_status == "publish" {
+                let tpl_type = meta
+                    .get("_elementor_template_type")
+                    .map(|s| s.as_str())
+                    .or(lib_type_opt.as_deref())
+                    .unwrap_or("");
+                let body_without_kit_style =
+                    neopress_ast::render_node_to_html(&transpiled_layout.root);
+                match tpl_type {
+                    "header" => {
+                        header_html = body_without_kit_style;
+                    }
+                    "footer" => {
+                        footer_html = body_without_kit_style;
+                    }
+                    "popup" => {
+                        let popup_key = old_id_opt.unwrap_or(post_id);
+                        popups_html.push_str(&format!(
+                            "<div id=\"np-popup-{}\" class=\"np-popup-modal\" onclick=\"if(event.target===this)this.classList.remove('active')\"><div class=\"np-popup-dialog\"><button type=\"button\" class=\"np-popup-close\" aria-label=\"Close\" onclick=\"this.closest('.np-popup-modal').classList.remove('active')\">&times;</button>{}</div></div>\n",
+                            popup_key, body_without_kit_style
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if !header_html.is_empty() {
+        let _ = tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_elementor_header_html', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![header_html],
+        );
+    }
+    if !footer_html.is_empty() {
+        let _ = tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_elementor_footer_html', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![footer_html],
+        );
+    }
+    if !popups_html.is_empty() {
+        let _ = tx.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_elementor_popups_html', ?1)
+             ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+            params![popups_html],
+        );
     }
 
     if seo_meta_converged {

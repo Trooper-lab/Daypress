@@ -132,6 +132,24 @@ impl Database {
                     ]
                 }),
             pending_comments_count,
+            elementor_kit_css: self
+                .get_option("neopress_elementor_kit_css")?
+                .unwrap_or_default(),
+            elementor_header_html: self
+                .get_option("neopress_elementor_header_html")?
+                .unwrap_or_default(),
+            elementor_footer_html: self
+                .get_option("neopress_elementor_footer_html")?
+                .unwrap_or_default(),
+            elementor_popups_html: self
+                .get_option("neopress_elementor_popups_html")?
+                .unwrap_or_default(),
+            site_logo_url: self
+                .get_option("neopress_site_logo")?
+                .unwrap_or_default(),
+            site_favicon_url: self
+                .get_option("neopress_site_favicon")?
+                .unwrap_or_default(),
         })
     }
 

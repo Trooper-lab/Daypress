@@ -119,6 +119,18 @@ pub struct WpSettingsResponse {
     pub active_plugins: Vec<String>,
     #[serde(default)]
     pub pending_comments_count: i64,
+    #[serde(default)]
+    pub elementor_kit_css: String,
+    #[serde(default)]
+    pub elementor_header_html: String,
+    #[serde(default)]
+    pub elementor_footer_html: String,
+    #[serde(default)]
+    pub elementor_popups_html: String,
+    #[serde(default)]
+    pub site_logo_url: String,
+    #[serde(default)]
+    pub site_favicon_url: String,
 }
 
 fn default_show_on_front() -> String {
@@ -171,6 +183,12 @@ impl Default for WpSettingsResponse {
                 "wxr-streaming-xml-importer".to_string(),
             ],
             pending_comments_count: 0,
+            elementor_kit_css: String::new(),
+            elementor_header_html: String::new(),
+            elementor_footer_html: String::new(),
+            elementor_popups_html: String::new(),
+            site_logo_url: String::new(),
+            site_favicon_url: String::new(),
         }
     }
 }
