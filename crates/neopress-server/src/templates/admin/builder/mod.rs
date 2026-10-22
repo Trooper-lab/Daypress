@@ -26,7 +26,13 @@ pub fn render_wp_builder_view(
         "null"
     };
 
-    let preview_header_html = if !settings.elementor_header_html.trim().is_empty() {
+    let is_blank_template = post.template == "page-template-blank.php"
+        || post.template == "canvas"
+        || post.template == "elementor_canvas";
+
+    let preview_header_html = if is_blank_template {
+        String::new()
+    } else if !settings.elementor_header_html.trim().is_empty() {
         format!(
             r#"<header class="np-elementor-header">{}</header>"#,
             settings.elementor_header_html
@@ -60,7 +66,9 @@ pub fn render_wp_builder_view(
         )
     };
 
-    let preview_footer_html = if !settings.elementor_footer_html.trim().is_empty() {
+    let preview_footer_html = if is_blank_template {
+        String::new()
+    } else if !settings.elementor_footer_html.trim().is_empty() {
         format!(
             r#"<footer class="np-elementor-footer">{}</footer>"#,
             settings.elementor_footer_html

@@ -421,16 +421,31 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
                 .iter()
                 .map(|f| format!("<li class=\"np-price-feature\">{}</li>\n", f))
                 .collect();
+            let period_html = if !period.trim().is_empty() {
+                format!(" <span class=\"np-price-period\">{}</span>", period)
+            } else {
+                String::new()
+            };
+            let btn_html = if !button_text.trim().is_empty() {
+                format!(
+                    "\n<a href=\"{}\" class=\"np-button np-price-btn\">{}</a>",
+                    escape_attr(button_url),
+                    button_text
+                )
+            } else {
+                String::new()
+            };
+            let cls = with_extra_classes("np-price-table", extra_cls);
             format!(
-                "<div id=\"{}\" class=\"np-price-table\"{}>\n<div class=\"np-price-header\"><h3 class=\"np-price-title\">{}</h3></div>\n<div class=\"np-price-amount\"><span class=\"np-price-val\">{}</span> <span class=\"np-price-period\">{}</span></div>\n<ul class=\"np-price-features\">\n{}</ul>\n<a href=\"{}\" class=\"np-button np-price-btn\">{}</a>\n</div>",
+                "<div id=\"{}\" class=\"{}\"{}>\n<div class=\"np-price-header\"><h3 class=\"np-price-title\">{}</h3></div>\n<div class=\"np-price-amount\"><span class=\"np-price-val\">{}</span>{}</div>\n<ul class=\"np-price-features\">\n{}</ul>{}\n</div>",
                 escape_attr(&node.id),
+                escape_attr(&cls),
                 style_attr,
                 title,
                 price,
-                period,
+                period_html,
                 feats_html,
-                escape_attr(button_url),
-                button_text
+                btn_html
             )
         }
         NodeKind::Spacer { height } => {

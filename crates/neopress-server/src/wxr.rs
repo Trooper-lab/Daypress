@@ -552,10 +552,20 @@ pub fn import_wxr_stream<R: BufRead>(
         HashMap<String, String>,
     )> = Vec::new();
 
-    // 3a. First Pass for Contact Form 7 / WPForms CPTs and Elementor Forms inside WXR stream
+    // 3a. First Pass for Contact Form 7 / WPForms CPTs, Elementor Forms, and Divi/SPB CPTs inside WXR stream
     let mut form_id_map: HashMap<i64, i64> = HashMap::new();
+    let mut cf7_forms_map: HashMap<String, String> = HashMap::new();
+    let mut spb_services: Vec<neopress_ast::SpbServiceItem> = Vec::new();
+    let mut divi_header_old_id: Option<i64> = None;
+    let mut divi_footer_old_id: Option<i64> = None;
+    let mut accumulated_custom_css = String::new();
+    let mut enqueued_google_fonts: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::new();
+
     let mut first_migrated_form_id: Option<i64> = None;
     let mut has_elementor_forms = false;
+    let mut has_spb_calculator = false;
+
     for item in &posts_to_insert {
         if item
             .postmeta
@@ -564,6 +574,80 @@ pub fn import_wxr_stream<R: BufRead>(
             .unwrap_or(false)
         {
             has_elementor_forms = true;
+        }
+        if item.content.contains("[spb_kw_calculator_module")
+            || item.content.contains("[spb_kitwerk_calculator")
+        {
+            has_spb_calculator = true;
+        }
+        if item.post_type == "spb_service" && item.post_status == "publish" {
+            has_spb_calculator = true;
+            let price = item
+                .postmeta
+                .get("_spb_kw_price")
+                .and_then(|s| s.trim().parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let unit = item
+                .postmeta
+                .get("_spb_kw_unit")
+                .cloned()
+                .unwrap_or_default();
+            let is_extra = item
+                .postmeta
+                .get("_spb_kw_is_extra")
+                .map(|v| v == "1" || v == "true")
+                .unwrap_or(false);
+            spb_services.push(neopress_ast::SpbServiceItem {
+                id: item.id.unwrap_or(0),
+                title: item.title.clone(),
+                price,
+                unit,
+                is_extra,
+            });
+        }
+        if item.post_type == "custom_css" && item.post_status == "publish" && !item.content.trim().is_empty() {
+            accumulated_custom_css.push_str(&item.content);
+            accumulated_custom_css.push('\n');
+        }
+        if let Some(fonts_raw) = item.postmeta.get("et_enqueued_post_fonts") {
+            for fam in extract_divi_enqueued_fonts(fonts_raw) {
+                enqueued_google_fonts.insert(fam);
+            }
+        }
+        if item.post_type == "et_template"
+            && item.post_status == "publish"
+            && !item.postmeta.contains_key("_et_theme_builder_marked_as_unused")
+        {
+            if item
+                .postmeta
+                .get("_et_header_layout_enabled")
+                .map(|v| v == "1")
+                .unwrap_or(true)
+            {
+                if let Some(hid) = item
+                    .postmeta
+                    .get("_et_header_layout_id")
+                    .and_then(|s| s.trim().parse::<i64>().ok())
+                    .filter(|&id| id > 0)
+                {
+                    divi_header_old_id = Some(hid);
+                }
+            }
+            if item
+                .postmeta
+                .get("_et_footer_layout_enabled")
+                .map(|v| v == "1")
+                .unwrap_or(true)
+            {
+                if let Some(fid) = item
+                    .postmeta
+                    .get("_et_footer_layout_id")
+                    .and_then(|s| s.trim().parse::<i64>().ok())
+                    .filter(|&id| id > 0)
+                {
+                    divi_footer_old_id = Some(fid);
+                }
+            }
         }
         if let Some((fields, settings)) = crate::convergence::parse_cf7_or_wpforms_to_schema(
             &item.post_type,
@@ -593,22 +677,52 @@ pub fn import_wxr_stream<R: BufRead>(
                 if let Some(old_fid) = item.id {
                     form_id_map.insert(old_fid, new_fid);
                 }
+                if item.post_type == "wpcf7_contact_form" {
+                    let raw_tpl = item
+                        .postmeta
+                        .get("_form")
+                        .filter(|s| !s.trim().is_empty())
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            item.content
+                                .split("\n1\n")
+                                .next()
+                                .unwrap_or(&item.content)
+                                .to_string()
+                        });
+                    let compiled_html = compile_cf7_form_template(&raw_tpl, new_fid);
+                    cf7_forms_map.insert(new_fid.to_string(), compiled_html.clone());
+                    if let Some(old_fid) = item.id {
+                        cf7_forms_map.insert(old_fid.to_string(), compiled_html.clone());
+                    }
+                    if let Some(hash) = item.postmeta.get("_hash").filter(|h| !h.is_empty()) {
+                        cf7_forms_map.insert(hash.clone(), compiled_html.clone());
+                        let prefix: String = hash.chars().take(7).collect();
+                        cf7_forms_map.insert(prefix, compiled_html.clone());
+                    }
+                    if !item.title.trim().is_empty() {
+                        cf7_forms_map.insert(item.title.trim().to_lowercase(), compiled_html);
+                    }
+                }
             }
         }
     }
-    if has_elementor_forms {
+    if has_elementor_forms || has_spb_calculator {
         let existing_forms: i64 = tx
             .query_row("SELECT COUNT(*) FROM wp_neopress_forms", [], |r| r.get(0))
             .unwrap_or(0);
         if existing_forms == 0 {
             let _ = tx.execute(
-                "INSERT INTO wp_neopress_forms (id, title, schema_json, settings_json, created_at, updated_at) VALUES (1, 'Migrated Elementor Form', '[]', '{}', ?1, ?1)",
+                "INSERT INTO wp_neopress_forms (id, title, schema_json, settings_json, created_at, updated_at) VALUES (1, 'Migrated Lead Form', '[]', '{}', ?1, ?1)",
                 params![now],
             );
         }
     }
-    if !form_id_map.is_empty() || has_elementor_forms {
+    if !form_id_map.is_empty() || has_elementor_forms || has_spb_calculator {
         let _ = crate::convergence::activate_builtin_plugin_tx(&tx, "neopress-forms", None);
+    }
+    if has_spb_calculator {
+        let _ = crate::convergence::activate_builtin_plugin_tx(&tx, "service-calculator", None);
     }
 
     let mut detected_logo_url: Option<String> = None;
@@ -628,11 +742,16 @@ pub fn import_wxr_stream<R: BufRead>(
         if matches!(item.post_type.as_str(), "wpcf7_contact_form" | "wpforms") {
             continue;
         }
-        item.content = crate::convergence::rewrite_legacy_form_shortcodes(
-            &item.content,
-            &form_id_map,
-            first_migrated_form_id,
-        );
+        if !item.content.contains("[et_pb_")
+            && !item.content.contains("[dvppl_cf7_styler")
+            && cf7_forms_map.is_empty()
+        {
+            item.content = crate::convergence::rewrite_legacy_form_shortcodes(
+                &item.content,
+                &form_id_map,
+                first_migrated_form_id,
+            );
+        }
         if crate::convergence::converge_post_seo_meta(
             &mut item.postmeta,
             &item.title,
@@ -754,6 +873,10 @@ pub fn import_wxr_stream<R: BufRead>(
                 .replace(&https_base, "/")
                 .replace(&http_base, "/");
         }
+        initial_content = initial_content
+            .replace("<!-- wp:divi/placeholder -->", "")
+            .replace("<!-- /wp:divi/placeholder -->", "")
+            .replace("<!-- wp:divi/placeholder /-->", "");
 
         let post_id: i64 = match tx.query_row(
             "SELECT ID FROM wp_posts WHERE post_name = ?1 AND post_type = ?2",
@@ -777,9 +900,15 @@ pub fn import_wxr_stream<R: BufRead>(
             }
         };
 
+        let site_slug = generated_slugify::slugify(&wxr_site_title);
+        let is_temp = item.title.to_lowercase().contains("temp") || slug.to_lowercase().contains("temp");
         let is_front_page = p_type == "page"
             && p_status == "publish"
-            && (slug.eq_ignore_ascii_case("home") || slug.eq_ignore_ascii_case("front-page"));
+            && !is_temp
+            && (slug.eq_ignore_ascii_case("home")
+                || slug.eq_ignore_ascii_case("front-page")
+                || item.title.trim().eq_ignore_ascii_case(wxr_site_title.trim())
+                || (!site_slug.is_empty() && slug.eq_ignore_ascii_case(&site_slug)));
         if is_front_page {
             let _ = tx.execute(
                 "INSERT INTO wp_options (option_name, option_value) VALUES ('show_on_front', 'page')
@@ -823,6 +952,9 @@ pub fn import_wxr_stream<R: BufRead>(
             .map(|s| !s.trim().is_empty())
             .unwrap_or(false)
             || initial_content.contains("[et_pb_")
+            || initial_content.contains("[spb_kw_calculator_module")
+            || initial_content.contains("[spb_kitwerk_calculator")
+            || initial_content.contains("[dvppl_cf7_styler")
             || initial_content.contains("<!-- wp:");
         if needs_ast {
             pending_ast_items.push((
@@ -890,7 +1022,16 @@ pub fn import_wxr_stream<R: BufRead>(
         match p_type.as_str() {
             "page" => page_count += 1,
             "attachment" => media_count += 1,
-            "nav_menu_item" | "elementor_library" => {}
+            "nav_menu_item"
+            | "elementor_library"
+            | "et_header_layout"
+            | "et_footer_layout"
+            | "et_template"
+            | "et_pb_layout"
+            | "custom_css"
+            | "wp_global_styles"
+            | "wp_navigation"
+            | "spb_service" => {}
             _ => post_count += 1,
         }
     }
@@ -1041,16 +1182,31 @@ pub fn import_wxr_stream<R: BufRead>(
     // 5. Pass 2: Transpile all Elementor, Divi, and Gutenberg items with complete site context
     let post_urls_json = serde_json::to_string(&post_urls).unwrap_or_else(|_| "{}".to_string());
     let menus_json = serde_json::to_string(&menus_by_slug).unwrap_or_else(|_| "{}".to_string());
+    let cf7_forms_json = serde_json::to_string(&cf7_forms_map).unwrap_or_else(|_| "{}".to_string());
+    let spb_services_json =
+        serde_json::to_string(&spb_services).unwrap_or_else(|_| "[]".to_string());
 
     let mut header_html = String::new();
     let mut footer_html = String::new();
     let mut popups_html = String::new();
+    let mut has_divi_content = false;
 
     for (post_id, old_id_opt, p_type, p_status, raw_content, lib_type_opt, mut meta) in
         pending_ast_items
     {
+        if raw_content.contains("[et_pb_")
+            || p_type == "et_header_layout"
+            || p_type == "et_footer_layout"
+        {
+            has_divi_content = true;
+        }
         meta.insert("__np_post_urls_json".to_string(), post_urls_json.clone());
         meta.insert("__np_menus_json".to_string(), menus_json.clone());
+        meta.insert("__np_cf7_forms_json".to_string(), cf7_forms_json.clone());
+        meta.insert(
+            "__np_spb_services_json".to_string(),
+            spb_services_json.clone(),
+        );
         if let Some(ref logo) = detected_logo_url {
             meta.insert("__np_site_logo_url".to_string(), logo.clone());
         }
@@ -1089,7 +1245,15 @@ pub fn import_wxr_stream<R: BufRead>(
                 )?;
             }
 
-            if p_type == "elementor_library" && p_status == "publish" {
+            if p_type == "et_header_layout" && p_status == "publish" {
+                if divi_header_old_id.is_none() || divi_header_old_id == old_id_opt {
+                    header_html = neopress_ast::render_node_to_html(&transpiled_layout.root);
+                }
+            } else if p_type == "et_footer_layout" && p_status == "publish" {
+                if divi_footer_old_id.is_none() || divi_footer_old_id == old_id_opt {
+                    footer_html = neopress_ast::render_node_to_html(&transpiled_layout.root);
+                }
+            } else if p_type == "elementor_library" && p_status == "publish" {
                 let tpl_type = meta
                     .get("_elementor_template_type")
                     .map(|s| s.as_str())
@@ -1114,6 +1278,22 @@ pub fn import_wxr_stream<R: BufRead>(
                     _ => {}
                 }
             }
+        }
+    }
+
+    if has_divi_content || !accumulated_custom_css.trim().is_empty() || !spb_services.is_empty() {
+        let combined_css = build_divi_global_css(
+            &enqueued_google_fonts,
+            &accumulated_custom_css,
+            !spb_services.is_empty(),
+            has_divi_content,
+        );
+        if !combined_css.trim().is_empty() {
+            let _ = tx.execute(
+                "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_custom_css', ?1)
+                 ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
+                params![combined_css],
+            );
         }
     }
 
@@ -1158,6 +1338,393 @@ pub fn import_wxr_stream<R: BufRead>(
             post_count, page_count, media_count, cat_count, comment_count
         ),
     })
+}
+
+/// Compiles a Contact Form 7 `_form` template into clean HTML wired to `/wp-json/neopress/v1/forms/{form_id}/submit`.
+fn compile_cf7_form_template(raw_tpl: &str, form_id: i64) -> String {
+    let template_part = raw_tpl
+        .lines()
+        .take_while(|line| {
+            let t = line.trim();
+            !t.starts_with("1\n") && t != "1" && !t.starts_with("[_site_")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let tag_re = regex::Regex::new(
+        r#"\[(text\*?|email\*?|tel\*?|textarea\*?|number\*?|date\*?|select\*?|submit)\s+([^\]]+)\]"#,
+    )
+    .expect("valid cf7 regex");
+
+    let rendered_fields = tag_re.replace_all(&template_part, |caps: &regex::Captures| {
+        let kind = caps.get(1).map(|m| m.as_str()).unwrap_or("text");
+        let rest = caps.get(2).map(|m| m.as_str()).unwrap_or("").trim();
+        let required = kind.ends_with('*');
+        let base_kind = kind.trim_end_matches('*');
+        let req_attr = if required { " required" } else { "" };
+
+        if base_kind == "submit" {
+            let label = rest.trim_matches('"').trim();
+            let btn_text = if label.is_empty() { "Verzenden" } else { label };
+            return format!(
+                r#"<button type="submit" class="wpcf7-form-control wpcf7-submit np-btn-submit">{}</button>"#,
+                btn_text
+            );
+        }
+
+        let mut parts = rest.splitn(2, char::is_whitespace);
+        let field_name = parts.next().unwrap_or("field").trim();
+        let remainder = parts.next().unwrap_or("").trim();
+        let placeholder = if let Some(start) = remainder.find('"') {
+            let after = &remainder[start + 1..];
+            if let Some(end) = after.find('"') {
+                &after[..end]
+            } else {
+                ""
+            }
+        } else {
+            ""
+        };
+        let ph_attr = if !placeholder.is_empty() {
+            format!(r#" placeholder="{}""#, placeholder)
+        } else {
+            String::new()
+        };
+
+        match base_kind {
+            "textarea" => format!(
+                r#"<span class="wpcf7-form-control-wrap"><textarea name="{name}" rows="5" class="wpcf7-form-control wpcf7-textarea"{ph}{req}></textarea></span>"#,
+                name = field_name,
+                ph = ph_attr,
+                req = req_attr
+            ),
+            "email" => format!(
+                r#"<span class="wpcf7-form-control-wrap"><input type="email" name="{name}" class="wpcf7-form-control wpcf7-text wpcf7-email"{ph}{req} /></span>"#,
+                name = field_name,
+                ph = ph_attr,
+                req = req_attr
+            ),
+            "tel" => format!(
+                r#"<span class="wpcf7-form-control-wrap"><input type="tel" name="{name}" class="wpcf7-form-control wpcf7-text wpcf7-tel"{ph}{req} /></span>"#,
+                name = field_name,
+                ph = ph_attr,
+                req = req_attr
+            ),
+            _ => format!(
+                r#"<span class="wpcf7-form-control-wrap"><input type="text" name="{name}" class="wpcf7-form-control wpcf7-text"{ph}{req} /></span>"#,
+                name = field_name,
+                ph = ph_attr,
+                req = req_attr
+            ),
+        }
+    });
+
+    let body_html = if rendered_fields.contains("<div") {
+        rendered_fields.into_owned()
+    } else {
+        rendered_fields
+            .split("\n\n")
+            .map(|b| b.trim())
+            .filter(|b| !b.is_empty())
+            .map(|b| {
+                if b.starts_with("<p") || b.starts_with("<div") {
+                    b.to_string()
+                } else {
+                    format!("<p>{}</p>", b.replace('\n', "<br />"))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    format!(
+        r#"<div class="wpcf7"><form class="wpcf7-form np-cf7-form" onsubmit="event.preventDefault(); var f=this; var fd=new FormData(f); var obj={{}}; fd.forEach(function(v,k){{obj[k]=v;}}); fetch('/wp-json/neopress/v1/forms/{form_id}/submit', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify(obj)}}).then(function(){{ var m=f.parentElement.querySelector('.wpcf7-response-output'); if(m){{m.style.display='block'; m.textContent='Bedankt voor uw bericht. Het is verzonden.';}} f.reset(); }});">{fields}</form><div class="wpcf7-response-output" style="display:none; margin-top:12px; padding:10px 14px; border:2px solid #46b450; border-radius:4px; font-size:14px;"></div></div>"#,
+        form_id = form_id,
+        fields = body_html
+    )
+}
+
+/// Extracts Google Font family names from Divi `et_enqueued_post_fonts` (`s:10:"et-gf-teko";s:28:"Teko:..."`) or `_et_builder_gf_feature_cache`.
+fn extract_divi_enqueued_fonts(raw: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let gf_re = regex::Regex::new(r#""et-gf-[^"]+"\s*;\s*s:\d+:"([^":]+)"#)
+        .expect("valid et-gf serialized regex");
+    for caps in gf_re.captures_iter(raw) {
+        if let Some(fam) = caps.get(1) {
+            let f = fam.as_str().trim().to_string();
+            if !f.is_empty() && !out.contains(&f) {
+                out.push(f);
+            }
+        }
+    }
+    let url_re = regex::Regex::new(r"https://fonts\.googleapis\.com/css2?\?family=([^&\\'\x22\s:]+)")
+        .expect("valid gf url regex");
+    for caps in url_re.captures_iter(raw) {
+        if let Some(fam) = caps.get(1) {
+            let f = fam.as_str().trim().to_string();
+            if !f.is_empty() && !out.contains(&f) {
+                out.push(f);
+            }
+        }
+    }
+    out
+}
+
+/// Builds the global CSS stylesheet for Divi imports (Google Fonts `@import`, Divi layout/menu/CF7 rules, popup `#menu` rules, custom CSS, and SPB Calculator rules).
+fn build_divi_global_css(
+    google_fonts: &std::collections::BTreeSet<String>,
+    custom_css: &str,
+    has_spb_calculator: bool,
+    has_divi_content: bool,
+) -> String {
+    let mut css = String::new();
+    for fam in google_fonts {
+        css.push_str(&format!(
+            "@import url('https://fonts.googleapis.com/css?family={}:300,400,500,600,700,800&display=swap');\n",
+            fam
+        ));
+    }
+    if has_divi_content {
+        css.push_str(
+            r#"
+/* Divi Global Layout & Utility Styles */
+html.elementor-theme-active body {
+    background-color: #ffffff;
+    color: #333333;
+    font-family: 'Montserrat', 'Open Sans', sans-serif;
+}
+.np-elementor-header, .np-elementor-footer {
+    width: 100%;
+}
+.et-vert-menu .et-menu {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 16px !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.et-vert-menu .et-menu li a {
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    color: #000000;
+    transition: color 0.2s ease;
+}
+.et-vert-menu .et-menu li a:hover {
+    color: #7c7458;
+}
+.et_pb_section.popup:not(.is-open) {
+    display: none !important;
+}
+#elementor-canvas .et_pb_section.popup:not(.is-open) {
+    display: flex !important;
+    border: 2px dashed #7c7458 !important;
+    background: #fafaf9 !important;
+    margin-bottom: 16px !important;
+}
+.et_pb_section.popup.is-open {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 99999 !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    overflow-y: auto !important;
+    padding: 40px 20px !important;
+}
+.np-divi-popup-close {
+    position: fixed;
+    top: 24px;
+    right: 32px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: #000;
+    color: #fff;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.wpcf7-form p {
+    margin-bottom: 16px;
+}
+.custom-form-container .form-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+.custom-form-container .form-column {
+    flex: 1 1 240px;
+}
+.wpcf7-form label {
+    display: block;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: inherit;
+}
+.wpcf7-form-control-wrap {
+    display: block;
+    margin-top: 4px;
+}
+.wpcf7-form input.wpcf7-text,
+.wpcf7-form textarea.wpcf7-textarea,
+.wpcf7-form select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #18181b;
+    font-family: inherit;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+.wpcf7-form .wpcf7-submit {
+    display: inline-block;
+    padding: 12px 28px;
+    background: #7c7458;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+.wpcf7-form .wpcf7-submit:hover {
+    opacity: 0.9;
+}
+@media (max-width: 980px) {
+    .et_pb_row {
+        flex-wrap: wrap !important;
+    }
+    .et_pb_column {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+}
+"#,
+        );
+    }
+    if has_spb_calculator {
+        css.push_str(
+            r#"
+/* Service Price Calculator Native Styles (1:1 from service-calculator/assets/css/frontend.css) */
+.spb-kw-step1-list{display:block}
+.spb-kw-step1-list .spb-kw-row{display:flex;gap:12px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap}
+.spb-kw-row-field{display:flex;flex-direction:column;min-width:160px;flex:1}
+.spb-kw-row-field label{font-size:12px;color:#fff;margin-bottom:6px}
+.spb-kw-row-field input[type=number],
+.spb-kw-row-field select{
+	background:#fff;
+	color:#000;
+	border:3px solid #d00;
+	border-radius:10px;
+	padding:12px 14px;
+	font-size:18px;
+	line-height:1.2;
+}
+.spb-kw-row-field input[type=number]::-webkit-outer-spin-button,
+.spb-kw-row-field input[type=number]::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
+.spb-kw-row-field input[type=number]{ -moz-appearance: textfield; }
+.spb-kw-row-field select{ appearance:none; -webkit-appearance:none; -moz-appearance:none; background-image: linear-gradient(45deg, transparent 50%, #000 50%), linear-gradient(135deg, #000 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat:no-repeat; appearance:none }
+.spb-kw-row-actions{display:flex;align-items:center}
+.spb-kw-row-actions .spb-kw-remove-row{border:0;background:#eee;border-radius:4px;width:34px;height:34px;cursor:pointer}
+@media (max-width: 600px){
+	.spb-kw-step1-list .spb-kw-row{flex-direction:column;align-items:stretch}
+	.spb-kw-row-actions{justify-content:flex-end}
+}
+.spb-kw-actions{display:flex;justify-content:flex-start}
+.spb-kw-actions .spb-kw-add-service{
+	background:none;border:0;padding:4px 0;cursor:pointer;color:#fff;font-size:16px;
+	text-decoration:none;border-bottom:2px dashed rgba(255,255,255,0.8);
+}
+.spb-kw-actions .spb-kw-add-service:before{content:'+';display:inline-block;margin-right:8px;font-weight:700}
+.spb-kw-actions .spb-kw-add-service:hover{border-bottom-color:#fff}
+.spb-kw-review{overflow-x:auto}
+.spb-kw-review-table{width:100%;border-collapse:collapse;table-layout:auto}
+.spb-kw-review-table th,.spb-kw-review-table td{padding:10px;border-bottom:1px solid #eee;vertical-align:top;color:#fff}
+.spb-kw-review-table thead th{position:sticky;top:0;background:rgba(255,255,255,0.06);z-index:1;color:#fff}
+.spb-kw-review-table tfoot th{background:rgba(255,255,255,0.06);color:#fff}
+.spb-kw-review-table .col-item{width:auto}
+.spb-kw-review-table .col-qty{width:80px;text-align:right;white-space:nowrap}
+.spb-kw-review-table .col-price{width:120px;text-align:right;white-space:nowrap}
+.spb-kw-review-table .col-total{width:130px;text-align:right;white-space:nowrap}
+.spb-kw-calculator{background:#101523;color:#ffffff;border:1px solid rgba(226,50,18,0.25);padding:24px;border-radius:10px;font-size:1.5em}
+.spb-kw-calculator .et_pb_module_header{color:#ffffff;border-bottom:2px solid #e23212;padding-bottom:6px;margin-bottom:12px;font-size:1.4em;line-height:1.2}
+.spb-kw-calculator .spb-kw-success{display:none;text-align:center;padding:40px 20px;border:3px solid #e23212;border-radius:10px;background:#0b0f1a;color:#ffffff;font-weight:700}
+.spb-kw-calculator .spb-kw-copy{margin:6px 0 14px}
+.spb-kw-calculator .spb-kw-copy p{margin:.25rem 0 0;color:#ffffff}
+.spb-kw-calculator .spb-kw-icons{margin:.5rem 0 0;padding-left:1em}
+.spb-kw-calculator .spb-kw-icons li{list-style:none;margin:.25rem 0;color:#ffffff;opacity:.95}
+.spb-kw-calculator .spb-kw-top-controls{display:grid;grid-template-columns:1fr;gap:16px;margin:10px 0 16px}
+.spb-kw-calculator .spb-kw-field label{display:block;font-weight:600;margin-bottom:6px;color:#ffffff}
+.spb-kw-calculator .spb-kw-qty-control{display:flex;align-items:center;gap:8px}
+.spb-kw-calculator .spb-kw-btn{width:44px;height:44px;border-radius:8px;border:1px solid #e23212;background:transparent;color:#ffffff;font-size:1em;line-height:1;cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.spb-kw-calculator .spb-kw-btn:hover{background:#e23212}
+.spb-kw-calculator .spb-kw-field input[type="number"],
+.spb-kw-calculator .spb-kw-field select,
+.spb-kw-calculator .spb-kw-lead-form input[type="text"],
+.spb-kw-calculator .spb-kw-lead-form input[type="email"],
+.spb-kw-calculator .spb-kw-lead-form input[type="tel"]{width:100%;padding:14px 12px;border:3px solid #e23212;border-radius:8px;font-size:1em;background:#ffffff;color:#101523;box-sizing:border-box}
+.spb-kw-calculator .spb-kw-field input[type="number"]::placeholder,
+.spb-kw-calculator .spb-kw-lead-form input::placeholder{color:#6b7280}
+.spb-kw-calculator .spb-kw-field select option{color:#101523;background:#ffffff}
+.spb-kw-calculator .spb-kw-field input[type="number"]:focus,
+.spb-kw-calculator .spb-kw-field select:focus,
+.spb-kw-calculator .spb-kw-lead-form input:focus{outline:none;border-color:#e23212;box-shadow:0 0 0 2px rgba(226,50,18,0.25)}
+.spb-kw-calculator .spb-kw-extras{margin:10px 0 10px}
+.spb-kw-calculator .spb-kw-extras > strong{display:block;margin-bottom:6px;color:#ffffff}
+.spb-kw-calculator .spb-kw-extras-list{display:flex;flex-wrap:wrap;gap:10px}
+.spb-kw-calculator .spb-kw-extra{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid rgba(226,50,18,0.35);border-radius:8px;background:#0b0f1a}
+.spb-kw-calculator .spb-kw-extra-price{opacity:.95}
+.spb-kw-calculator .spb-kw-summary{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:14px 0 20px}
+.spb-kw-calculator .spb-kw-travel-note{padding:10px 12px;border-left:3px solid #e23212;background:#0b0f1a;border-radius:6px;color:#ffffff}
+.spb-kw-calculator .spb-kw-info-line{margin:6px 0;color:#ffffff;opacity:.95;grid-column:1/-1}
+.spb-kw-calculator .spb-kw-total-box{padding:12px 14px;border:2px solid #e23212;border-radius:6px;font-size:1em;font-weight:700;background:#0b0f1a;color:#ffffff}
+.spb-kw-calculator .spb-kw-actions{margin-top:10px}
+.spb-kw-calculator .spb-kw-lead-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.spb-kw-calculator .spb-kw-lead-title{grid-column:1/-1;margin:0;color:#ffffff;border-bottom:2px solid #e23212;padding-bottom:6px;font-size:1.2em;line-height:1.25}
+.spb-kw-calculator .spb-kw-copy--step2{grid-column:1/-1;margin:6px 0 10px}
+.spb-kw-calculator .spb-kw-consent{grid-column:1/-1;display:flex;gap:8px;align-items:flex-start;margin-top:4px}
+.spb-kw-calculator .spb-kw-consent input[type="checkbox"]{margin-top:6px;width:20px;height:20px}
+.spb-kw-calculator .spb-kw-consent a{color:#e23212;text-decoration:underline}
+.spb-kw-calculator .spb-kw-lead-actions{grid-column:1/-1;display:flex;gap:8px}
+.spb-kw-calculator .spb-kw-message{grid-column:1/-1;margin-top:4px}
+.spb-kw-calculator .spb-kw-review{grid-column:1/-1;margin:6px 0 10px;padding:10px 12px;border:1px dashed rgba(226,50,18,0.6);border-radius:6px;background:#0b0f1a}
+.spb-kw-calculator .spb-kw-review-table{width:100%;border-collapse:collapse;color:#ffffff}
+.spb-kw-calculator .spb-kw-review-table th,
+.spb-kw-calculator .spb-kw-review-table td{padding:8px;border-bottom:1px solid rgba(226,50,18,0.25);text-align:left}
+.spb-kw-calculator .spb-kw-review-table thead th{border-bottom:2px solid #e23212}
+.spb-kw-calculator .spb-kw-review-table tfoot th{border-top:2px solid #e23212}
+.spb-kw-calculator .et_pb_button{background:#e23212;color:#ffffff;border:1px solid #e23212;border-radius:6px;padding:10px 16px;transition:opacity .15s ease,transform .1s ease;font-size:1em;cursor:pointer}
+.spb-kw-calculator .et_pb_button:hover{opacity:.9}
+.spb-kw-calculator .et_pb_button:active{transform:translateY(1px)}
+.spb-kw-calculator .et_pb_button:disabled{opacity:.5;cursor:not-allowed}
+@media (max-width: 768px){
+	.spb-kw-calculator .spb-kw-top-controls{grid-template-columns:1fr}
+	.spb-kw-calculator .spb-kw-lead-form{grid-template-columns:1fr}
+}
+"#,
+        );
+    }
+    if !custom_css.trim().is_empty() {
+        css.push_str("\n/* Imported Custom CSS (wp_custom_css) */\n");
+        css.push_str(custom_css);
+        css.push('\n');
+    }
+    css
 }
 
 #[cfg(test)]

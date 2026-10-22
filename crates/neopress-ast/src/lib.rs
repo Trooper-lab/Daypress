@@ -7,7 +7,10 @@ pub mod schema;
 
 use std::collections::HashMap;
 
-pub use divi::transpile_divi_content;
+pub use divi::{
+    render_spb_calculator_widget, transpile_divi_content, transpile_divi_content_with_context,
+    DiviContext, SpbServiceItem,
+};
 pub use elementor::{
     normalize_video_embed_url, resolve_dynamic_tag, transpile_elementor_json,
     transpile_elementor_json_with_context, ElementorContext, NavMenuItem,
@@ -53,8 +56,13 @@ pub fn transpile_content(content: &str, meta: &HashMap<String, String>) -> Optio
     }
 
     // 2. Check for Divi shortcode markup in content
-    if content.contains("[et_pb_") {
-        if let Ok(layout) = transpile_divi_content(content) {
+    if content.contains("[et_pb_")
+        || content.contains("[spb_kw_calculator_module")
+        || content.contains("[spb_kitwerk_calculator")
+        || content.contains("[dvppl_cf7_styler")
+    {
+        let ctx = DiviContext::from_meta(meta);
+        if let Ok(layout) = transpile_divi_content_with_context(content, &ctx) {
             return Some(layout);
         }
     }
