@@ -8,9 +8,12 @@ pub mod schema;
 use std::collections::HashMap;
 
 pub use divi::transpile_divi_content;
-pub use elementor::{normalize_video_embed_url, transpile_elementor_json};
+pub use elementor::{
+    normalize_video_embed_url, resolve_dynamic_tag, transpile_elementor_json,
+    transpile_elementor_json_with_context, ElementorContext, NavMenuItem,
+};
 pub use gutenberg::transpile_gutenberg_content;
-pub use kit::{ElementorKit, GlobalColor, GlobalTypography};
+pub use kit::{ parse_php_serialized_to_json, ElementorKit, GlobalColor, GlobalTypography };
 pub use render::{render_layout_to_html, render_node_to_html};
 pub use schema::{
     AccordionItem, BackgroundConfig, BorderConfig, IconListItem, NeopressLayout, NeopressNode,
@@ -24,21 +27,23 @@ pub fn transpile_content(content: &str, meta: &HashMap<String, String>) -> Optio
     // 1. Check for Elementor payload in postmeta
     if let Some(elem_json) = meta.get("_elementor_data") {
         if !elem_json.trim().is_empty() {
-            if let Ok(mut layout) = transpile_elementor_json(elem_json) {
-                // Wire ElementorKit global styles when _elementor_page_settings or _elementor_kit_settings is present
+            let ctx = ElementorContext::from_meta(meta);
+            if let Ok(mut layout) = transpile_elementor_json_with_context(elem_json, &ctx) {
+                // Wire ElementorKit global styles when _elementor_kit_settings or _elementor_page_settings is present
                 if let Some(settings_raw) = meta
-                    .get("_elementor_page_settings")
-                    .or_else(|| meta.get("_elementor_kit_settings"))
+                    .get("_elementor_kit_settings")
+                    .filter(|s| !s.trim().is_empty())
+                    .or_else(|| {
+                        meta.get("_elementor_page_settings")
+                            .filter(|s| !s.trim().is_empty())
+                    })
                 {
-                    if !settings_raw.trim().is_empty() {
-                        if let Ok(kit) = serde_json::from_str::<ElementorKit>(settings_raw) {
-                            layout.global_styles = serde_json::to_value(kit).ok();
-                        } else if let Ok(val) =
-                            serde_json::from_str::<serde_json::Value>(settings_raw)
-                        {
-                            if val.is_object() {
-                                layout.global_styles = Some(val);
-                            }
+                    if let Some(kit) = ElementorKit::from_raw_settings(settings_raw) {
+                        layout.global_styles = serde_json::to_value(kit).ok();
+                    } else if let Ok(val) = serde_json::from_str::<serde_json::Value>(settings_raw)
+                    {
+                        if val.is_object() {
+                            layout.global_styles = Some(val);
                         }
                     }
                 }

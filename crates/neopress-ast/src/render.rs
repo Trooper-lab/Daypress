@@ -80,7 +80,7 @@ fn render_form_html(
         inner_html.to_string()
     };
 
-    let onsubmit = "event.preventDefault();var f=this,s=f.querySelector('.np-form-status'),d=Object.fromEntries(new FormData(f).entries());fetch(f.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(function(r){if(s)s.textContent=r.ok?'Thank you! Your message has been sent.':'Submission failed.';if(r.ok)f.reset();});return false;";
+    let onsubmit = "event.preventDefault();var f=this,s=f.querySelector('.np-form-status'),d=Object.fromEntries(new FormData(f).entries());fetch(f.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(function(r){var okMsg=(s&&s.getAttribute('data-success-msg'))||'Thank you! Your message has been sent.';var redir=s&&s.getAttribute('data-redirect-url');if(s)s.textContent=r.ok?okMsg:'Submission failed.';if(r.ok){f.reset();if(redir)window.location.href=redir;}});return false;";
 
     format!(
         "<form id=\"{}\" class=\"np-form\" data-form-id=\"{}\" method=\"POST\" action=\"{}\" onsubmit=\"{}\"{}>\n{}<input type=\"text\" name=\"_np_hp\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\" />\n{}\n</form>",
@@ -94,9 +94,17 @@ fn render_form_html(
     )
 }
 
+fn with_extra_classes(base_class: &str, extra: Option<&str>) -> String {
+    match extra.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        Some(ext) => format!("{} {}", base_class, ext),
+        None => base_class.to_string(),
+    }
+}
+
 /// Recursively compiles a NeopressNode and its descendants into semantic HTML5.
 pub fn render_node_to_html(node: &NeopressNode) -> String {
     let css = node.styles.to_css_style().replace('"', "'");
+    let extra_cls = node.styles.css_classes.as_deref();
     let style_attr = if css.is_empty() {
         String::new()
     } else {
@@ -139,9 +147,11 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
             if is_synthetic_root && effective_css.is_empty() {
                 return inner_html;
             }
+            let cls = with_extra_classes("np-section", extra_cls);
             format!(
-                "<section id=\"{}\" class=\"np-section\"{}>\n{}\n</section>",
+                "<section id=\"{}\" class=\"{}\"{}>\n{}\n</section>",
                 escape_attr(&node.id),
+                escape_attr(&cls),
                 effective_style_attr,
                 inner_html
             )
@@ -150,12 +160,45 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
             if is_synthetic_root && effective_css.is_empty() {
                 return inner_html;
             }
-            format!(
-                "<div id=\"{}\" class=\"np-container\"{}>\n{}\n</div>",
-                escape_attr(&node.id),
-                effective_style_attr,
+            let is_boxed = extra_cls
+                .map(|c| c.split_whitespace().any(|w| w == "np-container-boxed"))
+                .unwrap_or(false);
+            let body_html = if is_boxed {
+                format!("<div class=\"np-container-inner\">\n{}\n</div>", inner_html)
+            } else {
                 inner_html
-            )
+            };
+            if let Some(href) = node.styles.link_url.as_deref().filter(|s| !s.is_empty()) {
+                let lower = href.to_ascii_lowercase();
+                let is_img = lower.ends_with(".jpg")
+                    || lower.ends_with(".jpeg")
+                    || lower.ends_with(".png")
+                    || lower.ends_with(".webp")
+                    || lower.ends_with(".svg");
+                let base = if is_img {
+                    "np-container np-clickable-container np-lightbox-trigger"
+                } else {
+                    "np-container np-clickable-container"
+                };
+                let cls = with_extra_classes(base, extra_cls);
+                format!(
+                    "<a id=\"{}\" href=\"{}\" class=\"{}\"{}>\n{}\n</a>",
+                    escape_attr(&node.id),
+                    escape_attr(href),
+                    escape_attr(&cls),
+                    effective_style_attr,
+                    body_html
+                )
+            } else {
+                let cls = with_extra_classes("np-container", extra_cls);
+                format!(
+                    "<div id=\"{}\" class=\"{}\"{}>\n{}\n</div>",
+                    escape_attr(&node.id),
+                    escape_attr(&cls),
+                    effective_style_attr,
+                    body_html
+                )
+            }
         }
         NodeKind::Column => {
             let col_style = if css.contains("flex:") || css.contains("flex-basis:") {
@@ -218,19 +261,23 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
             } else {
                 2
             };
+            let cls = with_extra_classes("np-heading", extra_cls);
             format!(
-                "<h{} id=\"{}\" class=\"np-heading\"{}>{}</h{}>",
+                "<h{} id=\"{}\" class=\"{}\"{}>{}</h{}>",
                 lvl,
                 escape_attr(&node.id),
+                escape_attr(&cls),
                 style_attr,
                 sanitize_editor_html(text),
                 lvl
             )
         }
         NodeKind::Text { content_html } => {
+            let cls = with_extra_classes("np-text", extra_cls);
             format!(
-                "<div id=\"{}\" class=\"np-text\"{}>{}</div>",
+                "<div id=\"{}\" class=\"{}\"{}>{}</div>",
                 escape_attr(&node.id),
+                escape_attr(&cls),
                 style_attr,
                 sanitize_editor_html(content_html)
             )
@@ -248,24 +295,28 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
                 (None, Some(h)) => format!(" height=\"{}\"", h),
                 _ => String::new(),
             };
+            let cls = with_extra_classes("np-image", extra_cls);
             let img_tag = format!(
-                "<img src=\"{}\" alt=\"{}\"{} class=\"np-image\"{} loading=\"lazy\" />",
+                "<img src=\"{}\" alt=\"{}\"{} class=\"{}\"{} loading=\"lazy\" />",
                 escape_attr(src),
                 escape_attr(alt),
                 dim_attrs,
+                escape_attr(&cls),
                 style_attr
             );
             if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
-                format!("<a href=\"{}\">{}</a>", escape_attr(href), img_tag)
+                format!("<a href=\"{}\" class=\"np-image-link\">{}</a>", escape_attr(href), img_tag)
             } else {
                 img_tag
             }
         }
         NodeKind::Button { text, url, target } => {
+            let cls = with_extra_classes("np-button", extra_cls);
             format!(
-                "<a href=\"{}\" target=\"{}\" class=\"np-button\"{}>{}</a>",
+                "<a href=\"{}\" target=\"{}\" class=\"{}\"{}>{}</a>",
                 escape_attr(url),
                 escape_attr(target),
+                escape_attr(&cls),
                 style_attr,
                 sanitize_editor_html(text)
             )
@@ -407,13 +458,24 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
                 .map(|c| format!("color: {}; ", escape_attr(c)))
                 .unwrap_or_default();
             let combined = format!("{}{}{}", size_style, color_style, css);
-            format!(
-                "<span id=\"{}\" class=\"np-icon\" data-icon=\"{}\" style=\"{}\"><i class=\"{}\" aria-hidden=\"true\"></i></span>",
+            let cls = with_extra_classes("np-icon", extra_cls);
+            let span_html = format!(
+                "<span id=\"{}\" class=\"{}\" data-icon=\"{}\" style=\"{}\"><i class=\"{}\" aria-hidden=\"true\"></i></span>",
                 escape_attr(&node.id),
+                escape_attr(&cls),
                 escape_attr(name),
                 combined.trim(),
                 escape_attr(name)
-            )
+            );
+            if let Some(href) = node.styles.link_url.as_deref().filter(|s| !s.is_empty()) {
+                format!(
+                    "<a href=\"{}\" class=\"np-icon-link\">{}</a>",
+                    escape_attr(href),
+                    span_html
+                )
+            } else {
+                span_html
+            }
         }
         NodeKind::Counter {
             number,
@@ -568,15 +630,24 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
                 } else {
                     item.text.clone()
                 };
-                list_html.push_str(&format!(
-                    "<li class=\"np-iconlist-item\"><i class=\"{}\"></i><span>{}</span></li>\n",
-                    escape_attr(&item.icon),
-                    text_part
-                ));
+                if item.icon.trim().is_empty() {
+                    list_html.push_str(&format!(
+                        "<li class=\"np-iconlist-item\"><span>{}</span></li>\n",
+                        text_part
+                    ));
+                } else {
+                    list_html.push_str(&format!(
+                        "<li class=\"np-iconlist-item\"><i class=\"{}\"></i><span>{}</span></li>\n",
+                        escape_attr(&item.icon),
+                        text_part
+                    ));
+                }
             }
+            let cls = with_extra_classes("np-iconlist", extra_cls);
             format!(
-                "<ul id=\"{}\" class=\"np-iconlist\"{}>\n{}</ul>",
+                "<ul id=\"{}\" class=\"{}\"{}>\n{}</ul>",
                 escape_attr(&node.id),
+                escape_attr(&cls),
                 style_attr,
                 list_html
             )
@@ -745,7 +816,21 @@ pub fn render_node_to_html(node: &NeopressNode) -> String {
                 escape_attr(anchor_id)
             )
         }
-        NodeKind::CustomHtml { raw } => sanitize_editor_html(raw),
+        NodeKind::CustomHtml { raw } => {
+            let cleaned = sanitize_editor_html(raw);
+            if !style_attr.is_empty() || extra_cls.is_some() {
+                let cls = with_extra_classes("np-custom-widget", extra_cls);
+                format!(
+                    "<div id=\"{}\" class=\"{}\"{}>{}</div>",
+                    escape_attr(&node.id),
+                    escape_attr(&cls),
+                    style_attr,
+                    cleaned
+                )
+            } else {
+                cleaned
+            }
+        }
         NodeKind::ShortcodeFallback {
             tag,
             attributes: _,

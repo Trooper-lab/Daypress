@@ -1192,11 +1192,17 @@ pub struct StyleProperties {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub border_top: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_right: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub border_bottom: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_left: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flex_direction: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flex_wrap: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub justify_content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1217,6 +1223,18 @@ pub struct StyleProperties {
     pub box_shadow: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_gradient: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_transform: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_style: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub letter_spacing: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub css_classes: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
@@ -1629,6 +1647,30 @@ impl StyleProperties {
         if let Some(lh) = line_height.filter(|s| !s.is_empty()) {
             css.push(format!("line-height: {};", lh));
         }
+        if let Some(ref ff) = self.font_family {
+            if !ff.is_empty() {
+                if ff.contains(',') || ff.starts_with("var(") {
+                    css.push(format!("font-family: {};", ff));
+                } else {
+                    css.push(format!("font-family: '{}', sans-serif;", ff));
+                }
+            }
+        }
+        if let Some(ref tt) = self.text_transform {
+            if !tt.is_empty() {
+                css.push(format!("text-transform: {};", tt));
+            }
+        }
+        if let Some(ref fs) = self.font_style {
+            if !fs.is_empty() {
+                css.push(format!("font-style: {};", fs));
+            }
+        }
+        if let Some(ref ls) = self.letter_spacing {
+            if !ls.is_empty() {
+                css.push(format!("letter-spacing: {};", ls));
+            }
+        }
 
         // Background (nested or flat)
         let bg_color = self
@@ -1695,9 +1737,19 @@ impl StyleProperties {
                 css.push(format!("border-top: {};", bt));
             }
         }
+        if let Some(ref br) = self.border_right {
+            if !br.is_empty() {
+                css.push(format!("border-right: {};", br));
+            }
+        }
         if let Some(ref bb) = self.border_bottom {
             if !bb.is_empty() {
                 css.push(format!("border-bottom: {};", bb));
+            }
+        }
+        if let Some(ref bl) = self.border_left {
+            if !bl.is_empty() {
+                css.push(format!("border-left: {};", bl));
             }
         }
 
@@ -1710,6 +1762,11 @@ impl StyleProperties {
         if let Some(ref fd) = self.flex_direction {
             if !fd.is_empty() {
                 css.push(format!("flex-direction: {};", fd));
+            }
+        }
+        if let Some(ref fw) = self.flex_wrap {
+            if !fw.is_empty() {
+                css.push(format!("flex-wrap: {};", fw));
             }
         }
         if let Some(ref jc) = self.justify_content {
