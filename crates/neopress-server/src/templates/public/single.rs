@@ -11,12 +11,21 @@ pub fn render_single_post(
     settings: &WpSettingsResponse,
     current_user: Option<&AuthUser>,
     layout_json: Option<&str>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
-    let ast_rendered = layout_json
+    let parsed_layout = layout_json
         .and_then(|s| serde_json::from_str::<NeopressLayout>(s).ok())
-        .filter(|l| !l.root.children.is_empty())
-        .map(|l| neopress_ast::render_layout_to_html(&l))
+        .filter(|l| !l.root.children.is_empty());
+
+    let ast_rendered = parsed_layout
+        .as_ref()
+        .map(|l| neopress_ast::render_layout_to_html(l))
         .filter(|h| !h.trim().is_empty());
+
+    let layout_scoped_css = parsed_layout
+        .as_ref()
+        .map(|l| neopress_ast::compile_layout_css(l))
+        .unwrap_or_default();
 
     let has_ast_layout = ast_rendered.is_some();
     let clean_content = ast_rendered.unwrap_or_else(|| clean_wp_content(&post.content.rendered));
@@ -33,26 +42,28 @@ pub fn render_single_post(
         neopress_ast::ElementorKit::default().compile_to_css()
     };
 
-    let global_css = if let Some(layout_str) = layout_json {
-        if let Ok(val) = serde_json::from_str::<serde_json::Value>(layout_str) {
-            if let Some(gs) = val.get("global_styles") {
-                if !gs.is_null() {
-                    if let Ok(kit) = serde_json::from_value::<neopress_ast::ElementorKit>(gs.clone()) {
-                        kit.compile_to_css()
-                    } else {
-                        fallback_kit_css
-                    }
-                } else {
-                    fallback_kit_css
-                }
+    let global_css = if let Some(ref l) = parsed_layout {
+        if let Some(ref gs) = l.global_styles {
+            if !gs.is_null() {
+                serde_json::from_value::<neopress_ast::ElementorKit>(gs.clone())
+                    .map(|kit| kit.compile_to_css())
+                    .unwrap_or_else(|_| fallback_kit_css.clone())
             } else {
-                fallback_kit_css
+                fallback_kit_css.clone()
             }
         } else {
-            fallback_kit_css
+            fallback_kit_css.clone()
         }
     } else {
         fallback_kit_css
+    };
+
+    let page_custom_css = if layout_scoped_css.is_empty() {
+        global_css
+    } else if global_css.is_empty() {
+        layout_scoped_css
+    } else {
+        format!("{}\n{}", global_css, layout_scoped_css)
     };
 
     // Full-bleed Visual Builder page vs standard article/page with header shell
@@ -69,21 +80,25 @@ pub fn render_single_post(
         || !settings.elementor_header_html.trim().is_empty()
         || !settings.elementor_footer_html.trim().is_empty();
 
-    let content = if is_full_bleed_visual {
+    let is_section_layout = clean_content.trim_start().starts_with("<section")
+        || clean_content.contains("<section class=\"pageheader")
+        || clean_content.contains("<section class=\"section ")
+        || clean_content.contains("<section class=\"np-section");
+
+    let content = if is_section_layout {
+        clean_content
+    } else if is_full_bleed_visual {
         format!(
             r##"
-            <style>{global_css}</style>
             <div class="np-visual-canvas">
                 {body}
             </div>
             "##,
-            global_css = global_css,
             body = clean_content
         )
     } else if is_page && has_elementor_theme {
         format!(
             r##"
-            <style>{global_css}</style>
             <section class="np-section" style="border-bottom: none; padding: 48px 24px;">
                 <div class="np-container" style="max-width: var(--e-content-width, 1140px); margin: 0 auto;">
                     <h1 class="np-heading entry-title" style="margin-bottom: 24px;">{title}</h1>
@@ -93,7 +108,6 @@ pub fn render_single_post(
                 </div>
             </section>
             "##,
-            global_css = global_css,
             title = post.title.rendered,
             body = clean_content
         )
@@ -253,7 +267,6 @@ pub fn render_single_post(
 
         format!(
             r##"
-            <style>{global_css}</style>
             <section class="np-section">
                 <div class="np-container" style="max-width: 880px;">
                     <div style="margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px;">
@@ -281,7 +294,6 @@ pub fn render_single_post(
                 </div>
             </section>
             "##,
-            global_css = global_css,
             site_name = escape_html(site_name),
             title = post.title.rendered,
             date = date_short,
@@ -295,11 +307,22 @@ pub fn render_single_post(
         )
     };
 
-    render_base_layout(
+    let doc = render_base_layout(
         &post.title.rendered,
         settings,
         &content,
         current_user,
         Some(post),
-    )
+        partials,
+    );
+
+    if !page_custom_css.trim().is_empty() {
+        let page_style_tag = format!(
+            "\t<style id=\"np-page-styles\">\n{}\n\t</style>\n</head>",
+            page_custom_css.trim()
+        );
+        doc.replace("</head>", &page_style_tag)
+    } else {
+        doc
+    }
 }

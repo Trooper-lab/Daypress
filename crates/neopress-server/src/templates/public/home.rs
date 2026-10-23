@@ -12,6 +12,7 @@ pub fn render_home_page(
     posts: &[WpPostResponse],
     settings: &WpSettingsResponse,
     current_user: Option<&AuthUser>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
     let site_title = if settings.title.trim().is_empty() {
         "Neopress"
@@ -166,9 +167,11 @@ pub fn render_home_page(
             String::new()
         };
 
+        let card_cls = if post.sticky { "np-card sticky" } else { "np-card" };
+
         post_cards_html.push_str(&format!(
             r##"
-            <a href="/{slug}/" class="np-card">
+            <a href="/{slug}/" class="{card_cls}">
                 {media_html}
                 <div class="np-card-body">
                     <div class="np-card-meta">
@@ -185,6 +188,7 @@ pub fn render_home_page(
             </a>
             "##,
             slug = escape_html(&post.slug),
+            card_cls = card_cls,
             media_html = media_html,
             cat_label = cat_label,
             date = escape_html(&date_short),
@@ -253,6 +257,6 @@ pub fn render_home_page(
         pages_section_html = pages_section_html,
     );
 
-    render_base_layout(&settings.title, settings, &home_content, current_user, None)
+    render_base_layout(&settings.title, settings, &home_content, current_user, None, partials)
 }
 

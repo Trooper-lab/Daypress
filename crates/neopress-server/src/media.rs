@@ -337,7 +337,18 @@ fn serve_file_response(path: &Path) -> Result<Response, StatusCode> {
         "webp" => "image/webp",
         "svg" => "image/svg+xml",
         "gif" => "image/gif",
+        "ico" => "image/x-icon",
+        "avif" => "image/avif",
         "pdf" => "application/pdf",
+        "mp4" | "m4v" => "video/mp4",
+        "webm" => "video/webm",
+        "ogg" | "ogv" => "video/ogg",
+        "mov" => "video/quicktime",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "ttf" => "font/ttf",
         _ => "application/octet-stream",
     };
 

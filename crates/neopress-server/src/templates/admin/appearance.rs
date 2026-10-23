@@ -192,6 +192,14 @@ pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
                 </div>
 
                 <div>
+                    <label class="form-label">Converged Neo Theme Tokens (Divi / Elementor Kit)</label>
+                    <div style="padding: 10px 12px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 12px; color: #334155;">
+                        <div style="font-weight: 600; color: #0f172a; margin-bottom: 4px;">✓ Unified CSS Variable System Active</div>
+                        <div>Global Colors (<code style="font-size:11px;">--np-color-*</code> / <code style="font-size:11px;">--e-global-color-*</code>) &amp; Typography (<code style="font-size:11px;">--np-font-*</code>) synced with Visual Studio Builder.</div>
+                    </div>
+                </div>
+
+                <div>
                     <label class="form-label">Typography Scale</label>
                     <select id="custFont" class="form-select" onchange="updateLivePreview()">
                         <option value="system" {sel_system}>Modern System (Inter / Plus Jakarta)</option>

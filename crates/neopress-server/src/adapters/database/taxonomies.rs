@@ -233,6 +233,92 @@ impl Database {
         }
         Ok(rows > 0)
     }
+
+    pub fn get_taxonomy_term(&self, taxonomy: &str, slug: &str) -> Result<Option<WpCategoryResponse>> {
+        let conn = self.conn.lock().unwrap();
+        let base_url = Self::get_base_url_with_conn(&conn);
+        let route_prefix = if taxonomy == "post_tag" {
+            "tag"
+        } else if taxonomy == "category" {
+            "category"
+        } else {
+            taxonomy
+        };
+        let mut stmt = conn.prepare(
+            r#"SELECT t.term_id, t.name, t.slug, COALESCE(tt.description, ''), COALESCE(tt.parent, 0),
+                      (SELECT count(*) FROM wp_term_relationships r WHERE r.term_taxonomy_id = tt.term_taxonomy_id) as cnt
+               FROM wp_terms t
+               JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
+               WHERE tt.taxonomy = ?1 AND t.slug = ?2
+               LIMIT 1"#,
+        )?;
+
+        let mut rows = stmt.query_map(params![taxonomy, slug], |row| {
+            let id: i64 = row.get(0)?;
+            let name: String = row.get(1)?;
+            let slug: String = row.get(2)?;
+            let description: String = row.get(3)?;
+            let parent: i64 = row.get(4)?;
+            let count: i64 = row.get(5)?;
+
+            Ok(WpCategoryResponse {
+                id,
+                count,
+                description,
+                link: format!(
+                    "{}/{}/{}/",
+                    base_url.trim_end_matches('/'),
+                    route_prefix,
+                    slug
+                ),
+                name,
+                slug,
+                taxonomy: taxonomy.to_string(),
+                parent,
+            })
+        })?;
+
+        if let Some(r) = rows.next() {
+            Ok(Some(r?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_posts_by_taxonomy_term(
+        &self,
+        taxonomy: &str,
+        term_id: i64,
+    ) -> Result<Vec<WpPostResponse>> {
+        let conn = self.conn.lock().unwrap();
+        let base_url = Self::get_base_url_with_conn(&conn);
+
+        let select_fields = "SELECT p.ID, p.post_date, p.post_date_gmt, p.post_modified, p.post_modified_gmt, \
+            p.post_title, p.post_content, p.post_excerpt, p.post_name, p.post_status, p.post_type, p.guid, \
+            p.post_author, p.comment_status, p.ping_status, COALESCE(p.post_parent, 0), COALESCE(p.menu_order, 0), \
+            COALESCE(p.is_sticky, 0) \
+            FROM wp_posts p \
+            JOIN wp_term_relationships r ON p.ID = r.object_id \
+            JOIN wp_term_taxonomy tt ON r.term_taxonomy_id = tt.term_taxonomy_id \
+            WHERE tt.taxonomy = ?1 AND tt.term_id = ?2 AND p.post_status = 'publish' \
+            ORDER BY p.is_sticky DESC, p.post_date DESC";
+
+        let mut stmt = conn.prepare(select_fields)?;
+        let rows = stmt.query_map(params![taxonomy, term_id], Self::map_post_row)?;
+
+        let mut posts = Vec::new();
+        for r in rows {
+            posts.push(r?);
+        }
+
+        let mut hydrated = Vec::with_capacity(posts.len());
+        for mut post in posts {
+            Self::hydrate_post_relations(&conn, &mut post, &base_url);
+            hydrated.push(post);
+        }
+
+        Ok(hydrated)
+    }
 }
 
 impl crate::ports::output::TaxonomyRepository for Database {

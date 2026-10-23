@@ -1,0 +1,100 @@
+use super::kind::NodeKind;
+use super::repr::NodeKindRepr;
+
+impl From<NodeKind> for NodeKindRepr {
+    fn from(k: NodeKind) -> Self {
+        match k {
+            NodeKind::Root => NodeKindRepr::Root,
+            NodeKind::Section => NodeKindRepr::Section,
+            NodeKind::Container => NodeKindRepr::Container,
+            NodeKind::Column => NodeKindRepr::Column,
+            NodeKind::Grid { columns, gap } => NodeKindRepr::Grid { columns, gap },
+            NodeKind::Flex { direction, justify, align, wrap, basis } => NodeKindRepr::Flex { direction, justify, align, wrap, basis },
+            NodeKind::Heading { text, level } => NodeKindRepr::Heading { text, level },
+            NodeKind::Text { content_html } => NodeKindRepr::Text { content_html },
+            NodeKind::Image { src, alt, width, height, link } => NodeKindRepr::Image { src, alt, width, height, link },
+            NodeKind::Button { text, url, target } => NodeKindRepr::Button { text, url, target },
+            NodeKind::Spacer { height } => NodeKindRepr::Spacer { height },
+            NodeKind::Divider { style } => NodeKindRepr::Divider { style },
+            NodeKind::Icon { name, size, color } => NodeKindRepr::Icon { name, size, color },
+            NodeKind::Form { form_id, title, button_text, endpoint } => NodeKindRepr::Form { form_id, title, button_text, endpoint },
+            NodeKind::NativeForm { title, button_text, endpoint } => NodeKindRepr::NativeForm { title, button_text, endpoint },
+            NodeKind::PriceCard {
+                title, subtitle, currency, price, original_price, period, badge, featured, features, button_text, button_url,
+            } => NodeKindRepr::PriceCard {
+                title, subtitle, currency, price, original_price, period, badge, featured, features, button_text, button_url,
+            },
+            NodeKind::PriceTable { title, price, period, features, button_text, button_url } => {
+                NodeKindRepr::PriceTable { title, price, period, features, button_text, button_url }
+            }
+            NodeKind::CallToAction {
+                title, description, button_text, button_url, skin, ribbon, image_url, secondary_button_text, secondary_button_url,
+            } => NodeKindRepr::CallToAction {
+                title, description, button_text, button_url, skin, ribbon, image_url, secondary_button_text, secondary_button_url,
+            },
+            NodeKind::Testimonial { content, name, job, image_url } => NodeKindRepr::Testimonial { content, name, job, image_url },
+            NodeKind::TestimonialCarousel { slides, skin, autoplay, loop_slides } => {
+                NodeKindRepr::TestimonialCarousel { slides, skin, autoplay, loop_slides }
+            }
+            NodeKind::Countdown { target_date, mode, show_days, show_hours, show_minutes, show_seconds, expiry_message } => {
+                NodeKindRepr::Countdown { target_date, mode, show_days, show_hours, show_minutes, show_seconds, expiry_message }
+            }
+            NodeKind::FlipBox {
+                front_icon, front_image, front_title, front_description, back_title, back_description, button_text, button_url, direction,
+            } => NodeKindRepr::FlipBox {
+                front_icon, front_image, front_title, front_description, back_title, back_description, button_text, button_url, direction,
+            },
+            NodeKind::AnimatedHeadline { before_text, words, after_text, animation_style } => {
+                NodeKindRepr::AnimatedHeadline { before_text, words, after_text, animation_style }
+            }
+            NodeKind::Rating { rating, max_rating, title } => NodeKindRepr::Rating { rating, max_rating, title },
+            NodeKind::StarRating { rating, max_rating, title, star_color, star_size } => {
+                NodeKindRepr::StarRating { rating, max_rating, title, star_color, star_size }
+            }
+            NodeKind::ProgressBar { title, percent, display_text, track_color, bar_color, height } => {
+                NodeKindRepr::ProgressBar { title, percent, display_text, track_color, bar_color, height }
+            }
+            NodeKind::Alert { alert_type, title, description, dismissible, icon } => {
+                NodeKindRepr::Alert { alert_type, title, description, dismissible, icon }
+            }
+            NodeKind::Counter { number, prefix, suffix, title } => NodeKindRepr::Counter { number, prefix, suffix, title },
+            NodeKind::Benchmark { label, value, comparison } => NodeKindRepr::Benchmark { label, value, comparison },
+            NodeKind::SocialIcons { items, skin, color_type } => NodeKindRepr::SocialIcons { items, skin, color_type },
+            NodeKind::ShareButtons { platforms, skin, official_colors } => NodeKindRepr::ShareButtons { platforms, skin, official_colors },
+            NodeKind::NavMenu { menu_slug, layout, align, mobile_hamburger, items } => {
+                NodeKindRepr::NavMenu { menu_slug, layout, align, mobile_hamburger, items }
+            }
+            NodeKind::MegaMenuContainer { trigger, width } => NodeKindRepr::MegaMenuContainer { trigger, width },
+            NodeKind::PopupModal { modal_id, trigger_selector, overlay_bg, close_button } => {
+                NodeKindRepr::PopupModal { modal_id, trigger_selector, overlay_bg, close_button }
+            }
+            NodeKind::LoopGrid {
+                post_type, posts_per_page, columns, show_thumbnail, show_excerpt, show_meta, show_pagination, taxonomy,
+            } => NodeKindRepr::LoopGrid {
+                post_type, posts_per_page, columns, show_thumbnail, show_excerpt, show_meta, show_pagination, taxonomy,
+            },
+            NodeKind::TableOfContents { title, min_depth, max_depth, collapsible } => {
+                NodeKindRepr::TableOfContents { title, min_depth, max_depth, collapsible }
+            }
+            NodeKind::Breadcrumbs { separator, home_text } => NodeKindRepr::Breadcrumbs { separator, home_text },
+            NodeKind::SearchForm { placeholder, button_text, endpoint } => NodeKindRepr::SearchForm { placeholder, button_text, endpoint },
+            NodeKind::LoginForm { label_username, label_password, redirect_url, remember_me } => {
+                NodeKindRepr::LoginForm { label_username, label_password, redirect_url, remember_me }
+            }
+            NodeKind::Accordion { items } => NodeKindRepr::Accordion { items },
+            NodeKind::Tabs { items } => NodeKindRepr::Tabs { items },
+            NodeKind::Toggle { items } => NodeKindRepr::Toggle { items },
+            NodeKind::Video { url, aspect_ratio, autoplay, muted, loop_video } => {
+                NodeKindRepr::Video { url, aspect_ratio, autoplay, muted, loop_video }
+            }
+            NodeKind::Map { address, zoom } => NodeKindRepr::Map { address, zoom },
+            NodeKind::IconBox { icon, title, description, link } => NodeKindRepr::IconBox { icon, title, description, link },
+            NodeKind::ImageBox { image_url, title, description, link } => NodeKindRepr::ImageBox { image_url, title, description, link },
+            NodeKind::IconList { items } => NodeKindRepr::IconList { items },
+            NodeKind::Audio { url } => NodeKindRepr::Audio { url },
+            NodeKind::MenuAnchor { anchor_id } => NodeKindRepr::MenuAnchor { anchor_id },
+            NodeKind::CustomHtml { raw } => NodeKindRepr::CustomHtml { raw },
+            NodeKind::ShortcodeFallback { tag, attributes, content } => NodeKindRepr::ShortcodeFallback { tag, attributes, content },
+        }
+    }
+}

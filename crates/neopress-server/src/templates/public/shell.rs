@@ -1,44 +1,27 @@
 //! Public Base HTML Document Shell (`templates/public/shell.rs`).
 //!
 //! Renders SEO meta tags, OpenGraph cards, Schema.org JSON-LD structured data,
-//! Cookieless Analytics beacon, Admin Bar, Header, Footer, and Lightbox/Popup handlers.
+//! Cookieless Analytics beacon, Admin Bar, dynamic Theme Builder Header/Footer,
+//! scoped responsive stylesheets, and 3-tier DOM leak sanitizer.
 
+use super::admin_bar::render_admin_bar;
+use super::head_meta::{render_head_meta, HeadMetaOutput};
+pub use super::head_meta::plain_text_excerpt;
 use crate::auth::AuthUser;
 use crate::models::{WpPostResponse, WpSettingsResponse};
-use crate::templates::utils::{clean_wp_content, escape_html, escape_json};
+use crate::templates::utils::{escape_html, escape_json};
+use crate::theme_builder::models::ResolvedThemePartials;
+use neopress_ast::sanitize_ssr_html;
 
-/// Strips HTML tags cleanly and truncates on UTF-8 character boundaries.
-pub(crate) fn plain_text_excerpt(html: &str, max_chars: usize) -> String {
-    let cleaned = clean_wp_content(html);
-    let mut out = String::with_capacity(cleaned.len());
-    let mut in_tag = false;
-    for ch in cleaned.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => {
-                in_tag = false;
-                out.push(' ');
-            }
-            _ if !in_tag => out.push(ch),
-            _ => {}
-        }
-    }
-    let normalized = out.split_whitespace().collect::<Vec<_>>().join(" ");
-    if normalized.chars().count() > max_chars {
-        let prefix: String = normalized.chars().take(max_chars).collect();
-        format!("{}...", escape_html(&prefix))
-    } else {
-        escape_html(&normalized)
-    }
-}
-
-/// Renders the unified Neopress HTML shell driven 100% by database settings and Neopress AST element styles.
+/// Renders the unified Neopress HTML shell driven 100% by database settings,
+/// dynamic Theme Builder partials, and Neopress AST element styles.
 pub fn render_base_layout(
     title: &str,
     settings: &WpSettingsResponse,
     content: &str,
     current_user: Option<&AuthUser>,
     current_post: Option<&WpPostResponse>,
+    partials: Option<&ResolvedThemePartials>,
 ) -> String {
     let site_name = if settings.title.trim().is_empty() {
         "Neopress"
@@ -51,75 +34,14 @@ pub fn render_base_layout(
         settings.description.trim()
     };
 
-    let page_title = if let Some(post) = current_post {
-        if !post.seo_title.trim().is_empty() {
-            post.seo_title.trim().to_string()
-        } else {
-            format!("{} – {}", title, site_name)
-        }
-    } else if title == site_name {
-        if !settings.description.trim().is_empty() {
-            format!("{} – {}", site_name, site_desc)
-        } else {
-            site_name.to_string()
-        }
-    } else {
-        format!("{} – {}", title, site_name)
-    };
-
-    let meta_desc = if let Some(post) = current_post {
-        if !post.seo_description.trim().is_empty() {
-            post.seo_description.trim().to_string()
-        } else {
-            let ex = plain_text_excerpt(&post.content.rendered, 155);
-            if !ex.is_empty() {
-                ex
-            } else {
-                site_desc.to_string()
-            }
-        }
-    } else {
-        site_desc.to_string()
-    };
-
-    let robots_meta = if current_post.map(|p| p.seo_noindex).unwrap_or(false) {
-        r#"<meta name="robots" content="noindex, follow" />"#
-    } else {
-        r#"<meta name="robots" content="index, follow" />"#
-    };
-
-    let canonical_tag = if let Some(post) = current_post {
-        let can_url = if !post.seo_canonical.trim().is_empty() {
-            post.seo_canonical.trim().to_string()
-        } else {
-            post.link.clone()
-        };
-        if !can_url.is_empty() {
-            format!(r#"<link rel="canonical" href="{}" />"#, escape_html(&can_url))
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    };
-
-    let og_image_tags = if let Some(post) = current_post {
-        let img = if !post.seo_og_image.trim().is_empty() {
-            Some(post.seo_og_image.trim())
-        } else {
-            post.featured_image_url.as_deref()
-        };
-        if let Some(url) = img.filter(|u| !u.is_empty()) {
-            format!(
-                r#"<meta property="og:image" content="{0}" /><meta name="twitter:image" content="{0}" />"#,
-                escape_html(url)
-            )
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    };
+    let HeadMetaOutput {
+        page_title,
+        meta_desc,
+        robots_meta,
+        canonical_tag,
+        og_image_tags,
+        schema_type,
+    } = render_head_meta(title, settings, current_post, site_name, site_desc);
 
     let brand_color = if settings.brand_color.trim().is_empty() {
         "#ff4f00"
@@ -127,119 +49,7 @@ pub fn render_base_layout(
         settings.brand_color.trim()
     };
 
-    let (admin_bar_html, body_class_admin) = if let Some(user) = current_user {
-        let username = escape_html(&user.username);
-        let post_actions = if let Some(post) = current_post {
-            let label = if post.post_type == "page" {
-                "Page"
-            } else {
-                "Post"
-            };
-            format!(
-                r##"
-                <li id="wp-admin-bar-edit">
-                    <a class="ab-item" href="/n-admin/post.php?post={id}&action=edit">
-                        <span class="ab-icon"><i class="fa-solid fa-pencil"></i></span>
-                        <span class="ab-label">Edit {label}</span>
-                    </a>
-                </li>
-                <li id="wp-admin-bar-elementor-edit">
-                    <a class="ab-item ab-btn-builder" href="/n-admin/builder?post={id}">
-                        <span class="ab-icon"><i class="fa-solid fa-cubes"></i></span>
-                        <span class="ab-label">Edit with Visual Builder</span>
-                    </a>
-                </li>
-                "##,
-                id = post.id,
-                label = label
-            )
-        } else {
-            r##"
-            <li id="wp-admin-bar-customize">
-                <a class="ab-item" href="/n-admin/customize.php">
-                    <span class="ab-icon"><i class="fa-solid fa-paintbrush"></i></span>
-                    <span class="ab-label">Customize</span>
-                </a>
-            </li>
-            "##
-            .to_string()
-        };
-
-        let bar = format!(
-            r##"
-            <div id="wpadminbar" class="nojq">
-                <div class="quicklinks" id="wp-toolbar" role="navigation" aria-label="Toolbar">
-                    <ul id="wp-admin-bar-root-default" class="ab-top-menu">
-                        <li id="wp-admin-bar-wp-logo" class="menupop">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/">
-                                <span class="ab-icon"><i class="fa-solid fa-bolt"></i></span>
-                            </a>
-                            <div class="ab-sub-wrapper">
-                                <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/">Dashboard</a></li>
-                                    <li><a class="ab-item" href="/n-admin/neopress-engine.php">System Health</a></li>
-                                </ul>
-                            </div>
-                        </li>
-                        <li id="wp-admin-bar-site-name" class="menupop">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/">{site_name}</a>
-                            <div class="ab-sub-wrapper">
-                                <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/">Dashboard</a></li>
-                                    <li><a class="ab-item" href="/n-admin/themes.php">Themes</a></li>
-                                    <li><a class="ab-item" href="/n-admin/widgets.php">Widgets</a></li>
-                                    <li><a class="ab-item" href="/n-admin/nav-menus.php">Menus</a></li>
-                                </ul>
-                            </div>
-                        </li>
-                        <li id="wp-admin-bar-comments">
-                            <a class="ab-item" href="/n-admin/edit-comments.php">
-                                <span class="ab-icon"><i class="fa-solid fa-comment"></i></span>
-                                <span class="ab-label">{pending_comments}</span>
-                            </a>
-                        </li>
-                        <li id="wp-admin-bar-new-content" class="menupop">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/post-new.php">
-                                <span class="ab-icon"><i class="fa-solid fa-plus"></i></span>
-                                <span class="ab-label">New</span>
-                            </a>
-                            <div class="ab-sub-wrapper">
-                                <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/post-new.php">Post</a></li>
-                                    <li><a class="ab-item" href="/n-admin/upload.php">Media</a></li>
-                                    <li><a class="ab-item" href="/n-admin/post-new.php?post_type=page">Page</a></li>
-                                    <li><a class="ab-item" href="/n-admin/user-new.php">User</a></li>
-                                </ul>
-                            </div>
-                        </li>
-                        {post_actions}
-                    </ul>
-                    <ul id="wp-admin-bar-top-secondary" class="ab-top-secondary ab-top-menu">
-                        <li id="wp-admin-bar-my-account" class="menupop with-avatar">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/profile.php">
-                                Howdy, <span class="display-name">{username}</span>
-                                <span class="ab-avatar" style="margin-left: 6px;"><i class="fa-solid fa-user"></i></span>
-                            </a>
-                            <div class="ab-sub-wrapper">
-                                <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/profile.php">Edit Profile</a></li>
-                                    <li><a class="ab-item" href="/wp-login.php?action=logout" style="color: #f87171;">Log Out</a></li>
-                                </ul>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-            "##,
-            site_name = escape_html(site_name),
-            pending_comments = settings.pending_comments_count,
-            post_actions = post_actions,
-            username = username
-        );
-        (bar, " admin-bar")
-    } else {
-        (String::new(), "")
-    };
+    let (admin_bar_html, body_class_admin) = render_admin_bar(current_user, current_post, settings, site_name);
 
     let header_login_btn = if current_user.is_some() {
         r##"<a href="/n-admin/" class="np-button np-btn-sm"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>"##
@@ -294,55 +104,27 @@ pub fn render_base_layout(
     };
 
     let (nav_links_html, footer_nav_html) = if !settings.nav_menu_items.is_empty() {
-        let mut items_html = String::new();
-        let mut f_html = String::new();
-        for item in &settings.nav_menu_items {
-            let target_attr = if !item.target.is_empty() {
-                format!(r#" target="{}""#, escape_html(&item.target))
-            } else {
-                String::new()
-            };
-            items_html.push_str(&format!(
-                r#"<a href="{url}" class="nav-link"{target}>{title}</a>"#,
-                url = escape_html(&item.url),
-                target = target_attr,
-                title = escape_html(&item.title),
-            ));
-            f_html.push_str(&format!(
-                r#"<a href="{url}"{target}>{title}</a>"#,
-                url = escape_html(&item.url),
-                target = target_attr,
-                title = escape_html(&item.title),
-            ));
-        }
-        (items_html, f_html)
+        let tree = super::menus::build_nav_menu_tree(&settings.nav_menu_items);
+        let menu_html = super::menus::render_hierarchical_nav_menu(&tree, false);
+        let footer_html = super::menus::render_footer_nav_links(&settings.nav_menu_items);
+        (menu_html, footer_html)
     } else {
         (
-            r#"<a href="/" class="nav-link">Home</a><a href="/#posts" class="nav-link">Articles</a>"#
-                .to_string(),
+            r#"<ul class="menu np-primary-menu"><li class="menu-item np-nav-item"><a href="/" class="nav-link">Home</a></li><li class="menu-item np-nav-item"><a href="/#posts" class="nav-link">Articles</a></li></ul>"#.to_string(),
             r#"<a href="/">Home</a><a href="/#posts">Articles</a>"#.to_string(),
         )
     };
 
-    let schema_type = if let Some(post) = current_post {
-        if !post.seo_schema_type.trim().is_empty() {
-            post.seo_schema_type.trim().to_string()
-        } else if post.post_type == "post" {
-            "BlogPosting".to_string()
-        } else {
-            "WebPage".to_string()
-        }
-    } else {
-        "WebSite".to_string()
-    };
-
+    // Header Resolution Pipeline
+    let has_tb_header = partials.map(|p| p.has_theme_builder_header).unwrap_or(false);
     let site_header_html = if is_blank_template {
         String::new()
-    } else if !settings.elementor_header_html.trim().is_empty() {
-        format!(
-            r#"<header class="np-elementor-header">{}</header>"#,
-            settings.elementor_header_html
-        )
+    } else if let Some(ref h_html) = partials.and_then(|p| p.header_html.as_ref()) {
+        let sticky_cls = if partials.map(|p| p.header_sticky).unwrap_or(false) { " np-sticky" } else { "" };
+        let trans_cls = if partials.map(|p| p.header_transparent).unwrap_or(false) { " np-transparent" } else { "" };
+        format!(r#"<header class="np-theme-header{}{}">{}</header>"#, sticky_cls, trans_cls, h_html)
+    } else if !has_tb_header && !settings.elementor_header_html.trim().is_empty() {
+        format!(r#"<header class="np-elementor-header">{}</header>"#, settings.elementor_header_html)
     } else {
         format!(
             r##"<header class="neo-header">
@@ -351,11 +133,9 @@ pub fn render_base_layout(
 				<span class="badge-neo">CMS</span>
 				<span>{brand_display}</span>
 			</a>
-
 			<nav class="neo-nav">
 				{nav_links_html}
 			</nav>
-
 			<div class="header-actions">
 				<form action="/" method="GET" class="header-search">
 					<input type="text" name="s" placeholder="Search site..." aria-label="Search" />
@@ -370,13 +150,14 @@ pub fn render_base_layout(
         )
     };
 
+    // Footer Resolution Pipeline
+    let has_tb_footer = partials.map(|p| p.has_theme_builder_footer).unwrap_or(false);
     let site_footer_html = if is_blank_template {
         String::new()
-    } else if !settings.elementor_footer_html.trim().is_empty() {
-        format!(
-            r#"<footer class="np-elementor-footer">{}</footer>"#,
-            settings.elementor_footer_html
-        )
+    } else if let Some(ref f_html) = partials.and_then(|p| p.footer_html.as_ref()) {
+        format!(r#"<footer class="np-theme-footer">{}</footer>"#, f_html)
+    } else if !has_tb_footer && !settings.elementor_footer_html.trim().is_empty() {
+        format!(r#"<footer class="np-elementor-footer">{}</footer>"#, settings.elementor_footer_html)
     } else {
         format!(
             r##"<footer class="neo-footer">
@@ -403,7 +184,6 @@ pub fn render_base_layout(
 				</div>
 			</div>
 		</div>
-
 		<div class="footer-bottom">
 			<div>
 				&copy; 2026 {brand_display}. Powered by Neopress Native Rust CMS.
@@ -419,7 +199,50 @@ pub fn render_base_layout(
         )
     };
 
-    format!(
+    let theme_header_css = partials
+        .and_then(|p| p.header_css.as_ref())
+        .map(|css| format!("\n\t<style id=\"np-theme-header-css\">\n{}\n\t</style>", css))
+        .unwrap_or_default();
+
+    let theme_footer_css = partials
+        .and_then(|p| p.footer_css.as_ref())
+        .map(|css| format!("\n\t<style id=\"np-theme-footer-css\">\n{}\n\t</style>", css))
+        .unwrap_or_default();
+
+    let theme_head_assets = if !settings.theme_assets_html.trim().is_empty() {
+        settings.theme_assets_html.as_str()
+    } else {
+        ""
+    };
+
+    let theme_slug = if settings.active_theme.trim().is_empty() {
+        "neopress".to_string()
+    } else {
+        settings.active_theme.trim().to_lowercase().replace(' ', "-")
+    };
+    let theme_body_class = format!("wp-theme-{}", theme_slug);
+    let post_classes = if let Some(p) = current_post {
+        if p.post_type == "archive" {
+            format!("archive post-type-archive-{} {}", p.slug, theme_body_class)
+        } else if p.post_type == "page" {
+            if settings.page_on_front > 0 && p.id == settings.page_on_front {
+                format!("home wp-singular page-template-default page page-id-{} {}", p.id, theme_body_class)
+            } else {
+                format!("wp-singular page-template-default page page-id-{} {}", p.id, theme_body_class)
+            }
+        } else {
+            format!("single single-{} wp-singular {}", p.post_type, theme_body_class)
+        }
+    } else {
+        format!("home wp-singular page {}", theme_body_class)
+    };
+    let full_body_class = if body_class_admin.trim().is_empty() {
+        post_classes
+    } else {
+        format!("{} {}", body_class_admin.trim(), post_classes)
+    };
+
+    let doc = format!(
         r##"<!DOCTYPE html>
 <html lang="nl-NL" class="{html_theme_class}">
 <head>
@@ -442,14 +265,8 @@ pub fn render_base_layout(
 	{og_image_tags}
 	<link rel="icon" href="{favicon_href}" />
 
-	<!-- Typography: Fira Sans, Roboto, Inter & JetBrains Mono -->
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,600&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet">
-	<!-- FontAwesome 6 -->
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-	<!-- Native SEO: Schema.org JSON-LD Structured Data -->
 	<script type="application/ld+json">
 	{{
 		"@context": "https://schema.org",
@@ -464,7 +281,6 @@ pub fn render_base_layout(
 	}}
 	</script>
 
-	<!-- Native Cookieless Analytics Ingest -->
 	<script>
 	(function(){{
 		try {{
@@ -486,9 +302,9 @@ pub fn render_base_layout(
 
 	<style>
 		{public_theme_css}
-	</style>{elementor_kit_css_block}{custom_css_block}
+	</style>{elementor_kit_css_block}{custom_css_block}{theme_header_css}{theme_footer_css}{theme_head_assets}
 </head>
-<body class="{body_class_admin}">
+<body class="{full_body_class}">
 	{admin_bar_html}
 
 	<!-- Global Site Header (100% Database-Driven) -->
@@ -510,64 +326,6 @@ pub fn render_base_layout(
 			<img id="np-lightbox-img" src="" alt="" />
 		</div>
 	</div>
-	<script>
-	(function(){{
-		document.addEventListener('click', function(e) {{
-			var diviPopupLink = e.target.closest('a[href^="#"]');
-			if (diviPopupLink) {{
-				var hash = diviPopupLink.getAttribute('href');
-				if (hash && hash.length > 1 && !hash.startsWith('#np-popup-')) {{
-					var targetEl = document.getElementById(hash.slice(1));
-					if (targetEl && targetEl.classList.contains('popup')) {{
-						e.preventDefault();
-						if (!targetEl.querySelector('.np-divi-popup-close')) {{
-							var closeBtn = document.createElement('button');
-							closeBtn.type = 'button';
-							closeBtn.className = 'np-divi-popup-close';
-							closeBtn.setAttribute('aria-label', 'Close');
-							closeBtn.innerHTML = '&times;';
-							closeBtn.onclick = function() {{ targetEl.classList.remove('is-open'); }};
-							targetEl.appendChild(closeBtn);
-						}}
-						targetEl.classList.toggle('is-open');
-						return;
-					}}
-				}}
-			}}
-			var popupLink = e.target.closest('a[href^="#np-popup-"]');
-			if (popupLink) {{
-				e.preventDefault();
-				var targetId = popupLink.getAttribute('href').slice(1);
-				var modal = document.getElementById(targetId) || document.querySelector('.np-popup-modal');
-				if (modal) {{
-					modal.classList.add('active');
-				}}
-				return;
-			}}
-			var lbLink = e.target.closest('a.np-lightbox-trigger');
-			if (lbLink) {{
-				e.preventDefault();
-				var imgUrl = lbLink.getAttribute('href');
-				var lbModal = document.getElementById('np-lightbox-modal');
-				var lbImg = document.getElementById('np-lightbox-img');
-				if (lbModal && lbImg && imgUrl) {{
-					lbImg.src = imgUrl;
-					lbModal.classList.add('active');
-				}}
-			}}
-		}});
-		document.addEventListener('keydown', function(e) {{
-			if (e.key === 'Escape') {{
-				document.querySelectorAll('.np-popup-modal, .np-lightbox-modal').forEach(function(m) {{
-					m.classList.remove('active');
-				}});
-				document.querySelectorAll('.et_pb_section.popup.is-open').forEach(function(m) {{
-					m.classList.remove('is-open');
-				}});
-			}}
-		}});
-	}})();
-	</script>
 </body>
 </html>
 "##,
@@ -586,11 +344,16 @@ pub fn render_base_layout(
         public_theme_css = super::styles::render_public_theme_css(&escape_html(brand_color)),
         elementor_kit_css_block = elementor_kit_css_block,
         custom_css_block = custom_css_block,
+        theme_header_css = theme_header_css,
+        theme_footer_css = theme_footer_css,
+        theme_head_assets = theme_head_assets,
         site_header_html = site_header_html,
         site_footer_html = site_footer_html,
         elementor_popups_html = settings.elementor_popups_html,
         content = content,
-        body_class_admin = body_class_admin,
+        full_body_class = full_body_class,
         admin_bar_html = admin_bar_html
-    )
+    );
+
+    sanitize_ssr_html(&doc)
 }

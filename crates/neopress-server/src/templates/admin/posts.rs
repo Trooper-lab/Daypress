@@ -7,82 +7,152 @@ pub fn render_wp_posts_view(
     settings: &WpSettingsResponse,
     is_page: bool,
 ) -> String {
-    let post_type_label = if is_page { "Pages" } else { "Posts" };
-    let add_new_url = if is_page {
-        "/n-admin/post-new.php?post_type=page"
+    let ptype = if is_page { "page" } else { "post" };
+    render_wp_posts_view_for_type(posts, settings, ptype)
+}
+
+pub fn render_wp_posts_view_for_type(
+    posts: &[WpPostResponse],
+    settings: &WpSettingsResponse,
+    post_type: &str,
+) -> String {
+    let is_page = post_type == "page";
+    let formatted_cpt = crate::templates::admin::layout::format_cpt_title(post_type);
+    let (post_type_label, singular) = match post_type {
+        "page" => ("Pages", "Page"),
+        "post" => ("Posts", "Post"),
+        _ => (formatted_cpt.as_str(), formatted_cpt.as_str()),
+    };
+    let add_new_url = if post_type == "post" {
+        "/n-admin/post-new.php".to_string()
     } else {
-        "/n-admin/post-new.php"
+        format!("/n-admin/post-new.php?post_type={}", post_type)
     };
 
+    let all_non_trash_count = posts.iter().filter(|p| p.status != "trash").count();
     let pub_count = posts.iter().filter(|p| p.status == "publish").count();
     let draft_count = posts.iter().filter(|p| p.status == "draft").count();
     let trash_count = posts.iter().filter(|p| p.status == "trash").count();
 
+    let nav_slugs: std::collections::HashSet<String> = settings
+        .nav_menu_items
+        .iter()
+        .map(|m| m.url.trim_matches('/').to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut ordered_posts: Vec<&WpPostResponse> = posts.iter().collect();
+    ordered_posts.sort_by(|a, b| {
+        let a_front = a.id == settings.page_on_front;
+        let b_front = b.id == settings.page_on_front;
+        let a_pub = a.status == "publish";
+        let b_pub = b.status == "publish";
+        let a_nav = a_pub && nav_slugs.contains(&a.slug.to_lowercase());
+        let b_nav = b_pub && nav_slugs.contains(&b.slug.to_lowercase());
+        let a_titled = !a.title.rendered.trim().is_empty();
+        let b_titled = !b.title.rendered.trim().is_empty();
+        b_front
+            .cmp(&a_front)
+            .then_with(|| b_nav.cmp(&a_nav))
+            .then_with(|| b_pub.cmp(&a_pub))
+            .then_with(|| b_titled.cmp(&a_titled))
+            .then_with(|| b.date.cmp(&a.date))
+    });
+
     let mut rows_html = String::new();
-    for p in posts {
-        let edit_link = format!("/n-admin/post.php?post={}&action=edit", p.id);
-        let view_link = format!("/{}/", p.slug);
+    for p in ordered_posts {
+        let edit_link = format!(
+            "/n-admin/post.php?post={}&action=edit&post_type={}",
+            p.id,
+            escape_html(&p.post_type)
+        );
+        let view_link = if p.id == settings.page_on_front {
+            "/".to_string()
+        } else if matches!(p.post_type.as_str(), "post" | "page") {
+            format!("/{}/", p.slug)
+        } else {
+            format!("/{}/{}/", p.post_type, p.slug)
+        };
         let status_badge = match p.status.as_str() {
             "draft" => r#"<span class="badge badge-draft">Draft</span>"#,
             "trash" => r#"<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Trash</span>"#,
             _ => r#"<span class="badge badge-published">Published</span>"#,
         };
 
-        let author_display = if p.author_name.is_empty() {
-            "admin".to_string()
+        let author_display = if p.author_name.is_empty() || p.author_name == "Neopress Core" || p.author_name == "admin" {
+            "Editor".to_string()
         } else {
             escape_html(&p.author_name)
         };
-        let categories_display = if p.category_names.is_empty() {
-            if is_page {
-                "—".to_string()
-            } else {
-                "Uncategorized".to_string()
-            }
-        } else {
+        let categories_display = if !p.category_names.is_empty() {
             escape_html(&p.category_names.join(", "))
+        } else if p.template == "page_templates/leeg.php" {
+            r#"<span style="font-size:11.5px;color:#475569;font-family:var(--font-mono);">leeg.php (Custom HTML)</span>"#.to_string()
+        } else if p.content.rendered.contains("<section") {
+            r#"<span style="font-size:11.5px;color:#2563eb;font-weight:600;">ACF + Gutenberg</span>"#.to_string()
+        } else if is_page {
+            "Default Template".to_string()
+        } else {
+            "—".to_string()
         };
         let date_short: String = p.date.chars().take(10).collect();
 
-        let seo_chip = if !p.seo_keyword.is_empty() {
-            format!(
+        let mut chips = String::new();
+        if p.id == settings.page_on_front {
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">🏠 Front Page</span>"#);
+        }
+        if nav_slugs.contains(&p.slug.to_lowercase()) && p.status == "publish" {
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">🧭 Main Menu</span>"#);
+        }
+        if !p.seo_keyword.is_empty() {
+            chips.push_str(&format!(
                 r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;" title="Focus Keyphrase">🎯 {}</span>"#,
                 escape_html(&p.seo_keyword)
-            )
+            ));
         } else if p.seo_noindex {
-            r#"<span style="display:inline-flex;align-items:center;font-size:10.5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">noindex</span>"#.to_string()
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;font-size:10.5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">noindex</span>"#);
+        }
+
+        let display_title = if p.title.rendered.trim().is_empty() {
+            format!("(Untitled — #{})", p.id)
         } else {
-            String::new()
+            p.title.rendered.clone()
+        };
+        let initial_row_style = if p.status == "trash" {
+            "display: none;"
+        } else {
+            ""
         };
 
         rows_html.push_str(&format!(
             r##"
-            <tr id="post-{id}" data-status="{status}">
+            <tr id="post-{id}" data-status="{status}" style="{initial_row_style}">
                 <td style="width: 32px;"><input type="checkbox" name="post[]" value="{id}"></td>
                 <td class="table-title-cell">
                     <strong><a href="{edit_link}" style="color: #0f172a; text-decoration: none;">{title}</a></strong>{seo_chip}
-                    <div class="table-row-slug">Permalink: /{slug}/</div>
+                    <div class="table-row-slug">Permalink: {view_link}</div>
                     <div class="table-actions">
-                        <a href="{edit_link}">Edit</a>
+                        <a href="{edit_link}" style="font-weight: 600;">Edit Blocks &amp; ACF</a>
+                        <a href="/n-admin/builder.php?post={id}" style="color: #2563eb; font-weight: 600;">⚡ Edit with NeoStudio</a>
                         <a href="#" onclick="duplicatePostRow({id}); return false;" style="color: #4f46e5; font-weight: 600;">Duplicate</a>
                         <a href="{view_link}" target="_blank">View &nearr;</a>
                         <a href="#" onclick="trashPostRow({id}); return false;" style="color: #d97706;">Trash</a>
                         <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete</a>
                     </div>
                 </td>
-                <td style="width: 120px;"><span style="color: #64748b;">{author}</span></td>
-                <td style="width: 140px;">{categories}</td>
+                <td style="width: 130px;"><span style="color: #64748b;">{author}</span></td>
+                <td style="width: 160px;">{categories}</td>
                 <td style="width: 110px;">{status_badge}</td>
                 <td style="width: 130px; color: #64748b; font-size: 12.5px;">{date}</td>
             </tr>
             "##,
             id = p.id,
             status = escape_html(&p.status),
+            initial_row_style = initial_row_style,
             edit_link = edit_link,
             view_link = view_link,
-            title = p.title.rendered,
-            seo_chip = seo_chip,
-            slug = p.slug,
+            title = display_title,
+            seo_chip = chips,
             author = author_display,
             categories = categories_display,
             status_badge = status_badge,
@@ -207,7 +277,7 @@ pub fn render_wp_posts_view(
                 rows.forEach(r => {{
                     const text = r.textContent.toLowerCase();
                     const rowStatus = r.getAttribute('data-status') || 'publish';
-                    const statusMatch = activeStatusFilter === 'all' || rowStatus === activeStatusFilter;
+                    const statusMatch = activeStatusFilter === 'all' ? (rowStatus !== 'trash') : (rowStatus === activeStatusFilter);
                     const textMatch = !filter || text.includes(filter);
                     r.style.display = (statusMatch && textMatch) ? '' : 'none';
                 }});
@@ -216,15 +286,21 @@ pub fn render_wp_posts_view(
         "##,
         post_type_label = post_type_label,
         add_new_url = add_new_url,
-        singular = if is_page { "Page" } else { "Post" },
+        singular = singular,
         plural_lower = post_type_label.to_lowercase(),
-        count = posts.len(),
+        count = all_non_trash_count,
         pub_count = pub_count,
         draft_count = draft_count,
         trash_count = trash_count,
         rows_html = rows_html
     );
 
-    let tab = if is_page { "pages" } else { "posts" };
+    let tab = if is_page {
+        "pages"
+    } else if post_type == "post" {
+        "posts"
+    } else {
+        post_type
+    };
     render_wp_admin_shell(tab, post_type_label, &body, settings)
 }

@@ -259,6 +259,8 @@ pub fn api_routes() -> Router<Database> {
             "/neopress/v1/email/send",
             axum::routing::post(send_email_handler),
         )
+        // Theme Template Builder REST API
+        .merge(crate::theme_builder::routes::theme_builder_routes())
 }
 
 pub async fn wp_json_root(State(db): State<Database>) -> Json<Value> {

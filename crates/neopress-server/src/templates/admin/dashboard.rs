@@ -6,25 +6,59 @@ pub fn render_wp_dashboard_view(
     settings: &WpSettingsResponse,
     stats: &DbStats,
 ) -> String {
+    let mut sorted_posts: Vec<&WpPostResponse> = posts
+        .iter()
+        .filter(|p| !p.title.rendered.trim().is_empty())
+        .collect();
+    sorted_posts.sort_by(|a, b| {
+        let a_front = a.id == settings.page_on_front;
+        let b_front = b.id == settings.page_on_front;
+        b_front.cmp(&a_front).then_with(|| b.date.cmp(&a.date))
+    });
+
     let mut recent_posts_html = String::new();
-    for p in posts.iter().take(5) {
+    for p in sorted_posts.iter().take(7) {
+        let view_href = if p.id == settings.page_on_front {
+            "/".to_string()
+        } else if matches!(p.post_type.as_str(), "post" | "page") {
+            format!("/{}/", p.slug)
+        } else {
+            format!("/{}/{}/", p.post_type, p.slug)
+        };
+        let front_badge = if p.id == settings.page_on_front {
+            r#"<span style="font-size:10px;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;">🏠 Front Page</span>"#
+        } else {
+            ""
+        };
+        let ptype_badge = format!(
+            r#"<span style="font-size:10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:1px 6px;border-radius:4px;margin-left:6px;text-transform:uppercase;font-weight:600;">{}</span>"#,
+            p.post_type
+        );
         recent_posts_html.push_str(&format!(
             r#"<li style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <a href="/n-admin/post.php?post={id}&action=edit" style="font-weight: 600; text-decoration: none; color: #0f172a;">{title}</a>
-                    <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Published on {date}</div>
+                    <a href="/n-admin/post.php?post={id}&action=edit" style="font-weight: 600; text-decoration: none; color: #0f172a;">{title}</a>{front_badge}{ptype_badge}
+                    <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Published on {date} &bull; <code>{view_href}</code></div>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <a href="/{slug}/" target="_blank" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">View &nearr;</a>
-                    <a href="/n-admin/post.php?post={id}&action=edit" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">Edit</a>
+                <div style="display: flex; gap: 6px;">
+                    <a href="{view_href}" target="_blank" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">View &nearr;</a>
+                    <a href="/n-admin/post.php?post={id}&action=edit" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">Edit Blocks &amp; ACF</a>
+                    <a href="/n-admin/builder.php?post={id}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; color: #2563eb; border-color: #bfdbfe; background: #eff6ff; font-weight: 600;">⚡ NeoStudio</a>
                 </div>
             </li>"#,
             id = p.id,
-            date = &p.date[..10],
-            slug = p.slug,
-            title = p.title.rendered
+            date = p.date.chars().take(10).collect::<String>(),
+            view_href = view_href,
+            title = p.title.rendered,
+            front_badge = front_badge,
+            ptype_badge = ptype_badge
         ));
     }
+    let total_published_items = if stats.total_posts > 0 {
+        stats.total_posts
+    } else {
+        posts.len() as i64
+    };
 
     let body = format!(
         r##"
@@ -43,7 +77,7 @@ pub fn render_wp_dashboard_view(
             <div class="kpi-card">
                 <div class="kpi-label">Total Posts</div>
                 <div class="kpi-value">{total_posts}</div>
-                <div class="kpi-subtext">Published in SQLite</div>
+                <div class="kpi-subtext">Posts, Pages &amp; Custom Post Types</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Total Pages</div>
@@ -187,7 +221,7 @@ pub fn render_wp_dashboard_view(
             }}
         </script>
         "##,
-        total_posts = stats.total_posts,
+        total_posts = total_published_items,
         total_pages = stats.total_pages,
         db_size_kb = stats.file_size_bytes / 1024,
         journal_mode = stats.journal_mode,

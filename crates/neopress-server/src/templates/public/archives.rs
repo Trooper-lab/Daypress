@@ -11,6 +11,7 @@ pub fn render_archive_page(
     posts: &[WpPostResponse],
     settings: &WpSettingsResponse,
     current_user: Option<&AuthUser>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
     let mut cards_html = String::new();
     if posts.is_empty() {
@@ -27,9 +28,11 @@ pub fn render_archive_page(
                 escape_html(&post.author_name)
             };
 
+            let card_cls = if post.sticky { "np-card sticky" } else { "np-card" };
+
             cards_html.push_str(&format!(
                 r##"
-                <a href="/{slug}/" class="np-card">
+                <a href="/{slug}/" class="{card_cls}">
                     <div class="np-card-body">
                         <div class="np-card-meta">
                             <span class="np-badge">{post_type}</span>
@@ -45,6 +48,7 @@ pub fn render_archive_page(
                 </a>
                 "##,
                 slug = escape_html(&post.slug),
+                card_cls = card_cls,
                 post_type = escape_html(&post.post_type),
                 date = escape_html(&date_short),
                 author = author_display,
@@ -73,7 +77,7 @@ pub fn render_archive_page(
         cards_html = cards_html,
     );
 
-    render_base_layout(archive_title, settings, &body, current_user, None)
+    render_base_layout(archive_title, settings, &body, current_user, None, partials)
 }
 
 pub fn render_search_page(
@@ -81,6 +85,7 @@ pub fn render_search_page(
     posts: &[WpPostResponse],
     settings: &WpSettingsResponse,
     current_user: Option<&AuthUser>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
     render_archive_page(
         &format!("Search Results for: {}", query),
@@ -88,12 +93,14 @@ pub fn render_search_page(
         posts,
         settings,
         current_user,
+        partials,
     )
 }
 
 pub fn render_not_found_page(
     settings: &WpSettingsResponse,
     current_user: Option<&AuthUser>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
     let body = r##"
         <section class="np-section">
@@ -106,5 +113,5 @@ pub fn render_not_found_page(
         </section>
     "##;
 
-    render_base_layout("404 Not Found", settings, body, current_user, None)
+    render_base_layout("404 Not Found", settings, body, current_user, None, partials)
 }

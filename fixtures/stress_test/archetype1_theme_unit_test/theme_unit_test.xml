@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0"
+	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:wp="http://wordpress.org/export/1.2/"
+>
+<channel>
+	<title>Theme Unit Test</title>
+	<link>http://127.0.0.1:8090</link>
+	<description>WordPress Theme Unit Test Suite for Neopress</description>
+	<language>en-US</language>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_site_url>http://127.0.0.1:8090</wp:base_site_url>
+	<wp:base_blog_url>http://127.0.0.1:8090</wp:base_blog_url>
+
+	<!-- Taxonomies & Terms -->
+	<wp:category>
+		<wp:term_id>1</wp:term_id>
+		<wp:category_nicename>academics</wp:category_nicename>
+		<wp:category_parent></wp:category_parent>
+		<wp:cat_name><![CDATA[Academics]]></wp:cat_name>
+	</wp:category>
+	<wp:category>
+		<wp:term_id>2</wp:term_id>
+		<wp:category_nicename>computer-science</wp:category_nicename>
+		<wp:category_parent>academics</wp:category_parent>
+		<wp:cat_name><![CDATA[Computer Science]]></wp:cat_name>
+	</wp:category>
+	<wp:category>
+		<wp:term_id>3</wp:term_id>
+		<wp:category_nicename>rust-systems</wp:category_nicename>
+		<wp:category_parent>computer-science</wp:category_parent>
+		<wp:cat_name><![CDATA[Rust Systems]]></wp:cat_name>
+	</wp:category>
+
+	<wp:tag>
+		<wp:term_id>10</wp:term_id>
+		<wp:tag_slug>benchmark</wp:tag_slug>
+		<wp:tag_name><![CDATA[Benchmark]]></wp:tag_name>
+	</wp:tag>
+	<wp:tag>
+		<wp:term_id>11</wp:term_id>
+		<wp:tag_slug>gutenberg</wp:tag_slug>
+		<wp:tag_name><![CDATA[Gutenberg]]></wp:tag_name>
+	</wp:tag>
+	<wp:tag>
+		<wp:term_id>12</wp:term_id>
+		<wp:tag_slug>sub-millisecond</wp:tag_slug>
+		<wp:tag_name><![CDATA[Sub-Millisecond]]></wp:tag_name>
+	</wp:tag>
+
+	<wp:term>
+		<wp:term_id>20</wp:term_id>
+		<wp:term_taxonomy>nav_menu</wp:term_taxonomy>
+		<wp:term_slug>primary-navigation</wp:term_slug>
+		<wp:term_name><![CDATA[Primary Navigation]]></wp:term_name>
+	</wp:term>
+
+	<!-- Nav Menu Items (3+ Levels Deep) -->
+	<item>
+		<title>Home</title>
+		<wp:post_id>101</wp:post_id>
+		<wp:post_name>nav-home</wp:post_name>
+		<wp:post_type>nav_menu_item</wp:post_type>
+		<wp:status>publish</wp:status>
+		<wp:menu_order>1</wp:menu_order>
+		<category domain="nav_menu" nicename="primary-navigation"><![CDATA[Primary Navigation]]></category>
+		<wp:postmeta><wp:meta_key>_menu_item_url</wp:meta_key><wp:meta_value><![CDATA[/]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key>_menu_item_menu_item_parent</wp:meta_key><wp:meta_value><![CDATA[0]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title>Explore</title>
+		<wp:post_id>102</wp:post_id>
+		<wp:post_name>nav-explore</wp:post_name>
+		<wp:post_type>nav_menu_item</wp:post_type>
+		<wp:status>publish</wp:status>
+		<wp:menu_order>2</wp:menu_order>
+		<category domain="nav_menu" nicename="primary-navigation"><![CDATA[Primary Navigation]]></category>
+		<wp:postmeta><wp:meta_key>_menu_item_url</wp:meta_key><wp:meta_value><![CDATA[#]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key>_menu_item_menu_item_parent</wp:meta_key><wp:meta_value><![CDATA[0]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title>Documentation</title>
+		<wp:post_id>103</wp:post_id>
+		<wp:post_name>nav-documentation</wp:post_name>
+		<wp:post_type>nav_menu_item</wp:post_type>
+		<wp:status>publish</wp:status>
+		<wp:menu_order>1</wp:menu_order>
+		<category domain="nav_menu" nicename="primary-navigation"><![CDATA[Primary Navigation]]></category>
+		<wp:postmeta><wp:meta_key>_menu_item_url</wp:meta_key><wp:meta_value><![CDATA[/core-blocks/]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key>_menu_item_menu_item_parent</wp:meta_key><wp:meta_value><![CDATA[102]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title>Advanced Specs (Level 3)</title>
+		<wp:post_id>104</wp:post_id>
+		<wp:post_name>nav-advanced-specs</wp:post_name>
+		<wp:post_type>nav_menu_item</wp:post_type>
+		<wp:status>publish</wp:status>
+		<wp:menu_order>1</wp:menu_order>
+		<category domain="nav_menu" nicename="primary-navigation"><![CDATA[Primary Navigation]]></category>
+		<wp:postmeta><wp:meta_key>_menu_item_url</wp:meta_key><wp:meta_value><![CDATA[/threaded-discussion/]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key>_menu_item_menu_item_parent</wp:meta_key><wp:meta_value><![CDATA[103]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<!-- Page 1: Home -->
+	<item>
+		<title>Home</title>
+		<wp:post_id>1</wp:post_id>
+		<wp:post_name>home</wp:post_name>
+		<wp:post_type>page</wp:post_type>
+		<wp:status>publish</wp:status>
+		<content:encoded><![CDATA[
+<!-- wp:heading {"level":1} -->
+<h1>Theme Unit Test Suite</h1>
+<!-- /wp:heading -->
+<!-- wp:paragraph -->
+<p>Drop-in WordPress CMS replacement verified for sub-millisecond execution.</p>
+<!-- /wp:paragraph -->
+		]]></content:encoded>
+	</item>
+
+	<!-- Post 1: Sticky Announcement (Older Date, Sticky Flag = 1) -->
+	<item>
+		<title>Sticky Announcement</title>
+		<wp:post_id>2</wp:post_id>
+		<wp:post_name>sticky-announcement</wp:post_name>
+		<wp:post_type>post</wp:post_type>
+		<wp:post_date>2024-01-01 10:00:00</wp:post_date>
+		<wp:status>publish</wp:status>
+		<wp:is_sticky>1</wp:is_sticky>
+		<category domain="category" nicename="rust-systems"><![CDATA[Rust Systems]]></category>
+		<category domain="post_tag" nicename="benchmark"><![CDATA[Benchmark]]></category>
+		<content:encoded><![CDATA[
+<!-- wp:paragraph -->
+<p>This is a sticky announcement post. Despite an older publication timestamp, this post must sort to the top of standard index queries.</p>
+<!-- /wp:paragraph -->
+		]]></content:encoded>
+	</item>
+
+	<!-- Post 2: Threaded Comments Discussion -->
+	<item>
+		<title>Threaded Discussion</title>
+		<wp:post_id>3</wp:post_id>
+		<wp:post_name>threaded-discussion</wp:post_name>
+		<wp:post_type>post</wp:post_type>
+		<wp:post_date>2026-02-01 10:00:00</wp:post_date>
+		<wp:status>publish</wp:status>
+		<wp:is_sticky>0</wp:is_sticky>
+		<content:encoded><![CDATA[<p>Threaded comments test with parent/child replies.</p>]]></content:encoded>
+		<wp:comment>
+			<wp:comment_id>201</wp:comment_id>
+			<wp:comment_author>Alice</wp:comment_author>
+			<wp:comment_author_email>alice@example.com</wp:comment_author_email>
+			<wp:comment_date>2026-02-01 11:00:00</wp:comment_date>
+			<wp:comment_content>Top level parent comment.</wp:comment_content>
+			<wp:comment_approved>1</wp:comment_approved>
+			<wp:comment_parent>0</wp:comment_parent>
+		</wp:comment>
+		<wp:comment>
+			<wp:comment_id>202</wp:comment_id>
+			<wp:comment_author>Bob</wp:comment_author>
+			<wp:comment_author_email>bob@example.com</wp:comment_author_email>
+			<wp:comment_date>2026-02-01 12:00:00</wp:comment_date>
+			<wp:comment_content>Threaded level 2 reply to Alice.</wp:comment_content>
+			<wp:comment_approved>1</wp:comment_approved>
+			<wp:comment_parent>201</wp:comment_parent>
+		</wp:comment>
+		<wp:comment>
+			<wp:comment_id>203</wp:comment_id>
+			<wp:comment_author>Charlie</wp:comment_author>
+			<wp:comment_author_email>charlie@example.com</wp:comment_author_email>
+			<wp:comment_date>2026-02-01 13:00:00</wp:comment_date>
+			<wp:comment_content>Threaded level 3 reply to Bob.</wp:comment_content>
+			<wp:comment_approved>1</wp:comment_approved>
+			<wp:comment_parent>202</wp:comment_parent>
+		</wp:comment>
+	</item>
+
+	<!-- Post 3: Core Gutenberg Blocks Showcase -->
+	<item>
+		<title>Core Blocks Showcase</title>
+		<wp:post_id>4</wp:post_id>
+		<wp:post_name>core-blocks</wp:post_name>
+		<wp:post_type>post</wp:post_type>
+		<wp:post_date>2026-03-01 10:00:00</wp:post_date>
+		<wp:status>publish</wp:status>
+		<wp:is_sticky>0</wp:is_sticky>
+		<content:encoded><![CDATA[
+<!-- wp:heading {"level":2} -->
+<h2>Core Gutenberg Blocks Showcase</h2>
+<!-- /wp:heading -->
+
+<!-- wp:columns -->
+<div class="wp-block-columns">
+	<!-- wp:column -->
+	<div class="wp-block-column"><p>Left column text.</p></div>
+	<!-- /wp:column -->
+	<!-- wp:column -->
+	<div class="wp-block-column"><p>Right column text.</p></div>
+	<!-- /wp:column -->
+</div>
+<!-- /wp:columns -->
+
+<!-- wp:quote {"className":"is-style-large"} -->
+<blockquote class="wp-block-quote is-style-large"><p>Neopress delivers sub-millisecond WordPress performance.</p><cite>Core Engineering</cite></blockquote>
+<!-- /wp:quote -->
+
+<!-- wp:list {"ordered":true} -->
+<ol class="wp-block-list">
+	<!-- wp:list-item -->
+	<li>First Nested Item</li>
+	<!-- /wp:list-item -->
+	<!-- wp:list-item -->
+	<li>Second Nested Item</li>
+	<!-- /wp:list-item -->
+</ol>
+<!-- /wp:list -->
+
+<!-- wp:embed {"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","type":"video","providerNameSlug":"youtube","responsive":true} -->
+<figure class="wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-16-9 wp-has-aspect-ratio"><div class="wp-block-embed__wrapper">
+https://www.youtube.com/watch?v=dQw4w9WgXcQ
+</div></figure>
+<!-- /wp:embed -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table class="has-fixed-layout"><thead><tr><th>Feature</th><th>Neopress</th></tr></thead><tbody><tr><td>Latency</td><td>&lt;1ms</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons">
+	<!-- wp:button {"className":"is-style-fill"} -->
+	<div class="wp-block-button is-style-fill"><a class="wp-block-button__link" href="/core-blocks/">Explore Docs</a></div>
+	<!-- /wp:button -->
+</div>
+<!-- /wp:buttons -->
+		]]></content:encoded>
+	</item>
+
+	<!-- Post 4: Cyrillic Unicode Slug -->
+	<item>
+		<title>Привет Мир</title>
+		<wp:post_id>5</wp:post_id>
+		<wp:post_name>привет-мир</wp:post_name>
+		<wp:post_type>post</wp:post_type>
+		<wp:post_date>2026-03-02 10:00:00</wp:post_date>
+		<wp:status>publish</wp:status>
+		<content:encoded><![CDATA[<p>Cyrillic Unicode slug validation post.</p>]]></content:encoded>
+	</item>
+
+	<!-- Post 5: Japanese Unicode Slug -->
+	<item>
+		<title>こんにちは 世界</title>
+		<wp:post_id>6</wp:post_id>
+		<wp:post_name>こんにちは-世界</wp:post_name>
+		<wp:post_type>post</wp:post_type>
+		<wp:post_date>2026-03-03 10:00:00</wp:post_date>
+		<wp:status>publish</wp:status>
+		<content:encoded><![CDATA[<p>Japanese Kana/Kanji Unicode slug validation post.</p>]]></content:encoded>
+	</item>
+</channel>
+</rss>

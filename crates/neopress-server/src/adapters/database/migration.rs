@@ -1248,6 +1248,7 @@ mod tests {
                 timezone_string: Some("UTC".to_string()),
                 default_comment_status: Some("open".to_string()),
                 site_icon: Some(900),
+                site_url: None,
             }),
             categories: vec![ImportTerm {
                 id: Some(77),
@@ -1377,6 +1378,7 @@ mod tests {
             plugin_options: HashMap::new(),
             redirects: vec![],
             forms: vec![],
+            site_url: None,
         };
 
         let res = db.import_bundle(&req).expect("import_bundle");

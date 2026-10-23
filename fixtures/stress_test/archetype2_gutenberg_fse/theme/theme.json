@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/theme.json",
+  "version": 3,
+  "title": "Twenty Twenty-Four Test",
+  "settings": {
+    "appearanceTools": true,
+    "color": {
+      "palette": [
+        { "slug": "base", "color": "#ffffff", "name": "Base" },
+        { "slug": "contrast", "color": "#111827", "name": "Contrast" },
+        { "slug": "primary", "color": "#1d4ed8", "name": "Primary" },
+        { "slug": "secondary", "color": "#f59e0b", "name": "Secondary" },
+        { "slug": "accent", "color": "#10b981", "name": "Accent" }
+      ],
+      "gradients": [
+        {
+          "slug": "primary-to-secondary",
+          "gradient": "linear-gradient(135deg, #1d4ed8 0%, #f59e0b 100%)",
+          "name": "Primary to Secondary"
+        }
+      ]
+    },
+    "typography": {
+      "fontSizes": [
+        { "slug": "small", "size": "0.875rem", "name": "Small" },
+        { "slug": "medium", "size": "1rem", "name": "Medium" },
+        { "slug": "large", "size": "1.5rem", "name": "Large" },
+        { "slug": "hero", "size": "3rem", "name": "Hero" },
+        { "slug": "x-large", "size": "2.25rem", "name": "Extra Large" }
+      ],
+      "fontFamilies": [
+        { "slug": "body", "fontFamily": "Inter, sans-serif", "name": "Body" },
+        { "slug": "heading", "fontFamily": "Plus Jakarta Sans, sans-serif", "name": "Heading" }
+      ]
+    },
+    "spacing": {
+      "spacingSizes": [
+        { "slug": "20", "size": "0.5rem" },
+        { "slug": "30", "size": "0.75rem" },
+        { "slug": "40", "size": "1rem" },
+        { "slug": "50", "size": "1.5rem" },
+        { "slug": "60", "size": "2rem" },
+        { "slug": "70", "size": "3rem" }
+      ]
+    },
+    "layout": {
+      "contentSize": "800px",
+      "wideSize": "1200px"
+    }
+  },
+  "styles": {
+    "color": {
+      "background": "var(--wp--preset--color--base)",
+      "text": "var(--wp--preset--color--contrast)"
+    },
+    "elements": {
+      "link": {
+        "color": {
+          "text": "var(--wp--preset--color--primary)"
+        }
+      }
+    }
+  }
+}

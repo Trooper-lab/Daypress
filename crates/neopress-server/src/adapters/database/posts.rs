@@ -13,7 +13,15 @@ use std::sync::{Arc, Mutex};
 
 impl Database {
     pub(crate) fn hydrate_post_relations(conn: &Connection, post: &mut WpPostResponse, base_url: &str) {
-        post.link = format!("{}/{}/", base_url.trim_end_matches('/'), post.slug);
+        let base_trimmed = base_url.trim_end_matches('/');
+        post.link = if matches!(
+            post.post_type.as_str(),
+            "trainingen" | "vacatures" | "cases" | "kandidaten"
+        ) {
+            format!("{}/{}/{}/", base_trimmed, post.post_type, post.slug)
+        } else {
+            format!("{}/{}/", base_trimmed, post.slug)
+        };
 
         let featured_media: i64 = conn
             .query_row(
@@ -49,16 +57,64 @@ impl Database {
             })
             .unwrap_or_default();
 
+        let custom_tax_pairs: Vec<(String, String)> = conn
+            .prepare_cached(
+                "SELECT tt.taxonomy, t.name FROM wp_term_relationships r JOIN wp_term_taxonomy tt ON r.term_taxonomy_id = tt.term_taxonomy_id JOIN wp_terms t ON tt.term_id = t.term_id WHERE r.object_id = ?1 AND tt.taxonomy NOT IN ('category', 'post_tag', 'nav_menu')",
+            )
+            .and_then(|mut stmt| {
+                let rows = stmt.query_map(params![post.id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                Ok(rows.filter_map(|r| r.ok()).collect())
+            })
+            .unwrap_or_default();
+
         if cat_pairs.is_empty() {
             post.categories = vec![1];
-            let default_cat_name: String = conn
-                .query_row("SELECT name FROM wp_terms WHERE term_id = 1", [], |r| r.get(0))
-                .unwrap_or_else(|_| "Uncategorized".to_string());
-            post.category_names = vec![default_cat_name];
+            if !custom_tax_pairs.is_empty() {
+                post.category_names = custom_tax_pairs.iter().map(|(_, n)| n.clone()).collect();
+            } else if post.post_type == "post" {
+                let default_cat_name: String = conn
+                    .query_row("SELECT name FROM wp_terms WHERE term_id = 1", [], |r| r.get(0))
+                    .unwrap_or_else(|_| "Uncategorized".to_string());
+                post.category_names = vec![default_cat_name];
+            } else {
+                post.category_names = vec![];
+            }
         } else {
             post.categories = cat_pairs.iter().map(|(id, _)| *id).collect();
             post.category_names = cat_pairs.into_iter().map(|(_, n)| n).collect();
         }
+
+        // Hydrate custom / ACF postmeta fields into `post.meta`
+        let meta_rows: Vec<(String, String)> = conn
+            .prepare_cached(
+                "SELECT meta_key, COALESCE(meta_value, '') FROM wp_postmeta WHERE post_id = ?1 AND meta_key NOT IN ('_elementor_data', '_neopress_layout')",
+            )
+            .and_then(|mut stmt| {
+                let rows = stmt.query_map(params![post.id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                Ok(rows.filter_map(|r| r.ok()).collect())
+            })
+            .unwrap_or_default();
+        let mut meta_obj = serde_json::Map::new();
+        for (k, v) in meta_rows {
+            if !k.starts_with("_field_") && !v.starts_with("field_") {
+                let parsed_val = if v == "true" {
+                    serde_json::Value::Bool(true)
+                } else if v == "false" {
+                    serde_json::Value::Bool(false)
+                } else if let Ok(n) = v.parse::<i64>() {
+                    serde_json::Value::Number(n.into())
+                } else if (v.starts_with('{') && v.ends_with('}')) || (v.starts_with('[') && v.ends_with(']')) {
+                    serde_json::from_str::<serde_json::Value>(&v).unwrap_or_else(|_| serde_json::Value::String(v.clone()))
+                } else {
+                    serde_json::Value::String(v)
+                };
+                meta_obj.insert(k, parsed_val);
+            }
+        }
+        for (tax, label) in &custom_tax_pairs {
+            meta_obj.insert(format!("_tax_{}", tax), serde_json::Value::String(label.clone()));
+        }
+        post.meta = serde_json::Value::Object(meta_obj);
 
         let tag_pairs: Vec<(i64, String)> = conn
             .prepare_cached(
@@ -214,6 +270,7 @@ impl Database {
         let ping_status: String = row.get(14)?;
         let parent: i64 = row.get(15)?;
         let menu_order: i64 = row.get(16)?;
+        let is_sticky: i64 = row.get(17).unwrap_or(0);
 
         Ok(WpPostResponse {
             id,
@@ -242,7 +299,7 @@ impl Database {
             featured_media: 0,
             comment_status,
             ping_status,
-            sticky: false,
+            sticky: is_sticky == 1,
             template: String::new(),
             format: "standard".to_string(),
             meta: serde_json::json!({}),
@@ -278,7 +335,7 @@ impl Database {
 
         let mut posts = Vec::new();
 
-        let select_fields = "SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0) FROM wp_posts";
+        let select_fields = "SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0) FROM wp_posts";
 
         let is_any_type = post_type == "any" || post_type.is_empty();
         let is_any_status = status == "any";
@@ -307,10 +364,10 @@ impl Database {
         };
 
         let sql = if where_clause.is_empty() {
-            format!("{} ORDER BY post_date DESC LIMIT ?", select_fields)
+            format!("{} ORDER BY is_sticky DESC, post_date DESC LIMIT ?", select_fields)
         } else {
             format!(
-                "{} {} ORDER BY post_date DESC LIMIT ?",
+                "{} {} ORDER BY is_sticky DESC, post_date DESC LIMIT ?",
                 select_fields, where_clause
             )
         };
@@ -519,7 +576,7 @@ impl Database {
     pub fn get_post_by_id(&self, id: i64) -> Result<Option<WpPostResponse>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0)
+            r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0)
                FROM wp_posts WHERE ID = ?1"#,
         )?;
 
@@ -538,7 +595,7 @@ impl Database {
     pub fn get_post_by_slug(&self, slug: &str) -> Result<Option<WpPostResponse>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0)
+            r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0)
                FROM wp_posts
                WHERE post_name = ?1 AND post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
                ORDER BY CASE WHEN post_type IN ('page', 'post') THEN 0 ELSE 1 END,
@@ -610,24 +667,42 @@ impl Database {
             }
         }
 
-        for cat_id in &req.categories {
-            let tt_id: Option<i64> = conn.query_row(
-                "SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE term_id = ?1 AND taxonomy = 'category'",
-                params![cat_id],
-                |r| r.get(0)
-            ).ok();
-            if let Some(tid) = tt_id {
-                let _ = conn.execute("INSERT OR IGNORE INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (?1, ?2)", params![id, tid]);
+        let mut all_taxonomies: std::collections::HashMap<String, Vec<i64>> = req.taxonomies.clone().unwrap_or_default();
+        if !req.categories.is_empty() && !all_taxonomies.contains_key("category") {
+            all_taxonomies.insert("category".to_string(), req.categories.clone());
+        }
+        if !req.tags.is_empty() && !all_taxonomies.contains_key("post_tag") {
+            all_taxonomies.insert("post_tag".to_string(), req.tags.clone());
+        }
+
+        for (tax_name, term_ids) in all_taxonomies {
+            for term_id in term_ids {
+                let tt_id: Option<i64> = conn.query_row(
+                    "SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE term_id = ?1 AND taxonomy = ?2",
+                    params![term_id, &tax_name],
+                    |r| r.get(0)
+                ).ok();
+                if let Some(tid) = tt_id {
+                    let _ = conn.execute("INSERT OR IGNORE INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (?1, ?2)", params![id, tid]);
+                }
             }
         }
-        for tag_id in &req.tags {
-            let tt_id: Option<i64> = conn.query_row(
-                "SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE term_id = ?1 AND taxonomy = 'post_tag'",
-                params![tag_id],
-                |r| r.get(0)
-            ).ok();
-            if let Some(tid) = tt_id {
-                let _ = conn.execute("INSERT OR IGNORE INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (?1, ?2)", params![id, tid]);
+
+        // Persist custom / ACF postmeta fields when provided in `req.meta`
+        if let Some(serde_json::Value::Object(ref meta_map)) = req.meta {
+            for (mk, mv) in meta_map {
+                let k = mk.trim();
+                if k.is_empty() || k.starts_with("_tax_") || k == "_neopress_layout" || mv.is_null() {
+                    continue;
+                }
+                let val_str = match mv {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let _ = conn.execute(
+                    "INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
+                    params![id, k, val_str],
+                );
             }
         }
 
@@ -656,6 +731,9 @@ impl Database {
                 );
             }
         }
+
+        // Synchronize AST layout from post content (Gutenberg, Elementor, Divi)
+        let _ = super::post_ast::synchronize_post_ast_layout(&conn, id, &req.content, req.meta.as_ref());
 
         drop(conn);
         Ok(self.get_post_by_id(id)?.unwrap())
@@ -782,29 +860,34 @@ impl Database {
                 let _ = tx.execute("INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, '_thumbnail_id', ?2)", params![id, fm.to_string()]);
             }
         }
+        let mut all_taxonomies: std::collections::HashMap<String, Vec<i64>> = req.taxonomies.clone().unwrap_or_default();
         if let Some(cats) = &req.categories {
-            let _ = tx.execute("DELETE FROM wp_term_relationships WHERE object_id = ?1 AND term_taxonomy_id IN (SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE taxonomy = 'category')", params![id]);
-            for cat_id in cats {
-                let tt_id: Option<i64> = tx.query_row(
-                    "SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE term_id = ?1 AND taxonomy = 'category'",
-                    params![cat_id],
-                    |r| r.get(0)
-                ).ok();
-                if let Some(tid) = tt_id {
-                    let _ = tx.execute("INSERT OR IGNORE INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (?1, ?2)", params![id, tid]);
-                }
+            if !all_taxonomies.contains_key("category") {
+                all_taxonomies.insert("category".to_string(), cats.clone());
             }
         }
         if let Some(tags) = &req.tags {
-            let _ = tx.execute("DELETE FROM wp_term_relationships WHERE object_id = ?1 AND term_taxonomy_id IN (SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE taxonomy = 'post_tag')", params![id]);
-            for tag_id in tags {
+            if !all_taxonomies.contains_key("post_tag") {
+                all_taxonomies.insert("post_tag".to_string(), tags.clone());
+            }
+        }
+
+        for (tax_name, term_ids) in all_taxonomies {
+            let _ = tx.execute(
+                "DELETE FROM wp_term_relationships WHERE object_id = ?1 AND term_taxonomy_id IN (SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE taxonomy = ?2)",
+                params![id, &tax_name],
+            );
+            for term_id in term_ids {
                 let tt_id: Option<i64> = tx.query_row(
-                    "SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE term_id = ?1 AND taxonomy = 'post_tag'",
-                    params![tag_id],
+                    "SELECT term_taxonomy_id FROM wp_term_taxonomy WHERE term_id = ?1 AND taxonomy = ?2",
+                    params![term_id, &tax_name],
                     |r| r.get(0)
                 ).ok();
                 if let Some(tid) = tt_id {
-                    let _ = tx.execute("INSERT OR IGNORE INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (?1, ?2)", params![id, tid]);
+                    let _ = tx.execute(
+                        "INSERT OR IGNORE INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (?1, ?2)",
+                        params![id, tid],
+                    );
                 }
             }
         }
@@ -843,6 +926,35 @@ impl Database {
                     params![id],
                 );
             }
+        }
+
+        // Persist custom / ACF postmeta fields when provided in `req.meta`
+        if let Some(serde_json::Value::Object(ref meta_map)) = req.meta {
+            for (mk, mv) in meta_map {
+                let k = mk.trim();
+                if k.is_empty() || k.starts_with("_tax_") || k == "_neopress_layout" {
+                    continue;
+                }
+                let _ = tx.execute(
+                    "DELETE FROM wp_postmeta WHERE post_id = ?1 AND meta_key = ?2",
+                    params![id, k],
+                );
+                if !mv.is_null() {
+                    let val_str = match mv {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let _ = tx.execute(
+                        "INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
+                        params![id, k, val_str],
+                    );
+                }
+            }
+        }
+
+        // Keep `layout_json` / `_neopress_layout` synchronized when `post_content` is updated from the Post/Block Editor
+        if let Some(ref content) = req.content {
+            let _ = super::post_ast::synchronize_post_ast_layout(&tx, id, content, req.meta.as_ref());
         }
 
         tx.commit()?;
@@ -1005,9 +1117,103 @@ impl Database {
     // VISUAL BUILDER & HYBRID JSON LAYOUT PERSISTENCE (Long-Term Architecture)
     // =========================================================================
 
+    /// Splits compiled `<section ...>...</section>` (or Gutenberg/ACF block) HTML into top-level
+    /// `CustomHtml` AST nodes so NeoStudio and the Post Block Editor share a lossless 1:1 AST.
+    pub(crate) fn synthesize_layout_json_from_html(post_id: i64, html: &str) -> Option<String> {
+        let trimmed = html.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let mut chunks: Vec<String> = Vec::new();
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.contains("<section") && lower.contains("</section>") {
+            let mut cursor = 0;
+            while cursor < trimmed.len() {
+                if let Some(rel_open) = lower[cursor..].find("<section") {
+                    let abs_open = cursor + rel_open;
+                    let pre = trimmed[cursor..abs_open].trim();
+                    if !pre.is_empty() {
+                        chunks.push(pre.to_string());
+                    }
+
+                    // Walk forward balancing nested `<section` and `</section>` tags
+                    let mut depth = 0i32;
+                    let mut scan = abs_open;
+                    let mut end_idx = trimmed.len();
+                    while scan < trimmed.len() {
+                        let next_open = lower[scan..].find("<section").map(|o| scan + o);
+                        let next_close = lower[scan..].find("</section>").map(|c| scan + c);
+                        match (next_open, next_close) {
+                            (Some(o), Some(c)) if o < c => {
+                                depth += 1;
+                                scan = o + 8;
+                            }
+                            (_, Some(c)) => {
+                                depth -= 1;
+                                scan = c + 10;
+                                if depth <= 0 {
+                                    end_idx = scan;
+                                    break;
+                                }
+                            }
+                            _ => {
+                                end_idx = trimmed.len();
+                                break;
+                            }
+                        }
+                    }
+                    let sec_html = trimmed[abs_open..end_idx].trim();
+                    if !sec_html.is_empty() {
+                        chunks.push(sec_html.to_string());
+                    }
+                    cursor = end_idx;
+                } else {
+                    let tail = trimmed[cursor..].trim();
+                    if !tail.is_empty() {
+                        chunks.push(tail.to_string());
+                    }
+                    break;
+                }
+            }
+        } else {
+            chunks.push(trimmed.to_string());
+        }
+
+        if chunks.is_empty() {
+            return None;
+        }
+
+        let children: Vec<serde_json::Value> = chunks
+            .into_iter()
+            .enumerate()
+            .map(|(idx, raw_chunk)| {
+                serde_json::json!({
+                    "id": format!("acf_sec_{}_{}", post_id, idx),
+                    "type": "CustomHtml",
+                    "data": {
+                        "raw": raw_chunk
+                    },
+                    "styles": {}
+                })
+            })
+            .collect();
+
+        let layout = serde_json::json!({
+            "version": 1,
+            "root": {
+                "id": "root",
+                "type": "Root",
+                "styles": {},
+                "children": children
+            }
+        });
+        serde_json::to_string(&layout).ok()
+    }
+
     /// Retrieves the JSON Layout for a post. Prioritizes the dedicated `layout_json`
     /// column on `wp_posts` (<0.15ms latency), falling back to `wp_postmeta` (_neopress_layout)
-    /// for backward compatibility.
+    /// or synthesizing a lossless section-level AST from `post_content` when present.
     pub fn get_post_layout(&self, post_id: i64) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         // 1. Check direct layout_json column
@@ -1036,7 +1242,13 @@ impl Database {
             .ok()
             .flatten();
 
-        Ok(meta_layout)
+        if let Some(ref ml) = meta_layout {
+            if !ml.trim().is_empty() {
+                return Ok(meta_layout);
+            }
+        }
+
+        Ok(None)
     }
 
     /// Saves the JSON layout for a post using a transactional dual-write pattern:

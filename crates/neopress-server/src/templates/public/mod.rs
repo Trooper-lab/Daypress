@@ -7,14 +7,18 @@
 //! * [`single`]: Single post/page AST renderer and interactive comments section.
 //! * [`archives`]: Category, tag, author, search results, and 404 templates.
 
+pub mod admin_bar;
 pub mod archives;
+pub mod head_meta;
 pub mod home;
+pub mod menus;
 pub mod shell;
 pub mod single;
-mod styles;
+pub(crate) mod styles;
 
 pub use archives::{render_archive_page, render_not_found_page, render_search_page};
 pub use home::render_home_page;
+pub use menus::*;
 pub use shell::render_base_layout;
 pub use single::render_single_post;
-pub use styles::render_public_theme_css;
+pub use styles::{render_public_css, render_public_theme_css, CSS_WIDGETS};

@@ -16,9 +16,20 @@ use super::*;
 // Admin Handlers
 pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let posts = db
-        .get_posts("post", Some("any"), None, 50)
-        .unwrap_or_default();
+    let mut posts: Vec<models::WpPostResponse> = db
+        .get_posts("any", Some("publish"), None, 120)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|p| {
+            !matches!(
+                p.post_type.as_str(),
+                "attachment" | "nav_menu_item" | "revision" | "elementor_library" | "wpcf7_contact_form" | "acf-field" | "acf-field-group"
+            )
+        })
+        .collect();
+    if posts.is_empty() {
+        posts = db.get_posts("post", Some("any"), None, 50).unwrap_or_default();
+    }
     let stats = db.get_stats().unwrap_or_default();
 
     Html(templates::render_wp_dashboard_view(
@@ -31,13 +42,16 @@ pub async fn handle_admin_posts(
     Query(params): Query<AdminEditQueryParams>,
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let is_page = params.post_type.as_deref() == Some("page");
-    let ptype = if is_page { "page" } else { "post" };
+    let ptype = params
+        .post_type
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("post");
     let posts = db
-        .get_posts(ptype, Some("any"), None, 50)
+        .get_posts(ptype, Some("any"), None, 200)
         .unwrap_or_default();
 
-    Html(templates::render_wp_posts_view(&posts, &settings, is_page))
+    Html(templates::render_wp_posts_view_for_type(&posts, &settings, ptype))
 }
 
 pub async fn handle_admin_post_new(
@@ -52,12 +66,12 @@ pub async fn handle_admin_post_new(
         None
     };
 
-    let is_page = params.post_type.as_deref() == Some("page")
-        || existing_post
-            .as_ref()
-            .map(|p| p.post_type == "page")
-            .unwrap_or(false);
-    let ptype = if is_page { "page" } else { "post" };
+    let ptype: String = existing_post
+        .as_ref()
+        .map(|p| p.post_type.clone())
+        .or_else(|| params.post_type.clone())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "post".to_string());
 
     let pages = db
         .get_posts("page", Some("any"), None, 100)
@@ -65,21 +79,19 @@ pub async fn handle_admin_post_new(
     let categories = db.get_terms("category").unwrap_or_default();
     let tags = db.get_terms("post_tag").unwrap_or_default();
     let media = db.get_media_attachments().unwrap_or_default();
-    let has_visual_layout = if let Some(ref p) = existing_post {
-        db.get_post_layout(p.id).unwrap_or(None).is_some()
-    } else {
-        false
-    };
+    let has_visual_layout = existing_post.is_some();
+    let taxonomies = db.get_taxonomies_for_post_type(&ptype, target_id).unwrap_or_default();
 
     Html(templates::render_wp_post_new_view(
         &settings,
-        ptype,
+        &ptype,
         existing_post.as_ref(),
         &pages,
         &categories,
         &tags,
         &media,
         has_visual_layout,
+        &taxonomies,
     ))
 }
 
@@ -88,9 +100,17 @@ pub async fn handle_admin_builder(
     Query(params): Query<AdminEditQueryParams>,
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let target_id = params.id.or(params.post);
+    let target_id = params.id.or(params.post).or(params.post_id);
     let post = if let Some(id) = target_id {
         db.get_post_by_id(id).unwrap_or(None)
+    } else if settings.page_on_front > 0 {
+        db.get_post_by_id(settings.page_on_front)
+            .unwrap_or(None)
+            .or_else(|| {
+                db.get_posts("page", Some("publish"), None, 1)
+                    .ok()
+                    .and_then(|v| v.into_iter().next())
+            })
     } else {
         db.get_posts("any", Some("any"), None, 1)
             .ok()
@@ -345,56 +365,5 @@ pub async fn handle_admin_engine(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
     Html(templates::render_wp_engine_view(&settings, &stats))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CommentQueryParams {
-    pub comment_status: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateCommentStatusPayload {
-    pub status: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ExportPersonalDataQuery {
-    pub user: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ErasePersonalDataPayload {
-    pub identifier: String,
-}
-
-// 1. Dashboard Updates
-pub async fn handle_admin_updates(State(db): State<Database>) -> Html<String> {
-    let settings = db.get_settings().unwrap_or_default();
-    let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_wp_updates_view(&settings, &stats))
-}
-
-// 2. Media Add New
-pub async fn handle_admin_media_new(State(db): State<Database>) -> Html<String> {
-    let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_media_new_view(&settings))
-}
-
-// 3. Comments Moderation Queue
-pub async fn handle_admin_comments(
-    State(db): State<Database>,
-    Query(params): Query<CommentQueryParams>,
-) -> Html<String> {
-    let settings = db.get_settings().unwrap_or_default();
-    let comments = db
-        .get_comments(params.comment_status.as_deref(), 100)
-        .unwrap_or_default();
-    let counts = db.get_comment_counts().unwrap_or_default();
-    Html(templates::render_wp_comments_view(
-        &settings,
-        &comments,
-        &counts,
-        params.comment_status.as_deref(),
-    ))
 }
 

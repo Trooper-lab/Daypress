@@ -8,6 +8,7 @@
 
 pub mod containers;
 pub mod context;
+pub mod kit;
 pub mod styles;
 pub mod widgets;
 

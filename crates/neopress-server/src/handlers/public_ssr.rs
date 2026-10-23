@@ -5,6 +5,8 @@ use crate::auth::OptionalAuthUser;
 use crate::db::Database;
 use crate::models;
 use crate::templates;
+use crate::theme_builder::models::{RequestContext, TaxonomyTermRef};
+use crate::theme_builder::ssr_injector::SsrInjector;
 use axum::{
     extract::{Form, Path as AxPath, Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -12,44 +14,6 @@ use axum::{
 };
 use serde::Deserialize;
 use super::*;
-
-#[derive(Debug, Deserialize)]
-pub struct QueryPostParams {
-    pub p: Option<i64>,
-    pub page_id: Option<i64>,
-    pub s: Option<String>,
-    pub q: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-pub struct ProfileQueryParams {
-    pub user_id: Option<i64>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LoginQueryParams {
-    pub action: Option<String>,
-    pub loggedout: Option<String>,
-    pub redirect_to: Option<String>,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LoginForm {
-    pub log: Option<String>,
-    pub pwd: Option<String>,
-    pub redirect_to: Option<String>,
-    pub rememberme: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AdminEditQueryParams {
-    pub post_type: Option<String>,
-    pub id: Option<i64>,
-    pub post: Option<i64>,
-    pub action: Option<String>,
-    pub taxonomy: Option<String>,
-}
 
 pub async fn handle_home_or_query(
     State(db): State<Database>,
@@ -68,7 +32,12 @@ pub async fn handle_home_or_query(
         let results = db
             .get_posts("any", Some("publish"), Some(q), 50)
             .unwrap_or_default();
-        let html = templates::render_search_page(q, &results, &settings, user.as_ref());
+        let req_ctx = RequestContext {
+            is_search: true,
+            ..Default::default()
+        };
+        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+        let html = templates::render_search_page(q, &results, &settings, user.as_ref(), Some(&partials));
         return Html(crate::plugins::inject_plugin_hooks_into_html(
             &db, &settings, None, html,
         ))
@@ -88,11 +57,15 @@ pub async fn handle_home_or_query(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
+            let terms = hydrate_post_terms(&db, &post);
+            let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
+            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&post));
             let html = templates::render_single_post(
                 &post,
                 &settings,
                 user.as_ref(),
                 layout_json.as_deref(),
+                Some(&partials),
             );
             return Html(crate::plugins::inject_plugin_hooks_into_html(
                 &db,
@@ -102,9 +75,11 @@ pub async fn handle_home_or_query(
             ))
             .into_response();
         } else {
+            let req_ctx = RequestContext::for_404(&format!("/?p={}", id));
+            let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
             return (
                 StatusCode::NOT_FOUND,
-                Html(templates::render_not_found_page(&settings, user.as_ref())),
+                Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
             )
                 .into_response();
         }
@@ -123,11 +98,14 @@ pub async fn handle_home_or_query(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
+            let req_ctx = RequestContext::for_post(page.id, &page.post_type, false, vec![]);
+            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&page));
             let html = templates::render_single_post(
                 &page,
                 &settings,
                 user.as_ref(),
                 layout_json.as_deref(),
+                Some(&partials),
             );
             return Html(crate::plugins::inject_plugin_hooks_into_html(
                 &db,
@@ -137,9 +115,11 @@ pub async fn handle_home_or_query(
             ))
             .into_response();
         } else {
+            let req_ctx = RequestContext::for_404(&format!("/?page_id={}", id));
+            let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
             return (
                 StatusCode::NOT_FOUND,
-                Html(templates::render_not_found_page(&settings, user.as_ref())),
+                Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
             )
                 .into_response();
         }
@@ -159,11 +139,14 @@ pub async fn handle_home_or_query(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
+            let req_ctx = RequestContext::for_front_page();
+            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&front_page));
             let html = templates::render_single_post(
                 &front_page,
                 &settings,
                 user.as_ref(),
                 layout_json.as_deref(),
+                Some(&partials),
             );
             return Html(crate::plugins::inject_plugin_hooks_into_html(
                 &db,
@@ -179,7 +162,9 @@ pub async fn handle_home_or_query(
     let posts = db
         .get_posts("post", Some("publish"), None, limit)
         .unwrap_or_default();
-    let html = templates::render_home_page(&posts, &settings, user.as_ref());
+    let req_ctx = RequestContext::for_front_page();
+    let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+    let html = templates::render_home_page(&posts, &settings, user.as_ref(), Some(&partials));
     Html(crate::plugins::inject_plugin_hooks_into_html(
         &db, &settings, None, html,
     ))
@@ -205,7 +190,14 @@ pub async fn handle_single(
 
     let settings = db.get_settings().unwrap_or_default();
 
+    let clean_slug = slug.trim_matches('/');
+
     if let Ok(Some(mut post)) = db.get_post_by_slug(&slug) {
+        if post.template == "page_templates/leeg.php"
+            || post.content.rendered.trim_start().starts_with("<!DOCTYPE html")
+        {
+            return (StatusCode::OK, Html(post.content.rendered)).into_response();
+        }
         let layout_json = db.get_post_layout(post.id).unwrap_or(None);
         if settings.show_on_front == "page"
             && settings.page_for_posts > 0
@@ -221,12 +213,18 @@ pub async fn handle_single(
                     settings.posts_per_page.clamp(1, 100),
                 )
                 .unwrap_or_default();
+            let req_ctx = RequestContext {
+                is_archive: true,
+                ..Default::default()
+            };
+            let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
             let html = templates::render_archive_page(
                 &post.title.rendered,
                 "Blog Archive",
                 &posts,
                 &settings,
                 user.as_ref(),
+                Some(&partials),
             );
             return (
                 StatusCode::OK,
@@ -251,11 +249,16 @@ pub async fn handle_single(
             hooks.content_before_html, expanded, hooks.content_after_html
         );
 
+        let terms = hydrate_post_terms(&db, &post);
+        let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
+        let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&post));
+
         let html = templates::render_single_post(
             &post,
             &settings,
             user.as_ref(),
             layout_json.as_deref(),
+            Some(&partials),
         );
         return (
             StatusCode::OK,
@@ -269,6 +272,15 @@ pub async fn handle_single(
             .into_response();
     }
 
+    if let Some(archive_resp) = crate::handlers::archives_ssr::try_handle_cpt_archive(
+        &db,
+        clean_slug,
+        &settings,
+        user.as_ref(),
+    ) {
+        return archive_resp;
+    }
+
     // Record 404 hit in 404 Monitor
     let referrer = headers
         .get(header::REFERER)
@@ -280,186 +292,74 @@ pub async fn handle_single(
         .unwrap_or("");
     db.record_404_hit(&req_path, referrer, ua);
 
+    let req_ctx = RequestContext::for_404(&req_path);
+    let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+
     (
         StatusCode::NOT_FOUND,
         Html(crate::plugins::inject_plugin_hooks_into_html(
             &db,
             &settings,
             None,
-            templates::render_not_found_page(&settings, user.as_ref()),
+            templates::render_not_found_page(&settings, user.as_ref(), Some(&partials)),
         )),
     )
         .into_response()
 }
 
-pub async fn handle_category_archive(
-    State(db): State<Database>,
-    AxPath(slug): AxPath<String>,
-    OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let (cat_opt, posts) = db.get_posts_by_category_slug(&slug).unwrap_or_default();
-    if let Some(cat) = cat_opt {
-        (
-            StatusCode::OK,
-            Html(templates::render_archive_page(
-                &format!("Category: {}", cat.name),
-                "Category Archive",
-                &posts,
-                &settings,
-                user.as_ref(),
-            )),
-        )
-    } else {
-        (
-            StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(&settings, user.as_ref())),
-        )
-    }
-}
-
-pub async fn handle_tag_archive(
-    State(db): State<Database>,
-    AxPath(slug): AxPath<String>,
-    OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let (tag_opt, posts) = db.get_posts_by_tag_slug(&slug).unwrap_or_default();
-    if let Some(tag) = tag_opt {
-        (
-            StatusCode::OK,
-            Html(templates::render_archive_page(
-                &format!("Tag: {}", tag.name),
-                "Tag Archive",
-                &posts,
-                &settings,
-                user.as_ref(),
-            )),
-        )
-    } else {
-        (
-            StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(&settings, user.as_ref())),
-        )
-    }
-}
-
-pub async fn handle_author_archive(
-    State(db): State<Database>,
-    AxPath(slug): AxPath<String>,
-    OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let (author_opt, posts) = db.get_posts_by_author_slug(&slug).unwrap_or_default();
-    if let Some(author) = author_opt {
-        (
-            StatusCode::OK,
-            Html(templates::render_archive_page(
-                &format!("Author: {}", author.display_name),
-                "Author Archive",
-                &posts,
-                &settings,
-                user.as_ref(),
-            )),
-        )
-    } else {
-        (
-            StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(&settings, user.as_ref())),
-        )
-    }
-}
-
-pub async fn handle_search_page(
-    State(db): State<Database>,
-    Query(params): Query<QueryPostParams>,
-    OptionalAuthUser(user): OptionalAuthUser,
-) -> Html<String> {
-    let settings = db.get_settings().unwrap_or_default();
-    let q = params
-        .s
-        .as_deref()
-        .or(params.q.as_deref())
-        .unwrap_or("")
-        .trim();
-    let posts = if q.is_empty() {
-        Vec::new()
-    } else {
-        db.get_posts("any", Some("publish"), Some(q), 50)
-            .unwrap_or_default()
-    };
-    Html(templates::render_search_page(
-        q,
-        &posts,
-        &settings,
-        user.as_ref(),
-    ))
-}
-
-// =========================================================================
-// NATIVE SEO & STREAMING SITEMAP / ROBOTS HANDLERS
-// =========================================================================
-
-pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let base_url = settings.url.trim_end_matches('/');
-    let posts = db
-        .get_posts("any", Some("publish"), None, 50000)
-        .unwrap_or_default();
-
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-
-    // Home Page
-    xml.push_str(&format!(
-        "  <url><loc>{}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n",
-        base_url
-    ));
-
-    for post in posts {
-        if post.seo_noindex {
-            continue;
-        }
-        if post.post_type == "post" || post.post_type == "page" {
-            let lastmod = if !post.modified.is_empty() {
-                &post.modified
-            } else {
-                &post.date
-            };
-            let priority = if post.post_type == "page" {
-                "0.8"
-            } else {
-                "0.6"
-            };
-            xml.push_str(&format!(
-                "  <url><loc>{}/{}/</loc><lastmod>{}</lastmod><priority>{}</priority></url>\n",
-                base_url, post.slug, lastmod, priority
-            ));
+pub(crate) fn hydrate_post_terms(db: &Database, post: &models::WpPostResponse) -> Vec<TaxonomyTermRef> {
+    let mut terms = Vec::new();
+    if let Ok(conn) = db.conn.lock() {
+        if let Ok(mut stmt) = conn.prepare_cached(
+            "SELECT tt.taxonomy, t.term_id, t.slug FROM wp_term_relationships r \
+             JOIN wp_term_taxonomy tt ON r.term_taxonomy_id = tt.term_taxonomy_id \
+             JOIN wp_terms t ON tt.term_id = t.term_id \
+             WHERE r.object_id = ?1",
+        ) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params![post.id], |r| {
+                let tax: String = r.get(0)?;
+                let tid: i64 = r.get(1)?;
+                let slug: String = r.get(2)?;
+                Ok((tax, tid, slug))
+            }) {
+                for row in rows.flatten() {
+                    let tax_clean = if row.0 == "post_tag" {
+                        "tag".to_string()
+                    } else {
+                        row.0.clone()
+                    };
+                    terms.push(TaxonomyTermRef {
+                        taxonomy: tax_clean,
+                        term_id: row.1,
+                        slug: row.2.clone(),
+                    });
+                    if row.0 == "post_tag" {
+                        terms.push(TaxonomyTermRef {
+                            taxonomy: "post_tag".to_string(),
+                            term_id: row.1,
+                            slug: row.2,
+                        });
+                    }
+                }
+            }
         }
     }
-
-    xml.push_str("</urlset>");
-
-    (
-        [(header::CONTENT_TYPE, "application/xml; charset=utf-8")],
-        xml,
-    )
+    if terms.is_empty() {
+        for &cid in &post.categories {
+            terms.push(TaxonomyTermRef {
+                taxonomy: "category".to_string(),
+                term_id: cid,
+                slug: String::new(),
+            });
+        }
+        for &tid in &post.tags {
+            terms.push(TaxonomyTermRef {
+                taxonomy: "tag".to_string(),
+                term_id: tid,
+                slug: String::new(),
+            });
+        }
+    }
+    terms
 }
 
-pub async fn handle_robots_txt(State(db): State<Database>) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let seo_global = db.get_global_seo_settings().unwrap_or_default();
-    let base_url = settings.url.trim_end_matches('/');
-    let robots = if !seo_global.custom_robots_txt.trim().is_empty() {
-        seo_global.custom_robots_txt
-    } else {
-        format!(
-            "User-agent: *\nAllow: /\nDisallow: /n-admin/\nDisallow: /wp-json/\n\nSitemap: {}/sitemap.xml\n",
-            base_url
-        )
-    };
-    (
-        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        robots,
-    )
-}

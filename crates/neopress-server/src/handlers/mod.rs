@@ -7,11 +7,23 @@
 //! * [`native_modules`]: Cookieless Analytics, SEO & 301 Redirects, Declarative Forms, SQLite Hot Backups, and Plugin SDK.
 
 pub mod admin_actions;
+pub mod admin_extra;
 pub mod admin_pages;
+pub mod archives_ssr;
+pub mod cpt_archive_render;
 pub mod native_modules;
+pub mod params;
 pub mod public_ssr;
+pub mod seo_feeds;
+pub mod taxonomy_archive_render;
 
 pub use admin_actions::*;
+pub use admin_extra::*;
 pub use admin_pages::*;
+pub use archives_ssr::*;
+pub use cpt_archive_render::*;
 pub use native_modules::*;
+pub use params::*;
 pub use public_ssr::*;
+pub use seo_feeds::*;
+pub use taxonomy_archive_render::*;

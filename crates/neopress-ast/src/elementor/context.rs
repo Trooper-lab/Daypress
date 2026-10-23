@@ -8,14 +8,7 @@ use serde_json::{Map, Value};
 use std::collections::HashMap;
 use super::*;
 
-/// Navigation menu item resolved during WXR or bundle transpilation.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct NavMenuItem {
-    pub title: String,
-    pub url: String,
-    #[serde(default)]
-    pub order: i64,
-}
+pub use crate::schema::NavMenuItem;
 
 /// Site-wide resolution context for Elementor dynamic tags (`__dynamic__`),
 /// Theme Builder widgets (`theme-site-logo`, `nav-menu`), and domain-relative URLs.
@@ -65,29 +58,53 @@ impl ElementorContext {
                 }
                 let with_slash = format!("{}/", candidate);
                 if let Some(rest) = trimmed.strip_prefix(&with_slash) {
+                    if let Some(media_rest) = rest.strip_prefix("wp-content/uploads/") {
+                        return format!("/uploads/{}", media_rest);
+                    }
                     return format!("/{}", rest);
                 }
             }
-        }
-        // Also normalize any `/wp-content/uploads/` URL on the same domain even if source_site_url was not set
-        if let Some(idx) = trimmed.find("/wp-content/uploads/") {
-            if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-                return trimmed[idx..].to_string();
+            if let Some(host) = crate::url_utils::extract_url_host(base) {
+                if let Some(raw_host) = crate::url_utils::extract_url_host(trimmed) {
+                    if raw_host.eq_ignore_ascii_case(host) {
+                        if let Some(idx) = trimmed.find("/wp-content/uploads/") {
+                            return format!("/uploads/{}", &trimmed[idx + "/wp-content/uploads/".len()..]);
+                        }
+                    }
+                }
             }
+        }
+        // Normalize only root-relative or relative `/wp-content/uploads/` paths to `/uploads/`
+        if let Some(idx) = trimmed.find("/wp-content/uploads/") {
+            if trimmed.starts_with('/') && !trimmed.starts_with("//") {
+                let media_path = &trimmed[idx + "/wp-content/uploads/".len()..];
+                return format!("/uploads/{}", media_path);
+            }
+        }
+        if let Some(rest) = trimmed.strip_prefix("wp-content/uploads/") {
+            return format!("/uploads/{}", rest);
         }
         trimmed.to_string()
     }
 
     pub fn normalize_html(&self, raw_html: &str) -> String {
         let mut out = if let Some(ref base) = self.source_site_url {
-            let https_base = format!("{}/", base.replacen("http://", "https://", 1));
-            let http_base = format!("{}/", base.replacen("https://", "http://", 1));
-            raw_html
+            let clean_base = base.trim_end_matches('/');
+            let https_base = format!("{}/", clean_base.replacen("http://", "https://", 1));
+            let http_base = format!("{}/", clean_base.replacen("https://", "http://", 1));
+            let mut s = raw_html
+                .replace(&format!("{}/wp-content/uploads/", clean_base), "/uploads/")
                 .replace(&https_base, "/")
-                .replace(&http_base, "/")
+                .replace(&http_base, "/");
+            if let Some(host) = crate::url_utils::extract_url_host(clean_base) {
+                s = s.replace(&format!("https://{}/wp-content/uploads/", host), "/uploads/");
+                s = s.replace(&format!("http://{}/wp-content/uploads/", host), "/uploads/");
+            }
+            s
         } else {
             raw_html.to_string()
         };
+        out = crate::url_utils::remap_root_relative_uploads(&out);
         if out.contains("src=https://") {
             out = out.replace("src=https://", "src=\"https://");
         }

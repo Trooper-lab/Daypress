@@ -1,0 +1,393 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "title": "Neopress Multi-Site Stress-Test Fixture Manifest",
+  "description": "Deterministic index of the 4 target WordPress archetypes (excluding WooCommerce) for automated Rust integration tests and Playwright headless visual audits.",
+  "generated_at": "2026-10-23T21:00:00Z",
+  "archetypes": [
+    {
+      "id": "archetype1_theme_unit_test",
+      "name": "WordPress Theme Unit Test",
+      "description": "WordPress Theme Unit Test suite covering 3+ level hierarchical nav menus, core Gutenberg blocks, sticky posts, 2-pass threaded comments, and Unicode UTF-8 slugs.",
+      "category": "gutenberg_classic",
+      "theme_slug": "theme-unit-test",
+      "fixture_dir": "fixtures/stress_test/archetype1_theme_unit_test",
+      "wxr_file": "fixtures/stress_test/archetype1_theme_unit_test/theme_unit_test.xml",
+      "theme_dir": null,
+      "source_site_url": "http://127.0.0.1:8090",
+      "expectations": {
+        "min_posts": 6,
+        "min_pages": 1,
+        "min_categories": 3,
+        "min_tags": 3,
+        "min_comments": 3,
+        "hierarchical_menu_levels": 3,
+        "has_sticky_posts": true,
+        "has_threaded_comments": true,
+        "has_unicode_slugs": true
+      },
+      "test_routes": [
+        {
+          "path": "/",
+          "description": "Front page rendering blog index with sticky post sorted to top and primary menu tree",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "header",
+            "footer",
+            "nav.np-primary-menu",
+            "ul.sub-menu",
+            ".sticky"
+          ],
+          "forbidden_patterns": [
+            "<!-- wp:",
+            "<!-- /wp:",
+            "contenteditable=\"true\"",
+            ".elementor-grid-handle"
+          ],
+          "expected_strings": [
+            "Theme Unit Test",
+            "Sticky Announcement",
+            "menu-item-has-children"
+          ]
+        },
+        {
+          "path": "/core-blocks/",
+          "description": "Core Gutenberg blocks showcase rendering semantic HTML and CSS",
+          "expected_status": 200,
+          "landmark_selectors": [
+            ".wp-block-columns",
+            ".wp-block-gallery",
+            ".wp-block-cover",
+            ".wp-block-media-text",
+            "blockquote.wp-block-quote",
+            "table.wp-block-table",
+            ".wp-block-buttons",
+            ".wp-block-embed"
+          ],
+          "forbidden_patterns": [
+            "<!-- wp:",
+            "<!-- /wp:"
+          ],
+          "expected_strings": [
+            "Core Blocks Showcase",
+            "Neopress delivers sub-millisecond",
+            "First Nested Item"
+          ]
+        },
+        {
+          "path": "/threaded-discussion/",
+          "description": "Threaded comments with remapped 2-pass comment_parent hierarchy",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "#comments",
+            ".comment-list"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Alice",
+            "Bob",
+            "Charlie"
+          ]
+        },
+        {
+          "path": "/привет-мир/",
+          "description": "Cyrillic Unicode slug preserving safe UTF-8 without collapsing to n-a",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "h1",
+            "article"
+          ],
+          "forbidden_patterns": [
+            "n-a"
+          ],
+          "expected_strings": [
+            "Привет Мир"
+          ]
+        },
+        {
+          "path": "/こんにちは-世界/",
+          "description": "Japanese Kanji/Kana Unicode slug preserving safe UTF-8",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "h1",
+            "article"
+          ],
+          "forbidden_patterns": [
+            "n-a"
+          ],
+          "expected_strings": [
+            "こんにちは 世界"
+          ]
+        }
+      ],
+      "cad_invariants": {
+        "builder_path": "/n-admin/builder?post=1",
+        "selectors": {
+          "#neostudio-topbar": { "max_height": 44, "y": 0 },
+          "#neostudio-bottom-bar": { "max_height": 32 },
+          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+        }
+      }
+    },
+    {
+      "id": "archetype2_gutenberg_fse",
+      "name": "Gutenberg Full Site Editing (Twenty Twenty-Four)",
+      "description": "Full Site Editing block theme fixture with theme.json preset compilation, block templates, and template parts.",
+      "category": "fse_block_theme",
+      "theme_slug": "twentytwentyfour",
+      "fixture_dir": "fixtures/stress_test/archetype2_gutenberg_fse",
+      "wxr_file": "fixtures/stress_test/archetype2_gutenberg_fse/fse_content.xml",
+      "theme_dir": "fixtures/stress_test/archetype2_gutenberg_fse/theme",
+      "theme_json": "fixtures/stress_test/archetype2_gutenberg_fse/theme/theme.json",
+      "source_site_url": "http://127.0.0.1:8090",
+      "expectations": {
+        "min_posts": 2,
+        "min_pages": 1,
+        "theme_json_version": 3,
+        "has_css_custom_properties": true,
+        "has_template_parts": true
+      },
+      "test_routes": [
+        {
+          "path": "/",
+          "description": "FSE Front page rendering compiled theme.json CSS variables and header/footer template parts",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "header",
+            "footer",
+            "main.wp-block-group",
+            ".has-primary-color",
+            ".has-secondary-color"
+          ],
+          "forbidden_patterns": [
+            "<!-- wp:",
+            "<!-- /wp:",
+            "contenteditable=\"true\""
+          ],
+          "expected_strings": [
+            "Twenty Twenty-Four FSE Showcase",
+            "--wp--preset--color--primary",
+            "--wp--preset--color--secondary",
+            "--wp--preset--font-size--medium"
+          ]
+        },
+        {
+          "path": "/fse-features/",
+          "description": "FSE inner page demonstrating block template parts and typography presets",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "main",
+            "h1"
+          ],
+          "forbidden_patterns": [
+            "<!-- wp:"
+          ],
+          "expected_strings": [
+            "FSE Block Theme Features"
+          ]
+        }
+      ],
+      "cad_invariants": {
+        "builder_path": "/n-admin/builder?post=1",
+        "selectors": {
+          "#neostudio-topbar": { "max_height": 44, "y": 0 },
+          "#neostudio-bottom-bar": { "max_height": 32 },
+          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+        }
+      }
+    },
+    {
+      "id": "archetype3_elementor_starter",
+      "name": "Elementor Pro Starter Site (BrandStore / Agency)",
+      "description": "Elementor v3+ flexbox container starter site bundle with global kit styles, theme builder header/footer, Pro commercial widgets, and internal link remapping.",
+      "category": "elementor_pro",
+      "theme_slug": "brandstore-starter",
+      "fixture_dir": "fixtures/stress_test/archetype3_elementor_starter",
+      "wxr_file": "fixtures/stress_test/archetype3_elementor_starter/elementor_starter.xml",
+      "theme_dir": null,
+      "source_site_url": "https://websitedemos.net/brandstore-02/",
+      "expectations": {
+        "min_posts": 3,
+        "min_pages": 3,
+        "has_elementor_kit": true,
+        "has_theme_builder_templates": true,
+        "has_remapping": true
+      },
+      "test_routes": [
+        {
+          "path": "/",
+          "description": "Elementor starter front page with injected Kit CSS variables, Theme Builder header/footer, and Pro blocks",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "header",
+            "footer",
+            ".np-elementor-header",
+            ".np-elementor-footer"
+          ],
+          "forbidden_patterns": [
+            "contenteditable=\"true\"",
+            ".elementor-grid-handle",
+            "https://websitedemos.net/brandstore-02/about",
+            "https://websitedemos.net/brandstore-02/wp-content/uploads"
+          ],
+          "expected_strings": [
+            "--e-global-color-primary",
+            "--e-global-color-secondary",
+            "BrandStore",
+            "Precision Engineering"
+          ]
+        },
+        {
+          "path": "/about/",
+          "description": "About page verifying internal link remapping to /contact/",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "h1",
+            "a[href=\"/contact/\"]"
+          ],
+          "forbidden_patterns": [
+            "https://websitedemos.net/brandstore-02/contact/"
+          ],
+          "expected_strings": [
+            "About Us"
+          ]
+        },
+        {
+          "path": "/contact/",
+          "description": "Contact page rendering contact details and form",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "h1"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Contact"
+          ]
+        }
+      ],
+      "cad_invariants": {
+        "builder_path": "/n-admin/builder?post=1",
+        "selectors": {
+          "#neostudio-topbar": { "max_height": 44, "y": 0 },
+          "#neostudio-bottom-bar": { "max_height": 32 },
+          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+        }
+      }
+    },
+    {
+      "id": "archetype4_custom_acf",
+      "name": "Custom PHP + ACF + CPT Theme (NORTHWIND)",
+      "description": "Custom PHP and ACF theme with multiple CPTs (trainingen, vacatures, cases, faq, quotes, logos), diagonal layout sections, and Swiper carousels.",
+      "category": "custom_php_acf",
+      "theme_slug": "northwind",
+      "fixture_dir": "fixtures/stress_test/archetype4_custom_acf",
+      "wxr_file": "site.WordPress.xml",
+      "theme_dir": "crates/neopress-server/static/themes/northwind",
+      "source_site_url": "https://northwind.example",
+      "expectations": {
+        "min_posts": 250,
+        "min_pages": 40,
+        "has_custom_post_types": true,
+        "cpt_list": [
+          "trainingen",
+          "vacatures",
+          "cases",
+          "faq",
+          "quotes",
+          "logo",
+          "kandidaten",
+          "reviews"
+        ],
+        "has_custom_taxonomies": true,
+        "zero_site_specific_hardcoding": true
+      },
+      "test_routes": [
+        {
+          "path": "/",
+          "description": "NORTHWIND homepage with hero section and diagonal styling",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "header",
+            "footer",
+            "nav"
+          ],
+          "forbidden_patterns": [
+            "contenteditable=\"true\""
+          ],
+          "expected_strings": [
+            "NORTHWIND",
+            "Rethinking the rules of the game"
+          ]
+        },
+        {
+          "path": "/trainingen/",
+          "description": "Dynamic CPT archive with taxonomy filters",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "main"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Trainingen"
+          ]
+        },
+        {
+          "path": "/vacatures/",
+          "description": "Dynamic CPT archive for vacatures",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "main"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Vacatures"
+          ]
+        },
+        {
+          "path": "/cases/",
+          "description": "Dynamic CPT archive for client cases",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "main"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Cases"
+          ]
+        },
+        {
+          "path": "/professionals/",
+          "description": "Landing page for professionals",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "main"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Professionals"
+          ]
+        },
+        {
+          "path": "/bedrijven/",
+          "description": "Landing page for companies",
+          "expected_status": 200,
+          "landmark_selectors": [
+            "main"
+          ],
+          "forbidden_patterns": [],
+          "expected_strings": [
+            "Bedrijven"
+          ]
+        }
+      ],
+      "cad_invariants": {
+        "builder_path": "/n-admin/builder?post=1",
+        "selectors": {
+          "#neostudio-topbar": { "max_height": 44, "y": 0 },
+          "#neostudio-bottom-bar": { "max_height": 32 },
+          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+        }
+      }
+    }
+  ]
+}

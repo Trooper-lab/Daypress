@@ -12,7 +12,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Neopress Core Team"]
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/neopress/neopress"
+repository = "https://github.com/Trooper-lab/neopress"
 
 [workspace.dependencies]
 # Async Runtime & Web Framework

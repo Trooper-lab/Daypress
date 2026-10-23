@@ -338,21 +338,49 @@ pub(crate) async fn get_post_statuses_handler() -> Json<Value> {
     }))
 }
 
-pub(crate) async fn get_taxonomies_handler() -> Json<Value> {
-    Json(serde_json::json!({
-        "category": {
+pub(crate) async fn get_taxonomies_handler(State(db): State<Database>) -> Json<Value> {
+    let mut map = serde_json::Map::new();
+    map.insert(
+        "category".to_string(),
+        serde_json::json!({
             "name": "Categories",
             "slug": "category",
             "types": ["post"],
             "hierarchical": true,
             "rest_base": "categories"
-        },
-        "post_tag": {
+        }),
+    );
+    map.insert(
+        "post_tag".to_string(),
+        serde_json::json!({
             "name": "Tags",
             "slug": "post_tag",
             "types": ["post"],
             "hierarchical": false,
             "rest_base": "tags"
+        }),
+    );
+
+    if let Ok(conn) = db.conn.lock() {
+        if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT taxonomy FROM wp_term_taxonomy WHERE taxonomy NOT IN ('nav_menu', 'link_category', 'post_format', 'category', 'post_tag')") {
+            if let Ok(rows) = stmt.query_map([], |r| r.get::<_, String>(0)) {
+                for slug in rows.flatten() {
+                    let name = crate::adapters::database::taxonomies_discovery::format_taxonomy_display_name(&slug);
+                    let hierarchical = !(slug.ends_with("_tag") || slug.ends_with("_tags"));
+                    map.insert(
+                        slug.clone(),
+                        serde_json::json!({
+                            "name": name,
+                            "slug": slug,
+                            "types": ["post"],
+                            "hierarchical": hierarchical,
+                            "rest_base": slug
+                        }),
+                    );
+                }
+            }
         }
-    }))
+    }
+
+    Json(Value::Object(map))
 }

@@ -194,6 +194,17 @@ pub(crate) async fn get_layout_handler(
             })))
         }
         None => {
+            if let Ok(Some(post)) = db.get_post_by_id(id) {
+                if let Some(synth) = crate::templates::admin::builder::synthesize_ast_from_post_html(
+                    id,
+                    &post.content.rendered,
+                ) {
+                    return Ok(Json(serde_json::json!({
+                        "post_id": id,
+                        "layout": synth
+                    })));
+                }
+            }
             // Return clean default layout specification
             Ok(Json(serde_json::json!({
                 "post_id": id,
@@ -227,6 +238,24 @@ pub(crate) async fn save_layout_handler(
     } else {
         None
     };
+
+    // Persist converged global_styles into wp_options (`neopress_elementor_kit_json` & `neopress_elementor_kit_css`)
+    if let Some(gs) = payload.layout.get("global_styles") {
+        if gs.is_object() {
+            if let Ok(kit) = serde_json::from_value::<neopress_ast::ElementorKit>(gs.clone()) {
+                let kit_css = kit.compile_to_css();
+                let _ = db.set_option("neopress_elementor_kit_css", &kit_css);
+                if let Ok(kit_json) = serde_json::to_string(&kit) {
+                    let _ = db.set_option("neopress_elementor_kit_json", &kit_json);
+                }
+                if let Some(prim) = kit.system_colors.iter().find(|c| c.id == "primary") {
+                    if !prim.color.trim().is_empty() {
+                        let _ = db.set_option("neopress_brand_color", prim.color.trim());
+                    }
+                }
+            }
+        }
+    }
 
     db.save_post_layout(
         id,

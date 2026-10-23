@@ -14,11 +14,14 @@ pub mod db;
 pub mod email;
 pub mod errors;
 pub mod handlers;
+pub mod importer;
 pub mod media;
 pub mod models;
 pub mod plugins;
 pub mod seed;
 pub mod templates;
+pub mod theme;
+pub mod theme_builder;
 pub mod wxr;
 
 pub use adapters::database::SqliteDatabase;
@@ -36,6 +39,8 @@ pub use models::*;
 pub use plugins::*;
 pub use ports::*;
 pub use seed::*;
+pub use theme::*;
+pub use theme_builder::*;
 pub use wxr::*;
 
 use axum::{
@@ -79,6 +84,10 @@ pub fn create_app(database: Database) -> Router {
         .nest("/wp-json", api::api_routes())
         .nest_service("/wp-includes/css", ServeDir::new(static_dir))
         .nest_service("/wp-admin/css", ServeDir::new(static_dir))
+        .nest_service(
+            "/wp-content/themes",
+            ServeDir::new(format!("{}/themes", static_dir)),
+        )
         .nest_service("/static", ServeDir::new(static_dir))
         .route("/uploads/{*path}", get(media::handle_serve_media))
         .route(
@@ -299,6 +308,8 @@ pub fn create_app(database: Database) -> Router {
         .route("/tag/{slug}/", get(handle_tag_archive))
         .route("/author/{slug}", get(handle_author_archive))
         .route("/author/{slug}/", get(handle_author_archive))
+        .route("/{post_type}/{slug}", get(handle_cpt_single))
+        .route("/{post_type}/{slug}/", get(handle_cpt_single))
         .route("/{slug}", get(handle_single))
         .route("/{slug}/", get(handle_single))
         .layer(TraceLayer::new_for_http())

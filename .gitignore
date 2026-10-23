@@ -13,6 +13,17 @@ target/
 
 /uploads/*
 !uploads/.gitkeep
+crates/neopress-server/uploads/
+crates/neopress-server/static/themes/
+
+# Agent teamwork & test artifacts
+.agents/teamwork/
+tests/screenshots/
+tests/__pycache__/
+__pycache__/
+*.pyc
+*.WordPress.*.xml
+*.zip
 
 # Environment variables & secrets
 .env
