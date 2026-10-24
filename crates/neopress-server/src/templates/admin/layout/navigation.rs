@@ -199,6 +199,8 @@ impl NavState {
         let is_tools = if current_tab == "tools"
             || current_tab == "import"
             || current_tab == "export"
+            || current_tab == "seo"
+            || current_tab == "backups"
             || current_tab == "site-health"
             || current_tab == "export-personal-data"
             || current_tab == "erase-personal-data"

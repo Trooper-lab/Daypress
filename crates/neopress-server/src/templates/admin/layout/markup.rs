@@ -116,8 +116,6 @@ pub fn render_wp_admin_shell(
 				</a>
 			</div>
 
-			<div class="nav-section-title">CONFIGURATION</div>
-
 			<!-- 7. APPEARANCE -->
 			<div class="nav-group {is_app_open}">
 				<a href="/n-admin/themes.php" class="nav-item {is_appearance}">
@@ -146,27 +144,11 @@ pub fn render_wp_admin_shell(
 				</div>
 			</div>
 
-			<!-- 8b. SEO & REDIRECTS -->
-			<div class="nav-group">
-				<a href="/n-admin/seo.php" class="nav-item {is_seo}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
-					<span>SEO &amp; Redirects</span>
-				</a>
-			</div>
-
-			<!-- 8c. FORMS STUDIO -->
+			<!-- 8b. FORMS STUDIO -->
 			<div class="nav-group">
 				<a href="/n-admin/forms.php" class="nav-item {is_forms}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
 					<span>Forms Studio</span>
-				</a>
-			</div>
-
-			<!-- 8d. SNAPSHOT BACKUPS -->
-			<div class="nav-group">
-				<a href="/n-admin/backups.php" class="nav-item {is_backups}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-					<span>Backups</span>
 				</a>
 			</div>
 
@@ -193,6 +175,8 @@ pub fn render_wp_admin_shell(
 					<a href="/n-admin/tools.php" class="nav-subitem {sub_tools_avail}">Available Tools</a>
 					<a href="/n-admin/import.php" class="nav-subitem {sub_tools_import}">Import</a>
 					<a href="/n-admin/export.php" class="nav-subitem {sub_tools_export}">Export</a>
+					<a href="/n-admin/seo.php" class="nav-subitem {is_seo}">SEO &amp; Redirects</a>
+					<a href="/n-admin/backups.php" class="nav-subitem {is_backups}">Backups</a>
 					<a href="/n-admin/site-health.php" class="nav-subitem {sub_tools_health}">Site Health</a>
 					<a href="/n-admin/export-personal-data.php" class="nav-subitem {sub_tools_exp_data}">Export Personal Data</a>
 					<a href="/n-admin/erase-personal-data.php" class="nav-subitem {sub_tools_era_data}">Erase Personal Data</a>
