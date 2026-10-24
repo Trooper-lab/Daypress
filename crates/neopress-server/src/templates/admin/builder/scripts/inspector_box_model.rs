@@ -1,137 +1,153 @@
 //! Interactive Trapezoidal Box-Model Scrubber Engine and Unit Switcher (`scripts/inspector_box_model.rs`).
+//!
+//! - Drag a value horizontally to scrub (Shift = x10, Alt = x0.1); Alt+click resets that side.
+//! - Double-click to type any CSS length (`24`, `2rem`, `5%`, `auto`); empty clears the side.
+//! - Values set on the current layer are bright, inherited values amber, computed values muted.
 
 pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
 (function() {
     let currentUnit = "px";
     let isLinked = false;
+    const SIDES = ["top", "right", "bottom", "left"];
 
     function renderBoxModelWidget(container, node) {
         const boxContainer = document.createElement("div");
         boxContainer.className = "neo-box-model-container";
-
-        // Read current margins & paddings
-        const styles = node.styles || {};
-        const mTop = getVal(styles, "margin_top", "margin", "top");
-        const mRight = getVal(styles, "margin_right", "margin", "right");
-        const mBottom = getVal(styles, "margin_bottom", "margin", "bottom");
-        const mLeft = getVal(styles, "margin_left", "margin", "left");
-
-        const pTop = getVal(styles, "padding_top", "padding", "top");
-        const pRight = getVal(styles, "padding_right", "padding", "right");
-        const pBottom = getVal(styles, "padding_bottom", "padding", "bottom");
-        const pLeft = getVal(styles, "padding_left", "padding", "left");
-
-        // Read computed dimensions
-        const domEl = document.querySelector(`[data-node-id="${node.id}"]`);
-        const dims = domEl ? `${Math.round(domEl.offsetWidth)} &times; ${Math.round(domEl.offsetHeight)}` : "&mdash;";
+        const facet = (group, side) =>
+            `<div class="neo-box-facet facet-${side}" data-prop="${group}_${side}" data-side="${side}" title="${group} ${side} — drag to scrub, double-click to type, Alt+click to reset"><span class="neo-val"></span></div>`;
 
         boxContainer.innerHTML = `
             <div class="neo-box-model-widget">
-                <!-- Outer Margin Trapezoid -->
                 <div class="neo-box-margin-outer">
                     <span class="neo-box-label">MARGIN</span>
-                    <div class="neo-box-facet facet-top" data-prop="margin_top" data-side="top"><span class="neo-val">${mTop}</span></div>
-                    <div class="neo-box-facet facet-right" data-prop="margin_right" data-side="right"><span class="neo-val">${mRight}</span></div>
-                    <div class="neo-box-facet facet-bottom" data-prop="margin_bottom" data-side="bottom"><span class="neo-val">${mBottom}</span></div>
-                    <div class="neo-box-facet facet-left" data-prop="margin_left" data-side="left"><span class="neo-val">${mLeft}</span></div>
-
-                    <!-- Inner Padding Trapezoid -->
+                    ${SIDES.map(s => facet("margin", s)).join("")}
                     <div class="neo-box-padding-inner">
                         <span class="neo-box-label" style="color:var(--neo-signal-light);">PADDING</span>
-                        <div class="neo-box-facet facet-top" data-prop="padding_top" data-side="top"><span class="neo-val">${pTop}</span></div>
-                        <div class="neo-box-facet facet-right" data-prop="padding_right" data-side="right"><span class="neo-val">${pRight}</span></div>
-                        <div class="neo-box-facet facet-bottom" data-prop="padding_bottom" data-side="bottom"><span class="neo-val">${pBottom}</span></div>
-                        <div class="neo-box-facet facet-left" data-prop="padding_left" data-side="left"><span class="neo-val">${pLeft}</span></div>
-
-                        <!-- Center Core Content -->
-                        <div class="neo-box-content-core" title="Element Dimensions">${dims}</div>
+                        ${SIDES.map(s => facet("padding", s)).join("")}
+                        <div class="neo-box-content-core" title="Rendered element size"></div>
                     </div>
                 </div>
-
-                <!-- Footer Tools -->
                 <div class="neo-box-tools">
                     <div class="neo-unit-toggle">
                         <span>Unit:</span>
-                        <button class="btn-unit-cycle" id="btn-cycle-box-unit">${currentUnit}</button>
+                        <button class="btn-unit-cycle" id="btn-cycle-box-unit" title="Unit used for scrubbing and unit-less typed values">${currentUnit}</button>
                     </div>
-                    <button class="btn-link-quads ${isLinked ? 'is-linked' : ''}" id="btn-toggle-box-link" title="Link All 4 Sides">
-                        <i class="fa-solid fa-link"></i>
-                    </button>
+                    <div style="display:flex;gap:4px;">
+                        <button class="btn-link-quads" id="btn-box-center" title="Center horizontally (margin-left/right: auto)"><i class="fa-solid fa-arrows-left-right-to-line"></i></button>
+                        <button class="btn-link-quads ${isLinked ? 'is-linked' : ''}" id="btn-toggle-box-link" title="Link all 4 sides"><i class="fa-solid fa-link"></i></button>
+                    </div>
                 </div>
             </div>
         `;
-
         container.appendChild(boxContainer);
-
-        // Attach scrubber drag interactions
+        paint(boxContainer, node);
         initScrubbers(boxContainer, node);
 
-        // Unit toggle
-        const btnUnit = boxContainer.querySelector("#btn-cycle-box-unit");
-        if (btnUnit) {
-            btnUnit.onclick = () => {
-                const units = ["px", "rem", "%", "vh"];
-                let idx = units.indexOf(currentUnit);
-                currentUnit = units[(idx + 1) % units.length];
-                btnUnit.textContent = currentUnit;
-            };
-        }
-
-        // Link toggle
-        const btnLink = boxContainer.querySelector("#btn-toggle-box-link");
-        if (btnLink) {
-            btnLink.onclick = () => {
-                isLinked = !isLinked;
-                btnLink.classList.toggle("is-linked", isLinked);
-            };
-        }
+        boxContainer.querySelector("#btn-cycle-box-unit").onclick = (e) => {
+            const units = ["px", "rem", "em", "%", "vh", "vw"];
+            currentUnit = units[(units.indexOf(currentUnit) + 1) % units.length];
+            e.currentTarget.textContent = currentUnit;
+        };
+        boxContainer.querySelector("#btn-toggle-box-link").onclick = (e) => {
+            isLinked = !isLinked;
+            e.currentTarget.classList.toggle("is-linked", isLinked);
+        };
+        boxContainer.querySelector("#btn-box-center").onclick = () => {
+            window.setLocalStyles({ margin_left: "auto", margin_right: "auto" }, { commit: true });
+            paint(boxContainer, node);
+        };
     }
     window.renderBoxModelWidget = renderBoxModelWidget;
 
-    function getVal(styles, flatKey, groupKey, side) {
-        if (styles[flatKey] !== undefined) return parseFloat(styles[flatKey]) || 0;
-        if (styles[groupKey] && styles[groupKey][side] !== undefined) {
-            return parseFloat(styles[groupKey][side]) || 0;
-        }
-        return 0;
+    function cssSide(prop) { return prop.replace("_", "-"); }
+
+    function computedPx(node, prop) {
+        const el = window.NSInspector ? window.NSInspector.canvasEl(node) : null;
+        if (!el) return 0;
+        return Math.round(parseFloat(getComputedStyle(el).getPropertyValue(cssSide(prop))) || 0);
+    }
+
+    function displayVal(v) {
+        const s = String(v).trim();
+        return /^-?\d*\.?\d+px$/.test(s) ? String(parseFloat(s)) : s;
+    }
+
+    function paint(container, node) {
+        container.querySelectorAll(".neo-box-facet").forEach(f => {
+            const prop = f.dataset.prop;
+            const val = window.getLayerValue(node, prop);
+            const inh = window.getInheritedValue(node, prop);
+            const span = f.querySelector(".neo-val");
+            f.classList.remove("is-set", "is-inherited", "is-computed");
+            if (val) { span.textContent = displayVal(val); f.classList.add("is-set"); }
+            else if (inh) { span.textContent = displayVal(inh); f.classList.add("is-inherited"); }
+            else { span.textContent = computedPx(node, prop); f.classList.add("is-computed"); }
+        });
+        const el = window.NSInspector ? window.NSInspector.canvasEl(node) : null;
+        const core = container.querySelector(".neo-box-content-core");
+        if (core) core.innerHTML = el ? `${Math.round(el.offsetWidth)} &times; ${Math.round(el.offsetHeight)}` : "&mdash;";
+    }
+    window.repaintBoxModel = function() {
+        const c = document.querySelector("#neostudio-inspector .neo-box-model-container");
+        const id = window.NeoStudioState.activeElementId;
+        const node = id ? window.findNodeById(id) : null;
+        if (c && node) paint(c, node);
+    };
+
+    function targets(prop) {
+        if (!isLinked) return [prop];
+        const group = prop.split("_")[0];
+        return SIDES.map(s => group + "_" + s);
+    }
+
+    function applyValue(node, prop, value, commit) {
+        const map = {};
+        targets(prop).forEach(p => { map[p] = value; });
+        window.setLocalStyles(map, { commit: !!commit });
+    }
+
+    function startingPoint(node, prop) {
+        const raw = window.getLayerValue(node, prop) || window.getInheritedValue(node, prop);
+        const m = /^(-?\d*\.?\d+)([a-z%]*)$/i.exec(String(raw || "").trim());
+        if (m) return { val: parseFloat(m[1]), unit: m[2] || currentUnit };
+        // auto / calc() / unset: start from the rendered pixel value
+        return { val: computedPx(node, prop), unit: currentUnit === "px" ? "px" : currentUnit };
     }
 
     function initScrubbers(container, node) {
-        const facets = container.querySelectorAll(".neo-box-facet");
-        facets.forEach(facet => {
+        container.querySelectorAll(".neo-box-facet").forEach(facet => {
             const prop = facet.dataset.prop;
             const isPadding = prop.startsWith("padding");
 
-            // Drag-to-scrub
             facet.addEventListener("mousedown", (e) => {
-                if (e.target.tagName === "INPUT") return;
+                if (e.target.tagName === "INPUT" || e.button !== 0) return;
                 e.preventDefault();
                 e.stopPropagation();
+                if (node.data && node.data._locked) return;
+
+                if (e.altKey) {
+                    applyValue(node, prop, "", true);
+                    paint(container, node);
+                    return;
+                }
 
                 const startX = e.clientX;
-                const valEl = facet.querySelector(".neo-val");
-                const startVal = parseFloat(valEl.textContent) || 0;
+                const start = startingPoint(node, prop);
+                const fine = start.unit !== "px";
+                let moved = false;
                 document.body.style.cursor = "ew-resize";
                 document.body.style.userSelect = "none";
 
                 function onMouseMove(me) {
-                    const deltaX = me.clientX - startX;
-                    const mult = me.shiftKey ? 10 : (me.altKey ? 0.1 : 1);
-                    let newVal = Math.round(startVal + deltaX * mult);
-                    if (isPadding && newVal < 0) newVal = 0;
-
-                    valEl.textContent = newVal;
-
-                    if (isLinked) {
-                        const prefix = isPadding ? "padding_" : "margin_";
-                        ["top", "right", "bottom", "left"].forEach(s => {
-                            window.setLocalStyle(prefix + s, newVal + currentUnit);
-                            const otherFacet = container.querySelector(`[data-prop="${prefix + s}"] .neo-val`);
-                            if (otherFacet) otherFacet.textContent = newVal;
-                        });
-                    } else {
-                        window.setLocalStyle(prop, newVal + currentUnit);
-                    }
+                    const dx = me.clientX - startX;
+                    if (!moved && Math.abs(dx) < 2) return;
+                    moved = true;
+                    const mult = (me.shiftKey ? 10 : (me.altKey ? 0.1 : 1)) * (fine ? 0.1 : 1);
+                    let n = start.val + dx * mult;
+                    n = fine || me.altKey ? Math.round(n * 10) / 10 : Math.round(n);
+                    if (isPadding && n < 0) n = 0;
+                    applyValue(node, prop, n + start.unit, false);
+                    paint(container, node);
                 }
 
                 function onMouseUp() {
@@ -139,44 +155,49 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
                     document.body.style.userSelect = "";
                     window.removeEventListener("mousemove", onMouseMove);
                     window.removeEventListener("mouseup", onMouseUp);
-                    window.pushHistorySnapshot();
+                    if (moved) window.commitStyleChange();
                 }
 
                 window.addEventListener("mousemove", onMouseMove);
                 window.addEventListener("mouseup", onMouseUp);
             });
 
-            // Double click to type
             facet.addEventListener("dblclick", (e) => {
                 e.stopPropagation();
+                if (node.data && node.data._locked) return;
                 const valEl = facet.querySelector(".neo-val");
-                const currentVal = valEl.textContent.trim();
                 const input = document.createElement("input");
                 input.type = "text";
                 input.className = "neo-box-model-inline-input";
-                input.value = currentVal;
+                input.value = window.getLayerValue(node, prop) || "";
+                input.placeholder = valEl.textContent.trim();
                 valEl.style.display = "none";
                 facet.appendChild(input);
                 input.focus();
                 input.select();
 
-                function commit() {
-                    let parsed = parseFloat(input.value) || 0;
-                    if (isPadding && parsed < 0) parsed = 0;
-                    valEl.textContent = parsed;
-                    valEl.style.display = "";
-                    input.remove();
-                    window.setLocalStyle(prop, parsed + currentUnit);
-                    window.pushHistorySnapshot();
-                }
-
-                input.onblur = commit;
-                input.onkeydown = (ke) => {
-                    if (ke.key === "Enter") commit();
-                    if (ke.key === "Escape") {
-                        valEl.style.display = "";
-                        input.remove();
+                let done = false;
+                function finish(apply) {
+                    if (done) return;
+                    done = true;
+                    if (apply) {
+                        let v = input.value.trim();
+                        if (/^-?\d*\.?\d+$/.test(v)) {
+                            let n = parseFloat(v);
+                            if (isPadding && n < 0) n = 0;
+                            v = n + currentUnit;
+                        }
+                        applyValue(node, prop, v, true);
                     }
+                    input.remove();
+                    valEl.style.display = "";
+                    paint(container, node);
+                }
+                input.onblur = () => finish(true);
+                input.onkeydown = (ke) => {
+                    ke.stopPropagation();
+                    if (ke.key === "Enter") finish(true);
+                    if (ke.key === "Escape") finish(false);
                 };
             });
         });

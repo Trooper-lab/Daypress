@@ -79,7 +79,9 @@ impl<'de> Deserialize<'de> for NeopressNode {
             .to_string();
 
         let mut styles: StyleProperties = match obj.get("styles") {
-            Some(v) if !v.is_null() => serde_json::from_value(v.clone()).unwrap_or_default(),
+            Some(v) if !v.is_null() => {
+                serde_json::from_value(coerce_style_scalars(v.clone())).unwrap_or_default()
+            }
             _ => StyleProperties::default(),
         };
         styles.sync_flat_and_nested();
@@ -99,5 +101,44 @@ impl<'de> Deserialize<'de> for NeopressNode {
             styles,
             children,
         })
+    }
+}
+
+/// Makes a raw `styles` JSON object safe to deserialize into [`StyleProperties`].
+///
+/// Every flat style field is an `Option<String>`, so a single numeric value (e.g. `"z_index": 2`
+/// or `"opacity": 0.5` written by a builder or importer) would make serde reject the whole object
+/// and silently drop *all* styles. Numbers are stringified, and stray booleans/arrays on string
+/// fields are discarded. `hide_*` flags stay boolean and `raw_settings` is left untouched.
+pub(crate) fn coerce_style_scalars(val: Value) -> Value {
+    match val {
+        Value::Object(map) => {
+            let mut out = serde_json::Map::with_capacity(map.len());
+            for (k, v) in map {
+                if k == "raw_settings" {
+                    out.insert(k, v);
+                    continue;
+                }
+                if k.starts_with("hide_") {
+                    let b = match v {
+                        Value::Bool(b) => Value::Bool(b),
+                        Value::Number(n) => Value::Bool(n.as_f64().unwrap_or(0.0) != 0.0),
+                        Value::String(s) => Value::Bool(matches!(s.as_str(), "true" | "1" | "yes")),
+                        _ => Value::Null,
+                    };
+                    out.insert(k, b);
+                    continue;
+                }
+                let coerced = match v {
+                    Value::Number(n) => Value::String(n.to_string()),
+                    Value::Bool(_) | Value::Array(_) => Value::Null,
+                    obj @ Value::Object(_) => coerce_style_scalars(obj),
+                    other => other,
+                };
+                out.insert(k, coerced);
+            }
+            Value::Object(out)
+        }
+        other => other,
     }
 }

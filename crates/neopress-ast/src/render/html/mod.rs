@@ -2,6 +2,7 @@ pub mod basic;
 pub mod commercial;
 pub mod content;
 pub mod dynamic;
+pub(crate) mod inject;
 pub mod interactive;
 pub mod layout;
 pub mod marketing;
@@ -21,7 +22,8 @@ pub(crate) struct RenderArgs<'a> {
 /// Recursively compiles a NeopressNode and its descendants into semantic HTML5.
 pub fn render_node_to_html(node: &NeopressNode) -> String {
     let css = node.styles.to_css_style().replace('"', "'");
-    let extra_cls = node.styles.css_classes.as_deref();
+    let merged_classes = node.styles.merged_classes();
+    let extra_cls = merged_classes.as_deref();
     let style_attr = if css.is_empty() {
         String::new()
     } else {

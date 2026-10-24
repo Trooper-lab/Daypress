@@ -89,22 +89,26 @@ pub const CSS_TOPBAR: &str = r#"
 .switcher-caret { font-size: 9px; color: var(--neo-muted); }
 .topbar-switcher { position: relative; }
 .switcher-dropdown {
+    /* Portaled to <body> and positioned against the switcher button by topbar_switcher.rs */
     display: none;
-    position: absolute;
-    top: calc(100% + 6px);
+    position: fixed;
+    top: 46px;
     left: 0;
-    width: 320px;
+    width: 360px;
+    max-height: calc(100vh - 60px);
     background: var(--neo-chassis);
     border: 1px solid var(--neo-rule);
     border-radius: var(--neo-radius-md);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
-    z-index: 9999;
+    z-index: var(--neo-z-palette);
     flex-direction: column;
     overflow: hidden;
+    font-family: var(--neo-font-ui);
 }
 .switcher-dropdown.open { display: flex; }
-.switcher-search-box { padding: 8px; border-bottom: 1px solid var(--neo-rule); background: var(--neo-surface); }
-.switcher-scroll-list { max-height: 320px; overflow-y: auto; padding: 6px; }
+.switcher-search-box { padding: 8px; border-bottom: 1px solid var(--neo-rule); background: var(--neo-surface); flex-shrink: 0; }
+.switcher-search-box .cad-input { width: 100%; }
+.switcher-scroll-list { flex: 1; min-height: 0; max-height: 420px; overflow-y: auto; padding: 6px; }
 .switcher-group-label {
     font-size: 10px;
     font-weight: 700;
@@ -124,9 +128,13 @@ pub const CSS_TOPBAR: &str = r#"
     font-size: 12px;
     gap: 8px;
 }
-.switcher-item:hover { background: var(--neo-surface-hover); }
-.switcher-item.active { background: rgba(37, 99, 235, 0.16); border: 1px solid var(--neo-signal); }
-.switcher-footer { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--neo-rule); background: var(--neo-surface); }
+.switcher-item-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switcher-item .template-type-badge { flex-shrink: 0; }
+.switcher-item:hover, .switcher-item.kbd-active { background: var(--neo-surface-hover); }
+.switcher-item.active { background: rgba(37, 99, 235, 0.16); box-shadow: inset 0 0 0 1px var(--neo-signal); }
+.switcher-empty { padding: 12px 10px; font-size: 11px; color: var(--neo-muted); text-align: center; }
+.switcher-empty.is-error { color: var(--neo-crimson); }
+.switcher-footer { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--neo-rule); background: var(--neo-surface); flex-shrink: 0; }
 
 /* Breakpoint Switcher */
 .breakpoint-switcher {

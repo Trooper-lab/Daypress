@@ -34,6 +34,10 @@ pub struct StyleProperties {
     pub mobile: Option<Box<StyleProperties>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hover: Option<Box<StyleProperties>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<Box<StyleProperties>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active: Option<Box<StyleProperties>>,
 
     // -------------------------------------------------------------
     // CSS Grid Layout Controls (R1 / R4)
@@ -108,6 +112,8 @@ pub struct StyleProperties {
     pub gap: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub align_self: Option<String>,
 
     // -------------------------------------------------------------
     // Flat Visual Builder Style Fields
@@ -118,6 +124,14 @@ pub struct StyleProperties {
     pub background_image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_gradient: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_position: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_size: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_repeat: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_attachment: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -161,6 +175,12 @@ pub struct StyleProperties {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub border_radius: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_width: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_style: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub border_top: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub border_right: Option<String>,
@@ -180,6 +200,10 @@ pub struct StyleProperties {
     pub transition: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backdrop_filter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
 
     // Responsive Visibility Toggles
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -194,6 +218,9 @@ pub struct StyleProperties {
     pub link_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub css_classes: Option<String>,
+    /// Legacy NeoStudio class list key (pre-`css_classes`); merged into `css_classes` at render time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_classes: Option<String>,
 
     // Lossless Raw Settings Fallback (R4)
     #[serde(default, skip_serializing_if = "Option::is_none")]

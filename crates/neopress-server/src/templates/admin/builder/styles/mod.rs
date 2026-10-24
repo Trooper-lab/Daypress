@@ -6,6 +6,7 @@ pub mod box_model;
 pub mod canvas;
 pub mod drawers;
 pub mod inspector_base;
+pub mod inspector_controls;
 pub mod inspector_panels;
 pub mod modals;
 pub mod navigator;
@@ -32,6 +33,7 @@ pub fn get_styles() -> &'static str {
             inspector_base::CSS_INSPECTOR_BASE,
             box_model::CSS_BOX_MODEL,
             inspector_panels::CSS_INSPECTOR_PANELS,
+            inspector_controls::CSS_INSPECTOR_CONTROLS,
             widgets::CSS_WIDGETS,
             modals::CSS_MODALS,
         ]

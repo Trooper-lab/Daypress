@@ -30,11 +30,11 @@ fn test_scoped_css_and_media_query_compilation() {
 
     let css = compile_layout_css(&layout);
     assert!(css.contains("[id=\"test_hero_node\"]:hover"));
-    assert!(css.contains("background-color: #ff0000;"));
+    assert!(css.contains("background-color: #ff0000 !important;"));
     assert!(css.contains("@media (max-width: 1024px)"));
-    assert!(css.contains("font-size: 18px;"));
+    assert!(css.contains("font-size: 18px !important;"));
     assert!(css.contains("@media (max-width: 767px)"));
-    assert!(css.contains("font-size: 14px;"));
+    assert!(css.contains("font-size: 14px !important;"));
     assert!(css.contains("display: none !important;"));
 }
 

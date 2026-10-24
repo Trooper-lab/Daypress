@@ -79,6 +79,9 @@ pub const JS_CORE_STATE: &str = r###"
             }
             if (!ast.root.children) ast.root.children = [];
         }
+        // Flatten nested import style objects (padding/typography/background/border) into the flat
+        // keys the inspector edits, so edits are never shadowed by stale nested values.
+        if (window.NeoStyle) window.NeoStyle.normalizeTreeStyles(ast.root);
         return ast;
     }
     window.normalizeAst = normalizeAst;

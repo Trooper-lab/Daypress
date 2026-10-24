@@ -598,12 +598,13 @@ fn test_deep_style_properties_with_responsive_hover_and_raw_settings() {
 
     // 2. Test CSS compiler output
     let compiled_css = compile_layout_css(&roundtripped);
+    // Scoped rules must carry !important so they beat the element's inline base styles.
     assert!(compiled_css.contains("[id=\"deep_grid_node\"]:hover"));
-    assert!(compiled_css.contains("background-color: #3b82f6;"));
+    assert!(compiled_css.contains("background-color: #3b82f6 !important;"));
     assert!(compiled_css.contains("@media (max-width: 1024px)"));
-    assert!(compiled_css.contains("grid-template-columns: repeat(2, 1fr);"));
+    assert!(compiled_css.contains("grid-template-columns: repeat(2, 1fr) !important;"));
     assert!(compiled_css.contains("@media (max-width: 767px)"));
-    assert!(compiled_css.contains("grid-template-columns: 1fr;"));
+    assert!(compiled_css.contains("grid-template-columns: 1fr !important;"));
 
     // 3. Test inline HTML SSR generation
     let html = render_layout_to_html(&roundtripped);

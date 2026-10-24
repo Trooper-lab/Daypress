@@ -87,16 +87,11 @@ fn test_box_model_trapezoid_widget_and_facets() {
     assert!(bm_css.contains(".neo-box-content-core"));
     assert!(bm_css.contains(".neo-box-facet"));
 
-    // 2. Verify Box-Model Script Facets & Interactive Controls
-    assert!(bm_js.contains("data-prop=\"margin_top\""));
-    assert!(bm_js.contains("data-prop=\"margin_right\""));
-    assert!(bm_js.contains("data-prop=\"margin_bottom\""));
-    assert!(bm_js.contains("data-prop=\"margin_left\""));
-
-    assert!(bm_js.contains("data-prop=\"padding_top\""));
-    assert!(bm_js.contains("data-prop=\"padding_right\""));
-    assert!(bm_js.contains("data-prop=\"padding_bottom\""));
-    assert!(bm_js.contains("data-prop=\"padding_left\""));
+    // 2. Verify Box-Model Script Facets & Interactive Controls (facets generated per group/side)
+    assert!(bm_js.contains("const SIDES = [\"top\", \"right\", \"bottom\", \"left\"];"));
+    assert!(bm_js.contains("data-prop=\"${group}_${side}\""));
+    assert!(bm_js.contains("SIDES.map(s => facet(\"margin\", s))"));
+    assert!(bm_js.contains("SIDES.map(s => facet(\"padding\", s))"));
 
     // Tools: Unit cycling & Link quads
     assert!(bm_js.contains("id=\"btn-cycle-box-unit\""));
@@ -139,13 +134,13 @@ fn test_scrubber_modifiers_and_clamping_script_source() {
     // 1. Scrubber Drag Math: Shift 10x, Alt 0.1x
     assert!(bm_js.contains("me.shiftKey ? 10 : (me.altKey ? 0.1 : 1)"));
 
-    // 2. Padding Clamping: Padding clamped to 0, Margin negative allowed
-    assert!(bm_js.contains("if (isPadding && newVal < 0) newVal = 0;"));
-    assert!(bm_js.contains("if (isPadding && parsed < 0) parsed = 0;"));
+    // 2. Padding Clamping: Padding clamped to 0 (scrub + typed), Margin negative allowed
+    assert!(bm_js.contains("if (isPadding && n < 0) n = 0;"));
+    assert!(bm_js.matches("if (isPadding && n < 0) n = 0;").count() >= 2);
 
-    // 3. Link Quads Toggle Logic
-    assert!(bm_js.contains("if (isLinked)"));
-    assert!(bm_js.contains("[\"top\", \"right\", \"bottom\", \"left\"].forEach"));
+    // 3. Link Quads Toggle Logic (linked edits fan out to all four sides)
+    assert!(bm_js.contains("if (!isLinked) return [prop];"));
+    assert!(bm_js.contains("SIDES.map(s => group + \"_\" + s)"));
 
     // 4. Double click inline text input
     assert!(bm_js.contains("neo-box-model-inline-input"));

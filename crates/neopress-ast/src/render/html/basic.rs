@@ -54,7 +54,8 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             };
             let cls = with_extra_classes("np-image", extra_cls);
             let img_tag = format!(
-                "<img src=\"{}\" alt=\"{}\"{} class=\"{}\"{} loading=\"lazy\" />",
+                "<img id=\"{}\" src=\"{}\" alt=\"{}\"{} class=\"{}\"{} loading=\"lazy\" />",
+                escape_attr(&node.id),
                 escape_attr(src),
                 escape_attr(alt),
                 dim_attrs,
@@ -74,18 +75,21 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
         NodeKind::Button { text, url, target } => {
             let cls = with_extra_classes("np-button", extra_cls);
             Some(format!(
-                "<a href=\"{}\" target=\"{}\" class=\"{}\"{}>{}</a>",
+                "<a href=\"{}\" target=\"{}\" class=\"{}\" id=\"{}\"{}>{}</a>",
                 escape_attr(url),
                 escape_attr(target),
                 escape_attr(&cls),
+                escape_attr(&node.id),
                 style_attr,
                 sanitize_editor_html(text)
             ))
         }
         NodeKind::Spacer { height } => Some(format!(
-            "<div id=\"{}\" class=\"np-spacer\" style=\"height: {}px;\"></div>",
+            "<div id=\"{}\" class=\"{}\" style=\"height: {}px; {}\"></div>",
             escape_attr(&node.id),
-            height
+            escape_attr(&with_extra_classes("np-spacer", extra_cls)),
+            height,
+            css
         )),
         NodeKind::Divider { style } => Some(format!(
             "<hr id=\"{}\" class=\"np-divider\" style=\"border-top-style: {}; {}\" />",

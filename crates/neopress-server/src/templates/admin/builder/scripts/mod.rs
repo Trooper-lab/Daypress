@@ -17,14 +17,18 @@ pub mod core_state;
 pub mod drawers;
 pub mod inspector_box_model;
 pub mod inspector_content;
+pub mod inspector_controls;
 pub mod inspector_core;
+pub mod inspector_effects;
 pub mod inspector_layout;
 pub mod inspector_styles;
 pub mod modals;
 pub mod navigator;
 pub mod palette_defaults;
+pub mod style_engine;
 pub mod theme_drawer;
 pub mod topbar;
+pub mod topbar_switcher;
 
 use std::sync::OnceLock;
 
@@ -33,9 +37,11 @@ pub fn get_scripts() -> &'static str {
     static BUNDLE: OnceLock<String> = OnceLock::new();
     BUNDLE.get_or_init(|| {
         [
+            style_engine::JS_STYLE_ENGINE,
             core_state::JS_CORE_STATE,
             api_client::JS_API_CLIENT,
             topbar::JS_TOPBAR,
+            topbar_switcher::JS_TOPBAR_SWITCHER,
             canvas_render::JS_CANVAS_RENDER,
             canvas_pro_commercial::JS_CANVAS_PRO_COMMERCIAL,
             canvas_pro_interactive::JS_CANVAS_PRO_INTERACTIVE,
@@ -50,9 +56,11 @@ pub fn get_scripts() -> &'static str {
             theme_drawer::JS_THEME_DRAWER,
             command_palette::JS_COMMAND_PALETTE,
             inspector_core::JS_INSPECTOR_CORE,
+            inspector_controls::JS_INSPECTOR_CONTROLS,
             inspector_box_model::JS_INSPECTOR_BOX_MODEL,
             inspector_layout::JS_INSPECTOR_LAYOUT,
             inspector_styles::JS_INSPECTOR_STYLES,
+            inspector_effects::JS_INSPECTOR_EFFECTS,
             inspector_content::JS_INSPECTOR_CONTENT,
             modals::JS_MODALS,
         ]

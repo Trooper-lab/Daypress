@@ -153,5 +153,11 @@ impl StyleProperties {
         if let Some(ref mut hov) = self.hover {
             hov.sync_flat_and_nested();
         }
+        if let Some(ref mut foc) = self.focus {
+            foc.sync_flat_and_nested();
+        }
+        if let Some(ref mut act) = self.active {
+            act.sync_flat_and_nested();
+        }
     }
 }

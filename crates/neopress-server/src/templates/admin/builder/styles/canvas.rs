@@ -130,6 +130,15 @@ pub const CSS_CANVAS: &str = r#"
     flex-direction: column;
 }
 
+/* Browser-like typography baseline for page content so it never inherits the studio UI font
+   (12.5px Inter). Zero specificity via :where(), so scoped theme CSS always wins. */
+:where(#neostudio-artboard) {
+    font-size: 16px;
+    line-height: 1.5;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #111827;
+}
+
 /* -------------------------------------------------------------
    BOTTOM ADD SECTION PRESET DROPZONE
    ------------------------------------------------------------- */

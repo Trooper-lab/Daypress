@@ -96,6 +96,12 @@ pub const CSS_TOKENS: &str = r#"
     padding: 0;
 }
 
+/* Root stays at the browser default (16px) so `rem` values on the canvas resolve exactly like on
+   the public site; the studio UI itself is sized in px via body. */
+html {
+    font-size: 16px;
+}
+
 html, body {
     width: 100vw;
     height: 100vh;
@@ -103,10 +109,13 @@ html, body {
     background: var(--neo-chassis);
     color: var(--neo-ink);
     font-family: var(--neo-font-ui);
-    font-size: var(--neo-text-ui);
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-size: var(--neo-text-ui);
 }
 
 /* Crisp CAD dark scrollbars */

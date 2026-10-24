@@ -1,163 +1,109 @@
-//! Typography, Backgrounds, Borders & Effects CAD Style Panels (`scripts/inspector_styles.rs`).
+//! Typography, Backgrounds and Borders CAD Style Panels (`scripts/inspector_styles.rs`).
 
 pub const JS_INSPECTOR_STYLES: &str = r###"
 (function() {
-    function renderVisualPanels(container, node) {
-        const styles = node.styles || {};
+    const SYSTEM_FONTS = [
+        "system-ui, -apple-system, 'Segoe UI', sans-serif",
+        "Georgia, 'Times New Roman', serif",
+        "'Helvetica Neue', Arial, sans-serif",
+        "ui-monospace, Menlo, Consolas, monospace"
+    ];
 
-        // ---------------------------------------------------------
-        // 1. TYPOGRAPHY PANEL
-        // ---------------------------------------------------------
-        const typoPanel = document.createElement("div");
-        typoPanel.className = "cad-panel open";
-        typoPanel.innerHTML = `
-            <div class="cad-panel-header">
-                <span class="cad-panel-title"><i class="fa-solid fa-font"></i> Typography</span>
-                <i class="fa-solid fa-chevron-right cad-panel-chevron"></i>
-            </div>
-            <div class="cad-panel-body">
-                <div class="cad-row">
-                    <span class="cad-label">Family</span>
-                    <select class="cad-select" style="flex: 1;" data-prop="font_family">
-                        <option value="Inter, sans-serif" ${styles.font_family && styles.font_family.includes('Inter') ? 'selected' : ''}>Inter (CAD)</option>
-                        <option value="'JetBrains Mono', monospace" ${styles.font_family && styles.font_family.includes('Mono') ? 'selected' : ''}>JetBrains Mono</option>
-                        <option value="'Plus Jakarta Sans', sans-serif" ${styles.font_family && styles.font_family.includes('Jakarta') ? 'selected' : ''}>Plus Jakarta</option>
-                        <option value="system-ui, sans-serif">System UI</option>
-                    </select>
-                </div>
-                <div class="cad-row">
-                    <span class="cad-label">Size</span>
-                    <input type="text" class="cad-input font-mono" style="width: 70px;" data-prop="font_size" value="${styles.font_size || '15px'}">
-                    <span class="cad-label">Weight</span>
-                    <select class="cad-select" style="width: 80px;" data-prop="font_weight">
-                        <option value="400" ${styles.font_weight === '400' ? 'selected' : ''}>400</option>
-                        <option value="500" ${styles.font_weight === '500' ? 'selected' : ''}>500</option>
-                        <option value="600" ${styles.font_weight === '600' ? 'selected' : ''}>600</option>
-                        <option value="700" ${styles.font_weight === '700' ? 'selected' : ''}>700</option>
-                    </select>
-                </div>
-                <div class="cad-row">
-                    <span class="cad-label">Color</span>
-                    <div class="color-picker-control">
-                        <input type="color" class="color-swatch-box" data-color-sync="text_color" value="${styles.text_color || '#F2F4F8'}">
-                        <input type="text" class="cad-input font-mono" style="width: 80px;" data-prop="text_color" value="${styles.text_color || '#F2F4F8'}">
-                    </div>
-                </div>
-                <div class="cad-row">
-                    <span class="cad-label">Align</span>
-                    <div class="cad-segmented" data-prop="text_align">
-                        <button class="seg-btn ${styles.text_align === 'left' ? 'active' : ''}" data-val="left"><i class="fa-solid fa-align-left"></i></button>
-                        <button class="seg-btn ${styles.text_align === 'center' ? 'active' : ''}" data-val="center"><i class="fa-solid fa-align-center"></i></button>
-                        <button class="seg-btn ${styles.text_align === 'right' ? 'active' : ''}" data-val="right"><i class="fa-solid fa-align-right"></i></button>
-                    </div>
-                </div>
-            </div>
-        `;
-        attachToggle(typoPanel);
-        attachListeners(typoPanel);
-        container.appendChild(typoPanel);
-
-        // ---------------------------------------------------------
-        // 2. BACKGROUNDS & BORDERS PANEL
-        // ---------------------------------------------------------
-        const bgPanel = document.createElement("div");
-        bgPanel.className = "cad-panel open";
-        bgPanel.innerHTML = `
-            <div class="cad-panel-header">
-                <span class="cad-panel-title"><i class="fa-solid fa-brush"></i> Backgrounds & Borders</span>
-                <i class="fa-solid fa-chevron-right cad-panel-chevron"></i>
-            </div>
-            <div class="cad-panel-body">
-                <div class="cad-row">
-                    <span class="cad-label">Fill Color</span>
-                    <div class="color-picker-control">
-                        <input type="color" class="color-swatch-box" data-color-sync="background_color" value="${styles.background_color || '#ffffff'}">
-                        <input type="text" class="cad-input font-mono" style="width: 80px;" data-prop="background_color" value="${styles.background_color || '#ffffff'}">
-                    </div>
-                </div>
-                <div class="cad-row">
-                    <span class="cad-label">Radius</span>
-                    <input type="text" class="cad-input font-mono" style="width: 80px;" data-prop="border_radius" value="${styles.border_radius || '0px'}">
-                    <span class="cad-label">Border W</span>
-                    <input type="text" class="cad-input font-mono" style="width: 60px;" data-prop="border_width" value="${styles.border_width || '0px'}">
-                </div>
-                <div class="cad-row">
-                    <span class="cad-label">Border Color</span>
-                    <div class="color-picker-control">
-                        <input type="color" class="color-swatch-box" data-color-sync="border_color" value="${styles.border_color || '#242933'}">
-                        <input type="text" class="cad-input font-mono" style="width: 80px;" data-prop="border_color" value="${styles.border_color || '#242933'}">
-                    </div>
-                </div>
-            </div>
-        `;
-        attachToggle(bgPanel);
-        attachListeners(bgPanel);
-        container.appendChild(bgPanel);
-
-        // ---------------------------------------------------------
-        // 3. EFFECTS PANEL
-        // ---------------------------------------------------------
-        const fxPanel = document.createElement("div");
-        fxPanel.className = "cad-panel open";
-        fxPanel.innerHTML = `
-            <div class="cad-panel-header">
-                <span class="cad-panel-title"><i class="fa-solid fa-wand-magic"></i> Effects</span>
-                <i class="fa-solid fa-chevron-right cad-panel-chevron"></i>
-            </div>
-            <div class="cad-panel-body">
-                <div class="cad-row">
-                    <span class="cad-label">Opacity</span>
-                    <input type="range" min="0" max="1" step="0.05" style="flex:1;" data-prop="opacity" value="${styles.opacity || 1}">
-                    <span class="font-mono" style="font-size:11px; width:36px; text-align:right;">${Math.round((styles.opacity || 1) * 100)}%</span>
-                </div>
-                <div class="cad-row">
-                    <span class="cad-label">Shadow</span>
-                    <select class="cad-select" style="flex:1;" data-prop="box_shadow">
-                        <option value="" ${!styles.box_shadow ? 'selected' : ''}>None</option>
-                        <option value="0 4px 12px rgba(0,0,0,0.08)" ${styles.box_shadow && styles.box_shadow.includes('4px') ? 'selected' : ''}>Subtle Card</option>
-                        <option value="0 12px 32px rgba(0,0,0,0.18)" ${styles.box_shadow && styles.box_shadow.includes('12px') ? 'selected' : ''}>Elevated Modal</option>
-                        <option value="0 0 20px rgba(37,99,235,0.3)" ${styles.box_shadow && styles.box_shadow.includes('99,235') ? 'selected' : ''}>Cobalt Glow</option>
-                    </select>
-                </div>
-            </div>
-        `;
-        attachToggle(fxPanel);
-        attachListeners(fxPanel);
-        container.appendChild(fxPanel);
-    }
-    window.renderVisualPanels = renderVisualPanels;
-
-    function attachToggle(panel) {
-        const h = panel.querySelector(".cad-panel-header");
-        if (h) h.onclick = () => panel.classList.toggle("open");
-    }
-
-    function attachListeners(panel) {
-        panel.querySelectorAll(".cad-segmented").forEach(group => {
-            const prop = group.dataset.prop;
-            group.querySelectorAll(".seg-btn").forEach(btn => {
-                btn.onclick = () => {
-                    group.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
-                    btn.classList.add("active");
-                    window.setLocalStyle(prop, btn.dataset.val);
-                };
+    function fontOptions() {
+        const theme = new Set();
+        try {
+            document.fonts.forEach(f => {
+                const fam = String(f.family || "").replace(/["']/g, "").trim();
+                if (fam && !/font awesome|fontawesome/i.test(fam)) theme.add(fam);
             });
-        });
+        } catch (e) {}
+        const all = new Set([...(window.NeoStyle.GOOGLE_FONTS || []), ...theme, ...SYSTEM_FONTS]);
+        return Array.from(all).map(f => `<option value="${window.NSInspector.esc(f)}"></option>`).join("");
+    }
 
-        panel.querySelectorAll("input[data-prop], select[data-prop]").forEach(input => {
-            const prop = input.dataset.prop;
-            input.onchange = () => window.setLocalStyle(prop, input.value.trim());
-        });
+    function renderVisualPanels(container, node) {
+        const N = window.NSInspector;
 
-        // Color sync swatch with text input
-        panel.querySelectorAll("input[data-color-sync]").forEach(swatch => {
-            const prop = swatch.dataset.colorSync;
-            swatch.oninput = () => {
-                const textInput = panel.querySelector(`input[data-prop="${prop}"]`);
-                if (textInput) textInput.value = swatch.value;
-                window.setLocalStyle(prop, swatch.value);
+        // ---------------------------------------------------------
+        // 1. TYPOGRAPHY
+        // ---------------------------------------------------------
+        const typoBody = `
+            <datalist id="ns-font-families">${fontOptions()}</datalist>
+            ${N.row("Family", "font_family", N.input("font_family", "inherit", "ns-font-families"))}
+            ${N.pair("Size", "font_size", N.input("font_size", "16px"), "Weight", "font_weight", N.select("font_weight", [
+                ["100", "100 Thin"], ["200", "200 Extra Light"], ["300", "300 Light"], ["400", "400 Normal"], ["500", "500 Medium"],
+                ["600", "600 Semi Bold"], ["700", "700 Bold"], ["800", "800 Extra Bold"], ["900", "900 Black"]
+            ]))}
+            ${N.pair("Height", "line_height", N.input("line_height", "1.5"), "Spacing", "letter_spacing", N.input("letter_spacing", "0px"))}
+            ${N.row("Color", "text_color", N.color("text_color"))}
+            ${N.row("Align", "text_align", N.seg("text_align", [
+                ["left", '<i class="fa-solid fa-align-left"></i>'], ["center", '<i class="fa-solid fa-align-center"></i>'],
+                ["right", '<i class="fa-solid fa-align-right"></i>'], ["justify", '<i class="fa-solid fa-align-justify"></i>']
+            ]))}
+            ${N.row("Case", "text_transform", N.seg("text_transform", [
+                ["none", '<i class="fa-solid fa-minus"></i>', "none"], ["uppercase", "AA", "uppercase"], ["capitalize", "Aa", "capitalize"], ["lowercase", "aa", "lowercase"]
+            ]))}
+            ${N.row("Style", "font_style,text_decoration", `
+                ${N.seg("font_style", [["normal", '<i class="fa-solid fa-font"></i>', "normal"], ["italic", '<i class="fa-solid fa-italic"></i>', "italic"]])}
+                ${N.seg("text_decoration", [["none", '<i class="fa-solid fa-minus"></i>', "none"], ["underline", '<i class="fa-solid fa-underline"></i>', "underline"], ["line-through", '<i class="fa-solid fa-strikethrough"></i>', "line-through"]])}
+            `)}
+            ${N.row("Shadow", "text_shadow", N.input("text_shadow", "0 1px 2px rgba(0,0,0,.3)"))}
+        `;
+        const typoPanel = N.panel(container, "typography", "fa-font", "Typography", typoBody);
+        N.bind(typoPanel, node);
+
+        // ---------------------------------------------------------
+        // 2. BACKGROUNDS
+        // ---------------------------------------------------------
+        const IMG = 'data-show-if="background_image!=none|"';
+        const bgBody = `
+            ${N.row("Color", "background_color", N.color("background_color"))}
+            ${N.row("Image", "background_image", N.input("background_image", "https://… or /uploads/…"))}
+            ${N.pair("Size", "background_size", N.select("background_size", [["cover", "Cover"], ["contain", "Contain"], ["auto", "Auto"], ["100% 100%", "Stretch"]]),
+                     "Repeat", "background_repeat", N.select("background_repeat", [["no-repeat", "None"], ["repeat", "Tile"], ["repeat-x", "X"], ["repeat-y", "Y"]]), IMG)}
+            ${N.pair("Position", "background_position", N.select("background_position", [
+                ["center center", "Center"], ["top center", "Top"], ["bottom center", "Bottom"], ["center left", "Left"], ["center right", "Right"], ["top left", "Top left"], ["top right", "Top right"]
+            ]), "Fixed", "background_attachment", N.select("background_attachment", [["scroll", "Scroll"], ["fixed", "Fixed (parallax)"], ["local", "Local"]]), IMG)}
+            ${N.row("Gradient", "background_gradient", N.input("background_gradient", "linear-gradient(…)"))}
+            <div class="cad-row ns-presets">
+                <button type="button" class="ns-chip" data-grad="linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)" style="background:linear-gradient(135deg,#2563eb,#7c3aed)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" style="background:linear-gradient(180deg,#0f172a,#1e293b)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 100%)" title="Dark overlay (combine with an image)" style="background:linear-gradient(180deg,#555,#000)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="" title="Remove gradient">None</button>
+            </div>
+        `;
+        const bgPanel = N.panel(container, "background", "fa-fill-drip", "Backgrounds", bgBody);
+        bgPanel.querySelectorAll("[data-grad]").forEach(b => {
+            b.onclick = () => {
+                window.setLocalStyle("background_gradient", b.dataset.grad, { commit: true });
+                N.refresh(bgPanel, node);
             };
         });
+        N.bind(bgPanel, node);
+
+        // ---------------------------------------------------------
+        // 3. BORDERS
+        // ---------------------------------------------------------
+        const borderBody = `
+            ${N.pair("Radius", "border_radius", N.input("border_radius", "0px"), "Width", "border_width", N.input("border_width", "0px"))}
+            ${N.row("Style", "border_style", N.seg("border_style", [
+                ["none", '<i class="fa-solid fa-ban"></i>', "none"], ["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["double", "Double"]
+            ]))}
+            ${N.row("Color", "border_color", N.color("border_color"))}
+            <div class="cad-row ns-presets">
+                ${["0px", "4px", "8px", "16px", "9999px"].map(r => `<button type="button" class="ns-chip" data-radius="${r}" title="border-radius: ${r}">${r === "9999px" ? "Pill" : r}</button>`).join("")}
+            </div>
+        `;
+        const borderPanel = N.panel(container, "border", "fa-vector-square", "Borders", borderBody);
+        borderPanel.querySelectorAll("[data-radius]").forEach(b => {
+            b.onclick = () => {
+                window.setLocalStyle("border_radius", b.dataset.radius, { commit: true });
+                N.refresh(borderPanel, node);
+            };
+        });
+        N.bind(borderPanel, node);
     }
+    window.renderVisualPanels = renderVisualPanels;
 })();
 "###;

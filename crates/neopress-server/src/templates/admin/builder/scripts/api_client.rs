@@ -155,10 +155,11 @@ pub const JS_API_CLIENT: &str = r###"
             return await res.json();
         },
 
-        async getPagesAndPosts() {
+        async getPagesAndPosts(search) {
+            const q = search ? `&search=${encodeURIComponent(search)}` : "";
             const [pagesRes, postsRes] = await Promise.all([
-                fetch("/wp-json/wp/v2/pages?per_page=50", { credentials: "include" }),
-                fetch("/wp-json/wp/v2/posts?per_page=50", { credentials: "include" })
+                fetch(`/wp-json/wp/v2/pages?per_page=100${q}`, { credentials: "include" }),
+                fetch(`/wp-json/wp/v2/posts?per_page=100${q}`, { credentials: "include" })
             ]);
             const pages = pagesRes.ok ? await pagesRes.json() : [];
             const posts = postsRes.ok ? await postsRes.json() : [];

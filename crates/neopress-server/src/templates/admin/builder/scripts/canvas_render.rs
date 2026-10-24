@@ -6,6 +6,7 @@ pub const JS_CANVAS_RENDER: &str = r###"
         const canvas = document.getElementById("neostudio-canvas");
         if (!canvas) return;
         canvas.innerHTML = "";
+        if (window.resetStateRules) window.resetStateRules();
 
         const state = window.NeoStudioState;
         if (!state.pageAst || !state.pageAst.root) return;
@@ -16,7 +17,8 @@ pub const JS_CANVAS_RENDER: &str = r###"
             if (childEl) canvas.appendChild(childEl);
         }
 
-        // Re-synchronize on-canvas selection chrome
+        // Re-synchronize on-canvas selection chrome and forced pseudo-state preview
+        if (window.applyForcedState) window.applyForcedState();
         if (window.updateSelectionChrome) {
             window.updateSelectionChrome();
         }
@@ -39,8 +41,8 @@ pub const JS_CANVAS_RENDER: &str = r###"
         el.dataset.nodeId = node.id;
         el.classList.add("neostudio-node", "node-" + (node.type || "unknown").toLowerCase());
 
-        // Apply styles (base + responsive overrides)
-        applyNodeStyles(el, node);
+        // Apply styles (base + responsive overrides + pseudo-state rules) via the Style Engine
+        if (window.applyNodeStyles) window.applyNodeStyles(el, node);
 
         // Make canvas node draggable & drop target
         const isLocked = node.data && node.data._locked;
@@ -167,7 +169,15 @@ pub const JS_CANVAS_RENDER: &str = r###"
                     target.removeEventListener("blur", onBlur);
                     if (!node.data) node.data = {};
                     const clone = el.cloneNode(true);
-                    clone.classList.remove("neostudio-node", "node-customhtml", "is-selected", "is-hovered", "is-dragging");
+                    clone.classList.remove("neostudio-node", "node-customhtml", "is-selected", "is-hovered", "is-dragging",
+                        "neostudio-hidden-bp", "neostudio-force-hover", "neostudio-force-focus", "neostudio-force-active");
+                    // Strip builder-applied classes & inline styles: they live in node.styles, not in the raw markup
+                    (el.dataset.neostudioClasses || "").split(/\s+/).filter(Boolean).forEach(c => clone.classList.remove(c));
+                    const baseStyle = el.dataset.neostudioBaseStyle || "";
+                    if (baseStyle) clone.setAttribute("style", baseStyle); else clone.removeAttribute("style");
+                    clone.removeAttribute("data-neostudio-base-style");
+                    clone.removeAttribute("data-neostudio-classes");
+                    if (!clone.className) clone.removeAttribute("class");
                     clone.removeAttribute("data-node-id");
                     clone.removeAttribute("draggable");
                     node.data.raw = clone.outerHTML;
@@ -247,12 +257,11 @@ pub const JS_CANVAS_RENDER: &str = r###"
                 break;
             }
             case "Image": {
-                el = document.createElement("div");
+                // Rendered as a bare <img> exactly like public SSR, so size/radius/object-fit match 1:1
+                el = document.createElement("img");
                 el.className = "np-image";
-                const img = document.createElement("img");
-                img.src = (node.data && node.data.src) || "/static/neopress-icon.svg";
-                img.alt = (node.data && node.data.alt) || "Image";
-                el.appendChild(img);
+                el.src = (node.data && node.data.src) || "/static/neopress-icon.svg";
+                el.alt = (node.data && node.data.alt) || "Image";
                 break;
             }
             case "Video": {
@@ -311,77 +320,5 @@ pub const JS_CANVAS_RENDER: &str = r###"
             if (childDom) el.appendChild(childDom);
         }
     }
-
-    function applyNodeStyles(el, node) {
-        if (!node.styles) return;
-        const state = window.NeoStudioState;
-        const bp = state.currentBreakpoint; // "desktop" | "tablet" | "mobile"
-
-        // Merge base styles with responsive overrides
-        let resolved = Object.assign({}, node.styles);
-        if (bp === "tablet" && node.styles.tablet) {
-            resolved = Object.assign(resolved, node.styles.tablet);
-        } else if (bp === "mobile") {
-            if (node.styles.tablet) resolved = Object.assign(resolved, node.styles.tablet);
-            if (node.styles.mobile) resolved = Object.assign(resolved, node.styles.mobile);
-        }
-
-        // Apply visual properties
-        if (resolved.background_color) el.style.backgroundColor = resolved.background_color;
-        if (resolved.text_color) el.style.color = resolved.text_color;
-        if (resolved.font_size) el.style.fontSize = resolved.font_size;
-        if (resolved.font_family) el.style.fontFamily = resolved.font_family;
-        if (resolved.font_weight) el.style.fontWeight = resolved.font_weight;
-        if (resolved.text_align) el.style.textAlign = resolved.text_align;
-        if (resolved.line_height) el.style.lineHeight = resolved.line_height;
-        if (resolved.letter_spacing) el.style.letterSpacing = resolved.letter_spacing;
-
-        // Dimensions
-        if (resolved.width) el.style.width = resolved.width;
-        if (resolved.height) el.style.height = resolved.height;
-        if (resolved.max_width) el.style.maxWidth = resolved.max_width;
-        if (resolved.min_height) el.style.minHeight = resolved.min_height;
-
-        // Spacing (flat or nested)
-        if (resolved.padding_top) el.style.paddingTop = resolved.padding_top;
-        if (resolved.padding_right) el.style.paddingRight = resolved.padding_right;
-        if (resolved.padding_bottom) el.style.paddingBottom = resolved.padding_bottom;
-        if (resolved.padding_left) el.style.paddingLeft = resolved.padding_left;
-        if (resolved.padding && typeof resolved.padding === "object") {
-            if (resolved.padding.top) el.style.paddingTop = resolved.padding.top;
-            if (resolved.padding.right) el.style.paddingRight = resolved.padding.right;
-            if (resolved.padding.bottom) el.style.paddingBottom = resolved.padding.bottom;
-            if (resolved.padding.left) el.style.paddingLeft = resolved.padding.left;
-        }
-
-        if (resolved.margin_top) el.style.marginTop = resolved.margin_top;
-        if (resolved.margin_right) el.style.marginRight = resolved.margin_right;
-        if (resolved.margin_bottom) el.style.marginBottom = resolved.margin_bottom;
-        if (resolved.margin_left) el.style.marginLeft = resolved.margin_left;
-        if (resolved.margin && typeof resolved.margin === "object") {
-            if (resolved.margin.top) el.style.marginTop = resolved.margin.top;
-            if (resolved.margin.right) el.style.marginRight = resolved.margin.right;
-            if (resolved.margin.bottom) el.style.marginBottom = resolved.margin.bottom;
-            if (resolved.margin.left) el.style.marginLeft = resolved.margin.left;
-        }
-
-        // Layout display
-        if (resolved.display) el.style.display = resolved.display;
-        if (resolved.flex_direction) el.style.flexDirection = resolved.flex_direction;
-        if (resolved.justify_content) el.style.justifyContent = resolved.justify_content;
-        if (resolved.align_items) el.style.alignItems = resolved.align_items;
-        if (resolved.gap) el.style.gap = resolved.gap;
-
-        // Borders & Radius
-        if (resolved.border_radius) el.style.borderRadius = resolved.border_radius;
-        if (resolved.border_color) el.style.borderColor = resolved.border_color;
-        if (resolved.border_width) el.style.borderWidth = resolved.border_width;
-
-        // Visibility
-        if (resolved.display === "none") {
-            el.style.display = "none";
-        }
-    }
-    window.applyNodeStyles = applyNodeStyles;
 })();
 "###;

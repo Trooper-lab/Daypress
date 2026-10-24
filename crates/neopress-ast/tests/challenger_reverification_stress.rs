@@ -313,17 +313,18 @@ fn test_nested_responsive_styles_and_breakpoint_visibility() {
 
     let compiled_css = compile_layout_css(&layout);
 
-    // Desktop rule for hide_desktop
+    // Desktop rule for hide_desktop (scoped to desktop widths only)
+    assert!(compiled_css.contains("@media (min-width: 1025px)"));
     assert!(compiled_css.contains("[id=\"child_desktop_only\"] { display: none !important; }"));
 
-    // Tablet media query
+    // Tablet media query (overrides are !important so they beat inline base styles)
     assert!(compiled_css.contains("@media (max-width: 1024px)"));
-    assert!(compiled_css.contains("[id=\"multi_level_tree\"] { flex-direction: column; gap: 16px; }"));
+    assert!(compiled_css.contains("[id=\"multi_level_tree\"] { flex-direction: column !important; gap: 16px !important; }"));
     assert!(compiled_css.contains("[id=\"child_tablet_hidden\"] { display: none !important; }"));
 
     // Mobile media query
     assert!(compiled_css.contains("@media (max-width: 767px)"));
-    assert!(compiled_css.contains("[id=\"multi_level_tree\"] { padding-top: 8px; }"));
+    assert!(compiled_css.contains("[id=\"multi_level_tree\"] { padding-top: 8px !important; }"));
     assert!(compiled_css.contains("[id=\"multi_level_tree\"] { display: none !important; }"));
     assert!(compiled_css.contains("[id=\"child_mobile_hidden\"] { display: none !important; }"));
 }

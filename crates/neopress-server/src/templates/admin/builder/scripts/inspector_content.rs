@@ -375,8 +375,10 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
             if (chk) {
                 chk.onchange = () => {
                     if (!node.styles) node.styles = {};
-                    node.styles["hide_" + bp] = chk.checked;
-                    window.markDirty(true);
+                    if (chk.checked) node.styles["hide_" + bp] = true;
+                    else delete node.styles["hide_" + bp];
+                    if (window.refreshNodeStyles) window.refreshNodeStyles(node);
+                    window.pushHistorySnapshot();
                 };
             }
         });

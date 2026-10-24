@@ -81,8 +81,9 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 format!("flex: 1; {}", css)
             };
             Some(format!(
-                "<div id=\"{}\" class=\"np-column\" style=\"{}\">\n{}\n</div>",
+                "<div id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</div>",
                 escape_attr(&node.id),
+                escape_attr(&with_extra_classes("np-column", extra_cls)),
                 col_style.trim(),
                 inner_html
             ))
@@ -93,8 +94,9 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 columns, gap, css
             );
             Some(format!(
-                "<div id=\"{}\" class=\"np-grid\" style=\"{}\">\n{}\n</div>",
+                "<div id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</div>",
                 escape_attr(&node.id),
+                escape_attr(&with_extra_classes("np-grid", extra_cls)),
                 grid_style.trim(),
                 inner_html
             ))
@@ -121,8 +123,9 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 css
             );
             Some(format!(
-                "<div id=\"{}\" class=\"np-flex\" style=\"{}\">\n{}\n</div>",
+                "<div id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</div>",
                 escape_attr(&node.id),
+                escape_attr(&with_extra_classes("np-flex", extra_cls)),
                 flex_style.trim(),
                 inner_html
             ))

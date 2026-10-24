@@ -118,7 +118,15 @@ pub(crate) fn render_content(args: &RenderArgs) -> Option<String> {
         }
         NodeKind::CustomHtml { raw } => {
             let cleaned = sanitize_editor_html(raw);
-            Some(if !style_attr.is_empty() || extra_cls.is_some() {
+            let needs_target =
+                !style_attr.is_empty() || extra_cls.is_some() || node.styles.has_scoped_rules();
+            Some(if !needs_target {
+                cleaned
+            } else if let Some(injected) =
+                super::inject::inject_root_attrs(&cleaned, &node.id, extra_cls, args.css)
+            {
+                injected
+            } else {
                 let cls = with_extra_classes("np-custom-widget", extra_cls);
                 format!(
                     "<div id=\"{}\" class=\"{}\"{}>{}</div>",
@@ -127,8 +135,6 @@ pub(crate) fn render_content(args: &RenderArgs) -> Option<String> {
                     style_attr,
                     cleaned
                 )
-            } else {
-                cleaned
             })
         }
         NodeKind::ShortcodeFallback {
