@@ -225,25 +225,13 @@ pub fn render_wp_admin_shell(
 			</div>
 		</nav>
 
-		<div class="sidebar-footer">
-			<a href="/" target="_blank" class="view-site-btn">
-				<span>View Public Site</span>
-				<span style="font-size: 13px;">&nearr;</span>
-			</a>
-			<a href="/n-admin/profile.php" class="user-profile" style="text-decoration: none;">
-				<div class="user-avatar">A</div>
-				<div class="user-details">
-					<span class="user-name">admin</span>
-					<span class="user-role">Administrator</span>
-				</div>
-			</a>
-			<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
-				<a href="/n-admin/profile.php" style="color: #94a3b8; font-size: 12px; text-decoration: none;">Edit Profile</a>
-				<a href="/wp-login.php?action=logout" style="color: #f87171; font-size: 12px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-					<span>Log Out</span>
-					<span>&rarr;</span>
-				</a>
+		<div class="sidebar-footer" onclick="cycleFerrisTip()" title="Click for another tip">
+			<div class="ferris-tip-header">
+				<span class="ferris-crab">🦀</span>
+				<span class="ferris-tip-label">Pro Tip</span>
+				<span class="ferris-tip-next">↻</span>
 			</div>
+			<p id="ferrisTipText" class="ferris-tip-body">Open any page in <strong>⚡ NeoStudio</strong> to visually inspect and edit blocks in real time.</p>
 		</div>
 	</aside>
 
@@ -259,6 +247,19 @@ pub fn render_wp_admin_shell(
 <div id="neo-toast"></div>
 
 <script>
+	const FERRIS_TIPS = [
+		'Open any page in <strong>⚡ NeoStudio</strong> to visually inspect and edit blocks in real time.',
+		'Drop any WordPress <code>.xml</code> export in <strong>Tools &rarr; Import</strong> for 1-click migration.',
+		'Every change saves directly to embedded SQLite in <strong>&lt;0.15ms</strong> with zero cache bloat.',
+		'Use <strong>SEO &amp; Redirects</strong> to preview Google SERP snippets and manage 301 rules.',
+		'Take instant zero-downtime SQLite snapshots anytime in <strong>Backups</strong>.'
+	];
+	let ferrisTipIdx = 0;
+	function cycleFerrisTip() {{
+		ferrisTipIdx = (ferrisTipIdx + 1) % FERRIS_TIPS.length;
+		const el = document.getElementById('ferrisTipText');
+		if (el) el.innerHTML = FERRIS_TIPS[ferrisTipIdx];
+	}}
 	function showToast(message, isError = false) {{
 		const toast = document.getElementById('neo-toast');
 		toast.textContent = message;

@@ -309,70 +309,64 @@ pub fn get_styles_shell() -> &'static str {
 			font-weight: 700;
 		}
 
-		/* Sidebar Footer */
+		/* Sidebar Footer: Ferris Tip Widget */
 		.sidebar-footer {
-			padding: 14px 16px;
-			border-top: 1px solid rgba(255, 255, 255, 0.06);
-			background: rgba(0, 0, 0, 0.2);
-			display: flex;
-			flex-direction: column;
-			gap: 10px;
+			margin: 10px;
+			padding: 10px 12px;
+			background: rgba(255, 255, 255, 0.035);
+			border: 1px solid rgba(255, 255, 255, 0.07);
+			border-radius: 8px;
+			cursor: pointer;
+			user-select: none;
+			transition: background 0.15s, border-color 0.15s;
 		}
 
-		.view-site-btn {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			padding: 6px 10px;
-			background: rgba(255, 255, 255, 0.05);
-			border: 1px solid rgba(255, 255, 255, 0.08);
-			border-radius: 6px;
-			text-decoration: none;
-			color: #cbd5e1;
-			font-size: 12px;
-			font-weight: 500;
-			transition: background 0.15s;
+		.sidebar-footer:hover {
+			background: rgba(255, 255, 255, 0.06);
+			border-color: rgba(96, 165, 250, 0.3);
 		}
 
-		.view-site-btn:hover {
-			background: rgba(255, 255, 255, 0.1);
-			color: #ffffff;
-		}
-
-		.user-profile {
+		.ferris-tip-header {
 			display: flex;
 			align-items: center;
-			gap: 10px;
+			gap: 6px;
+			margin-bottom: 4px;
 		}
 
-		.user-avatar {
-			width: 28px;
-			height: 28px;
-			border-radius: 50%;
-			background: #3b82f6;
-			color: #fff;
-			font-size: 12px;
+		.ferris-crab {
+			font-size: 14px;
+			line-height: 1;
+		}
+
+		.ferris-tip-label {
+			font-size: 10.5px;
 			font-weight: 700;
-			display: flex;
-			align-items: center;
-			justify-content: center;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: #60a5fa;
 		}
 
-		.user-details {
-			display: flex;
-			flex-direction: column;
-			line-height: 1.2;
-		}
-
-		.user-name {
-			font-size: 12px;
-			font-weight: 600;
-			color: #f8fafc;
-		}
-
-		.user-role {
-			font-size: 10px;
+		.ferris-tip-next {
+			margin-left: auto;
+			font-size: 11px;
 			color: #64748b;
+		}
+
+		.ferris-tip-body {
+			font-size: 11.5px;
+			line-height: 1.45;
+			color: #94a3b8;
+		}
+
+		.ferris-tip-body strong {
+			color: #e2e8f0;
+			font-weight: 600;
+		}
+
+		.ferris-tip-body code {
+			font-family: var(--font-mono);
+			font-size: 10.5px;
+			color: #cbd5e1;
 		}
 
 		/* ==================== 2026 MAIN CONTENT ==================== */
