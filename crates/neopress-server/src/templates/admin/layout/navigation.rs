@@ -314,8 +314,8 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 	<div class="ab-top-menu-wrap">
 		<ul class="ab-top-menu">
 			<li class="menupop">
-				<a class="ab-item" href="/n-admin/index.php" title="About Neopress">
-					<img src="/static/neopress-icon.svg" style="width: 16px; height: 16px; border-radius: 3px;" alt="Neopress" />
+				<a class="ab-item" href="/n-admin/index.php" title="About Neopress" style="padding: 0 12px;">
+					<img src="/static/neopress-icon.svg" style="width: 18px; height: 18px; border-radius: 4px;" alt="Neopress" />
 				</a>
 				<div class="ab-sub-wrapper">
 					<ul class="ab-submenu">
@@ -327,8 +327,8 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 			</li>
 			<li class="menupop">
 				<a class="ab-item" href="/" target="_blank">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-					<span>{site_name}</span>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+					<span style="font-weight: 500;">{site_name}</span>
 				</a>
 				<div class="ab-sub-wrapper">
 					<ul class="ab-submenu">
@@ -341,14 +341,26 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 				</div>
 			</li>
 			<li>
+				<a class="ab-item" href="/n-admin/update-core.php" title="Updates">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+					<span>0</span>
+				</a>
+			</li>
+			<li>
+				<a class="ab-item" href="/n-admin/edit.php" title="Quick Search (Ctrl+K)">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+					<span>Ctrl+K</span>
+				</a>
+			</li>
+			<li>
 				<a class="ab-item" href="/n-admin/edit-comments.php" title="Comments">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 					<span>{pending_comments}</span>
 				</a>
 			</li>
 			<li class="menupop">
 				<a class="ab-item" href="/n-admin/post-new.php">
-					<span style="font-size: 15px; font-weight: 700; line-height: 1;">+</span>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 					<span>New</span>
 				</a>
 				<div class="ab-sub-wrapper">
@@ -361,7 +373,7 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 				</div>
 			</li>
 			<li>
-				<a class="ab-item" href="/n-admin/builder" style="color: #38bdf8;">
+				<a class="ab-item" href="/n-admin/builder" title="Open NeoStudio Visual Builder" style="color: #60a5fa;">
 					<span>⚡ NeoStudio</span>
 				</a>
 			</li>

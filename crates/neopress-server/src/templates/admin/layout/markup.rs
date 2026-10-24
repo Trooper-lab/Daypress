@@ -52,15 +52,8 @@ pub fn render_wp_admin_shell(
 <body>
 {wp_admin_bar}
 <div id="neo-app">
-	<!-- Left 240px Navigation Sidebar -->
+	<!-- Left Navigation Sidebar (Unified with Top Admin Bar) -->
 	<aside id="neo-sidebar">
-		<div class="sidebar-header">
-			<a href="/n-admin/" class="brand-link">
-				<img src="/static/neopress-icon.svg" class="brand-icon" alt="Neopress Icon" />
-				<span class="brand-name">Neopress</span>
-			</a>
-		</div>
-
 		<nav class="sidebar-nav">
 			<!-- 1. DASHBOARD -->
 			<div class="nav-group {is_dash_open}">
@@ -256,28 +249,6 @@ pub fn render_wp_admin_shell(
 
 	<!-- Main Workspace -->
 	<main id="neo-main">
-		<header id="neo-topbar">
-			<div class="breadcrumbs">
-				<a href="/n-admin/" class="crumb-root">Neopress</a>
-				<span class="crumb-sep">/</span>
-				<span class="crumb-active">{page_title}</span>
-			</div>
-
-			<div class="topbar-actions">
-				<div class="latency-chip">
-					<span class="latency-dot"></span>
-					<span>⚡ &lt;0.15ms in-process</span>
-				</div>
-				<a href="/n-admin/post-new.php" class="btn-new-post">
-					<span>+</span>
-					<span>New Post</span>
-				</a>
-				<a href="/wp-login.php?action=logout" title="Log Out" style="background: #f1f5f9; color: #475569; text-decoration: none; font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;">
-					<span>Log Out</span>
-				</a>
-			</div>
-		</header>
-
 		<div id="neo-canvas">
 			{body_content}
 		</div>

@@ -15,8 +15,8 @@ pub fn get_styles_shell() -> &'static str {
 			--text-dim: #94a3b8;
 			--primary: #2563eb;
 			--primary-hover: #1d4ed8;
-			--sidebar-w: 240px;
-			--topbar-h: 56px;
+			--sidebar-w: 200px;
+			--topbar-h: 32px;
 		}
 
 		*, *::before, *::after {
@@ -40,19 +40,18 @@ pub fn get_styles_shell() -> &'static str {
 			padding-top: 32px;
 		}
 
-		/* ==================== CLASSIC WP ADMIN TOP BAR ==================== */
+		/* ==================== UNIFIED WP ADMIN TOP BAR & SIDEBAR ==================== */
 		#wpadminbar {
 			position: fixed;
 			top: 0;
 			left: 0;
 			right: 0;
 			height: 32px;
-			background: #1d2327;
-			color: #c3c4c7;
+			background: #141923;
+			color: #e2e8f0;
 			z-index: 99999;
 			font-family: var(--font-sans);
 			font-size: 13px;
-			border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 			user-select: none;
 		}
 
@@ -61,7 +60,7 @@ pub fn get_styles_shell() -> &'static str {
 			align-items: center;
 			justify-content: space-between;
 			height: 100%;
-			padding: 0 8px;
+			padding: 0 4px;
 		}
 
 		#wpadminbar .ab-top-menu {
@@ -86,7 +85,7 @@ pub fn get_styles_shell() -> &'static str {
 			gap: 6px;
 			height: 32px;
 			padding: 0 10px;
-			color: #f0f0f1;
+			color: #e2e8f0;
 			text-decoration: none;
 			font-size: 13px;
 			line-height: 32px;
@@ -94,15 +93,15 @@ pub fn get_styles_shell() -> &'static str {
 		}
 
 		#wpadminbar .ab-top-menu > li:hover > .ab-item {
-			background: #2c3338;
-			color: #72aee6;
+			background: #1e2636;
+			color: #60a5fa;
 		}
 
 		#wpadminbar .ab-avatar {
 			width: 18px;
 			height: 18px;
 			border-radius: 3px;
-			background: #2271b1;
+			background: #3858e9;
 			color: #fff;
 			font-size: 10px;
 			font-weight: 700;
@@ -116,9 +115,9 @@ pub fn get_styles_shell() -> &'static str {
 			position: absolute;
 			top: 32px;
 			left: 0;
-			min-width: 175px;
-			background: #2c3338;
-			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+			min-width: 180px;
+			background: #1e2636;
+			box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
 			padding: 4px 0;
 			z-index: 100000;
 		}
@@ -143,20 +142,19 @@ pub fn get_styles_shell() -> &'static str {
 			height: auto;
 			line-height: 1.4;
 			padding: 6px 14px;
-			color: #c3c4c7;
+			color: #cbd5e1;
 			font-size: 12.5px;
 		}
 
 		#wpadminbar .ab-submenu .ab-item:hover {
-			background: #1d2327;
-			color: #72aee6;
+			background: #141923;
+			color: #60a5fa;
 		}
 
-		/* ==================== 2026 SIDEBAR ==================== */
+		/* ==================== UNIFIED SIDEBAR ==================== */
 		#neo-sidebar {
 			width: var(--sidebar-w);
-			background: #090d16;
-			border-right: 1px solid #1e293b;
+			background: #141923;
 			color: #f8fafc;
 			position: fixed;
 			top: 32px;
@@ -166,31 +164,6 @@ pub fn get_styles_shell() -> &'static str {
 			flex-direction: column;
 			z-index: 100;
 			overflow-y: auto;
-		}
-
-		.sidebar-header {
-			padding: 16px 20px 14px 20px;
-			border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-		}
-
-		.brand-link {
-			display: flex;
-			align-items: center;
-			gap: 10px;
-			text-decoration: none;
-			color: #ffffff;
-		}
-
-		.brand-icon {
-			width: 28px;
-			height: 28px;
-			border-radius: 7px;
-		}
-
-		.brand-name {
-			font-size: 16px;
-			font-weight: 700;
-			letter-spacing: -0.4px;
 		}
 
 		/* Nav Section */
@@ -204,33 +177,46 @@ pub fn get_styles_shell() -> &'static str {
 			font-weight: 700;
 			letter-spacing: 0.08em;
 			color: #64748b;
-			padding: 14px 18px 4px 18px;
+			padding: 14px 14px 4px 14px;
 		}
 
 		.nav-item {
 			display: flex;
 			align-items: center;
 			gap: 10px;
-			padding: 7px 14px;
-			margin: 1px 10px;
-			border-radius: 6px;
+			padding: 9px 14px;
+			margin: 0;
+			border-radius: 0;
 			text-decoration: none;
-			color: #94a3b8;
-			font-size: 13px;
+			color: #cbd5e1;
+			font-size: 13.5px;
 			font-weight: 500;
-			transition: all 0.15s ease;
+			position: relative;
+			transition: background 0.12s ease, color 0.12s ease;
 		}
 
 		.nav-item:hover {
-			background: rgba(255, 255, 255, 0.06);
-			color: #f8fafc;
+			background: #1e2636;
+			color: #60a5fa;
 		}
 
 		.nav-item.active {
-			background: #1e293b;
+			background: #3858e9;
 			color: #ffffff;
 			font-weight: 600;
-			box-shadow: inset 2px 0 0 #38bdf8;
+		}
+
+		.nav-item.active::after {
+			content: "";
+			position: absolute;
+			right: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 0;
+			height: 0;
+			border-top: 8px solid transparent;
+			border-bottom: 8px solid transparent;
+			border-right: 8px solid var(--bg-app);
 		}
 
 		.nav-icon {
@@ -240,39 +226,45 @@ pub fn get_styles_shell() -> &'static str {
 			opacity: 0.85;
 		}
 
+		.nav-item:hover .nav-icon {
+			opacity: 1;
+			color: #60a5fa;
+		}
+
 		.nav-item.active .nav-icon {
 			opacity: 1;
-			color: #38bdf8;
+			color: #ffffff;
 		}
 
 		.nav-badge {
 			margin-left: auto;
 			font-size: 10px;
 			font-weight: 600;
-			background: rgba(255, 255, 255, 0.08);
+			background: #3858e9;
 			padding: 1px 6px;
 			border-radius: 10px;
-			color: #cbd5e1;
+			color: #ffffff;
 		}
 
 		/* Submenu hierarchy: inline underneath when selected (.open), side-preview flyout on hover when not selected */
 		.nav-group {
 			position: relative;
-			margin-bottom: 2px;
+			margin-bottom: 0;
 		}
 
 		.nav-submenu {
 			display: none;
 			flex-direction: column;
-			gap: 2px;
+			gap: 1px;
 		}
 
 		.nav-group.open > .nav-submenu {
 			display: flex;
 			position: static;
-			padding: 3px 0 5px 12px;
-			margin: 2px 10px 4px 24px;
-			border-left: 2px solid rgba(255, 255, 255, 0.1);
+			background: #0b0e14;
+			padding: 6px 0;
+			margin: 0;
+			border-left: none;
 		}
 
 		.nav-group:not(.open):hover > .nav-submenu {
@@ -280,14 +272,11 @@ pub fn get_styles_shell() -> &'static str {
 			position: fixed;
 			left: var(--sidebar-w);
 			top: 120px;
-			min-width: 195px;
-			padding: 6px;
+			min-width: 185px;
+			padding: 6px 0;
 			margin: 0;
-			background: #0f172a;
-			border: 1px solid #1e293b;
-			border-left: 2px solid #38bdf8;
-			border-radius: 0 8px 8px 0;
-			box-shadow: 10px 12px 28px rgba(0, 0, 0, 0.45);
+			background: #1e2636;
+			box-shadow: 6px 8px 20px rgba(0, 0, 0, 0.45);
 			z-index: 99999;
 		}
 
@@ -302,24 +291,22 @@ pub fn get_styles_shell() -> &'static str {
 
 		.nav-subitem {
 			display: block;
-			padding: 5px 10px;
-			font-size: 12.5px;
+			padding: 5px 14px 5px 18px;
+			font-size: 13px;
 			color: #94a3b8;
 			text-decoration: none;
-			border-radius: 4px;
 			white-space: nowrap;
-			transition: all 0.15s ease;
+			transition: color 0.12s ease, background 0.12s ease;
 		}
 
 		.nav-subitem:hover {
-			color: #f8fafc;
-			background: rgba(255, 255, 255, 0.06);
+			color: #60a5fa;
+			background: rgba(255, 255, 255, 0.04);
 		}
 
 		.nav-subitem.active {
-			color: #38bdf8;
-			background: rgba(56, 189, 248, 0.12);
-			font-weight: 600;
+			color: #ffffff;
+			font-weight: 700;
 		}
 
 		/* Sidebar Footer */
