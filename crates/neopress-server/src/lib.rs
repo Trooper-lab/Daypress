@@ -169,15 +169,18 @@ pub fn create_app(database: Database) -> Router {
         )
         // 6b. First-Party Modules (SEO & Redirects, Forms Studio, Hot Backups)
         .route("/n-admin/seo.php", get(handle_admin_seo))
+        .route("/n-admin/neopress-seo.php", get(handle_admin_seo))
         .route("/n-admin/api/seo", post(handle_api_seo_save))
         .route("/n-admin/api/redirects", post(handle_api_redirects))
         .route("/n-admin/forms.php", get(handle_admin_forms))
+        .route("/n-admin/neopress-forms.php", get(handle_admin_forms))
         .route("/n-admin/api/forms", post(handle_api_forms))
         .route(
             "/n-admin/api/forms/export-csv",
             get(handle_admin_forms_export_csv),
         )
         .route("/n-admin/backups.php", get(handle_admin_backups))
+        .route("/n-admin/neopress-backups.php", get(handle_admin_backups))
         .route("/n-admin/api/backups", post(handle_api_backups))
         .route(
             "/n-admin/backups/download/{filename}",

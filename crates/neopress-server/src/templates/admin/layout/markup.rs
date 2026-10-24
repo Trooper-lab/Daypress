@@ -153,27 +153,31 @@ pub fn render_wp_admin_shell(
 				</a>
 				<div class="nav-submenu">
 					<a href="/n-admin/plugins.php" class="nav-subitem {sub_plug_list}">Installed Plugins</a>
-					<a href="/n-admin/plugin-install.php" class="nav-subitem {sub_plug_new}">Add New</a>
+					<a href="/n-admin/plugin-install.php" class="nav-subitem {sub_plug_new}">Add New &amp; SDK</a>
 					<a href="/n-admin/plugin-editor.php" class="nav-subitem {sub_plug_editor}">Plugin File Editor</a>
 				</div>
 			</div>
 
-			<!-- 8b. SMART PLUGINS -->
+			<!-- 8b. SEO & REDIRECTS -->
 			<div class="nav-group">
-				<a href="/n-admin/neopress-seo.php" class="nav-item {is_seo}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
-					<span>SEO & Social</span>
+				<a href="/n-admin/seo.php" class="nav-item {is_seo}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+					<span>SEO &amp; Redirects</span>
 				</a>
 			</div>
+
+			<!-- 8c. FORMS STUDIO -->
 			<div class="nav-group">
-				<a href="/n-admin/neopress-forms.php" class="nav-item {is_forms}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-					<span>Forms</span>
+				<a href="/n-admin/forms.php" class="nav-item {is_forms}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+					<span>Forms Studio</span>
 				</a>
 			</div>
+
+			<!-- 8d. SNAPSHOT BACKUPS -->
 			<div class="nav-group">
-				<a href="/n-admin/neopress-backups.php" class="nav-item {is_backups}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+				<a href="/n-admin/backups.php" class="nav-item {is_backups}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
 					<span>Backups</span>
 				</a>
 			</div>
