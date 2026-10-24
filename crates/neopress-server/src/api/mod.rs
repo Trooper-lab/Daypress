@@ -223,10 +223,15 @@ pub fn api_routes() -> Router<Database> {
         .route("/neopress/v1/stats", get(get_db_stats))
         .route("/neopress/v1/vacuum", get(vacuum_db).post(vacuum_db))
         .route("/neopress/v1/integrity-check", get(check_integrity))
-        .route("/neopress/v1/import", axum::routing::post(import_bundle))
+        .route(
+            "/neopress/v1/import",
+            axum::routing::post(import_bundle)
+                .layer(axum::extract::DefaultBodyLimit::max(500 * 1024 * 1024)),
+        )
         .route(
             "/neopress/v1/import-wxr",
-            axum::routing::post(import_wxr_handler),
+            axum::routing::post(import_wxr_handler)
+                .layer(axum::extract::DefaultBodyLimit::max(500 * 1024 * 1024)),
         )
         // Visual Builder Layout API (Hybrid Wasm / JSON schema)
         .route(

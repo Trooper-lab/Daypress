@@ -321,5 +321,6 @@ pub fn create_app(database: Database) -> Router {
         .route("/{slug}/", get(handle_single))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
+        .layer(axum::extract::DefaultBodyLimit::max(500 * 1024 * 1024))
         .with_state(database)
 }

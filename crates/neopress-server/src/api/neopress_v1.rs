@@ -22,8 +22,19 @@ use super::*;
 
 
 pub(crate) fn normalize_import_bundle_payload(raw: Value) -> Result<ImportBundleRequest, AppError> {
-    // 1. Check if this is a `/n-admin/export-json` backup or `{"options": ..., "posts": ...}` payload
+    // 0. Unwrap `{ "success": true, "data": { ... } }` or `{ "data": { ... } }` if present
     let mut normalized = raw;
+    if let Some(obj) = normalized.as_object() {
+        if obj.contains_key("data") {
+            if let Some(inner) = obj.get("data") {
+                if inner.is_object() && (inner.get("posts").is_some() || inner.get("site_settings").is_some() || inner.get("pages").is_some()) {
+                    normalized = inner.clone();
+                }
+            }
+        }
+    }
+
+    // 1. Check if this is a `/n-admin/export-json` backup or `{"options": ..., "posts": ...}` payload
     if let Some(obj) = normalized.as_object_mut() {
         // Normalize `options` -> `site_settings`
         if !obj.contains_key("site_settings") {
@@ -121,8 +132,10 @@ pub(crate) fn normalize_import_bundle_payload(raw: Value) -> Result<ImportBundle
 pub(crate) async fn import_bundle(
     _auth: AuthUser,
     State(db): State<Database>,
-    Json(raw_payload): Json<Value>,
+    body: axum::body::Bytes,
 ) -> Result<Json<ImportBundleResponse>, AppError> {
+    let raw_payload: Value = serde_json::from_slice(&body)
+        .map_err(|e| AppError::BadRequest(format!("Invalid JSON payload: {}", e)))?;
     let payload = normalize_import_bundle_payload(raw_payload)?;
     let res = db.import_bundle(&payload)?;
     Ok(Json(res))

@@ -224,12 +224,38 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
             async function handleJsonBundleFile(input) {
                 if (!input.files || !input.files[0]) return;
                 const file = input.files[0];
+                const summary = document.getElementById('jsonBundleSummary');
+                const kb = Math.round(file.size / 1024);
+                summary.style.color = '#2563eb';
+                summary.textContent = 'Uploading & importing ' + file.name + ' (' + kb + ' KB)...';
+                showToast('Importing ' + file.name + ' into SQLite...');
+
                 try {
-                    const text = await file.text();
-                    document.getElementById('jsonBundleTextarea').value = text;
-                    await submitJsonBundle();
+                    const res = await fetch('/wp-json/neopress/v1/import', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-WP-Nonce': 'wp_rest_admin'
+                        },
+                        body: file
+                    });
+                    const data = await res.json();
+                    if (res.ok && (data.success || data.imported_posts !== undefined)) {
+                        summary.style.color = '#059669';
+                        const msg = data.message || ('Successfully imported ' + (data.migrated_posts || data.imported_posts || 0) + ' posts, ' + (data.migrated_pages || data.imported_pages || 0) + ' pages, and ' + (data.migrated_media || data.imported_media || 0) + ' media files!');
+                        summary.textContent = '✓ ' + msg;
+                        showToast('✓ ' + msg);
+                        setTimeout(() => location.href = '/n-admin/edit.php?post_type=page', 1500);
+                    } else {
+                        summary.style.color = '#ef4444';
+                        const err = data.message || data.error || (data.code ? data.code + ': ' + data.message : 'HTTP ' + res.status);
+                        summary.textContent = 'Import error: ' + err;
+                        showToast('Import failed: ' + err, true);
+                    }
                 } catch (e) {
-                    showToast('Failed to read JSON file: ' + e, true);
+                    summary.style.color = '#ef4444';
+                    summary.textContent = 'Network error: ' + e;
+                    showToast('Network error during import: ' + e, true);
                 }
             }
 
@@ -240,31 +266,33 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                     showToast('Please upload or paste a JSON bundle first', true);
                     return;
                 }
-                let parsed;
-                try {
-                    parsed = JSON.parse(raw);
-                } catch (e) {
-                    showToast('Invalid JSON syntax: ' + e.message, true);
-                    return;
-                }
+                summary.style.color = '#2563eb';
                 summary.textContent = 'Importing bundle into SQLite...';
                 try {
                     const res = await fetch('/wp-json/neopress/v1/import', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(parsed)
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-WP-Nonce': 'wp_rest_admin'
+                        },
+                        body: raw
                     });
                     const data = await res.json();
-                    if (res.ok) {
-                        const msg = data.message || ('Imported ' + (data.imported_posts || 0) + ' posts, ' + (data.imported_pages || 0) + ' pages');
+                    if (res.ok && (data.success || data.imported_posts !== undefined)) {
+                        summary.style.color = '#059669';
+                        const msg = data.message || ('Successfully imported ' + (data.migrated_posts || data.imported_posts || 0) + ' posts, ' + (data.migrated_pages || data.imported_pages || 0) + ' pages');
                         summary.textContent = '✓ ' + msg;
                         showToast('✓ ' + msg);
+                        setTimeout(() => location.href = '/n-admin/edit.php?post_type=page', 1500);
                     } else {
-                        summary.textContent = '';
-                        showToast('Import failed: ' + (data.message || JSON.stringify(data)), true);
+                        summary.style.color = '#ef4444';
+                        const err = data.message || data.error || ('HTTP ' + res.status);
+                        summary.textContent = 'Import error: ' + err;
+                        showToast('Import failed: ' + err, true);
                     }
                 } catch (e) {
-                    summary.textContent = '';
+                    summary.style.color = '#ef4444';
+                    summary.textContent = 'Network error: ' + e;
                     showToast('Network error: ' + e, true);
                 }
             }
