@@ -384,12 +384,10 @@ pub const CSS_TOPBAR: &str = r#"
 .save-status-pill.unsaved .status-dot { background: var(--neo-token); box-shadow: 0 0 6px var(--neo-token); }
 .save-status-pill.saving { color: var(--neo-signal-light); }
 .save-status-pill.saving .status-dot { background: var(--neo-signal-light); animation: pulseSave 0.8s infinite alternate; }
-
 @keyframes pulseSave {
     0% { transform: scale(0.8); opacity: 0.5; }
     100% { transform: scale(1.3); opacity: 1; }
 }
-
 .btn-publish-action {
     display: flex; align-items: center; gap: 6px;
     background: var(--neo-signal); border: 1px solid var(--neo-signal-hover);

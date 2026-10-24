@@ -26,6 +26,12 @@ pub fn render_wp_admin_shell(
     let styles_shell = get_styles_shell();
     let styles_comp = get_styles_components();
     let styles_forms = get_styles_forms();
+    let rest_nonce: String = crate::auth::current_admin()
+        .map(|a| a.nonce)
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
 
     format!(
         r##"<!DOCTYPE html>
@@ -44,7 +50,7 @@ pub fn render_wp_admin_shell(
 		// Standard WordPress REST API settings & session initialization
 		window.wpApiSettings = window.wpApiSettings || {{
 			root: '/wp-json/',
-			nonce: 'wp_rest_admin',
+			nonce: '{rest_nonce}',
 			versionString: 'wp/v2/'
 		}};
 	</script>
@@ -230,6 +236,126 @@ pub fn render_wp_admin_shell(
 <!-- Global Toast -->
 <div id="neo-toast"></div>
 
+<!-- Quick Search (Ctrl+K) -->
+<div id="neo-qs-backdrop" onclick="if (event.target === this) neoCloseQuickSearch();" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:100000; align-items:flex-start; justify-content:center; padding-top:12vh;">
+	<div role="dialog" aria-modal="true" aria-label="Quick search" style="width:min(640px, 92vw); background:#fff; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); overflow:hidden;">
+		<input id="neo-qs-input" type="search" autocomplete="off" placeholder="Search posts, pages and admin screens…" style="width:100%; box-sizing:border-box; border:0; border-bottom:1px solid #e2e8f0; padding:16px 18px; font-size:15px; outline:none;" />
+		<div id="neo-qs-results" style="max-height:52vh; overflow-y:auto; padding:6px 0;"></div>
+		<div style="padding:8px 14px; font-size:11px; color:#94a3b8; border-top:1px solid #f1f5f9;">↑ ↓ to navigate · Enter to open · Esc to close</div>
+	</div>
+</div>
+
+<script>
+	const NEO_QS_SCREENS = [
+		['Dashboard', '/n-admin/'], ['All Posts', '/n-admin/edit.php'], ['Add New Post', '/n-admin/post-new.php'],
+		['Categories', '/n-admin/edit-tags.php?taxonomy=category'], ['Tags', '/n-admin/edit-tags.php?taxonomy=post_tag'],
+		['Media Library', '/n-admin/upload.php'], ['Upload Media', '/n-admin/media-new.php'],
+		['All Pages', '/n-admin/edit.php?post_type=page'], ['Add New Page', '/n-admin/post-new.php?post_type=page'],
+		['Comments', '/n-admin/edit-comments.php'], ['Themes', '/n-admin/themes.php'], ['Customize', '/n-admin/customize.php'],
+		['Widgets', '/n-admin/widgets.php'], ['Menus', '/n-admin/nav-menus.php'], ['Theme File Editor', '/n-admin/theme-editor.php'],
+		['Installed Plugins', '/n-admin/plugins.php'], ['Add New Plugin', '/n-admin/plugin-install.php'],
+		['Forms Studio', '/n-admin/forms.php'], ['Users', '/n-admin/users.php'], ['Add New User', '/n-admin/user-new.php'],
+		['Profile', '/n-admin/profile.php'], ['Tools', '/n-admin/tools.php'], ['Import', '/n-admin/import.php'],
+		['Export', '/n-admin/export.php'], ['SEO & Redirects', '/n-admin/seo.php'], ['Backups', '/n-admin/backups.php'],
+		['Site Health', '/n-admin/site-health.php'], ['Export Personal Data', '/n-admin/export-personal-data.php'],
+		['Erase Personal Data', '/n-admin/erase-personal-data.php'], ['General Settings', '/n-admin/options-general.php'],
+		['Writing Settings', '/n-admin/options-writing.php'], ['Reading Settings', '/n-admin/options-reading.php'],
+		['Discussion Settings', '/n-admin/options-discussion.php'], ['Media Settings', '/n-admin/options-media.php'],
+		['Permalink Settings', '/n-admin/options-permalink.php'], ['Privacy Settings', '/n-admin/options-privacy.php'],
+		['Engine Telemetry', '/n-admin/neopress-engine.php'], ['Analytics', '/n-admin/analytics.php']
+	];
+	let neoQsItems = [];
+	let neoQsActive = 0;
+	let neoQsTimer = null;
+	let neoQsSeq = 0;
+
+	function neoQsEscape(s) {{
+		return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+	}}
+	function neoOpenQuickSearch() {{
+		const bd = document.getElementById('neo-qs-backdrop');
+		const input = document.getElementById('neo-qs-input');
+		if (!bd || !input) return;
+		bd.style.display = 'flex';
+		input.value = '';
+		neoQsRender('', []);
+		setTimeout(() => input.focus(), 0);
+	}}
+	function neoCloseQuickSearch() {{
+		const bd = document.getElementById('neo-qs-backdrop');
+		if (bd) bd.style.display = 'none';
+	}}
+	function neoQsRender(query, contentResults) {{
+		const q = query.trim().toLowerCase();
+		const screens = NEO_QS_SCREENS
+			.filter(([label]) => !q || label.toLowerCase().includes(q))
+			.slice(0, q ? 6 : 8)
+			.map(([label, url]) => ({{ label, url, kind: 'Screen' }}));
+		neoQsItems = contentResults.concat(screens);
+		neoQsActive = 0;
+		const box = document.getElementById('neo-qs-results');
+		if (!box) return;
+		if (!neoQsItems.length) {{
+			box.innerHTML = '<div style="padding:14px 18px; color:#94a3b8; font-size:13px;">No matches</div>';
+			return;
+		}}
+		box.innerHTML = neoQsItems.map((it, i) =>
+			'<a href="' + neoQsEscape(it.url) + '" data-qs-idx="' + i + '" style="display:flex; justify-content:space-between; gap:12px; padding:9px 18px; text-decoration:none; color:#0f172a; font-size:13.5px;' + (i === 0 ? ' background:#eff6ff;' : '') + '">' +
+			'<span>' + neoQsEscape(it.label) + '</span><span style="color:#94a3b8; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em;">' + neoQsEscape(it.kind) + '</span></a>'
+		).join('');
+	}}
+	function neoQsHighlight() {{
+		document.querySelectorAll('#neo-qs-results [data-qs-idx]').forEach(el => {{
+			el.style.background = Number(el.dataset.qsIdx) === neoQsActive ? '#eff6ff' : '';
+			if (Number(el.dataset.qsIdx) === neoQsActive) el.scrollIntoView({{ block: 'nearest' }});
+		}});
+	}}
+	async function neoQsSearch(query) {{
+		const seq = ++neoQsSeq;
+		const q = query.trim();
+		if (q.length < 2) {{ neoQsRender(query, []); return; }}
+		let content = [];
+		try {{
+			const res = await fetch('/wp-json/wp/v2/search?per_page=8&search=' + encodeURIComponent(q), {{ credentials: 'same-origin' }});
+			if (res.ok) {{
+				const rows = await res.json();
+				content = (Array.isArray(rows) ? rows : []).map(r => ({{
+					label: (r.title || '(no title)').replace(/<[^>]*>/g, ''),
+					url: '/n-admin/post.php?post=' + encodeURIComponent(r.id),
+					kind: r.subtype || 'post'
+				}}));
+			}}
+		}} catch (err) {{ /* network errors fall back to screen matches */ }}
+		if (seq === neoQsSeq) neoQsRender(query, content);
+	}}
+	document.addEventListener('DOMContentLoaded', () => {{
+		const input = document.getElementById('neo-qs-input');
+		if (!input) return;
+		input.addEventListener('input', () => {{
+			clearTimeout(neoQsTimer);
+			neoQsRender(input.value, []);
+			neoQsTimer = setTimeout(() => neoQsSearch(input.value), 180);
+		}});
+		input.addEventListener('keydown', (e) => {{
+			if (e.key === 'ArrowDown') {{ e.preventDefault(); neoQsActive = Math.min(neoQsActive + 1, neoQsItems.length - 1); neoQsHighlight(); }}
+			else if (e.key === 'ArrowUp') {{ e.preventDefault(); neoQsActive = Math.max(neoQsActive - 1, 0); neoQsHighlight(); }}
+			else if (e.key === 'Enter') {{ e.preventDefault(); const it = neoQsItems[neoQsActive]; if (it) window.location.href = it.url; }}
+			else if (e.key === 'Escape') {{ neoCloseQuickSearch(); }}
+		}});
+	}});
+	// Registered last: screens with their own Ctrl+K (e.g. the editor's "insert link") call preventDefault first.
+	document.addEventListener('keydown', (e) => {{
+		if (e.defaultPrevented) return;
+		const mod = e.ctrlKey || e.metaKey;
+		if (mod && (e.key === 'k' || e.key === 'K')) {{
+			e.preventDefault();
+			neoOpenQuickSearch();
+		}} else if (e.key === 'Escape') {{
+			neoCloseQuickSearch();
+		}}
+	}});
+</script>
+
 <script>
 	const FERRIS_TIPS = [
 		'Open any page in <strong>⚡ NeoStudio</strong> to visually inspect and edit blocks in real time.',
@@ -275,6 +401,7 @@ pub fn render_wp_admin_shell(
 "##,
         page_title = page_title,
         site_name = site_name,
+        rest_nonce = rest_nonce,
         wp_admin_bar = wp_admin_bar,
         styles_shell = styles_shell,
         styles_comp = styles_comp,

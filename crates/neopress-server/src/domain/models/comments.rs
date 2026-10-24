@@ -33,6 +33,10 @@ pub struct CreateCommentRequest {
     #[serde(default)]
     pub status: Option<String>,
     pub content: String,
+    /// WordPress user ID of the comment author (WP REST `author`). Only honoured for
+    /// authenticated requests; anonymous submissions are always stored with user_id 0.
+    #[serde(default)]
+    pub author: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -70,4 +74,17 @@ pub struct CommentCounts {
     pub approved: i64,
     pub spam: i64,
     pub trash: i64,
+}
+
+/// One row of the admin Comments moderation table (`/n-admin/edit-comments.php`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdminCommentRow {
+    pub item: WpCommentAdminItem,
+    /// `comment_parent` (0 when top-level).
+    pub parent_id: i64,
+    /// Author name of the parent comment (empty when top-level / parent missing).
+    pub parent_author: String,
+    /// `_wp_trash_meta_status` – the status the comment had before being trashed/spammed.
+    pub prev_status: String,
+    pub user_id: i64,
 }

@@ -431,10 +431,21 @@ impl WalOptimizer {
 
         <script>
             let currentPluginFile = 'neopress-optimizer.rs';
-            function loadPluginFile(name) {
+            async function loadPluginFile(name) {
                 currentPluginFile = name;
                 document.getElementById('activePluginFileName').textContent = name + ' (Plugin File)';
-                showToast('Loaded ' + name);
+                try {
+                    const res = await fetch('/n-admin/api/theme-file?file=' + encodeURIComponent(name));
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.content && data.content.trim().length > 0) {
+                            document.getElementById('pluginFileContent').value = data.content;
+                        }
+                        showToast('Loaded ' + name);
+                    }
+                } catch (e) {
+                    showToast('Failed to load ' + name, true);
+                }
             }
             async function savePluginFile() {
                 const content = document.getElementById('pluginFileContent').value;

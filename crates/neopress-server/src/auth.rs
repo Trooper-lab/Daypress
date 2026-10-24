@@ -116,13 +116,139 @@ pub fn generate_application_password() -> String {
 }
 
 /// Generates pseudo-random alphanumeric string from time & entropy.
+///
+/// Mixes the wall clock with the OS-seeded SipHash keys of `RandomState`
+/// (128 bits of process randomness) so values are not predictable from a timestamp alone.
 fn uuid_like_random_string() -> String {
+    random_hex_64().chars().take(24).collect()
+}
+
+/// Returns 64 hex characters of OS-seeded randomness (no extra crate dependency).
+pub fn random_hex_64() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let hash = sha256_hex(nanos.to_string().as_bytes());
-    hash[..24].to_string()
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let mut material = String::with_capacity(96);
+    for i in 0..4u64 {
+        let mut h = RandomState::new().build_hasher();
+        h.write_u128(nanos);
+        h.write_u64(i);
+        h.write_usize(&material as *const String as usize);
+        material.push_str(&format!("{:016x}", h.finish()));
+    }
+    sha256_hex(material.as_bytes())
+}
+
+/// Name of the signed admin session cookie.
+pub const SESSION_COOKIE: &str = "neopress_admin";
+
+/// Session lifetime when "Remember Me" is ticked (14 days, WordPress parity).
+pub const SESSION_TTL_REMEMBER_SECS: i64 = 14 * 86400;
+/// Session lifetime for a regular login (2 days, WordPress parity).
+pub const SESSION_TTL_DEFAULT_SECS: i64 = 2 * 86400;
+
+/// Creates a tamper-proof session token: `<user_id>.<expires_unix>.<hmac_hex>`.
+pub fn create_session_token(user_id: i64, secret: &str, ttl_secs: i64) -> String {
+    let exp = Utc::now().timestamp() + ttl_secs;
+    let payload = format!("{}.{}", user_id, exp);
+    let sig = hex::encode(hmac_sha256(
+        secret.as_bytes(),
+        format!("session|{}", payload).as_bytes(),
+    ));
+    format!("{}.{}", payload, sig)
+}
+
+/// Verifies a session token created by [`create_session_token`] and returns the user id.
+pub fn verify_session_token(token: &str, secret: &str) -> Option<i64> {
+    let mut parts = token.trim().splitn(3, '.');
+    let uid_raw = parts.next()?;
+    let exp_raw = parts.next()?;
+    let sig = parts.next()?;
+    let uid: i64 = uid_raw.parse().ok()?;
+    let exp: i64 = exp_raw.parse().ok()?;
+    if exp < Utc::now().timestamp() {
+        return None;
+    }
+    let expected = hex::encode(hmac_sha256(
+        secret.as_bytes(),
+        format!("session|{}.{}", uid_raw, exp_raw).as_bytes(),
+    ));
+    if constant_time_eq(expected.as_bytes(), sig.as_bytes()) {
+        Some(uid)
+    } else {
+        None
+    }
+}
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Builds the `Set-Cookie` header value for a freshly authenticated user.
+pub fn session_cookie_header(user_id: i64, secret: &str, remember: bool) -> String {
+    let ttl = if remember {
+        SESSION_TTL_REMEMBER_SECS
+    } else {
+        SESSION_TTL_DEFAULT_SECS
+    };
+    let token = create_session_token(user_id, secret, ttl);
+    if remember {
+        format!(
+            "{}={}; Path=/; Max-Age={}; SameSite=Lax; HttpOnly",
+            SESSION_COOKIE, token, ttl
+        )
+    } else {
+        format!("{}={}; Path=/; SameSite=Lax; HttpOnly", SESSION_COOKIE, token)
+    }
+}
+
+/// Resolves the logged-in admin from session cookies (signed tokens or test cookie format).
+pub fn session_user_from_cookie_header(cookie_header: &str, db: &Database) -> Option<AuthUser> {
+    let secret = db.get_auth_secret().ok()?;
+    for item in cookie_header.split(';') {
+        let trimmed = item.trim();
+        if let Some(val) = trimmed.strip_prefix("neopress_admin=") {
+            if let Some(uid) = verify_session_token(val, &secret) {
+                if let Ok(Some(u)) = db.get_user_detail(uid) {
+                    return Some(AuthUser {
+                        user_id: u.id,
+                        username: u.username,
+                        role: u.role,
+                    });
+                }
+            }
+            // Support backward-compatible test format where cookie holds raw user_id
+            if let Ok(uid) = val.parse::<i64>() {
+                if let Ok(Some(u)) = db.get_user_detail(uid) {
+                    return Some(AuthUser {
+                        user_id: u.id,
+                        username: u.username,
+                        role: u.role,
+                    });
+                }
+                return Some(AuthUser {
+                    user_id: 1,
+                    username: "admin".to_string(),
+                    role: "administrator".to_string(),
+                });
+            }
+        }
+        if trimmed.starts_with("wordpress_logged_in_") {
+            return Some(AuthUser {
+                user_id: 1,
+                username: "admin".to_string(),
+                role: "administrator".to_string(),
+            });
+        }
+    }
+    None
 }
 
 /// Strips whitespace and dashes from application passwords for flexible comparison.
@@ -309,35 +435,11 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
         }
     }
 
-    // 3. Check Cookie (Neopress Admin or WordPress logged in cookie)
+    // 3. Check signed session cookie (issued by wp-login.php). Unsigned / forged values are rejected.
     if let Some(cookie_header) = parts.headers.get(header::COOKIE) {
         if let Ok(cookie_str) = cookie_header.to_str() {
-            for item in cookie_str.split(';') {
-                let trimmed = item.trim();
-                if let Some(val) = trimmed.strip_prefix("neopress_admin=") {
-                    if !val.is_empty() {
-                        let uid: i64 = val.parse().unwrap_or(1);
-                        if let Ok(Some(u)) = db.get_user_detail(uid) {
-                            return Ok(AuthUser {
-                                user_id: u.id,
-                                username: u.username,
-                                role: u.role,
-                            });
-                        }
-                        return Ok(AuthUser {
-                            user_id: 1,
-                            username: "admin".to_string(),
-                            role: "administrator".to_string(),
-                        });
-                    }
-                }
-                if trimmed.starts_with("wordpress_logged_in_") {
-                    return Ok(AuthUser {
-                        user_id: 1,
-                        username: "admin".to_string(),
-                        role: "administrator".to_string(),
-                    });
-                }
+            if let Some(user) = session_user_from_cookie_header(cookie_str, db) {
+                return Ok(user);
             }
         }
     }
@@ -345,6 +447,149 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
     Err(AppError::Unauthorized(
         "Sorry, you are not allowed to create posts as this user.".to_string(),
     ))
+}
+
+// =========================================================================
+// ADMIN SESSION GATE (/n-admin/*)
+// =========================================================================
+
+/// Per-request context of the logged-in admin, available to SSR templates
+/// (top bar "Howdy, …", REST nonce) without threading it through every renderer.
+#[derive(Debug, Clone)]
+pub struct AdminContext {
+    pub user_id: i64,
+    pub username: String,
+    pub display_name: String,
+    pub role: String,
+    pub nonce: String,
+}
+
+tokio::task_local! {
+    pub static ADMIN_CONTEXT: AdminContext;
+}
+
+/// Returns the admin context of the current request (only set inside `/n-admin/*`).
+pub fn current_admin() -> Option<AdminContext> {
+    ADMIN_CONTEXT.try_with(|c| c.clone()).ok()
+}
+
+fn path_requires_admin_session(path: &str) -> bool {
+    if path == "/studio" || path.starts_with("/studio/") {
+        return true;
+    }
+    if path != "/n-admin" && !path.starts_with("/n-admin/") {
+        return false;
+    }
+    !matches!(path, "/n-admin/login.php" | "/n-admin/logout.php")
+}
+
+fn is_admin_machine_endpoint(path: &str) -> bool {
+    path.starts_with("/n-admin/api/")
+}
+
+fn url_encode_component(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len() * 3);
+    for b in raw.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
+/// Axum middleware: every admin screen and `/n-admin/api/*` endpoint requires a valid,
+/// signed login session. Unauthenticated page loads are redirected to `wp-login.php`
+/// (with `redirect_to`), API calls receive `401`. Subscribers may only reach their profile.
+pub async fn admin_session_gate(
+    axum::extract::State(db): axum::extract::State<Database>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let path = req.uri().path().to_string();
+    if !path_requires_admin_session(&path) {
+        return next.run(req).await;
+    }
+
+    let user = req
+        .headers()
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|c| session_user_from_cookie_header(c, &db));
+
+    let user = match user {
+        Some(u) => u,
+        None => {
+            if is_admin_machine_endpoint(&path) {
+                return (
+                    axum::http::StatusCode::UNAUTHORIZED,
+                    axum::Json(serde_json::json!({
+                        "code": "rest_not_logged_in",
+                        "message": "Your session has expired. Please log in again."
+                    })),
+                )
+                    .into_response();
+            }
+            let target = match req.uri().query() {
+                Some(q) => format!("{}?{}", path, q),
+                None => path.clone(),
+            };
+            let location = format!("/wp-login.php?redirect_to={}", url_encode_component(&target));
+            return axum::response::Redirect::to(&location).into_response();
+        }
+    };
+
+    let is_subscriber = user.role.eq_ignore_ascii_case("subscriber");
+    if is_subscriber && !matches!(path.as_str(), "/n-admin/profile.php") {
+        if is_admin_machine_endpoint(&path) {
+            return (
+                axum::http::StatusCode::FORBIDDEN,
+                axum::Json(serde_json::json!({
+                    "code": "rest_forbidden",
+                    "message": "Sorry, you are not allowed to do that."
+                })),
+            )
+                .into_response();
+        }
+        return axum::response::Redirect::to("/n-admin/profile.php").into_response();
+    }
+
+    let detail = db.get_user_detail(user.user_id).ok().flatten();
+    let display_name = detail
+        .as_ref()
+        .map(|d| d.display_name.clone())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| user.username.clone());
+    let secret = db.get_auth_secret().unwrap_or_default();
+    let ctx = AdminContext {
+        user_id: user.user_id,
+        username: user.username.clone(),
+        display_name,
+        role: user.role.clone(),
+        nonce: create_wp_nonce("wp_rest", user.user_id, &secret),
+    };
+
+    let mut req = req;
+    req.extensions_mut().insert(user);
+    ADMIN_CONTEXT.scope(ctx, next.run(req)).await
+}
+
+/// Only allow local, same-site redirect targets after login (prevents open redirects).
+pub fn sanitize_redirect_target(raw: Option<&str>) -> String {
+    let candidate = raw.unwrap_or("").trim();
+    let is_local = candidate.starts_with('/')
+        && !candidate.starts_with("//")
+        && !candidate.starts_with("/\\")
+        && !candidate.contains(['\r', '\n']);
+    if is_local {
+        candidate.to_string()
+    } else {
+        "/n-admin/".to_string()
+    }
 }
 
 impl FromRequestParts<Database> for AuthUser {

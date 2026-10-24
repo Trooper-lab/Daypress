@@ -36,7 +36,7 @@ pub fn render_admin_bar(
                 </li>
                 <li>
                     <a class="ab-item" href="/n-admin/builder?post={id}" style="color: #60a5fa !important; font-weight: 500 !important;">
-                        <span>⚡ Edit with NeoStudio</span>
+                        <span>⚡ Edit with Visual Builder</span>
                     </a>
                 </li>
                 "##,
@@ -236,7 +236,7 @@ pub fn render_admin_bar(
                     <ul id="wp-admin-bar-top-secondary" class="ab-top-secondary ab-top-menu">
                         <li id="wp-admin-bar-my-account" class="menupop with-avatar">
                             <a class="ab-item" aria-haspopup="true" href="/n-admin/profile.php">
-                                <span>Howdy, <strong>{username}</strong></span>
+                                <span>Howdy, <span class="display-name">{username}</span></span>
                                 <span class="ab-avatar">{avatar_initial}</span>
                             </a>
                             <div class="ab-sub-wrapper ab-sub-right">

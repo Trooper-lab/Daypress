@@ -39,7 +39,7 @@ pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaRespo
 
             media_cards.push_str(&format!(
                 r#"
-                <div class="neo-card" style="display: flex; flex-direction: column; overflow: hidden;">
+                <div class="neo-card" style="display: flex; flex-direction: column; overflow: hidden; cursor: pointer;" onclick="openMediaDetails({id})">
                     {preview_html}
                     <div style="padding: 12px; flex: 1;">
                         <div style="font-weight: 600; font-size: 13px; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{title_escaped}">{title_escaped}</div>
@@ -48,8 +48,9 @@ pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaRespo
                             <span>{date_escaped}</span>
                         </div>
                     </div>
-                    <div style="padding: 8px 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
-                        <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;" onclick="copyMediaUrl('{url_escaped}')">Copy Link</button>
+                    <div style="padding: 8px 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;" onclick="event.stopPropagation()">
+                        <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;" onclick="openMediaDetails({id})">Edit</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;" onclick="copyMediaUrl('{url_escaped}')">Copy URL</button>
                         <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px; color: #ef4444;" onclick="deleteMedia({id})">Delete</button>
                     </div>
                 </div>
@@ -65,6 +66,23 @@ pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaRespo
     }
 
     let media_count = media.len();
+    let media_json_items: Vec<serde_json::Value> = media
+        .iter()
+        .map(|m| {
+            serde_json::json!({
+                "id": m.id,
+                "title": m.title.rendered,
+                "source_url": m.source_url,
+                "mime_type": m.mime_type,
+                "file_size": m.file_size,
+                "date": m.date,
+                "alt_text": m.alt_text,
+                "caption": m.caption.rendered,
+                "description": m.description.rendered,
+            })
+        })
+        .collect();
+    let media_json_str = serde_json::to_string(&media_json_items).unwrap_or_else(|_| "[]".to_string());
 
     let body = format!(
         r##"
@@ -99,7 +117,132 @@ pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaRespo
             {media_cards}
         </div>
 
+        <!-- Attachment Details Modal -->
+        <div id="mediaDetailsModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
+            <div style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 840px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); border: 1px solid var(--border-subtle); display: flex; flex-direction: column;">
+                <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Attachment Details</h3>
+                    <button type="button" onclick="closeMediaDetails()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; line-height: 1;">&times;</button>
+                </div>
+                <div style="padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <!-- Left: Preview & Metadata -->
+                    <div>
+                        <div id="modalPreviewBox" style="width: 100%; height: 240px; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 14px;"></div>
+                        <div style="font-size: 12px; color: #64748b; display: flex; flex-direction: column; gap: 6px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle);">
+                            <div><strong style="color: #334155;">File URL:</strong> <a id="modalFileUrlLink" href="#" target="_blank" style="color: #2563eb; word-break: break-all;"></a></div>
+                            <div><strong style="color: #334155;">MIME Type:</strong> <span id="modalMime"></span></div>
+                            <div><strong style="color: #334155;">File Size:</strong> <span id="modalSize"></span></div>
+                            <div><strong style="color: #334155;">Upload Date:</strong> <span id="modalDate"></span></div>
+                        </div>
+                    </div>
+                    <!-- Right: Editable Fields -->
+                    <div style="display: flex; flex-direction: column; gap: 14px;">
+                        <div>
+                            <label class="form-label">Alternative Text (Alt Text)</label>
+                            <input type="text" id="modalAltText" class="form-input" placeholder="Describe image for SEO &amp; accessibility" />
+                        </div>
+                        <div>
+                            <label class="form-label">Title</label>
+                            <input type="text" id="modalTitle" class="form-input" />
+                        </div>
+                        <div>
+                            <label class="form-label">Caption</label>
+                            <textarea id="modalCaption" class="form-textarea" style="height: 60px; min-height: 60px;" placeholder="Optional caption"></textarea>
+                        </div>
+                        <div>
+                            <label class="form-label">Description</label>
+                            <textarea id="modalDescription" class="form-textarea" style="height: 80px; min-height: 80px;" placeholder="Optional description"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 14px 20px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                    <button type="button" class="btn btn-secondary" style="color: #ef4444; border-color: #fca5a5;" onclick="deleteModalMedia()">Delete Permanently</button>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeMediaDetails()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveMediaDetails()">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script>
+            const mediaList = {media_json_str};
+            const mediaData = {{}};
+            mediaList.forEach(m => {{ mediaData[m.id] = m; }});
+            let currentModalMediaId = null;
+
+            function openMediaDetails(id) {{
+                const item = mediaData[id];
+                if (!item) return;
+                currentModalMediaId = id;
+                document.getElementById('modalTitle').value = item.title || '';
+                document.getElementById('modalAltText').value = item.alt_text || '';
+                document.getElementById('modalCaption').value = item.caption || '';
+                document.getElementById('modalDescription').value = item.description || '';
+                document.getElementById('modalFileUrlLink').href = item.source_url;
+                document.getElementById('modalFileUrlLink').textContent = item.source_url;
+                document.getElementById('modalMime').textContent = item.mime_type;
+                document.getElementById('modalSize').textContent = item.file_size ? (Math.round(item.file_size / 1024) + ' KB') : '—';
+                document.getElementById('modalDate').textContent = item.date ? item.date.substring(0, 10) : '—';
+
+                const pBox = document.getElementById('modalPreviewBox');
+                if (item.mime_type.startsWith('image/')) {{
+                    pBox.innerHTML = '<img src="' + item.source_url + '" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;" />';
+                }} else {{
+                    pBox.innerHTML = '<div style="color: #94a3b8; font-size: 14px; font-weight: 600;">' + item.mime_type + '</div>';
+                }}
+
+                document.getElementById('mediaDetailsModal').style.display = 'flex';
+            }}
+
+            function closeMediaDetails() {{
+                document.getElementById('mediaDetailsModal').style.display = 'none';
+                currentModalMediaId = null;
+            }}
+
+            async function saveMediaDetails() {{
+                const id = currentModalMediaId;
+                if (!id) return;
+                const title = document.getElementById('modalTitle').value;
+                const alt_text = document.getElementById('modalAltText').value;
+                const caption = document.getElementById('modalCaption').value;
+                const description = document.getElementById('modalDescription').value;
+
+                showToast('Saving attachment metadata...');
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/media/' + id, {{
+                        method: 'PUT',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{
+                            title: title,
+                            alt_text: alt_text,
+                            caption: caption,
+                            description: description
+                        }})
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ Media attachment #' + id + ' saved to SQLite!');
+                        if (mediaData[id]) {{
+                            mediaData[id].title = title;
+                            mediaData[id].alt_text = alt_text;
+                            mediaData[id].caption = caption;
+                            mediaData[id].description = description;
+                        }}
+                        closeMediaDetails();
+                        setTimeout(() => window.location.reload(), 500);
+                    }} else {{
+                        showToast('Failed to update media details', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
+            function deleteModalMedia() {{
+                if (currentModalMediaId) {{
+                    deleteMedia(currentModalMediaId);
+                }}
+            }}
             async function uploadFiles(files) {{
                 if (!files || files.length === 0) return;
                 showToast('Uploading ' + files.length + ' file(s) to SQLite storage...');

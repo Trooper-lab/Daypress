@@ -246,6 +246,9 @@ impl Database {
     // --- Authentication & Application Passwords ---
 
     pub fn get_auth_secret(&self) -> Result<String> {
+        // Legacy installs shipped with this public constant; anything signed with it is forgeable,
+        // so it is rotated to a per-install random secret the first time it is read.
+        const LEGACY_PUBLIC_SECRET: &str = "neopress_secret_key_change_in_production_f94b8e231";
         let conn = self.conn.lock().unwrap();
         let secret_opt: Option<String> = conn
             .query_row(
@@ -256,15 +259,21 @@ impl Database {
             .ok();
 
         if let Some(s) = secret_opt {
-            return Ok(s);
+            if s != LEGACY_PUBLIC_SECRET && !s.trim().is_empty() {
+                return Ok(s);
+            }
         }
 
-        let default_secret = "neopress_secret_key_change_in_production_f94b8e231";
+        let fresh_secret = crate::auth::random_hex_64();
         let _ = conn.execute(
-            "INSERT OR IGNORE INTO wp_options (option_name, option_value) VALUES ('neopress_auth_secret', ?1)",
-            params![default_secret],
+            "DELETE FROM wp_options WHERE option_name = 'neopress_auth_secret'",
+            [],
         );
-        Ok(default_secret.to_string())
+        let _ = conn.execute(
+            "INSERT INTO wp_options (option_name, option_value) VALUES ('neopress_auth_secret', ?1)",
+            params![fresh_secret],
+        );
+        Ok(fresh_secret)
     }
 
     pub fn verify_user_credentials(

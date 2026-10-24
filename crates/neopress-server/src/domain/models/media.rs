@@ -37,6 +37,22 @@ pub struct WpMediaResponse {
     pub alt_text: String,
     #[serde(default)]
     pub media_details: MediaDetails,
+    /// Attachment caption (`post_excerpt`), WP REST `caption`.
+    #[serde(default = "empty_rendered_text")]
+    pub caption: WpRenderedText,
+    /// Attachment description (`post_content`), WP REST `description`.
+    #[serde(default = "empty_rendered_text")]
+    pub description: WpRenderedText,
+    /// Parent post ID (`post_parent`), WP REST `post` (null when unattached).
+    #[serde(default)]
+    pub post: Option<i64>,
+}
+
+pub fn empty_rendered_text() -> WpRenderedText {
+    WpRenderedText {
+        rendered: String::new(),
+        protected: false,
+    }
 }
 
 pub fn default_media_type() -> String {

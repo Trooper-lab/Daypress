@@ -4,6 +4,7 @@
 //! all Hexagonal Output Ports (`PostRepository`, `TaxonomyRepository`, `OptionRepository`,
 //! `CommentRepository`, `MigrationRepository`).
 
+pub mod admin_lists;
 pub mod comments;
 pub mod ddl;
 pub mod media;

@@ -20,9 +20,11 @@ impl Database {
         } else {
             "category"
         };
+        // `count` mirrors WordPress `_update_post_term_count()`: only published objects are counted.
         let mut stmt = conn.prepare(
             r#"SELECT t.term_id, t.name, t.slug, COALESCE(tt.description, ''), COALESCE(tt.parent, 0),
-                      (SELECT count(*) FROM wp_term_relationships r WHERE r.term_taxonomy_id = tt.term_taxonomy_id) as cnt
+                      (SELECT count(*) FROM wp_term_relationships r JOIN wp_posts p ON p.ID = r.object_id
+                        WHERE r.term_taxonomy_id = tt.term_taxonomy_id AND p.post_status = 'publish') as cnt
                FROM wp_terms t
                JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
                WHERE tt.taxonomy = ?1
@@ -79,15 +81,21 @@ impl Database {
             Some(s) if !s.trim().is_empty() => generated_slugify::slugify(s),
             _ => generated_slugify::slugify(name),
         };
+        let slug = if slug.trim().is_empty() { "term".to_string() } else { slug };
         let desc = req.description.as_deref().unwrap_or("");
-        let parent = req.parent.unwrap_or(0);
+        let parent = req.parent.unwrap_or(0).max(0);
 
         let term_id = {
             let conn = self.conn.lock().unwrap();
+            // Re-use (upsert) only a term that already belongs to *this* taxonomy. A slug owned by a
+            // different taxonomy (e.g. category `news` vs tag `news`) must NOT be shared, otherwise
+            // renaming/deleting the tag would silently mutate the category. `wp_terms.slug` is
+            // globally UNIQUE here, so such collisions get a WordPress-style `-2`, `-3` suffix.
             let existing: Option<i64> = conn
                 .query_row(
-                    "SELECT term_id FROM wp_terms WHERE slug = ?1",
-                    params![slug],
+                    "SELECT t.term_id FROM wp_terms t JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
+                     WHERE t.slug = ?1 AND tt.taxonomy = ?2",
+                    params![slug, taxonomy],
                     |r| r.get(0),
                 )
                 .ok();
@@ -100,9 +108,23 @@ impl Database {
                     id
                 }
                 None => {
+                    let slug_taken = |s: &str| {
+                        conn.query_row(
+                            "SELECT term_id FROM wp_terms WHERE slug = ?1",
+                            params![s],
+                            |r| r.get::<_, i64>(0),
+                        )
+                        .is_ok()
+                    };
+                    let mut unique_slug = slug.clone();
+                    let mut n = 2;
+                    while slug_taken(&unique_slug) {
+                        unique_slug = format!("{}-{}", slug, n);
+                        n += 1;
+                    }
                     conn.execute(
                         "INSERT INTO wp_terms (name, slug) VALUES (?1, ?2)",
-                        params![name, slug],
+                        params![name, unique_slug],
                     )?;
                     conn.last_insert_rowid()
                 }

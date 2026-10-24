@@ -75,70 +75,82 @@ impl Database {
             mime_type: mime_type.to_string(),
             file_size,
             media_type,
-            alt_text: title.to_string(),
+            alt_text: String::new(),
             media_details,
+            caption: empty_rendered_text(),
+            description: empty_rendered_text(),
+            post: None,
+        })
+    }
+
+    /// Shared SELECT for attachment rows (column order consumed by [`Self::map_media_row`]).
+    const MEDIA_SELECT_SQL: &'static str = r#"SELECT p.ID, p.post_date, p.post_name, p.post_title, p.guid, p.post_mime_type,
+                      COALESCE(m_sz.meta_value, '0'), COALESCE(m_meta.meta_value, ''), COALESCE(m_alt.meta_value, ''),
+                      COALESCE(p.post_excerpt, ''), COALESCE(p.post_content, ''), COALESCE(p.post_parent, 0)
+               FROM wp_posts p
+               LEFT JOIN wp_postmeta m_sz ON m_sz.meta_id = (SELECT meta_id FROM wp_postmeta WHERE post_id = p.ID AND meta_key = '_filesize' LIMIT 1)
+               LEFT JOIN wp_postmeta m_meta ON m_meta.meta_id = (SELECT meta_id FROM wp_postmeta WHERE post_id = p.ID AND meta_key = '_wp_attachment_metadata' LIMIT 1)
+               LEFT JOIN wp_postmeta m_alt ON m_alt.meta_id = (SELECT meta_id FROM wp_postmeta WHERE post_id = p.ID AND meta_key = '_wp_attachment_image_alt' LIMIT 1)
+               WHERE p.post_type = 'attachment'"#;
+
+    fn map_media_row(row: &rusqlite::Row<'_>) -> Result<WpMediaResponse> {
+        let id: i64 = row.get(0)?;
+        let date: String = row.get(1)?;
+        let slug: String = row.get(2)?;
+        let title: String = row.get(3)?;
+        let url: String = row.get(4)?;
+        let mime: String = row.get(5)?;
+        let size_str: String = row.get(6)?;
+        let file_size: u64 = size_str.trim().parse().unwrap_or(0);
+        let meta_json: String = row.get(7)?;
+        let alt_text: String = row.get(8)?;
+        let caption: String = row.get(9)?;
+        let description: String = row.get(10)?;
+        let parent: i64 = row.get(11)?;
+
+        let media_details: MediaDetails = if !meta_json.is_empty() {
+            serde_json::from_str(&meta_json).unwrap_or_default()
+        } else {
+            MediaDetails::default()
+        };
+
+        let media_type = if mime.starts_with("image") {
+            "image".to_string()
+        } else {
+            "file".to_string()
+        };
+
+        Ok(WpMediaResponse {
+            id,
+            date: date.replace(' ', "T"),
+            slug,
+            title: WpRenderedText {
+                rendered: title,
+                protected: false,
+            },
+            source_url: url,
+            mime_type: mime,
+            file_size,
+            media_type,
+            alt_text,
+            media_details,
+            caption: WpRenderedText {
+                rendered: caption,
+                protected: false,
+            },
+            description: WpRenderedText {
+                rendered: description,
+                protected: false,
+            },
+            post: if parent > 0 { Some(parent) } else { None },
         })
     }
 
     pub fn get_media_attachments(&self) -> Result<Vec<WpMediaResponse>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            r#"SELECT p.ID, p.post_date, p.post_name, p.post_title, p.guid, p.post_mime_type,
-                      COALESCE(m_sz.meta_value, '0'), COALESCE(m_meta.meta_value, ''), COALESCE(m_alt.meta_value, '')
-               FROM wp_posts p
-               LEFT JOIN wp_postmeta m_sz ON p.ID = m_sz.post_id AND m_sz.meta_key = '_filesize'
-               LEFT JOIN wp_postmeta m_meta ON p.ID = m_meta.post_id AND m_meta.meta_key = '_wp_attachment_metadata'
-               LEFT JOIN wp_postmeta m_alt ON p.ID = m_alt.post_id AND m_alt.meta_key = '_wp_attachment_image_alt'
-               WHERE p.post_type = 'attachment'
-               ORDER BY p.post_date DESC"#
-        )?;
-
-        let rows = stmt.query_map([], |row| {
-            let id: i64 = row.get(0)?;
-            let date: String = row.get(1)?;
-            let slug: String = row.get(2)?;
-            let title: String = row.get(3)?;
-            let url: String = row.get(4)?;
-            let mime: String = row.get(5)?;
-            let size_str: String = row.get(6)?;
-            let file_size: u64 = size_str.parse().unwrap_or(0);
-            let meta_json: String = row.get(7)?;
-            let alt_meta: String = row.get(8)?;
-
-            let media_details: MediaDetails = if !meta_json.is_empty() {
-                serde_json::from_str(&meta_json).unwrap_or_default()
-            } else {
-                MediaDetails::default()
-            };
-
-            let media_type = if mime.starts_with("image") {
-                "image".to_string()
-            } else {
-                "file".to_string()
-            };
-
-            let alt_text = if !alt_meta.is_empty() {
-                alt_meta
-            } else {
-                title.clone()
-            };
-
-            Ok(WpMediaResponse {
-                id,
-                date: date.replace(' ', "T"),
-                slug,
-                title: WpRenderedText {
-                    rendered: title,
-                    protected: false,
-                },
-                source_url: url,
-                mime_type: mime,
-                file_size,
-                media_type,
-                alt_text,
-                media_details,
-            })
-        })?;
+        let sql = format!("{} ORDER BY p.post_date DESC, p.ID DESC", Self::MEDIA_SELECT_SQL);
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map([], Self::map_media_row)?;
 
         let mut list = Vec::new();
         for r in rows {
@@ -148,8 +160,14 @@ impl Database {
     }
 
     pub fn get_media_by_id(&self, id: i64) -> Result<Option<WpMediaResponse>> {
-        let list = self.get_media_attachments()?;
-        Ok(list.into_iter().find(|m| m.id == id))
+        let conn = self.conn.lock().unwrap();
+        let sql = format!("{} AND p.ID = ?1", Self::MEDIA_SELECT_SQL);
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = stmt.query_map(params![id], Self::map_media_row)?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
     }
 
     pub fn update_media_attachment(
@@ -246,6 +264,11 @@ impl Database {
             params![id],
         )?;
         if rows > 0 {
+            // Like WP core's wp_delete_attachment(): drop featured-image references to it.
+            let _ = conn.execute(
+                "DELETE FROM wp_postmeta WHERE meta_key = '_thumbnail_id' AND meta_value = ?1",
+                params![id.to_string()],
+            );
             Ok(guid)
         } else {
             Ok(None)

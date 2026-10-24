@@ -275,7 +275,46 @@ pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
 
 // 3. Widgets (/n-admin/widgets.php)
 pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
-    let body = r##"
+    let default_val = serde_json::json!({
+        "sidebar": ["Search Bar", "Recent Posts"],
+        "footer": ["Categories List"]
+    });
+    let val: serde_json::Value = serde_json::from_str(&settings.widgets_json).unwrap_or(default_val);
+    let sidebar_items = val
+        .get("sidebar")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>())
+        .unwrap_or_else(|| vec!["Search Bar", "Recent Posts"]);
+    let footer_items = val
+        .get("footer")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>())
+        .unwrap_or_else(|| vec!["Categories List"]);
+
+    let mut sidebar_html = String::new();
+    for item in sidebar_items {
+        sidebar_html.push_str(&format!(
+            r#"<div class="neo-card widget-item" style="padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+                <span class="widget-title" style="font-size: 13px; font-weight: 600;">{title}</span>
+                <button onclick="this.parentElement.remove()" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+            </div>"#,
+            title = escape_html(item)
+        ));
+    }
+
+    let mut footer_html = String::new();
+    for item in footer_items {
+        footer_html.push_str(&format!(
+            r#"<div class="neo-card widget-item" style="padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+                <span class="widget-title" style="font-size: 13px; font-weight: 600;">{title}</span>
+                <button onclick="this.parentElement.remove()" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+            </div>"#,
+            title = escape_html(item)
+        ));
+    }
+
+    let body = format!(
+        r##"
         <div class="page-header">
             <div>
                 <h1 class="page-title">Widgets</h1>
@@ -298,7 +337,10 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
                             <strong style="font-size: 13.5px; color: #0f172a;">Search Bar</strong>
                             <div style="font-size: 11.5px; color: #64748b;">A search form for your site</div>
                         </div>
-                        <button class="btn btn-secondary" style="font-size: 11.5px; padding: 4px 10px;" onclick="addWidget('Search Bar')">+ Add</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Search Bar', 'sidebar')">+ Sidebar</button>
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Search Bar', 'footer')">+ Footer</button>
+                        </div>
                     </div>
 
                     <div class="neo-card" style="padding: 12px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid var(--border-subtle);">
@@ -306,7 +348,10 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
                             <strong style="font-size: 13.5px; color: #0f172a;">Recent Posts</strong>
                             <div style="font-size: 11.5px; color: #64748b;">Your site's most recent articles</div>
                         </div>
-                        <button class="btn btn-secondary" style="font-size: 11.5px; padding: 4px 10px;" onclick="addWidget('Recent Posts')">+ Add</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Recent Posts', 'sidebar')">+ Sidebar</button>
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Recent Posts', 'footer')">+ Footer</button>
+                        </div>
                     </div>
 
                     <div class="neo-card" style="padding: 12px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid var(--border-subtle);">
@@ -314,7 +359,10 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
                             <strong style="font-size: 13.5px; color: #0f172a;">Categories List</strong>
                             <div style="font-size: 11.5px; color: #64748b;">A list or dropdown of categories</div>
                         </div>
-                        <button class="btn btn-secondary" style="font-size: 11.5px; padding: 4px 10px;" onclick="addWidget('Categories List')">+ Add</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Categories List', 'sidebar')">+ Sidebar</button>
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Categories List', 'footer')">+ Footer</button>
+                        </div>
                     </div>
 
                     <div class="neo-card" style="padding: 12px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid var(--border-subtle);">
@@ -322,7 +370,10 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
                             <strong style="font-size: 13.5px; color: #0f172a;">Custom HTML</strong>
                             <div style="font-size: 11.5px; color: #64748b;">Arbitrary HTML or embedded snippets</div>
                         </div>
-                        <button class="btn btn-secondary" style="font-size: 11.5px; padding: 4px 10px;" onclick="addWidget('Custom HTML')">+ Add</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Custom HTML', 'sidebar')">+ Sidebar</button>
+                            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="addWidget('Custom HTML', 'footer')">+ Footer</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -333,14 +384,7 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
                     <h3 style="font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Primary Sidebar</h3>
                     <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">Appears on the right side of editorial articles and single posts.</p>
                     <div id="sidebarWidgetArea" style="display: flex; flex-direction: column; gap: 8px;">
-                        <div class="neo-card widget-item" style="padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
-                            <span class="widget-title" style="font-size: 13px; font-weight: 600;">Search Bar</span>
-                            <button onclick="this.parentElement.remove()" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
-                        </div>
-                        <div class="neo-card widget-item" style="padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
-                            <span class="widget-title" style="font-size: 13px; font-weight: 600;">Recent Posts</span>
-                            <button onclick="this.parentElement.remove()" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
-                        </div>
+                        {sidebar_html}
                     </div>
                 </div>
 
@@ -348,47 +392,49 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
                     <h3 style="font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Footer Columns</h3>
                     <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">Appears across the bottom of every page.</p>
                     <div id="footerWidgetArea" style="display: flex; flex-direction: column; gap: 8px;">
-                        <div class="neo-card widget-item" style="padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
-                            <span class="widget-title" style="font-size: 13px; font-weight: 600;">Categories List</span>
-                            <button onclick="this.parentElement.remove()" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
-                        </div>
+                        {footer_html}
                     </div>
                 </div>
             </div>
         </div>
 
         <script>
-            function addWidget(name) {
-                const area = document.getElementById('sidebarWidgetArea');
+            function addWidget(name, zone) {{
+                const areaId = zone === 'footer' ? 'footerWidgetArea' : 'sidebarWidgetArea';
+                const area = document.getElementById(areaId);
+                if (!area) return;
                 const div = document.createElement('div');
                 div.className = 'neo-card widget-item';
                 div.style = 'padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;';
                 div.innerHTML = '<span class="widget-title" style="font-size: 13px; font-weight: 600;">' + name + '</span><button onclick="this.parentElement.remove()" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>';
                 area.appendChild(div);
-                showToast('✓ Added ' + name + ' to Primary Sidebar');
-            }
-            async function saveWidgets() {
+                showToast('✓ Added ' + name + ' to ' + (zone === 'footer' ? 'Footer Columns' : 'Primary Sidebar'));
+            }}
+            async function saveWidgets() {{
                 const sidebar = Array.from(document.querySelectorAll('#sidebarWidgetArea .widget-title')).map(el => el.textContent.trim());
                 const footer = Array.from(document.querySelectorAll('#footerWidgetArea .widget-title')).map(el => el.textContent.trim());
-                try {
-                    const res = await fetch('/n-admin/api/widgets', {
+                try {{
+                    const res = await fetch('/n-admin/api/widgets', {{
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ widgets: { sidebar, footer } })
-                    });
-                    if (res.ok) {
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ widgets: {{ sidebar, footer }} }})
+                    }});
+                    if (res.ok) {{
                         showToast('✓ Widget zones updated in SQLite options!');
-                    } else {
+                    }} else {{
                         showToast('Failed to save widgets', true);
-                    }
-                } catch (e) {
+                    }}
+                }} catch (e) {{
                     showToast('Network error: ' + e, true);
-                }
-            }
+                }}
+            }}
         </script>
-    "##;
+    "##,
+        sidebar_html = sidebar_html,
+        footer_html = footer_html
+    );
 
-    render_wp_admin_shell("widgets", "Widgets", body, settings)
+    render_wp_admin_shell("widgets", "Widgets", &body, settings)
 }
 
 // 4. Menus (/n-admin/nav-menus.php)
@@ -618,10 +664,21 @@ body {
 
         <script>
             let currentThemeFile = 'style.css';
-            function loadFile(name) {
+            async function loadFile(name) {
                 currentThemeFile = name;
                 document.getElementById('activeFileName').textContent = name + ' (Neopress Template)';
-                showToast('Loaded ' + name);
+                try {
+                    const res = await fetch('/n-admin/api/theme-file?file=' + encodeURIComponent(name));
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.content && data.content.trim().length > 0) {
+                            document.getElementById('themeFileContent').value = data.content;
+                        }
+                        showToast('Loaded ' + name);
+                    }
+                } catch (e) {
+                    showToast('Failed to load ' + name, true);
+                }
             }
             async function saveThemeFile() {
                 const content = document.getElementById('themeFileContent').value;

@@ -311,6 +311,19 @@ impl NavState {
 
 /// Renders the classic WordPress top admin bar (`#wpadminbar`) for the admin environment.
 pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
+    let admin = crate::auth::current_admin();
+    let display_name_raw = admin
+        .as_ref()
+        .map(|a| a.display_name.clone())
+        .unwrap_or_else(|| "admin".to_string());
+    let avatar_initial: String = display_name_raw
+        .chars()
+        .find(|c| c.is_alphanumeric())
+        .map(|c| c.to_uppercase().collect::<String>())
+        .unwrap_or_else(|| "A".to_string());
+    let display_name = crate::templates::utils::escape_html(&display_name_raw);
+    let avatar_initial = crate::templates::utils::escape_html(&avatar_initial);
+    let site_name = crate::templates::utils::escape_html(site_name);
     format!(
         r##"<div id="wpadminbar">
 	<div class="ab-top-menu-wrap">
@@ -349,7 +362,7 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 				</a>
 			</li>
 			<li>
-				<a class="ab-item" href="/n-admin/edit.php" title="Quick Search (Ctrl+K)">
+				<a class="ab-item" href="/n-admin/edit.php" title="Quick Search (Ctrl+K)" onclick="event.preventDefault(); neoOpenQuickSearch();">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 					<span>Ctrl+K</span>
 				</a>
@@ -383,8 +396,8 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 		<ul class="ab-top-menu ab-top-secondary">
 			<li class="menupop">
 				<a class="ab-item" href="/n-admin/profile.php">
-					<span>Howdy, <strong>admin</strong></span>
-					<span class="ab-avatar">A</span>
+					<span>Howdy, <strong>{display_name}</strong></span>
+					<span class="ab-avatar">{avatar_initial}</span>
 				</a>
 				<div class="ab-sub-wrapper ab-sub-right">
 					<ul class="ab-submenu">
@@ -397,6 +410,8 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 	</div>
 </div>"##,
         site_name = site_name,
-        pending_comments = pending_comments
+        pending_comments = pending_comments,
+        display_name = display_name,
+        avatar_initial = avatar_initial
     )
 }

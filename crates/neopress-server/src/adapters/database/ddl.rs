@@ -138,6 +138,16 @@ CREATE TABLE IF NOT EXISTS wp_usermeta (
 );
 CREATE INDEX IF NOT EXISTS idx_user_id ON wp_usermeta(user_id);
 
+-- WordPress comment meta (used for `_wp_trash_meta_status` so Restore / Not Spam
+-- return a comment to its previous moderation status, exactly like WP core).
+CREATE TABLE IF NOT EXISTS wp_commentmeta (
+    meta_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comment_id INTEGER NOT NULL DEFAULT 0,
+    meta_key TEXT DEFAULT NULL,
+    meta_value TEXT DEFAULT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_commentmeta_comment_id ON wp_commentmeta(comment_id);
+
 -- Native Subsystems: Transactional Email Queue & Delivery Logs
 CREATE TABLE IF NOT EXISTS wp_neopress_email_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

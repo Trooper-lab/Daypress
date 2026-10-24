@@ -16,32 +16,9 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             description: "Full Yoast & RankMath parity: Per-post SEO title/description/focus-keyphrase analyzer, Schema.org JSON-LD graph, OpenGraph cards, 301/302 Redirect Manager, and 404 Monitor.".to_string(),
             settings_url: Some("/n-admin/seo.php".to_string()),
             is_builtin: true,
-            settings_schema: vec![
-                PluginSettingField {
-                    key: "title_separator".to_string(),
-                    label: "Title Separator".to_string(),
-                    field_type: "text".to_string(),
-                    default_value: "–".to_string(),
-                    description: "Character placed between post title and site name (e.g. –, |, •).".to_string(),
-                    options: vec![],
-                },
-                PluginSettingField {
-                    key: "org_name".to_string(),
-                    label: "Knowledge Graph Organization Name".to_string(),
-                    field_type: "text".to_string(),
-                    default_value: "".to_string(),
-                    description: "Used in Schema.org Publisher structured data.".to_string(),
-                    options: vec![],
-                },
-                PluginSettingField {
-                    key: "twitter_site".to_string(),
-                    label: "Twitter / X Handle".to_string(),
-                    field_type: "text".to_string(),
-                    default_value: "@neopress".to_string(),
-                    description: "Used in twitter:site card metadata.".to_string(),
-                    options: vec![],
-                },
-            ],
+            // Global SEO settings live in `wp_options` and are edited on /n-admin/seo.php
+            // (see `Database::save_global_seo_settings`), so no duplicate plugin-config schema here.
+            settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
         },
         PluginManifest {
@@ -52,24 +29,9 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             description: "Full Contact Form 7, WPForms & Ninja Forms parity: Declarative form builder, honeypot anti-spam protection, SQLite submissions inbox, CSV export, email notifications, and webhook triggers.".to_string(),
             settings_url: Some("/n-admin/forms.php".to_string()),
             is_builtin: true,
-            settings_schema: vec![
-                PluginSettingField {
-                    key: "enable_honeypot".to_string(),
-                    label: "Enable Honeypot Anti-Spam".to_string(),
-                    field_type: "boolean".to_string(),
-                    default_value: "true".to_string(),
-                    description: "Blocks automated spam bots with zero CAPTCHA friction.".to_string(),
-                    options: vec![],
-                },
-                PluginSettingField {
-                    key: "default_notify_email".to_string(),
-                    label: "Default Notification Email".to_string(),
-                    field_type: "text".to_string(),
-                    default_value: "admin@example.com".to_string(),
-                    description: "Fallback email address for form submission alerts.".to_string(),
-                    options: vec![],
-                },
-            ],
+            // Per-form settings (notifications, honeypot, webhooks) are stored on each form
+            // in `wp_neopress_forms.settings_json` and edited on /n-admin/forms.php.
+            settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
         },
         PluginManifest {
@@ -80,16 +42,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             description: "UpdraftPlus & All-in-One WP Migration parity: Zero-downtime SQLite VACUUM INTO hot snapshots, 1-click point-in-time restore, and full JSON/WXR archive downloads.".to_string(),
             settings_url: Some("/n-admin/backups.php".to_string()),
             is_builtin: true,
-            settings_schema: vec![
-                PluginSettingField {
-                    key: "max_snapshots".to_string(),
-                    label: "Maximum Retained Snapshots".to_string(),
-                    field_type: "number".to_string(),
-                    default_value: "10".to_string(),
-                    description: "Automatically prune oldest snapshots when limit is exceeded.".to_string(),
-                    options: vec![],
-                },
-            ],
+            settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
         },
         PluginManifest {
@@ -185,7 +138,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             name: "Neopress WAL Optimizer".to_string(),
             version: "1.0.0".to_string(),
             author: "Neopress Core".to_string(),
-            description: "Automated Write-Ahead-Log checkpointing and SQLite B-tree compaction for sub-millisecond IOPS.".to_string(),
+            description: "Automated Write-Ahead-Log checkpointing: while active, runs PRAGMA wal_checkpoint(TRUNCATE) every 5 minutes to keep the -wal file small and reads fast.".to_string(),
             settings_url: Some("/n-admin/neopress-engine.php".to_string()),
             is_builtin: true,
             settings_schema: vec![],
@@ -214,6 +167,185 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             hooks: PluginHooksManifest::default(),
         },
     ]
+}
+
+/// Built-in modules that are compiled into the server and cannot be switched off
+/// (the code paths they describe — hot backups, WebP variants in the media pipeline and the
+/// WXR/JSON importer — always run). The admin UI shows them as "Core · Always On" and the
+/// toggle API refuses to deactivate them instead of pretending to.
+pub const CORE_ALWAYS_ON_PLUGINS: &[&str] = &[
+    "neopress-backups",
+    "webp-image-engine",
+    "wxr-streaming-xml-importer",
+];
+
+pub fn is_core_always_on(slug: &str) -> bool {
+    CORE_ALWAYS_ON_PLUGINS.contains(&slug)
+}
+
+/// Returns the compiled catalog manifest for a built-in slug (if any).
+pub fn builtin_manifest(slug: &str) -> Option<PluginManifest> {
+    builtin_plugins_catalog().into_iter().find(|m| m.slug == slug)
+}
+
+/// Editable "files" of a declarative community plugin in the Plugin File Editor.
+/// Each hook file maps to one field of [`PluginHooksManifest`].
+pub const PLUGIN_MANIFEST_FILE: &str = "neopress-plugin.json";
+pub const PLUGIN_HOOK_FILES: &[&str] = &[
+    "hooks/head_html.html",
+    "hooks/body_top_html.html",
+    "hooks/content_before_html.html",
+    "hooks/content_after_html.html",
+    "hooks/footer_html.html",
+    "hooks/shortcode_html.html",
+];
+
+/// Returns a mutable reference to the hook template backing an editor hook file.
+pub fn hook_field_mut<'a>(hooks: &'a mut PluginHooksManifest, file: &str) -> Option<&'a mut String> {
+    match file {
+        "hooks/head_html.html" => Some(&mut hooks.head_html),
+        "hooks/body_top_html.html" => Some(&mut hooks.body_top_html),
+        "hooks/content_before_html.html" => Some(&mut hooks.content_before_html),
+        "hooks/content_after_html.html" => Some(&mut hooks.content_after_html),
+        "hooks/footer_html.html" => Some(&mut hooks.footer_html),
+        "hooks/shortcode_html.html" => Some(&mut hooks.shortcode_html),
+        _ => None,
+    }
+}
+
+/// Returns the hook template backing an editor hook file.
+pub fn hook_field<'a>(hooks: &'a PluginHooksManifest, file: &str) -> Option<&'a str> {
+    match file {
+        "hooks/head_html.html" => Some(&hooks.head_html),
+        "hooks/body_top_html.html" => Some(&hooks.body_top_html),
+        "hooks/content_before_html.html" => Some(&hooks.content_before_html),
+        "hooks/content_after_html.html" => Some(&hooks.content_after_html),
+        "hooks/footer_html.html" => Some(&hooks.footer_html),
+        "hooks/shortcode_html.html" => Some(&hooks.shortcode_html),
+        _ => None,
+    }
+}
+
+fn is_valid_plugin_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug.chars().count() <= 64
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+}
+
+fn is_valid_setting_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.chars().count() <= 64
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// Validates and normalizes a community plugin manifest before it is persisted.
+/// Returns non-fatal warnings (e.g. declared-but-unsupported hooks) or a fatal error message.
+pub fn validate_community_manifest(manifest: &mut PluginManifest) -> Result<Vec<String>, String> {
+    let mut warnings = Vec::new();
+    manifest.slug = manifest.slug.trim().to_string();
+    manifest.name = manifest.name.trim().to_string();
+    if !is_valid_plugin_slug(&manifest.slug) {
+        return Err("\"slug\" must be 1-64 chars of lowercase letters, digits, '-' or '_'".to_string());
+    }
+    if manifest.name.is_empty() {
+        return Err("\"name\" is required".to_string());
+    }
+    if builtin_manifest(&manifest.slug).is_some() {
+        return Err(format!(
+            "\"{}\" is a reserved built-in plugin slug; choose a different slug",
+            manifest.slug
+        ));
+    }
+    // Community manifests can never elevate themselves to built-in status.
+    manifest.is_builtin = false;
+    if let Some(url) = manifest.settings_url.as_ref() {
+        let u = url.trim();
+        if u.is_empty() || !u.starts_with('/') || u.starts_with("//") {
+            if !u.is_empty() {
+                warnings.push(format!(
+                    "settings_url \"{}\" ignored (only site-relative paths starting with '/' are allowed)",
+                    u
+                ));
+            }
+            manifest.settings_url = None;
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    for field in &mut manifest.settings_schema {
+        field.key = field.key.trim().to_string();
+        if !is_valid_setting_key(&field.key) {
+            return Err(format!(
+                "settings_schema key \"{}\" is invalid (use letters, digits, '-' or '_')",
+                field.key
+            ));
+        }
+        if !seen.insert(field.key.clone()) {
+            return Err(format!("duplicate settings_schema key \"{}\"", field.key));
+        }
+        if field.label.trim().is_empty() {
+            field.label = field.key.clone();
+        }
+        if field.field_type == "select"
+            && !field.options.is_empty()
+            && !field.options.contains(&field.default_value)
+        {
+            field.default_value = field.options[0].clone();
+        }
+    }
+    let sc = manifest.hooks.shortcode.trim().to_string();
+    if !sc.is_empty() && !is_valid_setting_key(&sc) {
+        return Err(format!(
+            "hooks.shortcode \"{}\" is invalid (use letters, digits, '-' or '_', without brackets)",
+            sc
+        ));
+    }
+    manifest.hooks.shortcode = sc;
+    if !manifest.hooks.shortcode.is_empty() && manifest.hooks.shortcode_html.trim().is_empty() {
+        warnings.push(format!(
+            "shortcode [{}] declared without hooks.shortcode_html; it will not render",
+            manifest.hooks.shortcode
+        ));
+    }
+    if !manifest.hooks.on_post_publish_webhook.trim().is_empty()
+        || !manifest.hooks.on_form_submit_webhook.trim().is_empty()
+    {
+        warnings.push(
+            "on_post_publish_webhook / on_form_submit_webhook are not supported yet and are ignored"
+                .to_string(),
+        );
+    }
+    Ok(warnings)
+}
+
+/// Effective plugin config used for SSR: schema defaults overlaid with saved values.
+/// Values of non-`textarea` fields are HTML-escaped (they are typically interpolated into
+/// attributes such as `style="background: {{bg_color}}"`); textarea fields are raw HTML.
+fn effective_render_config(
+    manifest: &PluginManifest,
+    config: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut out: HashMap<String, String> = HashMap::new();
+    for field in &manifest.settings_schema {
+        let raw = config
+            .get(&field.key)
+            .cloned()
+            .unwrap_or_else(|| field.default_value.clone());
+        let val = if matches!(field.field_type.as_str(), "textarea" | "html" | "code") {
+            raw
+        } else {
+            crate::templates::utils::escape_html(&raw)
+        };
+        out.insert(field.key.clone(), val);
+    }
+    for (k, v) in config {
+        out.entry(k.clone())
+            .or_insert_with(|| crate::templates::utils::escape_html(v));
+    }
+    out
 }
 
 #[derive(Default, Debug, Clone)]
@@ -355,6 +487,8 @@ pub fn render_active_plugin_hooks(
 
         // Community & Declarative Plugin Hook Templates
         let hm = &record.manifest.hooks;
+        let render_cfg = effective_render_config(&record.manifest, cfg);
+        let cfg = &render_cfg;
         if !hm.head_html.is_empty() {
             hooks.head_html.push_str(&interpolate_template(
                 &hm.head_html,
@@ -407,9 +541,12 @@ pub fn expand_shortcodes_in_content(
     settings: &WpSettingsResponse,
 ) -> String {
     let mut out = content.to_string();
+    // Form shortcodes are provided by the built-in "neopress-forms" plugin; like WordPress
+    // with Contact Form 7 deactivated, the raw shortcode is left untouched when it is inactive.
+    let forms_active = out.contains('[') && db.is_plugin_active("neopress-forms");
 
     // 1. Expand [neopress_form id="X"]
-    if out.contains("[neopress_form") {
+    if forms_active && out.contains("[neopress_form") {
         if let Ok(re) = regex::Regex::new(r#"\[neopress_form\s+id=["']?(\d+)["']?[^\]]*\]"#) {
             out = re
                 .replace_all(&out, |caps: &regex::Captures| {
@@ -429,6 +566,9 @@ pub fn expand_shortcodes_in_content(
         r#"\[wpforms[^\]]*\]"#,
         r#"\[ninja_forms[^\]]*\]"#,
     ] {
+        if !forms_active {
+            break;
+        }
         if let Ok(re) = regex::Regex::new(pattern) {
             if re.is_match(&out) {
                 let first_form_id = db
@@ -453,9 +593,10 @@ pub fn expand_shortcodes_in_content(
                 if !sc.is_empty() && !p.manifest.hooks.shortcode_html.is_empty() {
                     let tag = format!("[{}]", sc);
                     if out.contains(&tag) {
+                        let render_cfg = effective_render_config(&p.manifest, &p.config);
                         let rendered = interpolate_template(
                             &p.manifest.hooks.shortcode_html,
-                            &p.config,
+                            &render_cfg,
                             settings,
                             None,
                         );

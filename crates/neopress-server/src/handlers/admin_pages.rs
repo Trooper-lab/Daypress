@@ -277,7 +277,8 @@ pub async fn handle_login_submit(
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();
-    let redirect_to = form.redirect_to.as_deref().unwrap_or("/n-admin/");
+    let redirect_owned = crate::auth::sanitize_redirect_target(form.redirect_to.as_deref());
+    let redirect_to = redirect_owned.as_str();
     let username = form.log.as_deref().unwrap_or("").trim();
     let password = form.pwd.as_deref().unwrap_or("");
 
@@ -294,30 +295,25 @@ pub async fn handle_login_submit(
     match db.authenticate_credentials(username, password) {
         Ok(Some(user)) => {
             let mut headers = HeaderMap::new();
-            let cookie_val = if form.rememberme.is_some() {
-                format!(
-                    "neopress_admin={}; Path=/; Max-Age=1209600; SameSite=Lax; HttpOnly",
-                    user.user_id
-                )
-            } else {
-                format!(
-                    "neopress_admin={}; Path=/; SameSite=Lax; HttpOnly",
-                    user.user_id
-                )
-            };
+            let secret = db.get_auth_secret().unwrap_or_default();
+            let cookie_val = crate::auth::session_cookie_header(
+                user.user_id,
+                &secret,
+                form.rememberme.is_some(),
+            );
             if let Ok(val) = cookie_val.parse() {
                 headers.insert(header::SET_COOKIE, val);
             }
             if let Ok(loc) = redirect_to.parse() {
                 headers.insert(header::LOCATION, loc);
             } else {
-                headers.insert(header::LOCATION, "/n-admin/".parse().unwrap());
+                headers.insert(header::LOCATION, header::HeaderValue::from_static("/n-admin/"));
             }
             (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
         }
         _ => Html(templates::render_wp_login_view(
             &settings,
-            Some("Unknown username or incorrect password. (Default credentials: admin / admin)"),
+            Some("Unknown username or incorrect password."),
             false,
             Some(redirect_to),
         ))

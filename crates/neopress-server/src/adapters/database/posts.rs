@@ -598,6 +598,7 @@ impl Database {
             r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0)
                FROM wp_posts
                WHERE post_name = ?1 AND post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
+                 AND post_status <> 'trash'
                ORDER BY CASE WHEN post_type IN ('page', 'post') THEN 0 ELSE 1 END,
                         CASE WHEN post_status = 'publish' THEN 0 ELSE 1 END,
                         ID DESC"#,
@@ -770,6 +771,14 @@ impl Database {
                 "UPDATE wp_posts SET post_status = ?1, post_modified = ?2 WHERE ID = ?3",
                 params![status, now, id],
             )?;
+            // Keep WordPress trash bookkeeping in sync when status moves into / out of the Trash.
+            if let Some((_, old_status)) = old_slug_and_status.as_ref() {
+                if status == "trash" && old_status != "trash" {
+                    Self::record_trash_meta(&tx, id, old_status);
+                } else if status != "trash" && old_status == "trash" {
+                    Self::clear_trash_meta(&tx, id);
+                }
+            }
         }
         if let Some(slug) = &req.slug {
             let clean_slug = if slug.trim().is_empty() {
@@ -1062,16 +1071,21 @@ impl Database {
             ],
         )?;
         let new_id = tx.last_insert_rowid();
-        let guid = format!("http://localhost:8090/?p={}", new_id);
+        let guid = format!(
+            "{}/?p={}",
+            Self::get_base_url_with_conn(&tx).trim_end_matches('/'),
+            new_id
+        );
         let _ = tx.execute(
             "UPDATE wp_posts SET guid = ?1 WHERE ID = ?2",
             params![guid, new_id],
         );
 
-        // Clone all wp_postmeta rows
+        // Clone all wp_postmeta rows (except Trash bookkeeping of a trashed source)
         tx.execute(
             "INSERT INTO wp_postmeta (post_id, meta_key, meta_value)
-             SELECT ?1, meta_key, meta_value FROM wp_postmeta WHERE post_id = ?2",
+             SELECT ?1, meta_key, meta_value FROM wp_postmeta WHERE post_id = ?2
+               AND meta_key NOT IN ('_wp_trash_meta_status', '_wp_trash_meta_time')",
             params![new_id, source_id],
         )?;
 
@@ -1091,15 +1105,50 @@ impl Database {
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         {
             let conn = self.conn.lock().unwrap();
-            let rows = conn.execute(
-                "UPDATE wp_posts SET post_status = 'trash', post_modified = ?1 WHERE ID = ?2",
-                params![now, id],
-            )?;
-            if rows == 0 {
+            let prev_status: Option<String> = conn
+                .query_row(
+                    "SELECT post_status FROM wp_posts WHERE ID = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+                .ok();
+            let Some(prev_status) = prev_status else {
                 return Ok(None);
+            };
+            if prev_status != "trash" {
+                conn.execute(
+                    "UPDATE wp_posts SET post_status = 'trash', post_modified = ?1 WHERE ID = ?2",
+                    params![now, id],
+                )?;
+                Self::record_trash_meta(&conn, id, &prev_status);
             }
         }
         self.get_post_by_id(id)
+    }
+
+    /// WordPress `wp_trash_post()` parity: remember the pre-trash status and trash time
+    /// (`_wp_trash_meta_status` / `_wp_trash_meta_time`) so the item can be restored.
+    pub(crate) fn record_trash_meta(conn: &Connection, id: i64, prev_status: &str) {
+        let _ = conn.execute(
+            "DELETE FROM wp_postmeta WHERE post_id = ?1 AND meta_key IN ('_wp_trash_meta_status', '_wp_trash_meta_time')",
+            params![id],
+        );
+        let _ = conn.execute(
+            "INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_trash_meta_status', ?2)",
+            params![id, prev_status],
+        );
+        let _ = conn.execute(
+            "INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_trash_meta_time', ?2)",
+            params![id, Utc::now().timestamp().to_string()],
+        );
+    }
+
+    /// WordPress `wp_untrash_post()` parity: drop the trash bookkeeping meta.
+    pub(crate) fn clear_trash_meta(conn: &Connection, id: i64) {
+        let _ = conn.execute(
+            "DELETE FROM wp_postmeta WHERE post_id = ?1 AND meta_key IN ('_wp_trash_meta_status', '_wp_trash_meta_time')",
+            params![id],
+        );
     }
 
     pub fn delete_post(&self, id: i64) -> Result<bool> {

@@ -124,6 +124,26 @@ pub fn render_wp_posts_view_for_type(
             ""
         };
 
+        let row_actions = if p.status == "trash" {
+            format!(
+                r##"<a href="#" onclick="restorePostRow({id}); return false;" style="color: #059669; font-weight: 600;">Restore</a>
+                <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete Permanently</a>"##,
+                id = p.id
+            )
+        } else {
+            format!(
+                r##"<a href="{edit_link}" style="font-weight: 600;">Edit Blocks &amp; ACF</a>
+                <a href="/n-admin/builder.php?post={id}" style="color: #2563eb; font-weight: 600;">⚡ Edit with NeoStudio</a>
+                <a href="#" onclick="duplicatePostRow({id}); return false;" style="color: #4f46e5; font-weight: 600;">Duplicate</a>
+                <a href="{view_link}" target="_blank">View &nearr;</a>
+                <a href="#" onclick="trashPostRow({id}); return false;" style="color: #d97706;">Trash</a>
+                <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete</a>"##,
+                id = p.id,
+                edit_link = edit_link,
+                view_link = view_link
+            )
+        };
+
         rows_html.push_str(&format!(
             r##"
             <tr id="post-{id}" data-status="{status}" style="{initial_row_style}">
@@ -132,12 +152,7 @@ pub fn render_wp_posts_view_for_type(
                     <strong><a href="{edit_link}" style="color: #0f172a; text-decoration: none;">{title}</a></strong>{seo_chip}
                     <div class="table-row-slug">Permalink: {view_link}</div>
                     <div class="table-actions">
-                        <a href="{edit_link}" style="font-weight: 600;">Edit Blocks &amp; ACF</a>
-                        <a href="/n-admin/builder.php?post={id}" style="color: #2563eb; font-weight: 600;">⚡ Edit with NeoStudio</a>
-                        <a href="#" onclick="duplicatePostRow({id}); return false;" style="color: #4f46e5; font-weight: 600;">Duplicate</a>
-                        <a href="{view_link}" target="_blank">View &nearr;</a>
-                        <a href="#" onclick="trashPostRow({id}); return false;" style="color: #d97706;">Trash</a>
-                        <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete</a>
+                        {actions}
                     </div>
                 </td>
                 <td style="width: 130px;"><span style="color: #64748b;">{author}</span></td>
@@ -153,6 +168,7 @@ pub fn render_wp_posts_view_for_type(
             view_link = view_link,
             title = display_title,
             seo_chip = chips,
+            actions = row_actions,
             author = author_display,
             categories = categories_display,
             status_badge = status_badge,
@@ -179,15 +195,24 @@ pub fn render_wp_posts_view_for_type(
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
             <div style="display: flex; gap: 8px;" id="statusFilterTabs">
                 <button type="button" class="btn btn-secondary status-tab" data-filter="all" style="background: #0f172a; color: #fff;" onclick="filterByStatus('all', this)">All ({count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="publish" onclick="filterByStatus('publish', this)">Published ({pub_count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="draft" onclick="filterByStatus('draft', this)">Draft ({draft_count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="trash" onclick="filterByStatus('trash', this)">Trash ({trash_count})</button>
             </div>
-            <div>
-                <input type="text" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 240px; padding: 6px 12px; font-size: 13px;" oninput="filterRows(this.value)" />
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <select id="bulkActionSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;">
+                        <option value="">Bulk actions</option>
+                        <option value="trash">Move to Trash</option>
+                        <option value="restore">Restore</option>
+                        <option value="delete">Delete Permanently</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkActions()">Apply</button>
+                </div>
+                <input type="text" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterRows(this.value)" />
             </div>
         </div>
 
@@ -195,7 +220,7 @@ pub fn render_wp_posts_view_for_type(
             <table class="neo-table" id="postsTable">
                 <thead>
                     <tr>
-                        <th><input type="checkbox"></th>
+                        <th style="width: 32px;"><input type="checkbox" id="selectAllPosts" onchange="toggleSelectAll(this)"></th>
                         <th>Title</th>
                         <th>Author</th>
                         <th>Category</th>
@@ -212,6 +237,15 @@ pub fn render_wp_posts_view_for_type(
         <script>
             let activeStatusFilter = 'all';
 
+            function toggleSelectAll(master) {{
+                document.querySelectorAll('#postsTable tbody input[name="post[]"]').forEach(cb => {{
+                    const row = cb.closest('tr');
+                    if (row && row.style.display !== 'none') {{
+                        cb.checked = master.checked;
+                    }}
+                }});
+            }}
+
             function filterByStatus(status, btn) {{
                 activeStatusFilter = status;
                 document.querySelectorAll('#statusFilterTabs .status-tab').forEach(b => {{
@@ -222,6 +256,8 @@ pub fn render_wp_posts_view_for_type(
                     btn.style.background = '#0f172a';
                     btn.style.color = '#fff';
                 }}
+                const master = document.getElementById('selectAllPosts');
+                if (master) master.checked = false;
                 const q = document.getElementById('postSearchInput') ? document.getElementById('postSearchInput').value : '';
                 filterRows(q);
             }}
@@ -239,6 +275,24 @@ pub fn render_wp_posts_view_for_type(
                         setTimeout(() => window.location.reload(), 550);
                     }} else {{
                         showToast('Error duplicating item', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
+            async function restorePostRow(id) {{
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/posts/' + id, {{
+                        method: 'PUT',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ status: 'draft' }})
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ Restored #' + id + ' as Draft');
+                        setTimeout(() => window.location.reload(), 500);
+                    }} else {{
+                        showToast('Error restoring item', true);
                     }}
                 }} catch (e) {{
                     showToast('Network error: ' + e, true);
@@ -269,6 +323,54 @@ pub fn render_wp_posts_view_for_type(
                 }} else {{
                     showToast('Error deleting post', true);
                 }}
+            }}
+
+            async function applyBulkActions() {{
+                const select = document.getElementById('bulkActionSelect');
+                const action = select ? select.value : '';
+                if (!action) {{
+                    showToast('Please select a bulk action.', true);
+                    return;
+                }}
+                const checked = Array.from(document.querySelectorAll('#postsTable tbody input[name="post[]"]:checked'));
+                if (checked.length === 0) {{
+                    showToast('No items selected.', true);
+                    return;
+                }}
+                if (action === 'delete' && !confirm('Permanently delete ' + checked.length + ' item(s)?')) {{
+                    return;
+                }}
+
+                showToast('Applying ' + action + ' to ' + checked.length + ' item(s)...');
+                let count = 0;
+                for (const cb of checked) {{
+                    const id = cb.value;
+                    try {{
+                        let res;
+                        if (action === 'trash') {{
+                            res = await fetch('/wp-json/wp/v2/posts/' + id, {{
+                                method: 'PUT',
+                                headers: {{ 'Content-Type': 'application/json' }},
+                                body: JSON.stringify({{ status: 'trash' }})
+                            }});
+                        }} else if (action === 'restore') {{
+                            res = await fetch('/wp-json/wp/v2/posts/' + id, {{
+                                method: 'PUT',
+                                headers: {{ 'Content-Type': 'application/json' }},
+                                body: JSON.stringify({{ status: 'draft' }})
+                            }});
+                        }} else if (action === 'delete') {{
+                            res = await fetch('/wp-json/wp/v2/posts/' + id + '?force=true', {{
+                                method: 'DELETE'
+                            }});
+                        }}
+                        if (res && res.ok) count++;
+                    }} catch (e) {{
+                        console.error(e);
+                    }}
+                }}
+                showToast('✓ Updated ' + count + ' item(s)');
+                setTimeout(() => window.location.reload(), 600);
             }}
 
             function filterRows(q) {{
