@@ -95,7 +95,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                 <p class="page-subtitle">Import posts, pages, comments, and media from another system</p>
             </div>
             <div>
-                <a href="/n-admin/api/download-migrator-plugin" class="btn btn-primary" download>⬇ Download WP Migrator Plugin (.php)</a>
+                <a href="/n-admin/api/download-migrator-plugin" class="btn btn-primary" download="neopress-migrator.zip">⬇ Download WP Migrator Plugin (.zip)</a>
             </div>
         </div>
 
@@ -109,19 +109,19 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                     </div>
                     <p style="font-size: 13.5px; color: #475569; margin: 0 0 10px 0; line-height: 1.5;">
                         Standard WordPress XML exports only export raw text and miss compiled theme CSS, Divi/Elementor global style kits, Theme Customizer CSS, and media binaries.
-                        Installing <strong>neopress-migrator.php</strong> on your original WordPress site extracts the entire design with exact visual fidelity in 1 click.
+                        Installing <strong>neopress-migrator.zip</strong> on your original WordPress site extracts the entire design with exact visual fidelity in 1 click.
                     </p>
                     <div style="font-size: 12.5px; color: #64748b; line-height: 1.6;">
                         <strong>Quick Workflow:</strong>
                         <ol style="margin: 4px 0 0 0; padding-left: 18px;">
-                            <li>Upload <code>neopress-migrator.php</code> to your WordPress <code>wp-content/plugins/</code> and activate it.</li>
+                            <li>In WordPress admin, go to <strong>Plugins &rarr; Add New &rarr; Upload Plugin</strong>, choose <code>neopress-migrator.zip</code>, and activate it.</li>
                             <li>Go to <strong>Tools &rarr; Neopress Migrator</strong> and click <strong>"Export Full JSON Bundle"</strong> (or stream directly).</li>
                             <li>Upload the downloaded <code>.json</code> file below into the 1-Click JSON Importer.</li>
                         </ol>
                     </div>
                 </div>
                 <div>
-                    <a href="/n-admin/api/download-migrator-plugin" class="btn btn-secondary" style="padding: 10px 18px; font-weight: 600;" download>⬇ Download neopress-migrator.php</a>
+                    <a href="/n-admin/api/download-migrator-plugin" class="btn btn-secondary" style="padding: 10px 18px; font-weight: 600;" download="neopress-migrator.zip">⬇ Download neopress-migrator.zip</a>
                 </div>
             </div>
         </div>

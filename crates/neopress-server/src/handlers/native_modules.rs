@@ -512,20 +512,20 @@ pub async fn handle_api_plugin_sdk_template() -> impl IntoResponse {
 }
 
 pub async fn handle_api_download_migrator_plugin() -> impl IntoResponse {
-    let script = match std::fs::read_to_string("neopress-migrator.php") {
-        Ok(c) => c,
-        Err(_) => include_str!("../../../../neopress-migrator.php").to_string(),
+    let zip_bytes = match std::fs::read("neopress-migrator.zip") {
+        Ok(b) => b,
+        Err(_) => include_bytes!("../../../../neopress-migrator.zip").to_vec(),
     };
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
-        "application/x-php; charset=utf-8".parse().unwrap(),
+        "application/zip".parse().unwrap(),
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
-        "attachment; filename=\"neopress-migrator.php\""
+        "attachment; filename=\"neopress-migrator.zip\""
             .parse()
             .unwrap(),
     );
-    (StatusCode::OK, headers, script)
+    (StatusCode::OK, headers, zip_bytes)
 }
