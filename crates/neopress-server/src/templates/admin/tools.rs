@@ -94,6 +94,36 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                 <h1 class="page-title">Import</h1>
                 <p class="page-subtitle">Import posts, pages, comments, and media from another system</p>
             </div>
+            <div>
+                <a href="/n-admin/api/download-migrator-plugin" class="btn btn-primary" download>⬇ Download WP Migrator Plugin (.php)</a>
+            </div>
+        </div>
+
+        <!-- Recommended 1:1 Companion Plugin Card -->
+        <div class="neo-card" style="margin-bottom: 24px; padding: 24px; border-left: 4px solid #3b82f6; background: #f8fafc;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                <div style="max-width: 680px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">Recommended for 1:1 Parity</span>
+                        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">1-Click WordPress Companion Plugin</h3>
+                    </div>
+                    <p style="font-size: 13.5px; color: #475569; margin: 0 0 10px 0; line-height: 1.5;">
+                        Standard WordPress XML exports only export raw text and miss compiled theme CSS, Divi/Elementor global style kits, Theme Customizer CSS, and media binaries.
+                        Installing <strong>neopress-migrator.php</strong> on your original WordPress site extracts the entire design with exact visual fidelity in 1 click.
+                    </p>
+                    <div style="font-size: 12.5px; color: #64748b; line-height: 1.6;">
+                        <strong>Quick Workflow:</strong>
+                        <ol style="margin: 4px 0 0 0; padding-left: 18px;">
+                            <li>Upload <code>neopress-migrator.php</code> to your WordPress <code>wp-content/plugins/</code> and activate it.</li>
+                            <li>Go to <strong>Tools &rarr; Neopress Migrator</strong> and click <strong>"Export Full JSON Bundle"</strong> (or stream directly).</li>
+                            <li>Upload the downloaded <code>.json</code> file below into the 1-Click JSON Importer.</li>
+                        </ol>
+                    </div>
+                </div>
+                <div>
+                    <a href="/n-admin/api/download-migrator-plugin" class="btn btn-secondary" style="padding: 10px 18px; font-weight: 600;" download>⬇ Download neopress-migrator.php</a>
+                </div>
+            </div>
         </div>
 
         <!-- WXR XML Stream Ingestion -->

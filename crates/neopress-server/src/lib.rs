@@ -167,6 +167,10 @@ pub fn create_app(database: Database) -> Router {
             "/n-admin/api/plugin-sdk-template",
             get(handle_api_plugin_sdk_template),
         )
+        .route(
+            "/n-admin/api/download-migrator-plugin",
+            get(handle_api_download_migrator_plugin),
+        )
         // 6b. First-Party Modules (SEO & Redirects, Forms Studio, Hot Backups)
         .route("/n-admin/seo.php", get(handle_admin_seo))
         .route("/n-admin/neopress-seo.php", get(handle_admin_seo))

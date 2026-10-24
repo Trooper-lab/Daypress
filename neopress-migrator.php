@@ -317,9 +317,25 @@ class Neopress_1Click_Migrator {
             $brand_color = (string) $all_mods['accent_color'];
         }
 
+        $custom_css = (string) wp_get_custom_css();
+
+        // Divi Theme Options & Custom CSS extraction
+        $divi_options = get_option('et_divi', []);
+        if (is_array($divi_options)) {
+            if (!empty($divi_options['et_custom_css'])) {
+                $custom_css .= "\n/* Divi Theme Options Custom CSS */\n" . $divi_options['et_custom_css'];
+            }
+            if (!empty($divi_options['color_palette'])) {
+                $all_mods['divi_color_palette'] = $divi_options['color_palette'];
+            }
+            if (!empty($divi_options['accent_color'])) {
+                $brand_color = (string) $divi_options['accent_color'];
+            }
+        }
+
         $theme_mods = [
             'active_theme' => (string) get_template(),
-            'custom_css' => (string) wp_get_custom_css(),
+            'custom_css' => $custom_css,
             'brand_color' => $brand_color,
             'raw_mods' => wp_json_encode($all_mods),
         ];
