@@ -111,6 +111,7 @@ class Neopress_1Click_Migrator {
             'post_status' => 'any',
         ]);
         $media = [];
+        $accumulated_b64_bytes = 0;
         foreach ($media_posts as $m) {
             $file_path = get_attached_file($m->ID);
             $file_name = $file_path ? basename($file_path) : basename((string) $m->guid);
@@ -123,8 +124,13 @@ class Neopress_1Click_Migrator {
             }
             $file_size = ($file_path && file_exists($file_path)) ? filesize($file_path) : 0;
             $base64 = '';
-            if ($file_path && file_exists($file_path) && $file_size < 10 * 1024 * 1024) {
-                $base64 = base64_encode(file_get_contents($file_path));
+            // Embed base64 for files up to 2MB, capped at 30MB total to safeguard PHP memory limits
+            if ($file_path && file_exists($file_path) && $file_size < 2 * 1024 * 1024 && $accumulated_b64_bytes < 30 * 1024 * 1024) {
+                $content = @file_get_contents($file_path);
+                if ($content !== false) {
+                    $base64 = base64_encode($content);
+                    $accumulated_b64_bytes += strlen($base64);
+                }
             }
             $alt_text = (string) get_post_meta($m->ID, '_wp_attachment_image_alt', true);
 
@@ -485,6 +491,10 @@ class Neopress_1Click_Migrator {
 
     public function ajax_export_bundle() {
         check_ajax_referer('neopress_migrator_nonce', 'nonce');
+        @set_time_limit(300);
+        if (function_exists('wp_raise_memory_limit')) {
+            wp_raise_memory_limit('admin');
+        }
         $bundle = $this->collect_bundle();
         wp_send_json_success($bundle);
     }
@@ -677,18 +687,24 @@ class Neopress_1Click_Migrator {
                     </div>
                 </div>
 
-                <!-- 1-Click Action Button -->
-                <div style="background: #f1f5f9; border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between;">
+                <!-- 1-Click Action Buttons -->
+                <div style="background: #f1f5f9; border-radius: 10px; padding: 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
                     <div>
-                        <strong style="font-size: 15px; color: #0f172a; display: block;">Atomic 1-Click Migration (with AST Transpilation)</strong>
+                        <strong style="font-size: 15px; color: #0f172a; display: block;">Choose Migration Method</strong>
                         <span style="font-size: 13px; color: #64748b;">
-                            Transpiles Elementor, Divi, and Gutenberg layouts to Neopress AST and commits inside a single SQLite transaction.
+                            Transpiles Divi, Elementor, and Gutenberg layouts to Neopress AST with 100% theme styles.
                         </span>
                     </div>
-                    <button type="button" id="btn-migrate" class="button button-primary" onclick="startMigration()"
-                            style="background: #2563eb; border-color: #1d4ed8; font-size: 15px; font-weight: 600; padding: 12px 28px; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.3); display: flex; align-items: center; gap: 8px;">
-                        <span>🚀 Start 1-Click Migration</span>
-                    </button>
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <button type="button" id="btn-export-json" class="button" onclick="exportMigrationBundle()"
+                                style="background: #ffffff; border: 2px solid #2563eb; color: #2563eb; font-size: 14.5px; font-weight: 700; padding: 12px 22px; height: auto; border-radius: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.15);">
+                            <span>⬇ Export Full JSON Bundle (.json)</span>
+                        </button>
+                        <button type="button" id="btn-migrate" class="button button-primary" onclick="startMigration()"
+                                style="background: #2563eb; border-color: #1d4ed8; font-size: 14.5px; font-weight: 600; padding: 12px 24px; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.25); display: flex; align-items: center; gap: 8px;">
+                            <span>🚀 Direct Stream to Neopress</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -797,6 +813,56 @@ class Neopress_1Click_Migrator {
                 document.getElementById('progress-bar-fill').style.width = pct + '%';
                 if (heading) {
                     document.getElementById('progress-heading').textContent = heading;
+                }
+            }
+
+            async function exportMigrationBundle() {
+                const btn = document.getElementById('btn-export-json');
+                const origHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.style.opacity = '0.7';
+                btn.innerHTML = '<span>⏳ Compiling JSON bundle (styles, AST & media)...</span>';
+
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'neopress_export_bundle');
+                    fd.append('nonce', nonce);
+
+                    const res = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                    const result = await res.json();
+
+                    if (result.success && result.data) {
+                        const jsonStr = JSON.stringify(result.data, null, 2);
+                        const blob = new Blob([jsonStr], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        const siteHost = window.location.hostname.replace(/[^a-zA-Z0-9_-]/g, '_');
+                        a.href = url;
+                        a.download = siteHost + '-neopress-migration-bundle.json';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+
+                        btn.innerHTML = '<span>✓ Bundle Downloaded!</span>';
+                        btn.style.background = '#ecfdf5';
+                        btn.style.color = '#059669';
+                        btn.style.borderColor = '#10b981';
+
+                        setTimeout(() => {
+                            alert('Success! Your Neopress Migration Bundle has been downloaded.\n\nNow open your Neopress Admin at:\nhttp://localhost:8090/n-admin/import.php\n\nAnd upload this JSON file under "Neopress JSON Bundle (1-Click Migrator)".');
+                        }, 250);
+                    } else {
+                        alert('Export failed: ' + ((result.data && result.data.message) || JSON.stringify(result)));
+                        btn.innerHTML = origHtml;
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                    }
+                } catch (e) {
+                    alert('Network error during export: ' + e);
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
                 }
             }
 
