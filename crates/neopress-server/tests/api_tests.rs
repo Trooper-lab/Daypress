@@ -1875,3 +1875,198 @@ async fn test_wp_rest_v2_completeness_admin_persistence_and_public_archives() {
     assert!(home_html.contains("Custom Agency Portal"));
     assert!(home_html.contains(".custom-test-banner { color: #ff4f00; }"));
 }
+
+#[tokio::test]
+async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
+    let db = Database::new_in_memory().unwrap();
+    let app = create_app(db.clone());
+
+    // 1. Initial admin plugins page loads cleanly with all 8 built-in plugins seeded in SQLite
+    let plugins_page_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/n-admin/plugins.php")
+                .header("Cookie", "neopress_admin=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(plugins_page_res.status(), StatusCode::OK);
+    let plugins_html = String::from_utf8(
+        to_bytes(plugins_page_res.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+
+    // Verify status tabs and filter controls
+    assert!(plugins_html.contains("status-tab"));
+    assert!(plugins_html.contains("pluginSearchInput"));
+    assert!(plugins_html.contains("bulkPluginAction"));
+
+    // Verify all 8 built-in plugins are listed
+    assert!(plugins_html.contains("Neopress SEO &amp; Redirection Suite") || plugins_html.contains("Neopress SEO"));
+    assert!(plugins_html.contains("Neopress Forms Studio &amp; Lead Inbox") || plugins_html.contains("Neopress Forms"));
+    assert!(plugins_html.contains("Snapshot &amp; Hot Backup Manager") || plugins_html.contains("Snapshot"));
+    assert!(plugins_html.contains("Floating WhatsApp &amp; Lead Chat Button") || plugins_html.contains("WhatsApp"));
+    assert!(plugins_html.contains("WPCode Header, Footer &amp; Custom Snippets") || plugins_html.contains("WPCode"));
+    assert!(plugins_html.contains("Neopress WAL Optimizer"));
+    assert!(plugins_html.contains("WebP Image Engine"));
+    assert!(plugins_html.contains("WXR Streaming XML"));
+
+    // Verify forms shortcode expansion works out of the box because neopress-forms is active
+    let sample_content = "Please reach out to us: [contact-form-7 id=\"1\" title=\"Contact\"]";
+    let settings = db.get_settings().unwrap();
+    let expanded = neopress_server::plugins::expand_shortcodes_in_content(sample_content, &db, &settings);
+    assert!(expanded.contains("np-native-form-card") || expanded.contains("np-form-"));
+
+    // 2. Add Plugins page (/n-admin/plugin-install.php) loads cleanly with curated extensions
+    let install_page_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/n-admin/plugin-install.php")
+                .header("Cookie", "neopress_admin=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(install_page_res.status(), StatusCode::OK);
+    let install_html = String::from_utf8(
+        to_bytes(install_page_res.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(install_html.contains("1-Click Community Extensions"));
+    assert!(install_html.contains("Top Promo Announcement Bar"));
+    assert!(install_html.contains("Lightweight Cookie Consent"));
+    assert!(install_html.contains("Scroll Reading Progress Bar"));
+    assert!(install_html.contains("quickInstallPlugin"));
+
+    // 3. Test toggle plugin status (deactivate toggleable plugin like whatsapp-chat)
+    let toggle_deactivate_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/n-admin/api/plugins")
+                .header("Cookie", "neopress_admin=1")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "slug": "whatsapp-chat",
+                        "active": false
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(toggle_deactivate_res.status(), StatusCode::OK);
+    assert!(!db.is_plugin_active("whatsapp-chat"));
+
+    // Reactivate whatsapp-chat
+    let toggle_activate_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/n-admin/api/plugins")
+                .header("Cookie", "neopress_admin=1")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "slug": "whatsapp-chat",
+                        "active": true
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(toggle_activate_res.status(), StatusCode::OK);
+    assert!(db.is_plugin_active("whatsapp-chat"));
+
+    // 4. Test core always-on plugin protection: cannot deactivate neopress-backups
+    let toggle_core_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/n-admin/api/plugins")
+                .header("Cookie", "neopress_admin=1")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "slug": "neopress-backups",
+                        "active": false
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(toggle_core_res.status(), StatusCode::BAD_REQUEST);
+    assert!(db.is_plugin_active("neopress-backups"));
+
+    // 5. Test 1-click install of a community extension (cookie-consent)
+    let install_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/n-admin/api/plugin-install")
+                .header("Cookie", "neopress_admin=1")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "manifest": {
+                            "slug": "cookie-consent",
+                            "name": "Lightweight Cookie Consent",
+                            "version": "1.0.0",
+                            "author": "Neopress Community",
+                            "description": "GDPR and privacy cookie compliance banner with opt-in storage",
+                            "script": "console.log('cookie-consent active');",
+                            "admin_settings_schema": []
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(install_res.status(), StatusCode::OK);
+    assert!(db.is_plugin_active("cookie-consent"));
+
+    // Verify community plugin shows up in installed plugins view
+    let plugins_page_res2 = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/n-admin/plugins.php")
+                .header("Cookie", "neopress_admin=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let plugins_html2 = String::from_utf8(
+        to_bytes(plugins_page_res2.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(plugins_html2.contains("Lightweight Cookie Consent"));
+    assert!(plugins_html2.contains("Community"));
+}

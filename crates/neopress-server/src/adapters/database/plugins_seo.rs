@@ -388,8 +388,50 @@ impl Database {
     // NATIVE SUBSYSTEMS: PLUGIN ECOSYSTEM REGISTRY & COMMUNITY EXTENSIONS
     // =========================================================================
 
+    pub fn ensure_builtin_plugins_seeded_with_conn(conn: &Connection) -> Result<()> {
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        for manifest in crate::plugins::builtin_plugins_catalog() {
+            let mut default_cfg = std::collections::HashMap::new();
+            for field in &manifest.settings_schema {
+                default_cfg.insert(field.key.clone(), field.default_value.clone());
+            }
+            let is_always_on = crate::plugins::is_core_always_on(&manifest.slug);
+            let default_active = is_always_on
+                || !matches!(manifest.slug.as_str(), "whatsapp-chat" | "code-snippets");
+            let manifest_json =
+                serde_json::to_string(&manifest).unwrap_or_else(|_| "{}".to_string());
+            let config_json =
+                serde_json::to_string(&default_cfg).unwrap_or_else(|_| "{}".to_string());
+
+            let _ = conn.execute(
+                r#"INSERT INTO wp_neopress_plugins (slug, name, version, description, category, is_builtin, is_active, manifest_json, config_json, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, 'builtin', 1, ?5, ?6, ?7, ?8)
+                   ON CONFLICT(slug) DO UPDATE SET
+                       name = excluded.name,
+                       version = excluded.version,
+                       description = excluded.description,
+                       is_builtin = 1,
+                       manifest_json = excluded.manifest_json,
+                       is_active = CASE WHEN ?9 = 1 THEN 1 ELSE wp_neopress_plugins.is_active END"#,
+                params![
+                    manifest.slug,
+                    manifest.name,
+                    manifest.version,
+                    manifest.description,
+                    if default_active { 1 } else { 0 },
+                    manifest_json,
+                    config_json,
+                    now,
+                    if is_always_on { 1 } else { 0 },
+                ],
+            );
+        }
+        Ok(())
+    }
+
     pub fn get_all_installed_plugins(&self) -> Result<Vec<InstalledPluginRecord>> {
         let conn = self.conn.lock().unwrap();
+        let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
         let mut stmt = conn.prepare(
             "SELECT slug, name, version, description, is_builtin, is_active, manifest_json, config_json, updated_at FROM wp_neopress_plugins ORDER BY is_builtin DESC, name ASC",
         )?;
@@ -435,21 +477,39 @@ impl Database {
     }
 
     pub fn is_plugin_active(&self, slug: &str) -> bool {
+        if crate::plugins::is_core_always_on(slug) {
+            return true;
+        }
         if let Ok(conn) = self.conn.lock() {
-            conn.query_row(
+            let res: Result<i64> = conn.query_row(
                 "SELECT is_active FROM wp_neopress_plugins WHERE slug = ?1",
                 params![slug],
-                |r| r.get::<_, i64>(0),
-            )
-            .map(|v| v != 0)
-            .unwrap_or(false)
+                |r| r.get(0),
+            );
+            match res {
+                Ok(v) => v != 0,
+                Err(_) => {
+                    // Default active for built-in catalog plugins before table seed
+                    matches!(slug, "neopress-seo" | "neopress-forms" | "neopress-wal-optimizer")
+                }
+            }
         } else {
-            false
+            matches!(slug, "neopress-seo" | "neopress-forms" | "neopress-wal-optimizer")
         }
     }
 
     pub fn toggle_plugin_status(&self, slug: &str, active: Option<bool>) -> Result<bool> {
+        if crate::plugins::is_core_always_on(slug) {
+            if active == Some(false) {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "Core subsystem plugin '{}' is always active and cannot be deactivated.",
+                    slug
+                )));
+            }
+            return Ok(true);
+        }
         let conn = self.conn.lock().unwrap();
+        let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let current: Option<i64> = conn
             .query_row(
@@ -472,26 +532,34 @@ impl Database {
 
         if updated == 0 {
             // If toggling a known catalog plugin not yet in wp_neopress_plugins, insert it
-            let manifest = PluginManifest {
-                slug: slug.to_string(),
-                name: slug.replace('-', " "),
-                version: "1.0.0".to_string(),
-                author: "Neopress Community".to_string(),
-                description: "Installed via Neopress Plugin Directory.".to_string(),
-                settings_url: None,
-                is_builtin: false,
-                settings_schema: vec![],
-                hooks: PluginHooksManifest::default(),
+            let manifest = if let Some(m) = crate::plugins::builtin_manifest(slug) {
+                m
+            } else {
+                PluginManifest {
+                    slug: slug.to_string(),
+                    name: slug.replace('-', " "),
+                    version: "1.0.0".to_string(),
+                    author: "Neopress Community".to_string(),
+                    description: "Installed via Neopress Plugin Directory.".to_string(),
+                    settings_url: None,
+                    is_builtin: false,
+                    settings_schema: vec![],
+                    hooks: PluginHooksManifest::default(),
+                }
             };
+            let is_builtin = manifest.is_builtin;
             let manifest_json =
                 serde_json::to_string(&manifest).unwrap_or_else(|_| "{}".to_string());
             conn.execute(
                 "INSERT INTO wp_neopress_plugins (slug, name, version, description, category, is_builtin, is_active, manifest_json, config_json, updated_at)
-                 VALUES (?1, ?2, '1.0.0', ?3, 'community', 0, ?4, ?5, '{}', ?6)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, '{}', ?9)",
                 params![
                     slug,
                     manifest.name,
+                    manifest.version,
                     manifest.description,
+                    if is_builtin { "builtin" } else { "community" },
+                    if is_builtin { 1 } else { 0 },
                     if new_state { 1 } else { 0 },
                     manifest_json,
                     now

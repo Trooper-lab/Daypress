@@ -10,9 +10,14 @@ pub fn render_wp_plugins_view(
     settings: &WpSettingsResponse,
     installed: &[InstalledPluginRecord],
 ) -> String {
-    let active_count = installed.iter().filter(|p| p.active).count();
+    let total_count = installed.len();
+    let active_count = installed
+        .iter()
+        .filter(|p| p.active || crate::plugins::is_core_always_on(&p.manifest.slug))
+        .count();
+    let inactive_count = total_count.saturating_sub(active_count);
     let builtin_count = installed.iter().filter(|p| p.manifest.is_builtin).count();
-    let custom_count = installed.len().saturating_sub(builtin_count);
+    let custom_count = total_count.saturating_sub(builtin_count);
 
     let mut rows_html = String::new();
     for record in installed {
@@ -21,56 +26,69 @@ pub fn render_wp_plugins_view(
         let desc = escape_html(&record.manifest.description);
         let version = escape_html(&record.manifest.version);
         let author = escape_html(&record.manifest.author);
-        let category = if record.manifest.is_builtin {
+        let is_always_on = crate::plugins::is_core_always_on(&record.manifest.slug);
+        let is_active = record.active || is_always_on;
+
+        let category_label = if record.manifest.is_builtin {
             "First-Party Core"
         } else {
             "Community Extension"
         };
 
-        let is_active = record.active;
-        let toggle_label = if is_active { "Deactivate" } else { "Activate" };
-        let badge_cls = if is_active {
-            "badge badge-published"
+        let badge_html = if is_always_on {
+            r#"<span class="badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11px;">Core · Active</span>"#
+        } else if is_active {
+            r#"<span class="badge badge-published" style="font-size:11px;">Active</span>"#
         } else {
-            "badge badge-draft"
-        };
-        let badge_text = if is_active { "Active" } else { "Inactive" };
-
-        let settings_url = if let Some(ref custom_url) = record.manifest.settings_url {
-            if !custom_url.is_empty() {
-                custom_url.clone()
-            } else {
-                format!("/n-admin/plugin-settings.php?plugin={}", slug)
-            }
-        } else {
-            match record.manifest.slug.as_str() {
-                "neopress-seo" => "/n-admin/seo.php".to_string(),
-                "neopress-forms" => "/n-admin/forms.php".to_string(),
-                "neopress-backups" => "/n-admin/backups.php".to_string(),
-                "neopress-wal-optimizer" => "/n-admin/neopress-engine.php".to_string(),
-                "webp-image-engine" => "/n-admin/options-media.php".to_string(),
-                "wxr-streaming-xml-importer" => "/n-admin/import.php".to_string(),
-                other => format!("/n-admin/plugin-settings.php?plugin={}", escape_html(other)),
-            }
-        };
-
-        let settings_label = match record.manifest.slug.as_str() {
-            "neopress-seo" => "SEO & Redirects Studio",
-            "neopress-forms" => "Forms Studio & Inbox",
-            "neopress-backups" => "Manage Snapshots",
-            "wxr-streaming-xml-importer" => "Run Importer",
-            _ => "Settings",
+            r#"<span class="badge badge-draft" style="font-size:11px;">Inactive</span>"#
         };
 
         let origin_badge = if record.manifest.is_builtin {
-            r#"<span style="font-size:10.5px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">First-Party Rust</span>"#.to_string()
+            r#"<span style="font-size:10.5px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600;">Built-In Core</span>"#
         } else {
-            r#"<span style="font-size:10.5px;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">Community SDK</span>"#.to_string()
+            r#"<span style="font-size:10.5px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600;">Community Extension</span>"#
         };
 
-        let uninstall_action = if !record.manifest.is_builtin {
+        let toggle_action = if is_always_on {
+            r#"<span style="color:#64748b; font-size:12px; font-weight:500;">Core (Always Active)</span>"#.to_string()
+        } else if is_active {
             format!(
-                r#"<span>&bull;</span><a href="javascript:void(0)" onclick="uninstallCustomPlugin('{slug}')" class="trash-action">Uninstall</a>"#,
+                r#"<a href="javascript:void(0)" onclick="togglePlugin(this, '{slug}', false)" style="color:#d97706; font-weight:600;">Deactivate</a>"#,
+                slug = slug
+            )
+        } else {
+            format!(
+                r#"<a href="javascript:void(0)" onclick="togglePlugin(this, '{slug}', true)" style="color:#059669; font-weight:600;">Activate</a>"#,
+                slug = slug
+            )
+        };
+
+        let (settings_url, settings_label) = match record.manifest.slug.as_str() {
+            "neopress-seo" => ("/n-admin/seo.php", "SEO Studio & Redirects"),
+            "neopress-forms" => ("/n-admin/forms.php", "Forms Studio & Inbox"),
+            "neopress-backups" => ("/n-admin/backups.php", "Snapshots & Backups"),
+            "neopress-wal-optimizer" => ("/n-admin/neopress-engine.php", "Engine Telemetry"),
+            "webp-image-engine" => ("/n-admin/options-media.php", "Media Settings"),
+            "wxr-streaming-xml-importer" => ("/n-admin/import.php", "Import Tool"),
+            "whatsapp-chat" => ("/n-admin/plugin-settings.php?plugin=whatsapp-chat", "Configure Chat"),
+            "code-snippets" => ("/n-admin/plugin-settings.php?plugin=code-snippets", "Configure Snippets"),
+            _ => {
+                if let Some(ref custom_url) = record.manifest.settings_url {
+                    if !custom_url.is_empty() {
+                        (custom_url.as_str(), "Settings")
+                    } else {
+                        ("/n-admin/plugins.php", "Settings")
+                    }
+                } else {
+                    ("/n-admin/plugins.php", "Settings")
+                }
+            }
+        };
+
+        let custom_actions = if !record.manifest.is_builtin {
+            format!(
+                r#"<span>&bull;</span><a href="/n-admin/plugin-editor.php?plugin={slug}" style="color:#4f46e5; font-weight:500;">Edit Code</a>
+                   <span>&bull;</span><a href="javascript:void(0)" onclick="uninstallCustomPlugin('{slug}')" class="trash-action">Uninstall</a>"#,
                 slug = slug
             )
         } else {
@@ -86,45 +104,56 @@ pub fn render_wp_plugins_view(
             String::new()
         };
 
+        let row_status = if is_active { "active" } else { "inactive" };
+        let row_kind = if record.manifest.is_builtin { "builtin" } else { "community" };
+        let row_bg = if !is_active { "background: #fafafa;" } else { "" };
+
         rows_html.push_str(&format!(
             r##"
-            <tr id="plugin-row-{slug}">
-                <td>
+            <tr id="plugin-row-{slug}" data-status="{row_status}" data-kind="{row_kind}" style="{row_bg}">
+                <td style="width: 32px;"><input type="checkbox" name="checked_plugins[]" value="{slug}" onchange="updateBulkSelection()"></td>
+                <td style="width: 320px;">
                     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;">
                         <strong style="color: #0f172a; font-size: 14px;">{name}</strong>
                         {origin_badge}
                     </div>
                     <div class="table-actions" style="margin-top:8px;">
-                        <a href="javascript:void(0)" onclick="togglePlugin(this, '{slug}')">{toggle_label}</a>
+                        {toggle_action}
                         <span>&bull;</span>
                         <a href="{settings_url}">{settings_label}</a>
-                        {uninstall_action}
+                        {custom_actions}
                     </div>
                 </td>
                 <td>
                     <div style="color:#334155;line-height:1.5;">{desc}{shortcode_hint}</div>
                     <div style="font-size: 11.5px; color: #64748b; margin-top: 6px;">
-                        Version {version} &bull; By {author} &bull; Category: <strong style="color:#475569;">{category}</strong>
+                        Version {version} &bull; By {author} &bull; Category: <strong style="color:#475569;">{category_label}</strong>
                     </div>
                 </td>
-                <td><span class="{badge_cls}">{badge_text}</span></td>
+                <td style="width: 120px;">{badge_html}</td>
             </tr>
             "##,
             slug = slug,
             name = name,
             origin_badge = origin_badge,
-            toggle_label = toggle_label,
+            toggle_action = toggle_action,
             settings_url = settings_url,
             settings_label = settings_label,
-            uninstall_action = uninstall_action,
+            custom_actions = custom_actions,
             desc = desc,
             shortcode_hint = shortcode_hint,
             version = version,
             author = author,
-            category = category,
-            badge_cls = badge_cls,
-            badge_text = badge_text,
+            category_label = category_label,
+            badge_html = badge_html,
+            row_status = row_status,
+            row_kind = row_kind,
+            row_bg = row_bg,
         ));
+    }
+
+    if rows_html.is_empty() {
+        rows_html = r#"<tr><td colspan="4" style="text-align:center; padding:36px; color:#64748b;">No plugins found matching this view.</td></tr>"#.to_string();
     }
 
     let body = format!(
@@ -132,42 +161,41 @@ pub fn render_wp_plugins_view(
         <div class="page-header">
             <div>
                 <h1 class="page-title">Plugins &amp; Native Modules</h1>
-                <p class="page-subtitle">Toggle first-party Rust subsystems or build &amp; install declarative community plugins</p>
+                <p class="page-subtitle">Manage built-in first-party Rust subsystems and declarative community plugins</p>
             </div>
             <div style="display: flex; gap: 10px;">
-                <a href="/n-admin/api/plugin-sdk-template" class="btn btn-secondary">⬇ Download Starter Plugin SDK (.json)</a>
-                <a href="/n-admin/plugin-install.php" class="btn btn-primary">+ Add New / Install Manifest</a>
+                <a href="/n-admin/api/plugin-sdk-template" class="btn btn-secondary">⬇ Download Starter SDK (.json)</a>
+                <a href="/n-admin/plugin-install.php" class="btn btn-primary">+ Add New / Install Extension</a>
             </div>
         </div>
 
-        <!-- KPI Summary & Convergence Notice -->
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-label">Installed Modules</div>
-                <div class="kpi-value">{total_count}</div>
-                <div class="kpi-subtext">{builtin_count} First-Party &bull; {custom_count} Community</div>
+        <!-- Filter Tabs & Real-time Search -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 8px;" id="pluginFilterTabs">
+                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="all" style="background: #0f172a; color: #fff;" onclick="filterPluginsByTab('all', this)">All ({total_count})</button>
+                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="active" onclick="filterPluginsByTab('active', this)">Active ({active_count})</button>
+                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="inactive" onclick="filterPluginsByTab('inactive', this)">Inactive ({inactive_count})</button>
+                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="builtin" onclick="filterPluginsByTab('builtin', this)">Built-In Core ({builtin_count})</button>
+                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="community" onclick="filterPluginsByTab('community', this)">Community ({custom_count})</button>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Active Modules</div>
-                <div class="kpi-value">{active_count}</div>
-                <div class="kpi-subtext">✓ Persisted in SQLite</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Always-On Core Utilities</div>
-                <div class="kpi-value">4 Baked-In</div>
-                <div class="kpi-subtext">Duplicate Post • Analytics • WebP • WXR</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">WP Plugin Convergence</div>
-                <div class="kpi-value">11+ Plugins</div>
-                <div class="kpi-subtext">Yoast • RankMath • CF7 • WPForms • Redirection</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <select id="bulkPluginAction" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;">
+                        <option value="">Bulk actions</option>
+                        <option value="activate">Activate</option>
+                        <option value="deactivate">Deactivate</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkPluginAction()">Apply</button>
+                </div>
+                <input type="text" id="pluginSearchInput" placeholder="Search installed plugins..." class="form-input" style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterPluginsList(this.value)" />
             </div>
         </div>
 
         <div class="neo-table-wrapper">
-            <table class="neo-table">
+            <table class="neo-table" id="pluginsTable">
                 <thead>
                     <tr>
+                        <th style="width: 32px;"><input type="checkbox" id="selectAllPlugins" onchange="toggleSelectAllPlugins(this)"></th>
                         <th style="width: 320px;">Plugin / Module</th>
                         <th>Description &amp; Capabilities</th>
                         <th style="width: 120px;">Status</th>
@@ -180,8 +208,56 @@ pub fn render_wp_plugins_view(
         </div>
 
         <script>
-            async function togglePlugin(btn, plugin) {{
-                const activate = btn.textContent.trim() === 'Activate';
+            let activePluginFilter = 'all';
+
+            function toggleSelectAllPlugins(master) {{
+                document.querySelectorAll('#pluginsTable tbody input[name="checked_plugins[]"]').forEach(cb => {{
+                    const row = cb.closest('tr');
+                    if (row && row.style.display !== 'none') {{
+                        cb.checked = master.checked;
+                    }}
+                }});
+            }}
+
+            function updateBulkSelection() {{
+                // helper if needed
+            }}
+
+            function filterPluginsByTab(filter, btn) {{
+                activePluginFilter = filter;
+                document.querySelectorAll('#pluginFilterTabs .plug-tab').forEach(b => {{
+                    b.style.background = '';
+                    b.style.color = '';
+                }});
+                if (btn) {{
+                    btn.style.background = '#0f172a';
+                    btn.style.color = '#fff';
+                }}
+                const master = document.getElementById('selectAllPlugins');
+                if (master) master.checked = false;
+                const q = document.getElementById('pluginSearchInput') ? document.getElementById('pluginSearchInput').value : '';
+                filterPluginsList(q);
+            }}
+
+            function filterPluginsList(q) {{
+                const filter = (q || '').toLowerCase();
+                const rows = document.querySelectorAll('#pluginsTable tbody tr[data-status]');
+                rows.forEach(r => {{
+                    const text = r.textContent.toLowerCase();
+                    const rowStatus = r.getAttribute('data-status');
+                    const rowKind = r.getAttribute('data-kind');
+                    let tabMatch = true;
+                    if (activePluginFilter === 'active') tabMatch = (rowStatus === 'active');
+                    else if (activePluginFilter === 'inactive') tabMatch = (rowStatus === 'inactive');
+                    else if (activePluginFilter === 'builtin') tabMatch = (rowKind === 'builtin');
+                    else if (activePluginFilter === 'community') tabMatch = (rowKind === 'community');
+
+                    const searchMatch = !filter || text.includes(filter);
+                    r.style.display = (tabMatch && searchMatch) ? '' : 'none';
+                }});
+            }}
+
+            async function togglePlugin(btn, plugin, activate) {{
                 try {{
                     const res = await fetch('/n-admin/api/plugins', {{
                         method: 'POST',
@@ -189,24 +265,41 @@ pub fn render_wp_plugins_view(
                         body: JSON.stringify({{ plugin, active: activate }})
                     }});
                     if (res.ok) {{
-                        const badge = btn.closest('tr').querySelector('.badge');
-                        if (activate) {{
-                            btn.textContent = 'Deactivate';
-                            badge.className = 'badge badge-published';
-                            badge.textContent = 'Active';
-                            showToast('✓ ' + plugin + ' activated in SQLite');
-                        }} else {{
-                            btn.textContent = 'Activate';
-                            badge.className = 'badge badge-draft';
-                            badge.textContent = 'Inactive';
-                            showToast('✓ ' + plugin + ' deactivated in SQLite');
-                        }}
+                        showToast('✓ ' + plugin + (activate ? ' activated!' : ' deactivated!'));
+                        setTimeout(() => window.location.reload(), 450);
                     }} else {{
                         showToast('Failed to update plugin state', true);
                     }}
                 }} catch (e) {{
                     showToast('Network error: ' + e, true);
                 }}
+            }}
+
+            async function applyBulkPluginAction() {{
+                const action = document.getElementById('bulkPluginAction').value;
+                if (!action) {{
+                    showToast('Please select a bulk action', true);
+                    return;
+                }}
+                const checked = Array.from(document.querySelectorAll('#pluginsTable tbody input[name="checked_plugins[]"]:checked'));
+                if (!checked.length) {{
+                    showToast('No plugins selected', true);
+                    return;
+                }}
+                const activate = (action === 'activate');
+                showToast('Updating ' + checked.length + ' plugin(s)...');
+                for (const cb of checked) {{
+                    const plugin = cb.value;
+                    try {{
+                        await fetch('/n-admin/api/plugins', {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ plugin, active: activate }})
+                        }});
+                    }} catch (e) {{}}
+                }}
+                showToast('✓ Bulk update completed');
+                setTimeout(() => window.location.reload(), 500);
             }}
 
             async function uninstallCustomPlugin(slug) {{
@@ -230,10 +323,11 @@ pub fn render_wp_plugins_view(
             }}
         </script>
         "##,
-        total_count = installed.len(),
+        total_count = total_count,
         builtin_count = builtin_count,
         custom_count = custom_count,
         active_count = active_count,
+        inactive_count = inactive_count,
         rows_html = rows_html
     );
 
@@ -249,13 +343,70 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
         r##"
         <div class="page-header">
             <div>
-                <h1 class="page-title">Add Plugins &amp; Community SDK</h1>
-                <p class="page-subtitle">Build or install declarative Neopress plugins with custom settings schemas, SSR HTML/CSS/JS hooks, and custom shortcodes</p>
+                <h1 class="page-title">Add Plugins &amp; Community Extensions</h1>
+                <p class="page-subtitle">Install curated extensions, upload manifest bundles, or develop custom plugins using declarative hooks and schemas</p>
             </div>
             <div style="display: flex; gap: 10px;">
                 <a href="/n-admin/api/plugin-sdk-template" class="btn btn-secondary">⬇ Download Starter SDK (.json)</a>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('pluginManifestFile').click()">Upload Plugin Manifest (.json)</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('pluginManifestFile').click()">Upload Manifest (.json)</button>
                 <input type="file" id="pluginManifestFile" accept=".json,application/json" style="display: none;" onchange="handleManifestFileUpload(this)">
+            </div>
+        </div>
+
+        <!-- Featured Community Extensions -->
+        <div style="margin-bottom: 32px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Featured 1-Click Community Extensions</h3>
+                <span style="font-size: 12px; color: #64748b;">Ready to install directly into SQLite</span>
+            </div>
+            <div id="pluginCatalogGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+                <div class="neo-card" style="padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #0f172a;">Top Promo Announcement Bar</h3>
+                            <span style="font-size: 11px; background: #ecfdf5; color: #059669; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Community SDK</span>
+                        </div>
+                        <p style="font-size: 13px; color: #64748b; margin: 8px 0 14px 0; line-height: 1.5;">
+                            Sticky top banner with customizable colors, link button, and <code>[promo_cta]</code> shortcode for marketing campaigns.
+                        </p>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                        <span style="font-size: 12px; color: #94a3b8;">Hooks: body_top + shortcode</span>
+                        <button class="btn btn-primary" style="font-size: 12px;" onclick="quickInstallPlugin('promo-announcement-bar')">Install Now</button>
+                    </div>
+                </div>
+
+                <div class="neo-card" style="padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #0f172a;">Lightweight Cookie Consent</h3>
+                            <span style="font-size: 11px; background: #f5f3ff; color: #7c3aed; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Privacy First</span>
+                        </div>
+                        <p style="font-size: 13px; color: #64748b; margin: 8px 0 14px 0; line-height: 1.5;">
+                            Zero-dependency GDPR &amp; ePrivacy compliant cookie notification bar with customizable disclosure notice and accept button.
+                        </p>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                        <span style="font-size: 12px; color: #94a3b8;">Hooks: footer</span>
+                        <button class="btn btn-primary" style="font-size: 12px;" onclick="quickInstallPlugin('cookie-consent')">Install Now</button>
+                    </div>
+                </div>
+
+                <div class="neo-card" style="padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <h3 style="font-size: 15px; font-weight: 700; color: #0f172a;">Scroll Reading Progress Bar</h3>
+                            <span style="font-size: 11px; background: #eff6ff; color: #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Editorial</span>
+                        </div>
+                        <p style="font-size: 13px; color: #64748b; margin: 8px 0 14px 0; line-height: 1.5;">
+                            Renders a smooth progress bar at the very top of articles that dynamically fills as the reader scrolls down.
+                        </p>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                        <span style="font-size: 12px; color: #94a3b8;">Hooks: body_top</span>
+                        <button class="btn btn-primary" style="font-size: 12px;" onclick="quickInstallPlugin('reading-progress-bar')">Install Now</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -263,66 +414,101 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
         <div class="neo-card" style="padding: 24px; margin-bottom: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div>
-                    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Community Plugin Manifest Installer (<code>neopress-plugin.json</code>)</h3>
+                    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Community Plugin Manifest Developer (<code>neopress-plugin.json</code>)</h3>
                     <p style="font-size: 13px; color: #64748b; margin-top: 4px;">
-                        Define <code>settings_schema</code> fields and <code>hooks</code> (<code>head_html</code>, <code>body_top_html</code>, <code>content_before_html</code>, <code>content_after_html</code>, <code>footer_html</code>, and custom <code>shortcode</code>) using <code>{{{{setting_key}}}}</code> placeholders. Neopress automatically generates the Admin Settings UI and SSR pipeline.
+                        Paste or edit custom JSON schemas (<code>settings_schema</code>) and HTML/CSS/JS hook templates (<code>head_html</code>, <code>body_top_html</code>, <code>content_before_html</code>, <code>footer_html</code>, <code>shortcode</code>). Neopress will validate and register the plugin.
                     </p>
                 </div>
             </div>
-            <textarea id="manifestJsonInput" rows="12" class="neo-html-textarea" style="min-height: 240px; font-size: 12.5px; margin-bottom: 14px;">{sdk_sample}</textarea>
+            <textarea id="manifestJsonInput" rows="10" class="neo-html-textarea" style="min-height: 200px; font-size: 12.5px; margin-bottom: 14px;">{sdk_sample}</textarea>
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <button type="button" class="btn btn-primary" onclick="installManifestFromTextarea()">Validate &amp; Install Community Plugin &rarr;</button>
-                <a href="/n-admin/plugins.php" style="font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600;">View Installed Plugins &rarr;</a>
-            </div>
-        </div>
-
-        <!-- Quick-Install Community Extensions -->
-        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 14px;">One-Click Community Extensions</h3>
-        <div id="pluginCatalogGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
-            <div class="neo-card plugin-catalog-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <h3 style="font-size: 15px; font-weight: 700; color: #0f172a;">Promo Announcement Top Bar</h3>
-                        <span style="font-size: 11px; background: #ecfdf5; color: #059669; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Community SDK</span>
-                    </div>
-                    <p style="font-size: 13px; color: #64748b; margin: 8px 0 14px 0; line-height: 1.5;">Injects a customizable top announcement banner and <code>[promo_banner]</code> shortcode with zero client JS overhead.</p>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                    <span style="font-size: 12px; color: #94a3b8;">Hooks: body_top + shortcode</span>
-                    <button class="btn btn-secondary" style="font-size: 12px;" onclick="installManifestFromTextarea()">Install Now</button>
-                </div>
-            </div>
-
-            <div class="neo-card plugin-catalog-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <h3 style="font-size: 15px; font-weight: 700; color: #0f172a;">Floating WhatsApp Chat</h3>
-                        <span style="font-size: 11px; background: #eff6ff; color: #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Built-In</span>
-                    </div>
-                    <p style="font-size: 13px; color: #64748b; margin: 8px 0 14px 0; line-height: 1.5;">Click-to-Chat floating WhatsApp lead button with pre-filled welcome message and Joinchat / Click-to-Chat convergence.</p>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                    <span style="font-size: 12px; color: #94a3b8;">Zero-JS SSR Widget</span>
-                    <a href="/n-admin/plugin-settings.php?plugin=whatsapp-chat" class="btn btn-secondary" style="font-size: 12px;">Configure &rarr;</a>
-                </div>
-            </div>
-
-            <div class="neo-card plugin-catalog-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <h3 style="font-size: 15px; font-weight: 700; color: #0f172a;">WPCode Header &amp; Footer Snippets</h3>
-                        <span style="font-size: 11px; background: #eff6ff; color: #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Built-In</span>
-                    </div>
-                    <p style="font-size: 13px; color: #64748b; margin: 8px 0 14px 0; line-height: 1.5;">Safely inject custom analytics scripts, verification tags, or CSS into <code>&lt;head&gt;</code>, body top, and <code>&lt;footer&gt;</code>.</p>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                    <span style="font-size: 12px; color: #94a3b8;">WPCode / IHAF Parity</span>
-                    <a href="/n-admin/plugin-settings.php?plugin=code-snippets" class="btn btn-secondary" style="font-size: 12px;">Configure &rarr;</a>
-                </div>
+                <button type="button" class="btn btn-primary" onclick="installManifestFromTextarea()">Validate &amp; Install Plugin &rarr;</button>
+                <a href="/n-admin/plugins.php" style="font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600;">&larr; Return to Installed Plugins</a>
             </div>
         </div>
 
         <script>
+            const CURATED_EXTENSIONS = {{
+                "promo-announcement-bar": {{
+                    "slug": "promo-announcement-bar",
+                    "name": "Top Promo Announcement Bar",
+                    "version": "1.0.0",
+                    "author": "Community Developer",
+                    "description": "Displays a customizable sticky announcement banner at the top of every public page and provides a [promo_cta] shortcode.",
+                    "settings_url": "/n-admin/plugin-settings.php?plugin=promo-announcement-bar",
+                    "is_builtin": false,
+                    "settings_schema": [
+                        {{ "key": "banner_text", "label": "Announcement Text", "field_type": "text", "default_value": "⚡ Fast 1-Click Migrations with Neopress CMS!", "description": "Banner message displayed across the top.", "options": [] }},
+                        {{ "key": "bg_color", "label": "Background Color", "field_type": "color", "default_value": "#1e293b", "description": "Hex color code.", "options": [] }},
+                        {{ "key": "text_color", "label": "Text Color", "field_type": "color", "default_value": "#f8fafc", "description": "Hex text color.", "options": [] }},
+                        {{ "key": "cta_link", "label": "Call-to-Action Link URL", "field_type": "text", "default_value": "/contact/", "description": "Optional link URL for the banner button.", "options": [] }},
+                        {{ "key": "cta_label", "label": "Button Label", "field_type": "text", "default_value": "Learn More →", "description": "Button text.", "options": [] }}
+                    ],
+                    "hooks": {{
+                        "head_html": "<style>#np-promo-bar {{ position: relative; z-index: 9998; padding: 10px 16px; text-align: center; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 12px; }} #np-promo-bar a {{ text-decoration: underline; font-weight: 600; color: inherit; }}</style>",
+                        "body_top_html": "<div id=\"np-promo-bar\" style=\"background: {{{{bg_color}}}}; color: {{{{text_color}}}};\"><span>{{{{banner_text}}}}</span><a href=\"{{{{cta_link}}}}\">{{{{cta_label}}}}</a></div>",
+                        "shortcode": "promo_cta",
+                        "shortcode_html": "<div style=\"padding: 16px 20px; background: {{{{bg_color}}}}; color: {{{{text_color}}}}; border-radius: 8px; text-align: center; margin: 16px 0;\"><p style=\"margin: 0 0 10px 0; font-size: 15px; font-weight: 600;\">{{{{banner_text}}}}</p><a href=\"{{{{cta_link}}}}\" style=\"display: inline-block; padding: 6px 16px; background: #ffffff; color: #0f172a; border-radius: 4px; font-weight: 600; text-decoration: none;\">{{{{cta_label}}}}</a></div>"
+                    }}
+                }},
+                "cookie-consent": {{
+                    "slug": "cookie-consent",
+                    "name": "Lightweight Cookie Consent Banner",
+                    "version": "1.1.0",
+                    "author": "Privacy First",
+                    "description": "Zero-dependency GDPR & ePrivacy compliant cookie notification bar with customizable notice and accept button.",
+                    "settings_url": "/n-admin/plugin-settings.php?plugin=cookie-consent",
+                    "is_builtin": false,
+                    "settings_schema": [
+                        {{ "key": "notice_text", "label": "Notice Text", "field_type": "text", "default_value": "We use essential cookies to ensure high-performance browsing.", "description": "Cookie disclosure text.", "options": [] }},
+                        {{ "key": "accept_button_text", "label": "Accept Button Text", "field_type": "text", "default_value": "Accept & Close", "description": "Button label.", "options": [] }}
+                    ],
+                    "hooks": {{
+                        "footer_html": "<div id=\"np-cookie-banner\" style=\"position: fixed; bottom: 20px; left: 20px; right: 20px; max-width: 520px; margin: 0 auto; background: #0f172a; color: #f8fafc; padding: 14px 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 99999; display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 12.5px;\"><span>{{{{notice_text}}}}</span><button onclick=\"this.parentElement.remove(); localStorage.setItem('np_cookie_ack', '1')\" style=\"padding: 6px 14px; background: #2563eb; color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer;\">{{{{accept_button_text}}}}</button></div><script>if (localStorage.getItem('np_cookie_ack')) {{ const b = document.getElementById('np-cookie-banner'); if (b) b.remove(); }}</script>"
+                    }}
+                }},
+                "reading-progress-bar": {{
+                    "slug": "reading-progress-bar",
+                    "name": "Scroll Reading Progress Bar",
+                    "version": "1.0.0",
+                    "author": "Editorial Studio",
+                    "description": "Renders a smooth progress bar at the very top of articles that fills as the reader scrolls down.",
+                    "settings_url": "/n-admin/plugin-settings.php?plugin=reading-progress-bar",
+                    "is_builtin": false,
+                    "settings_schema": [
+                        {{ "key": "bar_color", "label": "Progress Bar Color", "field_type": "color", "default_value": "#2563eb", "description": "Color of the reading bar.", "options": [] }},
+                        {{ "key": "bar_height", "label": "Height (px)", "field_type": "text", "default_value": "4", "description": "Thickness of the progress bar.", "options": [] }}
+                    ],
+                    "hooks": {{
+                        "body_top_html": "<div id=\"np-reading-bar\" style=\"position: fixed; top: 0; left: 0; width: 0%; height: {{{{bar_height}}}}px; background: {{{{bar_color}}}}; z-index: 99999; transition: width 0.1s linear;\"></div><script>window.addEventListener('scroll', () => {{ const h = document.documentElement.scrollHeight - window.innerHeight; const pct = h > 0 ? (window.scrollY / h) * 100 : 0; const el = document.getElementById('np-reading-bar'); if (el) el.style.width = Math.min(100, Math.max(0, pct)) + '%'; }});</script>"
+                    }}
+                }}
+            }};
+
+            async function quickInstallPlugin(slug) {{
+                const manifest = CURATED_EXTENSIONS[slug];
+                if (!manifest) return;
+                showToast('Installing ' + manifest.name + '...');
+                try {{
+                    const res = await fetch('/n-admin/api/plugin-install', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ manifest }})
+                    }});
+                    const data = await res.json();
+                    if (res.ok && data.success) {{
+                        showToast('✓ ' + manifest.name + ' installed & activated!');
+                        setTimeout(() => {{
+                            window.location.href = '/n-admin/plugin-settings.php?plugin=' + encodeURIComponent(manifest.slug);
+                        }}, 600);
+                    }} else {{
+                        showToast('Install error: ' + (data.error || 'Unknown error'), true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
             async function handleManifestFileUpload(input) {{
                 if (!input.files || !input.files[0]) return;
                 try {{

@@ -205,6 +205,7 @@ pub async fn handle_api_menus_save(
 #[derive(Debug, Deserialize)]
 pub struct PluginTogglePayload {
     pub plugin: Option<String>,
+    pub slug: Option<String>,
     pub active: Option<bool>,
     pub active_plugins: Option<Vec<String>>,
 }
@@ -213,8 +214,15 @@ pub async fn handle_api_plugins_save(
     State(db): State<Database>,
     axum::Json(payload): axum::Json<PluginTogglePayload>,
 ) -> impl IntoResponse {
-    if let Some(ref slug) = payload.plugin {
-        let _ = db.toggle_plugin_status(slug, payload.active);
+    let target_slug = payload.plugin.as_deref().or(payload.slug.as_deref());
+    if let Some(slug) = target_slug {
+        if let Err(e) = db.toggle_plugin_status(slug, payload.active) {
+            return (
+                StatusCode::BAD_REQUEST,
+                axum::Json(serde_json::json!({ "success": false, "error": e.to_string() })),
+            )
+                .into_response();
+        }
     }
     if let Some(ref list) = payload.active_plugins {
         if let Ok(all) = db.get_all_installed_plugins() {

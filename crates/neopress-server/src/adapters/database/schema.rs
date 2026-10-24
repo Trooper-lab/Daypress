@@ -106,6 +106,7 @@ impl Database {
 
         conn.execute_batch(super::ddl::SUBSYSTEMS_SCHEMA_SQL)?;
         crate::theme_builder::schema::init_theme_builder_schema(&conn)?;
+        let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
 
         // Ensure layout_json and is_sticky columns exist on existing wp_posts tables
         let mut has_layout_col = false;
