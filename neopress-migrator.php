@@ -339,9 +339,46 @@ class Neopress_1Click_Migrator {
             }
         }
 
+        // Sniff live rendered front-page styles, header, footer, and logo
+        $compiled_css = '';
+        $header_html = '';
+        $footer_html = '';
+        $custom_logo_url = '';
+        
+        $logo_id = get_theme_mod('custom_logo');
+        if ($logo_id) {
+            $custom_logo_url = (string) wp_get_attachment_url($logo_id);
+        }
+
+        $home_resp = wp_remote_get(home_url('/'), ['timeout' => 15, 'sslverify' => false]);
+        if (!is_wp_error($home_resp)) {
+            $home_html = wp_remote_retrieve_body($home_resp);
+            if (!empty($home_html)) {
+                // Extract all <style> tags from front page
+                if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $home_html, $matches)) {
+                    $compiled_css = implode("\n/* --- COMPILED WP STYLESHEET BLOCK --- */\n", $matches[1]);
+                }
+                // Extract <header> and <footer>
+                if (preg_match('/<header[^>]*>.*?<\/header>/is', $home_html, $hm)) {
+                    $header_html = $hm[0];
+                }
+                if (preg_match('/<footer[^>]*>.*?<\/footer>/is', $home_html, $fm)) {
+                    $footer_html = $fm[0];
+                }
+                // Extract logo if not set via custom_logo
+                if (empty($custom_logo_url) && preg_match('/<img[^>]+id=[\'"]logo[\'"][^>]+src=[\'"]([^\'"]+)[\'"]/i', $home_html, $lm)) {
+                    $custom_logo_url = $lm[1];
+                }
+            }
+        }
+
         $theme_mods = [
             'active_theme' => (string) get_template(),
             'custom_css' => $custom_css,
+            'compiled_css' => $compiled_css,
+            'header_html' => $header_html,
+            'footer_html' => $footer_html,
+            'custom_logo_url' => $custom_logo_url,
             'brand_color' => $brand_color,
             'raw_mods' => wp_json_encode($all_mods),
         ];

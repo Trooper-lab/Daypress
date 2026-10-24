@@ -100,7 +100,15 @@ pub struct ImportThemeMods {
     pub active_theme: Option<String>,
     pub custom_css: Option<String>,
     #[serde(default)]
+    pub compiled_css: Option<String>,
+    #[serde(default)]
+    pub header_html: Option<String>,
+    #[serde(default)]
+    pub footer_html: Option<String>,
+    #[serde(default)]
     pub custom_logo: Option<i64>,
+    #[serde(default)]
+    pub custom_logo_url: Option<String>,
     #[serde(default)]
     pub nav_menu_locations: Option<serde_json::Value>,
 }

@@ -129,7 +129,7 @@ impl Database {
             }
         }
 
-        // Theme mods & custom CSS
+        // Theme mods, compiled CSS, and Header/Footer templates
         if let Some(tm) = &req.theme_mods {
             if let Some(t) = &tm.active_theme {
                 for key in ["neopress_imported_theme", "stylesheet", "template"] {
@@ -140,13 +140,36 @@ impl Database {
                     )?;
                 }
             }
+            let mut final_css = String::new();
             if let Some(css) = &tm.custom_css {
+                final_css.push_str(css);
+            }
+            if let Some(comp) = &tm.compiled_css {
+                if !comp.trim().is_empty() {
+                    if !final_css.is_empty() {
+                        final_css.push_str("\n/* --- COMPILED BUILDER & THEME STYLESHEET --- */\n");
+                    }
+                    final_css.push_str(comp);
+                }
+            }
+            if !final_css.trim().is_empty() {
                 for key in ["neopress_custom_css", "custom_css"] {
                     tx.execute(
                         "INSERT INTO wp_options (option_name, option_value) VALUES (?1, ?2)
                          ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value",
-                        params![key, css],
+                        params![key, final_css],
                     )?;
+                }
+            }
+
+            if let Some(hdr) = &tm.header_html {
+                if !hdr.trim().is_empty() {
+                    let _ = crate::importer::templates::upsert_theme_template(&tx, "Theme Header", "header", hdr, None, 100);
+                }
+            }
+            if let Some(ftr) = &tm.footer_html {
+                if !ftr.trim().is_empty() {
+                    let _ = crate::importer::templates::upsert_theme_template(&tx, "Theme Footer", "footer", ftr, None, 100);
                 }
             }
         }
