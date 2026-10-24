@@ -306,3 +306,83 @@ impl NavState {
         }
     }
 }
+
+/// Renders the classic WordPress top admin bar (`#wpadminbar`) for the admin environment.
+pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
+    format!(
+        r##"<div id="wpadminbar">
+	<div class="ab-top-menu-wrap">
+		<ul class="ab-top-menu">
+			<li class="menupop">
+				<a class="ab-item" href="/n-admin/index.php" title="About Neopress">
+					<img src="/static/neopress-icon.svg" style="width: 16px; height: 16px; border-radius: 3px;" alt="Neopress" />
+				</a>
+				<div class="ab-sub-wrapper">
+					<ul class="ab-submenu">
+						<li><a class="ab-item" href="/n-admin/index.php">About Neopress</a></li>
+						<li><a class="ab-item" href="/n-admin/site-health.php">Site Health</a></li>
+						<li><a class="ab-item" href="/n-admin/neopress-engine.php">Engine Telemetry</a></li>
+					</ul>
+				</div>
+			</li>
+			<li class="menupop">
+				<a class="ab-item" href="/" target="_blank">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+					<span>{site_name}</span>
+				</a>
+				<div class="ab-sub-wrapper">
+					<ul class="ab-submenu">
+						<li><a class="ab-item" href="/" target="_blank">Visit Site &nearr;</a></li>
+						<li><a class="ab-item" href="/n-admin/themes.php">Themes</a></li>
+						<li><a class="ab-item" href="/n-admin/widgets.php">Widgets</a></li>
+						<li><a class="ab-item" href="/n-admin/nav-menus.php">Menus</a></li>
+						<li><a class="ab-item" href="/n-admin/customize.php">Customize</a></li>
+					</ul>
+				</div>
+			</li>
+			<li>
+				<a class="ab-item" href="/n-admin/edit-comments.php" title="Comments">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+					<span>{pending_comments}</span>
+				</a>
+			</li>
+			<li class="menupop">
+				<a class="ab-item" href="/n-admin/post-new.php">
+					<span style="font-size: 15px; font-weight: 700; line-height: 1;">+</span>
+					<span>New</span>
+				</a>
+				<div class="ab-sub-wrapper">
+					<ul class="ab-submenu">
+						<li><a class="ab-item" href="/n-admin/post-new.php">Post</a></li>
+						<li><a class="ab-item" href="/n-admin/media-new.php">Media</a></li>
+						<li><a class="ab-item" href="/n-admin/post-new.php?post_type=page">Page</a></li>
+						<li><a class="ab-item" href="/n-admin/user-new.php">User</a></li>
+					</ul>
+				</div>
+			</li>
+			<li>
+				<a class="ab-item" href="/n-admin/builder" style="color: #38bdf8;">
+					<span>⚡ NeoStudio</span>
+				</a>
+			</li>
+		</ul>
+		<ul class="ab-top-menu ab-top-secondary">
+			<li class="menupop">
+				<a class="ab-item" href="/n-admin/profile.php">
+					<span>Howdy, <strong>admin</strong></span>
+					<span class="ab-avatar">A</span>
+				</a>
+				<div class="ab-sub-wrapper ab-sub-right">
+					<ul class="ab-submenu">
+						<li><a class="ab-item" href="/n-admin/profile.php">Edit Profile</a></li>
+						<li><a class="ab-item" href="/wp-login.php?action=logout" style="color: #f87171;">Log Out</a></li>
+					</ul>
+				</div>
+			</li>
+		</ul>
+	</div>
+</div>"##,
+        site_name = site_name,
+        pending_comments = pending_comments
+    )
+}

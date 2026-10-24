@@ -1,7 +1,9 @@
 //! Admin Shell HTML Markup and template rendering.
 
 use crate::models::WpSettingsResponse;
-use crate::templates::admin::layout::navigation::{render_cpt_navigation, NavState};
+use crate::templates::admin::layout::navigation::{
+    render_cpt_navigation, render_wp_admin_bar, NavState,
+};
 use crate::templates::admin::layout::styles_components::get_styles_components;
 use crate::templates::admin::layout::styles_forms::get_styles_forms;
 use crate::templates::admin::layout::styles_shell::get_styles_shell;
@@ -20,6 +22,7 @@ pub fn render_wp_admin_shell(
 
     let nav = NavState::compute(current_tab);
     let custom_post_types_nav = render_cpt_navigation(current_tab, &settings.custom_post_types);
+    let wp_admin_bar = render_wp_admin_bar(site_name, settings.pending_comments_count);
     let styles_shell = get_styles_shell();
     let styles_comp = get_styles_components();
     let styles_forms = get_styles_forms();
@@ -47,6 +50,7 @@ pub fn render_wp_admin_shell(
 	</script>
 </head>
 <body>
+{wp_admin_bar}
 <div id="neo-app">
 	<!-- Left 240px Navigation Sidebar -->
 	<aside id="neo-sidebar">
@@ -54,17 +58,8 @@ pub fn render_wp_admin_shell(
 			<a href="/n-admin/" class="brand-link">
 				<img src="/static/neopress-icon.svg" class="brand-icon" alt="Neopress Icon" />
 				<span class="brand-name">Neopress</span>
-				<span class="brand-badge">RUST</span>
 			</a>
 		</div>
-
-		<a href="/n-admin/neopress-engine.php" class="sidebar-engine-pill">
-			<span class="pulse-dot"></span>
-			<div class="engine-meta">
-				<span class="engine-title">Embedded Rusqlite</span>
-				<span class="engine-sub">WAL Mode &bull; &lt;0.15ms</span>
-			</div>
-		</a>
 
 		<nav class="sidebar-nav">
 			<!-- 1. DASHBOARD -->
@@ -302,12 +297,29 @@ pub fn render_wp_admin_shell(
 			toast.style.display = 'none';
 		}}, 3500);
 	}}
+
+	document.querySelectorAll('#neo-sidebar .nav-group').forEach(group => {{
+		group.addEventListener('mouseenter', () => {{
+			if (!group.classList.contains('open')) {{
+				const sub = group.querySelector('.nav-submenu');
+				if (sub) {{
+					const rect = group.getBoundingClientRect();
+					const maxTop = Math.max(36, window.innerHeight - 220);
+					sub.style.top = Math.min(rect.top, maxTop) + 'px';
+				}}
+			}} else {{
+				const sub = group.querySelector('.nav-submenu');
+				if (sub) sub.style.top = '';
+			}}
+		}});
+	}});
 </script>
 </body>
 </html>
 "##,
         page_title = page_title,
         site_name = site_name,
+        wp_admin_bar = wp_admin_bar,
         styles_shell = styles_shell,
         styles_comp = styles_comp,
         styles_forms = styles_forms,

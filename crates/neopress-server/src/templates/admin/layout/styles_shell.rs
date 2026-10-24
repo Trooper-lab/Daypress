@@ -37,6 +37,119 @@ pub fn get_styles_shell() -> &'static str {
 		#neo-app {
 			display: flex;
 			min-height: 100vh;
+			padding-top: 32px;
+		}
+
+		/* ==================== CLASSIC WP ADMIN TOP BAR ==================== */
+		#wpadminbar {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			height: 32px;
+			background: #1d2327;
+			color: #c3c4c7;
+			z-index: 99999;
+			font-family: var(--font-sans);
+			font-size: 13px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+			user-select: none;
+		}
+
+		#wpadminbar .ab-top-menu-wrap {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			height: 100%;
+			padding: 0 8px;
+		}
+
+		#wpadminbar .ab-top-menu {
+			display: flex;
+			align-items: center;
+			list-style: none;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+
+		#wpadminbar .ab-top-menu > li {
+			position: relative;
+			height: 32px;
+			display: flex;
+			align-items: center;
+		}
+
+		#wpadminbar .ab-item {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			height: 32px;
+			padding: 0 10px;
+			color: #f0f0f1;
+			text-decoration: none;
+			font-size: 13px;
+			line-height: 32px;
+			transition: background 0.12s, color 0.12s;
+		}
+
+		#wpadminbar .ab-top-menu > li:hover > .ab-item {
+			background: #2c3338;
+			color: #72aee6;
+		}
+
+		#wpadminbar .ab-avatar {
+			width: 18px;
+			height: 18px;
+			border-radius: 3px;
+			background: #2271b1;
+			color: #fff;
+			font-size: 10px;
+			font-weight: 700;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		#wpadminbar .ab-sub-wrapper {
+			display: none;
+			position: absolute;
+			top: 32px;
+			left: 0;
+			min-width: 175px;
+			background: #2c3338;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+			padding: 4px 0;
+			z-index: 100000;
+		}
+
+		#wpadminbar .ab-sub-wrapper.ab-sub-right {
+			left: auto;
+			right: 0;
+		}
+
+		#wpadminbar .menupop:hover > .ab-sub-wrapper {
+			display: block;
+		}
+
+		#wpadminbar .ab-submenu {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+		}
+
+		#wpadminbar .ab-submenu .ab-item {
+			display: block;
+			height: auto;
+			line-height: 1.4;
+			padding: 6px 14px;
+			color: #c3c4c7;
+			font-size: 12.5px;
+		}
+
+		#wpadminbar .ab-submenu .ab-item:hover {
+			background: #1d2327;
+			color: #72aee6;
 		}
 
 		/* ==================== 2026 SIDEBAR ==================== */
@@ -46,7 +159,7 @@ pub fn get_styles_shell() -> &'static str {
 			border-right: 1px solid #1e293b;
 			color: #f8fafc;
 			position: fixed;
-			top: 0;
+			top: 32px;
 			bottom: 0;
 			left: 0;
 			display: flex;
@@ -56,7 +169,7 @@ pub fn get_styles_shell() -> &'static str {
 		}
 
 		.sidebar-header {
-			padding: 18px 20px 14px 20px;
+			padding: 16px 20px 14px 20px;
 			border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 		}
 
@@ -78,69 +191,6 @@ pub fn get_styles_shell() -> &'static str {
 			font-size: 16px;
 			font-weight: 700;
 			letter-spacing: -0.4px;
-		}
-
-		.brand-badge {
-			font-family: var(--font-mono);
-			font-size: 9px;
-			font-weight: 700;
-			padding: 2px 5px;
-			background: rgba(56, 189, 248, 0.15);
-			color: #38bdf8;
-			border: 1px solid rgba(56, 189, 248, 0.25);
-			border-radius: 4px;
-			letter-spacing: 0.5px;
-		}
-
-		/* Engine Health Pill */
-		.sidebar-engine-pill {
-			margin: 12px 14px;
-			padding: 8px 10px;
-			background: rgba(255, 255, 255, 0.03);
-			border: 1px solid rgba(255, 255, 255, 0.08);
-			border-radius: 7px;
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			text-decoration: none;
-			transition: background 0.15s;
-		}
-
-		.sidebar-engine-pill:hover {
-			background: rgba(255, 255, 255, 0.06);
-		}
-
-		.pulse-dot {
-			width: 7px;
-			height: 7px;
-			background: #10b981;
-			border-radius: 50%;
-			box-shadow: 0 0 6px #10b981;
-			animation: pulse 2s infinite ease-in-out;
-		}
-
-		@keyframes pulse {
-			0% { opacity: 0.5; }
-			50% { opacity: 1; }
-			100% { opacity: 0.5; }
-		}
-
-		.engine-meta {
-			display: flex;
-			flex-direction: column;
-		}
-
-		.engine-title {
-			font-size: 11px;
-			font-weight: 600;
-			color: #e2e8f0;
-			line-height: 1.2;
-		}
-
-		.engine-sub {
-			font-size: 10px;
-			color: #94a3b8;
-			font-family: var(--font-mono);
 		}
 
 		/* Nav Section */
@@ -205,7 +255,7 @@ pub fn get_styles_shell() -> &'static str {
 			color: #cbd5e1;
 		}
 
-		/* Submenu hierarchy */
+		/* Submenu hierarchy: inline underneath when selected (.open), side-preview flyout on hover when not selected */
 		.nav-group {
 			position: relative;
 			margin-bottom: 2px;
@@ -213,25 +263,51 @@ pub fn get_styles_shell() -> &'static str {
 
 		.nav-submenu {
 			display: none;
-			padding: 3px 0 5px 12px;
-			margin: 2px 10px 4px 24px;
-			border-left: 2px solid rgba(255, 255, 255, 0.1);
 			flex-direction: column;
 			gap: 2px;
 		}
 
-		.nav-group.open .nav-submenu,
-		.nav-group:hover .nav-submenu {
+		.nav-group.open > .nav-submenu {
 			display: flex;
+			position: static;
+			padding: 3px 0 5px 12px;
+			margin: 2px 10px 4px 24px;
+			border-left: 2px solid rgba(255, 255, 255, 0.1);
+		}
+
+		.nav-group:not(.open):hover > .nav-submenu {
+			display: flex;
+			position: fixed;
+			left: var(--sidebar-w);
+			top: 120px;
+			min-width: 195px;
+			padding: 6px;
+			margin: 0;
+			background: #0f172a;
+			border: 1px solid #1e293b;
+			border-left: 2px solid #38bdf8;
+			border-radius: 0 8px 8px 0;
+			box-shadow: 10px 12px 28px rgba(0, 0, 0, 0.45);
+			z-index: 99999;
+		}
+
+		.nav-group:not(.open):hover > .nav-submenu::before {
+			content: "";
+			position: absolute;
+			left: -14px;
+			top: 0;
+			bottom: 0;
+			width: 14px;
 		}
 
 		.nav-subitem {
 			display: block;
-			padding: 4px 10px;
+			padding: 5px 10px;
 			font-size: 12.5px;
 			color: #94a3b8;
 			text-decoration: none;
 			border-radius: 4px;
+			white-space: nowrap;
 			transition: all 0.15s ease;
 		}
 
@@ -327,7 +403,7 @@ pub fn get_styles_shell() -> &'static str {
 			backdrop-filter: blur(12px);
 			border-bottom: 1px solid var(--border-subtle);
 			position: sticky;
-			top: 0;
+			top: 32px;
 			z-index: 50;
 			display: flex;
 			align-items: center;
