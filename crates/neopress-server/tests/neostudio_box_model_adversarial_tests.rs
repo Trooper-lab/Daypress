@@ -16,26 +16,68 @@ fn test_cad_tokens_rigorous_verification() {
     let css = styles::tokens::CSS_TOKENS;
 
     // 1. Verify 5 Named Hex Tokens
-    assert!(css.contains("--neo-chassis:         #0D0F12;"), "Obsidian Chassis token must match #0D0F12");
-    assert!(css.contains("--neo-surface:         #15181E;"), "Graphite Surface token must match #15181E");
-    assert!(css.contains("--neo-rule:            #242933;"), "Hairline Rule token must match #242933");
-    assert!(css.contains("--neo-ink:             #F2F4F8;"), "Alabaster Ink token must match #F2F4F8");
-    assert!(css.contains("--neo-muted:           #8A93A6;"), "Slate Muted token must match #8A93A6");
+    assert!(
+        css.contains("--neo-chassis:         #0D0F12;"),
+        "Obsidian Chassis token must match #0D0F12"
+    );
+    assert!(
+        css.contains("--neo-surface:         #15181E;"),
+        "Graphite Surface token must match #15181E"
+    );
+    assert!(
+        css.contains("--neo-rule:            #242933;"),
+        "Hairline Rule token must match #242933"
+    );
+    assert!(
+        css.contains("--neo-ink:             #F2F4F8;"),
+        "Alabaster Ink token must match #F2F4F8"
+    );
+    assert!(
+        css.contains("--neo-muted:           #8A93A6;"),
+        "Slate Muted token must match #8A93A6"
+    );
 
     // 2. Verify Signal and Token Accents
-    assert!(css.contains("--neo-signal:          #2563EB;"), "Cobalt Signal must match #2563EB");
-    assert!(css.contains("--neo-token:           #F59E0B;"), "Amber Token must match #F59E0B");
+    assert!(
+        css.contains("--neo-signal:          #2563EB;"),
+        "Cobalt Signal must match #2563EB"
+    );
+    assert!(
+        css.contains("--neo-token:           #F59E0B;"),
+        "Amber Token must match #F59E0B"
+    );
 
     // 3. Verify Typography Font Stacks
-    assert!(css.contains("\"Inter\", \"Plus Jakarta Sans\""), "UI font family must include Inter and Plus Jakarta Sans");
-    assert!(css.contains("\"JetBrains Mono\""), "Mono font family must include JetBrains Mono");
+    assert!(
+        css.contains("\"Inter\", \"Plus Jakarta Sans\""),
+        "UI font family must include Inter and Plus Jakarta Sans"
+    );
+    assert!(
+        css.contains("\"JetBrains Mono\""),
+        "Mono font family must include JetBrains Mono"
+    );
 
     // 4. Verify Control Heights and Metrics
-    assert!(css.contains("--neo-topbar-h:        40px;"), "Topbar height must be 40px");
-    assert!(css.contains("--neo-rail-w:          48px;"), "Rail width must be 48px");
-    assert!(css.contains("--neo-drawer-w:        280px;"), "Drawer width must be 280px");
-    assert!(css.contains("--neo-inspector-w:     300px;"), "Inspector width must be 300px");
-    assert!(css.contains("--neo-control-h:       26px;"), "CAD control row height must be 26px");
+    assert!(
+        css.contains("--neo-topbar-h:        40px;"),
+        "Topbar height must be 40px"
+    );
+    assert!(
+        css.contains("--neo-rail-w:          48px;"),
+        "Rail width must be 48px"
+    );
+    assert!(
+        css.contains("--neo-drawer-w:        280px;"),
+        "Drawer width must be 280px"
+    );
+    assert!(
+        css.contains("--neo-inspector-w:     300px;"),
+        "Inspector width must be 300px"
+    );
+    assert!(
+        css.contains("--neo-control-h:       26px;"),
+        "CAD control row height must be 26px"
+    );
 }
 
 #[test]

@@ -62,12 +62,21 @@ async fn test_adversarial_external_url_preservation_and_link_remapping() {
 
     db.import_wxr(Cursor::new(wxr)).expect("WXR import failed");
 
-    let post = db.get_post_by_slug("adv-links").unwrap().expect("post found");
+    let post = db
+        .get_post_by_slug("adv-links")
+        .unwrap()
+        .expect("post found");
     let content = &post.content.rendered;
 
     // 1. Assert internal links are cleanly remapped
-    assert!(content.contains(r#"href="/""#), "Internal root link must be /");
-    assert!(content.contains(r#"href="/about/""#), "Internal subpage link must be /about/");
+    assert!(
+        content.contains(r#"href="/""#),
+        "Internal root link must be /"
+    );
+    assert!(
+        content.contains(r#"href="/about/""#),
+        "Internal subpage link must be /about/"
+    );
     assert!(
         content.contains(r#"href="/shop/?sort=desc&color=blue#grid""#),
         "Query and fragment on internal link must be preserved relative"
@@ -91,7 +100,9 @@ async fn test_adversarial_external_url_preservation_and_link_remapping() {
         "External Twitter URL with query must not be altered"
     );
     assert!(
-        content.contains("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700&display=swap"),
+        content.contains(
+            "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700&display=swap"
+        ),
         "External Google Fonts link must not be altered"
     );
     assert!(
@@ -112,7 +123,10 @@ async fn test_adversarial_external_url_preservation_and_link_remapping() {
     );
 
     // 3. Verify in Elementor JSON AST
-    let elem_post = db.get_post_by_slug("adv-elem-links").unwrap().expect("elem post found");
+    let elem_post = db
+        .get_post_by_slug("adv-elem-links")
+        .unwrap()
+        .expect("elem post found");
     let elem_content = &elem_post.content.rendered;
     assert!(
         elem_content.contains("https://github.com/rust-lang/rust"),
@@ -231,11 +245,31 @@ async fn test_adversarial_theme_builder_display_conditions_and_specificity() {
     let _ = db.set_option("show_on_front", "page");
     let _ = db.set_option("page_on_front", "601");
 
-    let no_footer_post = db.get_post_by_slug("no-footer-page").unwrap().expect("post found");
-    println!("DEBUG: no_footer_post.id = {}, slug = {}", no_footer_post.id, no_footer_post.slug);
-    let tpl3 = db.theme_templates().get_by_id(3).unwrap().expect("template 3 exists");
-    let excl_cond = tpl3.conditions.iter().find(|c| c.condition_type == neopress_server::theme_builder::models::ConditionType::Exclude).expect("exclude cond exists");
-    assert_eq!(excl_cond.target_id, no_footer_post.id.to_string(), "WXR import must remap condition target_id to new SQLite post id");
+    let no_footer_post = db
+        .get_post_by_slug("no-footer-page")
+        .unwrap()
+        .expect("post found");
+    println!(
+        "DEBUG: no_footer_post.id = {}, slug = {}",
+        no_footer_post.id, no_footer_post.slug
+    );
+    let tpl3 = db
+        .theme_templates()
+        .get_by_id(3)
+        .unwrap()
+        .expect("template 3 exists");
+    let excl_cond = tpl3
+        .conditions
+        .iter()
+        .find(|c| {
+            c.condition_type == neopress_server::theme_builder::models::ConditionType::Exclude
+        })
+        .expect("exclude cond exists");
+    assert_eq!(
+        excl_cond.target_id,
+        no_footer_post.id.to_string(),
+        "WXR import must remap condition target_id to new SQLite post id"
+    );
 
     let app = create_app(db);
 
@@ -260,7 +294,10 @@ async fn test_adversarial_theme_builder_display_conditions_and_specificity() {
     );
 
     // 2. Request standard page (/standard-page/): Must render Default Global Header AND Universal Footer
-    let req = Request::builder().uri("/standard-page/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/standard-page/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -280,7 +317,10 @@ async fn test_adversarial_theme_builder_display_conditions_and_specificity() {
     );
 
     // 3. Request excluded page (/no-footer-page/): Must NOT render Universal Footer because of exclude condition!
-    let req = Request::builder().uri("/no-footer-page/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/no-footer-page/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();

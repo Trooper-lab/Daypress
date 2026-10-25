@@ -90,7 +90,11 @@ pub fn map_headers_module(
                     secondary_button_url: None,
                 })
             } else {
-                let min_h = if fullscreen { "min-height: 100vh;" } else { "min-height: 480px;" };
+                let min_h = if fullscreen {
+                    "min-height: 100vh;"
+                } else {
+                    "min-height: 480px;"
+                };
                 let bg_col = styles
                     .background_color
                     .clone()

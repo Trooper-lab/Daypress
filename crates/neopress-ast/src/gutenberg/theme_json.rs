@@ -178,7 +178,10 @@ impl ThemeJson {
             if let Some(color) = &settings.color {
                 if let Some(palette) = &color.palette {
                     for item in palette {
-                        root_vars.push(format!("  --wp--preset--color--{}: {};", item.slug, item.color));
+                        root_vars.push(format!(
+                            "  --wp--preset--color--{}: {};",
+                            item.slug, item.color
+                        ));
                         utility_classes.push(format!(
                             ".has-{slug}-color {{ color: var(--wp--preset--color--{slug}) !important; }}\n\
                              .has-{slug}-background-color {{ background-color: var(--wp--preset--color--{slug}) !important; }}\n\
@@ -189,7 +192,10 @@ impl ThemeJson {
                 }
                 if let Some(gradients) = &color.gradients {
                     for item in gradients {
-                        root_vars.push(format!("  --wp--preset--gradient--{}: {};", item.slug, item.gradient));
+                        root_vars.push(format!(
+                            "  --wp--preset--gradient--{}: {};",
+                            item.slug, item.gradient
+                        ));
                         utility_classes.push(format!(
                             ".has-{slug}-gradient-background {{ background: var(--wp--preset--gradient--{slug}) !important; }}",
                             slug = item.slug
@@ -201,7 +207,10 @@ impl ThemeJson {
             if let Some(typo) = &settings.typography {
                 if let Some(sizes) = &typo.font_sizes {
                     for item in sizes {
-                        root_vars.push(format!("  --wp--preset--font-size--{}: {};", item.slug, item.size));
+                        root_vars.push(format!(
+                            "  --wp--preset--font-size--{}: {};",
+                            item.slug, item.size
+                        ));
                         utility_classes.push(format!(
                             ".has-{slug}-font-size {{ font-size: var(--wp--preset--font-size--{slug}) !important; }}",
                             slug = item.slug
@@ -210,7 +219,10 @@ impl ThemeJson {
                 }
                 if let Some(families) = &typo.font_families {
                     for item in families {
-                        root_vars.push(format!("  --wp--preset--font-family--{}: {};", item.slug, item.font_family));
+                        root_vars.push(format!(
+                            "  --wp--preset--font-family--{}: {};",
+                            item.slug, item.font_family
+                        ));
                         utility_classes.push(format!(
                             ".has-{slug}-font-family {{ font-family: var(--wp--preset--font-family--{slug}) !important; }}",
                             slug = item.slug
@@ -222,7 +234,10 @@ impl ThemeJson {
             if let Some(spacing) = &settings.spacing {
                 if let Some(sizes) = &spacing.spacing_sizes {
                     for item in sizes {
-                        root_vars.push(format!("  --wp--preset--spacing--{}: {};", item.slug, item.size));
+                        root_vars.push(format!(
+                            "  --wp--preset--spacing--{}: {};",
+                            item.slug, item.size
+                        ));
                     }
                 }
             }
@@ -230,7 +245,10 @@ impl ThemeJson {
             if let Some(shadow) = &settings.shadow {
                 if let Some(presets) = &shadow.presets {
                     for item in presets {
-                        root_vars.push(format!("  --wp--preset--shadow--{}: {};", item.slug, item.shadow));
+                        root_vars.push(format!(
+                            "  --wp--preset--shadow--{}: {};",
+                            item.slug, item.shadow
+                        ));
                     }
                 }
             }
@@ -350,7 +368,9 @@ mod tests {
 
         let css = compile_theme_json_to_css(json_data).expect("valid theme.json");
         assert!(css.contains("--wp--preset--color--primary: #2563eb;"));
-        assert!(css.contains(".has-primary-color { color: var(--wp--preset--color--primary) !important; }"));
+        assert!(css.contains(
+            ".has-primary-color { color: var(--wp--preset--color--primary) !important; }"
+        ));
         assert!(css.contains(".has-primary-background-color { background-color: var(--wp--preset--color--primary) !important; }"));
         assert!(css.contains("--wp--preset--font-size--base: 16px;"));
         assert!(css.contains("--wp--style--global--content-size: 840px;"));

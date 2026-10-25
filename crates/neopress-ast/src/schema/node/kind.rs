@@ -1,6 +1,6 @@
 use crate::schema::items::{
-    AccordionItem, IconListItem, NavMenuItem, PriceFeatureItem, SharePlatformItem,
-    SocialIconItem, TabItem, TestimonialSlide, ToggleItem,
+    AccordionItem, IconListItem, NavMenuItem, PriceFeatureItem, SharePlatformItem, SocialIconItem,
+    TabItem, TestimonialSlide, ToggleItem,
 };
 use std::collections::HashMap;
 

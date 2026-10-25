@@ -43,4 +43,3 @@ pub struct TaxonomyInfo {
     pub terms: Vec<WpCategoryResponse>,
     pub assigned_term_ids: Vec<i64>,
 }
-

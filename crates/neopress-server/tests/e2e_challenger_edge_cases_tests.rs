@@ -1,7 +1,7 @@
 //! Milestone 4 Empirical Challenger Adversarial Stress Test Suite.
 //!
 //! Validates:
-//! 1. Auth nonces enforcement: Missing, forged, and valid `wp_rest_admin` nonces.
+//! 1. Auth enforcement: missing, forged, and legacy backdoor credentials are rejected.
 //! 2. 404 Monitoring persistence: Concurrency, repeated hits (UPSERT), SQLi paths, Unicode paths.
 //! 3. Theme specificity tie-breaking: Equal priority multi-category conflict, non-existent terms.
 //! 4. High concurrency stress: Parallel REST mutations, layout saves, SSR reads, and 404s.
@@ -59,7 +59,11 @@ async fn test_challenger_auth_nonces_enforcement_and_bypass_resistance() {
         .body(Body::from(page_payload.to_string()))
         .unwrap();
     let res = app.clone().oneshot(req_no_nonce).await.unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "Missing nonce must return 401");
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "Missing nonce must return 401"
+    );
 
     // B. Request with forged nonce -> 401 Unauthorized
     let req_forged = Request::builder()
@@ -70,18 +74,47 @@ async fn test_challenger_auth_nonces_enforcement_and_bypass_resistance() {
         .body(Body::from(page_payload.to_string()))
         .unwrap();
     let res = app.clone().oneshot(req_forged).await.unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "Forged nonce must return 401");
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "Forged nonce must return 401"
+    );
 
-    // C. Request with valid nonce -> 201 Created
+    // B2. The legacy hardcoded `wp_rest_admin` nonce and forged session cookies -> 401
+    for (header, value) in [
+        ("X-WP-Nonce", "wp_rest_admin"),
+        ("Cookie", "neopress_admin=1"),
+        ("Cookie", "wordpress_logged_in_abc=admin"),
+    ] {
+        let req_legacy = Request::builder()
+            .method("POST")
+            .uri("/wp-json/wp/v2/pages")
+            .header("Content-Type", "application/json")
+            .header(header, value)
+            .body(Body::from(page_payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req_legacy).await.unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "{header}: {value} must not authenticate"
+        );
+    }
+
+    // C. Request with valid credentials -> 201 Created
     let req_valid = Request::builder()
         .method("POST")
         .uri("/wp-json/wp/v2/pages")
         .header("Content-Type", "application/json")
-        .header("X-WP-Nonce", "wp_rest_admin")
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .body(Body::from(page_payload.to_string()))
         .unwrap();
     let res = app.clone().oneshot(req_valid).await.unwrap();
-    assert_eq!(res.status(), StatusCode::CREATED, "Valid nonce must allow creation");
+    assert_eq!(
+        res.status(),
+        StatusCode::CREATED,
+        "Valid nonce must allow creation"
+    );
     let page_id = parse_json(res).await["id"].as_i64().expect("page id");
 
     // D. Protected layout save without nonce -> 401 Unauthorized
@@ -90,23 +123,31 @@ async fn test_challenger_auth_nonces_enforcement_and_bypass_resistance() {
     });
     let req_layout_no_auth = Request::builder()
         .method("POST")
-        .uri(&format!("/wp-json/neopress/v1/layout/{}", page_id))
+        .uri(format!("/wp-json/neopress/v1/layout/{}", page_id))
         .header("Content-Type", "application/json")
         .body(Body::from(layout_payload.to_string()))
         .unwrap();
     let res = app.clone().oneshot(req_layout_no_auth).await.unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "Layout save without nonce must return 401");
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "Layout save without nonce must return 401"
+    );
 
     // E. Protected layout save with valid nonce -> 200 OK
     let req_layout_auth = Request::builder()
         .method("POST")
-        .uri(&format!("/wp-json/neopress/v1/layout/{}", page_id))
+        .uri(format!("/wp-json/neopress/v1/layout/{}", page_id))
         .header("Content-Type", "application/json")
-        .header("X-WP-Nonce", "wp_rest_admin")
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .body(Body::from(layout_payload.to_string()))
         .unwrap();
     let res = app.clone().oneshot(req_layout_auth).await.unwrap();
-    assert_eq!(res.status(), StatusCode::OK, "Layout save with valid nonce must succeed");
+    assert_eq!(
+        res.status(),
+        StatusCode::OK,
+        "Layout save with valid nonce must succeed"
+    );
 
     // F. Protected template creation without nonce -> 401 Unauthorized
     let tpl_payload = json!({
@@ -121,7 +162,11 @@ async fn test_challenger_auth_nonces_enforcement_and_bypass_resistance() {
         .body(Body::from(tpl_payload.to_string()))
         .unwrap();
     let res = app.clone().oneshot(req_tpl_no_auth).await.unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "Template creation without nonce must return 401");
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "Template creation without nonce must return 401"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -148,19 +193,36 @@ async fn test_challenger_404_logging_concurrency_and_extreme_paths() {
     }
 
     let logs = db.list_404_logs(10).expect("list 404 logs");
-    let logged = logs.iter().find(|l| l.path == target_path).expect("logged 404");
-    assert_eq!(logged.hits, 5, "Repeated 404 requests must increment hit count to 5");
-    assert_eq!(logged.user_agent, "ChallengerBot/5", "Last seen user agent must be preserved");
+    let logged = logs
+        .iter()
+        .find(|l| l.path == target_path)
+        .expect("logged 404");
+    assert_eq!(
+        logged.hits, 5,
+        "Repeated 404 requests must increment hit count to 5"
+    );
+    assert_eq!(
+        logged.user_agent, "ChallengerBot/5",
+        "Last seen user agent must be preserved"
+    );
 
     // B. Extreme path with SQL injection characters (percent-encoded for HTTP request wire)
     let sqli_uri = "/sqli-test%27%20UNION%20SELECT%201,2,3;%20--/";
-    let req_sqli = Request::builder().method("GET").uri(sqli_uri).body(Body::empty()).unwrap();
+    let req_sqli = Request::builder()
+        .method("GET")
+        .uri(sqli_uri)
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req_sqli).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
     // C. Extreme path with percent-encoded multi-byte Unicode and emojis (RFC 3986 wire format)
     let encoded_path = "/%E4%B8%8D%E5%AD%98%E5%9C%A8%E7%9A%84%E9%A1%B5%E9%9D%A2-%F0%9F%9A%80/";
-    let req_utf8 = Request::builder().method("GET").uri(encoded_path).body(Body::empty()).unwrap();
+    let req_utf8 = Request::builder()
+        .method("GET")
+        .uri(encoded_path)
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req_utf8).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
@@ -187,27 +249,67 @@ async fn test_challenger_theme_specificity_and_tie_breaking_edge_cases() {
     let auth_header = |builder: axum::http::request::Builder| {
         builder
             .header("Content-Type", "application/json")
-            .header("X-WP-Nonce", "wp_rest_admin")
+            .header("Authorization", "Basic YWRtaW46YWRtaW4=")
     };
 
     // 1. Create two categories: DevOps (1) and Kubernetes (2)
-    let cat1_res = app.clone().oneshot(auth_header(Request::builder().method("POST").uri("/wp-json/wp/v2/categories"))
-        .body(Body::from(json!({ "name": "DevOps", "slug": "devops" }).to_string())).unwrap()).await.unwrap();
+    let cat1_res = app
+        .clone()
+        .oneshot(
+            auth_header(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/wp/v2/categories"),
+            )
+            .body(Body::from(
+                json!({ "name": "DevOps", "slug": "devops" }).to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     let cat1_id = parse_json(cat1_res).await["id"].as_i64().unwrap();
 
-    let cat2_res = app.clone().oneshot(auth_header(Request::builder().method("POST").uri("/wp-json/wp/v2/categories"))
-        .body(Body::from(json!({ "name": "Kubernetes", "slug": "kubernetes" }).to_string())).unwrap()).await.unwrap();
+    let cat2_res = app
+        .clone()
+        .oneshot(
+            auth_header(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/wp/v2/categories"),
+            )
+            .body(Body::from(
+                json!({ "name": "Kubernetes", "slug": "kubernetes" }).to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     let cat2_id = parse_json(cat2_res).await["id"].as_i64().unwrap();
 
     // 2. Create Post assigned to BOTH categories
-    let post_res = app.clone().oneshot(auth_header(Request::builder().method("POST").uri("/wp-json/wp/v2/posts"))
-        .body(Body::from(json!({
-            "title": "Cloud Orchestration Deep Dive",
-            "slug": "cloud-orchestration",
-            "content": "<p>Architecture</p>",
-            "status": "publish",
-            "categories": [cat1_id, cat2_id]
-        }).to_string())).unwrap()).await.unwrap();
+    let post_res = app
+        .clone()
+        .oneshot(
+            auth_header(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/wp/v2/posts"),
+            )
+            .body(Body::from(
+                json!({
+                    "title": "Cloud Orchestration Deep Dive",
+                    "slug": "cloud-orchestration",
+                    "content": "<p>Architecture</p>",
+                    "status": "publish",
+                    "categories": [cat1_id, cat2_id]
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(post_res.status(), StatusCode::CREATED);
 
     // 3. Create Template A targeting DevOps (equal priority 10, specificity 30)
@@ -219,8 +321,19 @@ async fn test_challenger_theme_specificity_and_tie_breaking_edge_cases() {
         "layout": make_text_layout("hdr_devops", "<div class=\"hdr-tag\">DevOps Banner</div>"),
         "conditions": [{ "condition_type": "include", "rule_target": "category", "target_id": cat1_id.to_string(), "priority": 10 }]
     });
-    let res_a = app.clone().oneshot(auth_header(Request::builder().method("POST").uri("/wp-json/neopress/v1/templates"))
-        .body(Body::from(tpl_a_payload.to_string())).unwrap()).await.unwrap();
+    let res_a = app
+        .clone()
+        .oneshot(
+            auth_header(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/neopress/v1/templates"),
+            )
+            .body(Body::from(tpl_a_payload.to_string()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(res_a.status(), StatusCode::CREATED);
 
     // 4. Create Template B targeting Kubernetes (equal priority 10, specificity 30, higher ID)
@@ -232,12 +345,27 @@ async fn test_challenger_theme_specificity_and_tie_breaking_edge_cases() {
         "layout": make_text_layout("hdr_k8s", "<div class=\"hdr-tag\">Kubernetes Banner</div>"),
         "conditions": [{ "condition_type": "include", "rule_target": "category", "target_id": cat2_id.to_string(), "priority": 10 }]
     });
-    let res_b = app.clone().oneshot(auth_header(Request::builder().method("POST").uri("/wp-json/neopress/v1/templates"))
-        .body(Body::from(tpl_b_payload.to_string())).unwrap()).await.unwrap();
+    let res_b = app
+        .clone()
+        .oneshot(
+            auth_header(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/neopress/v1/templates"),
+            )
+            .body(Body::from(tpl_b_payload.to_string()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(res_b.status(), StatusCode::CREATED);
 
     // 5. Query single post route: When priority and specificity are tied, highest ID (Template B) must win!
-    let req_ssr = Request::builder().method("GET").uri("/cloud-orchestration/").body(Body::empty()).unwrap();
+    let req_ssr = Request::builder()
+        .method("GET")
+        .uri("/cloud-orchestration/")
+        .body(Body::empty())
+        .unwrap();
     let res_ssr = app.clone().oneshot(req_ssr).await.unwrap();
     assert_eq!(res_ssr.status(), StatusCode::OK);
     let html_bytes = to_bytes(res_ssr.into_body(), usize::MAX).await.unwrap();
@@ -261,15 +389,39 @@ async fn test_challenger_theme_specificity_and_tie_breaking_edge_cases() {
         "layout": make_text_layout("hdr_ghost", "<div class=\"hdr-ghost\">Ghost Header</div>"),
         "conditions": [{ "condition_type": "include", "rule_target": "category", "target_id": "99999999", "priority": 100 }]
     });
-    let res_ghost = app.clone().oneshot(auth_header(Request::builder().method("POST").uri("/wp-json/neopress/v1/templates"))
-        .body(Body::from(non_existent_payload.to_string())).unwrap()).await.unwrap();
+    let res_ghost = app
+        .clone()
+        .oneshot(
+            auth_header(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/neopress/v1/templates"),
+            )
+            .body(Body::from(non_existent_payload.to_string()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(res_ghost.status(), StatusCode::CREATED);
 
     // Single post route should NOT match Ghost header despite priority 100
-    let res_ssr2 = app.clone().oneshot(Request::builder().method("GET").uri("/cloud-orchestration/").body(Body::empty()).unwrap()).await.unwrap();
+    let res_ssr2 = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/cloud-orchestration/")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let body_bytes2 = to_bytes(res_ssr2.into_body(), usize::MAX).await.unwrap();
     let html2 = String::from_utf8_lossy(&body_bytes2);
-    assert!(!html2.contains("Ghost Header"), "Non-existent category condition must not match");
+    assert!(
+        !html2.contains("Ghost Header"),
+        "Non-existent category condition must not match"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -285,7 +437,7 @@ async fn test_challenger_concurrent_rest_and_ssr_stress() {
         .method("POST")
         .uri("/wp-json/wp/v2/posts")
         .header("Content-Type", "application/json")
-        .header("X-WP-Nonce", "wp_rest_admin")
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .body(Body::from(json!({ "title": "Base Stress Post", "slug": "stress-post", "content": "<p>Base</p>", "status": "publish" }).to_string()))
         .unwrap();
     let init_res = app.as_ref().clone().oneshot(init_req).await.unwrap();
@@ -305,7 +457,7 @@ async fn test_challenger_concurrent_rest_and_ssr_stress() {
                         .method("POST")
                         .uri("/wp-json/wp/v2/posts")
                         .header("Content-Type", "application/json")
-                        .header("X-WP-Nonce", "wp_rest_admin")
+                        .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                         .body(Body::from(json!({
                             "title": format!("Concurrent Stress Post {}", i),
                             "slug": format!("stress-post-{}", i),
@@ -322,7 +474,7 @@ async fn test_challenger_concurrent_rest_and_ssr_stress() {
                         .method("POST")
                         .uri("/wp-json/neopress/v1/layout/1")
                         .header("Content-Type", "application/json")
-                        .header("X-WP-Nonce", "wp_rest_admin")
+                        .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                         .body(Body::from(json!({
                             "layout": make_text_layout(&format!("c_node_{}", i), "<p>Updated Layout</p>")
                         }).to_string()))
@@ -340,7 +492,7 @@ async fn test_challenger_concurrent_rest_and_ssr_stress() {
                     // 404 hit
                     let req = Request::builder()
                         .method("GET")
-                        .uri(&format!("/missing-concurrent-path-{}/", i))
+                        .uri(format!("/missing-concurrent-path-{}/", i))
                         .body(Body::empty())
                         .unwrap();
                     let res = app_instance.oneshot(req).await.unwrap();
@@ -358,7 +510,7 @@ async fn test_challenger_concurrent_rest_and_ssr_stress() {
     let stats_req = Request::builder()
         .method("GET")
         .uri("/wp-json/neopress/v1/stats")
-        .header("X-WP-Nonce", "wp_rest_admin")
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .body(Body::empty())
         .unwrap();
     let stats_res = app.as_ref().clone().oneshot(stats_req).await.unwrap();

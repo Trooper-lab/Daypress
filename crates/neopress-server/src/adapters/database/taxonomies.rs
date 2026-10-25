@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -81,7 +81,11 @@ impl Database {
             Some(s) if !s.trim().is_empty() => generated_slugify::slugify(s),
             _ => generated_slugify::slugify(name),
         };
-        let slug = if slug.trim().is_empty() { "term".to_string() } else { slug };
+        let slug = if slug.trim().is_empty() {
+            "term".to_string()
+        } else {
+            slug
+        };
         let desc = req.description.as_deref().unwrap_or("");
         let parent = req.parent.unwrap_or(0).max(0);
 
@@ -256,7 +260,11 @@ impl Database {
         Ok(rows > 0)
     }
 
-    pub fn get_taxonomy_term(&self, taxonomy: &str, slug: &str) -> Result<Option<WpCategoryResponse>> {
+    pub fn get_taxonomy_term(
+        &self,
+        taxonomy: &str,
+        slug: &str,
+    ) -> Result<Option<WpCategoryResponse>> {
         let conn = self.conn.lock().unwrap();
         let base_url = Self::get_base_url_with_conn(&conn);
         let route_prefix = if taxonomy == "post_tag" {
@@ -345,7 +353,8 @@ impl Database {
 
 impl crate::ports::output::TaxonomyRepository for Database {
     fn list_terms(&self, taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>> {
-        self.get_terms(taxonomy).map_err(|e| DomainError::Storage(e.to_string()))
+        self.get_terms(taxonomy)
+            .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
     fn find_term_by_id(&self, taxonomy: &str, id: i64) -> DomainResult<Option<WpCategoryResponse>> {
@@ -353,7 +362,11 @@ impl crate::ports::output::TaxonomyRepository for Database {
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn create_term(&self, taxonomy: &str, req: &CreateTermRequest) -> DomainResult<WpCategoryResponse> {
+    fn create_term(
+        &self,
+        taxonomy: &str,
+        req: &CreateTermRequest,
+    ) -> DomainResult<WpCategoryResponse> {
         Database::create_term(self, taxonomy, req).map_err(DomainError::from)
     }
 

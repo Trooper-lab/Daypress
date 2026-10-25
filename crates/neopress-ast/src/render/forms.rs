@@ -53,7 +53,11 @@ pub(crate) fn render_search_form_html(
     endpoint: &str,
     style_attr: &str,
 ) -> String {
-    let action = if endpoint.trim().is_empty() { "/" } else { endpoint.trim() };
+    let action = if endpoint.trim().is_empty() {
+        "/"
+    } else {
+        endpoint.trim()
+    };
     format!(
         "<form id=\"{}\" class=\"np-search-form\" method=\"GET\" action=\"{}\"{}>\n<div class=\"np-search-input-wrap\">\n<input type=\"search\" name=\"s\" class=\"np-search-input\" placeholder=\"{}\" required />\n<button type=\"submit\" class=\"np-search-btn\">{}</button>\n</div>\n</form>",
         escape_attr(node_id),
@@ -78,7 +82,7 @@ pub(crate) fn render_login_form_html(
         ""
     };
     format!(
-        "<form id=\"{}\" class=\"np-login-form\" method=\"POST\" action=\"/wp-login.php\"{}>\n<div class=\"np-form-field\">\n<label>{}</label>\n<input type=\"text\" name=\"log\" class=\"np-input\" required autocomplete=\"username\" />\n</div>\n<div class=\"np-form-field\">\n<label>{}</label>\n<input type=\"password\" name=\"pwd\" class=\"np-input\" required autocomplete=\"current-password\" />\n</div>\n{}<input type=\"hidden\" name=\"redirect_to\" value=\"{}\" />\n<button type=\"submit\" class=\"np-button np-login-btn\">Log In</button>\n</form>",
+        "<form id=\"{}\" class=\"np-login-form\" method=\"POST\" action=\"/login\"{}>\n<div class=\"np-form-field\">\n<label>{}</label>\n<input type=\"text\" name=\"log\" class=\"np-input\" required autocomplete=\"username\" />\n</div>\n<div class=\"np-form-field\">\n<label>{}</label>\n<input type=\"password\" name=\"pwd\" class=\"np-input\" required autocomplete=\"current-password\" />\n</div>\n{}<input type=\"hidden\" name=\"redirect_to\" value=\"{}\" />\n<button type=\"submit\" class=\"np-button np-login-btn\">Log In</button>\n</form>",
         escape_attr(node_id),
         style_attr,
         escape_attr(label_user),

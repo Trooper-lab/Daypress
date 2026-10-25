@@ -95,7 +95,11 @@ pub(crate) fn compile_elementor_form_fields(
             .unwrap_or_default();
         let required = field
             .get("required")
-            .and_then(|v| v.as_str().map(|s| s == "true" || s == "yes").or_else(|| v.as_bool()))
+            .and_then(|v| {
+                v.as_str()
+                    .map(|s| s == "true" || s == "yes")
+                    .or_else(|| v.as_bool())
+            })
             .unwrap_or(false);
         let req_attr = if required { " required" } else { "" };
         let req_mark = if required {
@@ -190,11 +194,12 @@ pub(crate) fn compile_elementor_form_fields(
                 html.push_str("</select>\n");
             }
             "upload" => {
-                let mult = if field.get("allow_multiple_upload").and_then(|v| v.as_str()) == Some("yes") {
-                    " multiple"
-                } else {
-                    ""
-                };
+                let mult =
+                    if field.get("allow_multiple_upload").and_then(|v| v.as_str()) == Some("yes") {
+                        " multiple"
+                    } else {
+                        ""
+                    };
                 html.push_str(&format!(
                     "<input type=\"file\" name=\"{}\" class=\"np-input np-file-input\"{}{}/>\n",
                     escape_html_attr(&name),

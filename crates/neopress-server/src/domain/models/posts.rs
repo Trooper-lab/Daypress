@@ -61,7 +61,10 @@ pub struct WpPostResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreatePostRequest {
+    // Both optional, as in the WordPress REST API (e.g. NeoStudio's quick "New Page").
+    #[serde(default)]
     pub title: String,
+    #[serde(default)]
     pub content: String,
     #[serde(default = "default_post_status")]
     pub status: String,

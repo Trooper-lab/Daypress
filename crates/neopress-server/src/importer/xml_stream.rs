@@ -45,13 +45,15 @@ fn process_xml_text(
             }
             "link" => {
                 let current_prio = source_site_url.as_ref().map(|(_, p)| *p).unwrap_or(0);
-                if current_prio < 2 && (text.starts_with("http://") || text.starts_with("https://")) {
+                if current_prio < 2 && (text.starts_with("http://") || text.starts_with("https://"))
+                {
                     *source_site_url = Some((text.trim_end_matches('/').to_string(), 2));
                 }
             }
             "wp:base_site_url" => {
                 let current_prio = source_site_url.as_ref().map(|(_, p)| *p).unwrap_or(0);
-                if current_prio < 1 && (text.starts_with("http://") || text.starts_with("https://")) {
+                if current_prio < 1 && (text.starts_with("http://") || text.starts_with("https://"))
+                {
                     *source_site_url = Some((text.trim_end_matches('/').to_string(), 1));
                 }
             }

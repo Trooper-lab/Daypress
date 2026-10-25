@@ -57,13 +57,7 @@ async fn main() {
 fn run_mcp_stdio(args: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     let adapter = SqliteDatabase::new(&args.db)?;
     let repo = Arc::new(adapter);
-    let cms_service = CmsService::new(
-        repo.clone(),
-        repo.clone(),
-        repo.clone(),
-        repo.clone(),
-        repo,
-    );
+    let cms_service = CmsService::new(repo.clone(), repo.clone(), repo.clone(), repo.clone(), repo);
     run_stdio_mcp_loop(&cms_service)?;
     Ok(())
 }
@@ -83,13 +77,8 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. Wire Output Ports into Application Service via Arc<dyn Trait>
     let repo = Arc::new(database.clone());
-    let _cms_service = CmsService::new(
-        repo.clone(),
-        repo.clone(),
-        repo.clone(),
-        repo.clone(),
-        repo,
-    );
+    let _cms_service =
+        CmsService::new(repo.clone(), repo.clone(), repo.clone(), repo.clone(), repo);
 
     // 3. Hand wired state to Primary Web & MCP Adapter
     let app = create_app(database);

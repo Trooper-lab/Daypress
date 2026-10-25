@@ -4,7 +4,8 @@ use rusqlite::{params, Connection, Result};
 pub fn seed_neopress_official_site(conn: &Connection) -> Result<()> {
     let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    println!("⚡ Wiping legacy dummy data and seeding official Neopress.online website...");
+    // stderr, so `--mcp-stdio` keeps a clean JSON-RPC stdout.
+    eprintln!("⚡ Seeding the Neopress starter website...");
 
     // 1. Wipe old posts, relations, and comments
     conn.execute_batch(
@@ -38,11 +39,12 @@ pub fn seed_neopress_official_site(conn: &Connection) -> Result<()> {
         )?;
     }
 
-    // 3. Ensure admin user
+    // 3. Ensure admin user. The placeholder hash matches no password; `ensure_admin_credentials`
+    // replaces it with a generated one on startup.
     conn.execute(
-        r#"INSERT OR REPLACE INTO wp_users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
-           VALUES (1, 'admin', '$2y$10$abcdefghijklmnopqrstuvwxyz1234567890', 'admin', 'hello@neopress.online', ?1, 'Neopress Core');"#,
-        params![now],
+        r#"INSERT OR IGNORE INTO wp_users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
+           VALUES (1, 'admin', ?2, 'admin', 'hello@neopress.online', ?1, 'Neopress Core');"#,
+        params![now, crate::auth::LEGACY_SEED_PASSWORD_HASH],
     )?;
 
     // 4. Create official taxonomy categories
@@ -72,7 +74,7 @@ pub fn seed_neopress_official_site(conn: &Connection) -> Result<()> {
     // 6. Insert the Core Product & Service Pages
     insert_product_pages(conn, &now)?;
 
-    println!("✓ Successfully seeded official Neopress.online website!");
+    eprintln!("✓ Seeded the Neopress starter website.");
     Ok(())
 }
 
@@ -852,7 +854,7 @@ fn insert_product_pages(conn: &Connection, now: &str) -> Result<()> {
             "children": [
               { "id": "h_sp_1", "type": "Heading", "data": { "text": "Sample Page Built with Visual Builder", "level": 1 }, "styles": { "font_size": "40px", "text_color": "#ffffff", "margin_bottom": "14px" } },
               { "id": "p_sp_1", "type": "Text", "data": { "content_html": "<p>This is a sample demonstration page created with the Neopress visual builder. Click 'Edit with Visual Builder' in the topbar to test live editing.</p>" }, "styles": { "font_size": "17px", "text_color": "#94a3b8", "margin_bottom": "24px" } },
-              { "id": "btn_sp_1", "type": "Button", "data": { "text": "Launch Visual Studio 🎨", "url": "/n-admin/builder.php?post=15" }, "styles": { "background_color": "#e02660", "text_color": "#ffffff", "padding_top": "12px", "padding_bottom": "12px", "padding_left": "28px", "padding_right": "28px", "border_radius": "6px" } }
+              { "id": "btn_sp_1", "type": "Button", "data": { "text": "Launch Visual Studio 🎨", "url": "/n-admin/builder?post=15" }, "styles": { "background_color": "#e02660", "text_color": "#ffffff", "padding_top": "12px", "padding_bottom": "12px", "padding_left": "28px", "padding_right": "28px", "border_radius": "6px" } }
             ]
           }
         ]
@@ -860,7 +862,7 @@ fn insert_product_pages(conn: &Connection, now: &str) -> Result<()> {
     ]
   }
 }"##;
-    let html_15 = r##"<section class="np-section" style="background-color: #0f172a; color: #ffffff; padding: 70px 24px; text-align: center;"><div class="np-container"><h1 class="np-heading" style="font-size: 40px; margin-bottom: 14px;">Sample Page Built with Visual Builder</h1><div class="np-text" style="font-size: 17px; color: #94a3b8; margin-bottom: 24px;"><p>This is a sample demonstration page created with the Neopress visual builder. Click 'Edit with Visual Builder' in the topbar to test live editing.</p></div><div class="np-btn-wrapper"><a href="/n-admin/builder.php?post=15" class="np-button" style="background-color: #e02660; color: #ffffff; padding: 12px 28px; border-radius: 6px; font-weight: 700; text-decoration: none;">Launch Visual Studio 🎨</a></div></div></section>"##;
+    let html_15 = r##"<section class="np-section" style="background-color: #0f172a; color: #ffffff; padding: 70px 24px; text-align: center;"><div class="np-container"><h1 class="np-heading" style="font-size: 40px; margin-bottom: 14px;">Sample Page Built with Visual Builder</h1><div class="np-text" style="font-size: 17px; color: #94a3b8; margin-bottom: 24px;"><p>This is a sample demonstration page created with the Neopress visual builder. Click 'Edit with Visual Builder' in the topbar to test live editing.</p></div><div class="np-btn-wrapper"><a href="/n-admin/builder?post=15" class="np-button" style="background-color: #e02660; color: #ffffff; padding: 12px 28px; border-radius: 6px; font-weight: 700; text-decoration: none;">Launch Visual Studio 🎨</a></div></div></section>"##;
     insert_visual_page(
         conn,
         15,

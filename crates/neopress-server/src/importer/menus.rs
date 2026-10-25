@@ -132,7 +132,10 @@ pub fn ingest_nav_menus(
                 children: Vec::new(),
             };
 
-            flat_items_by_slug.entry(slug_key.clone()).or_default().push(nav_item);
+            flat_items_by_slug
+                .entry(slug_key.clone())
+                .or_default()
+                .push(nav_item);
 
             if !has_primary
                 || slug_key == "primary"
@@ -157,7 +160,10 @@ pub fn ingest_nav_menus(
     for (slug, flat_items) in flat_items_by_slug {
         let mut children_by_parent: HashMap<i64, Vec<neopress_ast::NavMenuItem>> = HashMap::new();
         for item in flat_items {
-            children_by_parent.entry(item.parent).or_default().push(item);
+            children_by_parent
+                .entry(item.parent)
+                .or_default()
+                .push(item);
         }
 
         let mut visited = HashSet::new();
@@ -229,7 +235,10 @@ pub fn render_universal_nav_items_recursive(
         ));
         if has_children {
             out.push_str(r#"<ul class="sub-menu">"#);
-            out.push_str(&render_universal_nav_items_recursive(&item.children, depth + 1));
+            out.push_str(&render_universal_nav_items_recursive(
+                &item.children,
+                depth + 1,
+            ));
             out.push_str("</ul>");
         }
         out.push_str("</li>");
@@ -258,9 +267,16 @@ pub fn build_universal_theme_header_html(
     }
 
     let logo_html = if let Some(url) = logo_url.filter(|u| !u.is_empty()) {
-        format!(r#"<img src="{}" alt="{}" class="logo" />"#, escape_html(url), escape_html(site_title))
+        format!(
+            r#"<img src="{}" alt="{}" class="logo" />"#,
+            escape_html(url),
+            escape_html(site_title)
+        )
     } else {
-        format!(r#"<span class="site-title">{}</span>"#, escape_html(site_title))
+        format!(
+            r#"<span class="site-title">{}</span>"#,
+            escape_html(site_title)
+        )
     };
 
     format!(
@@ -299,9 +315,16 @@ pub fn build_universal_theme_footer_html(
     }
 
     let logo_html = if let Some(url) = logo_url.filter(|u| !u.is_empty()) {
-        format!(r#"<img src="{}" alt="{}" class="footer-logo" style="max-height: 32px;" />"#, escape_html(url), escape_html(site_title))
+        format!(
+            r#"<img src="{}" alt="{}" class="footer-logo" style="max-height: 32px;" />"#,
+            escape_html(url),
+            escape_html(site_title)
+        )
     } else {
-        format!(r#"<span class="footer-title">{}</span>"#, escape_html(site_title))
+        format!(
+            r#"<span class="footer-title">{}</span>"#,
+            escape_html(site_title)
+        )
     };
 
     format!(
@@ -326,4 +349,3 @@ pub fn build_universal_theme_footer_html(
         links
     )
 }
-

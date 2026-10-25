@@ -14,23 +14,28 @@ pub fn map_layout_module(
         "et_pb_section" | "et_pb_fullwidth_section" | "et_pb_specialty_section" => {
             // If specialty section has direct column children, wrap them in a centered flex row container
             let has_direct_columns = !children.is_empty()
-                && children
-                    .iter()
-                    .all(|c| matches!(c.kind, NodeKind::Flex { basis: Some(_), .. } | NodeKind::Column));
-            if has_direct_columns {
-                let mut row_styles = StyleProperties::default();
-                row_styles.width = Some("90%".to_string());
-                row_styles.max_width = Some("1200px".to_string());
-                row_styles.margin = Some(Spacing {
-                    top: Some("0px".to_string()),
-                    right: Some("auto".to_string()),
-                    bottom: Some("0px".to_string()),
-                    left: Some("auto".to_string()),
+                && children.iter().all(|c| {
+                    matches!(
+                        c.kind,
+                        NodeKind::Flex { basis: Some(_), .. } | NodeKind::Column
+                    )
                 });
-                row_styles.display = Some("flex".to_string());
-                row_styles.flex_direction = Some("row".to_string());
-                row_styles.gap = Some("28px".to_string());
-                row_styles.align_items = Some("flex-start".to_string());
+            if has_direct_columns {
+                let mut row_styles = StyleProperties {
+                    width: Some("90%".to_string()),
+                    max_width: Some("1200px".to_string()),
+                    margin: Some(Spacing {
+                        top: Some("0px".to_string()),
+                        right: Some("auto".to_string()),
+                        bottom: Some("0px".to_string()),
+                        left: Some("auto".to_string()),
+                    }),
+                    display: Some("flex".to_string()),
+                    flex_direction: Some("row".to_string()),
+                    gap: Some("28px".to_string()),
+                    align_items: Some("flex-start".to_string()),
+                    ..Default::default()
+                };
                 row_styles.sync_flat_and_nested();
 
                 let wrapped_cols = std::mem::take(children);
@@ -130,7 +135,7 @@ pub fn map_layout_module(
                 && children.iter().all(|c| {
                     matches!(
                         c.kind,
-                        NodeKind::Column { .. } | NodeKind::Flex { basis: Some(_), .. }
+                        NodeKind::Column | NodeKind::Flex { basis: Some(_), .. }
                     )
                 });
             if has_col_children {

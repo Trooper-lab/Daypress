@@ -3,10 +3,7 @@
 use crate::importer::models::ParsedWxrTerm;
 use rusqlite::{params, Result, Transaction};
 
-pub fn ingest_terms(
-    tx: &Transaction,
-    terms: Vec<ParsedWxrTerm>,
-) -> Result<(usize, usize)> {
+pub fn ingest_terms(tx: &Transaction, terms: Vec<ParsedWxrTerm>) -> Result<(usize, usize)> {
     let mut cat_count = 0;
     let mut tag_count = 0;
 

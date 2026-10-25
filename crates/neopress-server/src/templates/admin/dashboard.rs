@@ -37,13 +37,13 @@ pub fn render_wp_dashboard_view(
         recent_posts_html.push_str(&format!(
             r#"<li style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <a href="/n-admin/post.php?post={id}&action=edit" style="font-weight: 600; text-decoration: none; color: #0f172a;">{title}</a>{front_badge}{ptype_badge}
+                    <a href="/n-admin/post?post={id}&action=edit" style="font-weight: 600; text-decoration: none; color: #0f172a;">{title}</a>{front_badge}{ptype_badge}
                     <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Published on {date} &bull; <code>{view_href}</code></div>
                 </div>
                 <div style="display: flex; gap: 6px;">
                     <a href="{view_href}" target="_blank" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">View &nearr;</a>
-                    <a href="/n-admin/post.php?post={id}&action=edit" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">Edit Blocks &amp; ACF</a>
-                    <a href="/n-admin/builder.php?post={id}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; color: #2563eb; border-color: #bfdbfe; background: #eff6ff; font-weight: 600;">⚡ NeoStudio</a>
+                    <a href="/n-admin/post?post={id}&action=edit" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">Edit Blocks &amp; ACF</a>
+                    <a href="/n-admin/builder?post={id}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; color: #2563eb; border-color: #bfdbfe; background: #eff6ff; font-weight: 600;">⚡ NeoStudio</a>
                 </div>
             </li>"#,
             id = p.id,
@@ -68,7 +68,7 @@ pub fn render_wp_dashboard_view(
                 <p class="page-subtitle">Welcome to Neopress 2026 &bull; High-Performance Native Rust CMS with Rusqlite</p>
             </div>
             <div>
-                <a href="/n-admin/post-new.php" class="btn btn-primary">+ Write New Article</a>
+                <a href="/n-admin/post-new" class="btn btn-primary">+ Write New Article</a>
             </div>
         </div>
 
@@ -124,7 +124,7 @@ pub fn render_wp_dashboard_view(
                 <div class="neo-card">
                     <div class="neo-card-header">
                         <h2 class="neo-card-title">Recent Activity</h2>
-                        <a href="/n-admin/edit.php" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View All Posts &rarr;</a>
+                        <a href="/n-admin/edit" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View All Posts &rarr;</a>
                     </div>
                     <div class="neo-card-body" style="padding-top: 4px; padding-bottom: 8px;">
                         <ul style="list-style: none; margin: 0; padding: 0;">
@@ -266,21 +266,21 @@ pub fn render_wp_updates_view(settings: &WpSettingsResponse, stats: &DbStats) ->
                 <h4 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Plugins</h4>
                 <p style="font-size: 13px; color: #64748b;">All installed Neopress and WordPress plugins are up to date.</p>
                 <div style="margin-top: 14px;">
-                    <a href="/n-admin/plugins.php" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Plugins</a>
+                    <a href="/n-admin/plugins" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Plugins</a>
                 </div>
             </div>
             <div class="neo-card" style="padding: 20px;">
                 <h4 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Themes</h4>
                 <p style="font-size: 13px; color: #64748b;">Your themes are up to date with 2026 design system standards.</p>
                 <div style="margin-top: 14px;">
-                    <a href="/n-admin/themes.php" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Themes</a>
+                    <a href="/n-admin/themes" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Themes</a>
                 </div>
             </div>
             <div class="neo-card" style="padding: 20px;">
                 <h4 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Database &amp; Engine</h4>
                 <p style="font-size: 13px; color: #64748b;">Embedded Rusqlite database ({db_size_kb} KB, WAL mode) is healthy.</p>
                 <div style="margin-top: 14px;">
-                    <a href="/n-admin/neopress-engine.php" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Engine Telemetry</a>
+                    <a href="/n-admin/neopress-engine" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Engine Telemetry</a>
                 </div>
             </div>
         </div>

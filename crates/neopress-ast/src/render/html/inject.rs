@@ -16,7 +16,8 @@ static CLASS_ATTR_RE: OnceLock<Regex> = OnceLock::new();
 static STYLE_ATTR_RE: OnceLock<Regex> = OnceLock::new();
 
 const VOID_TAGS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+    "wbr",
 ];
 
 fn attr_re(cell: &'static OnceLock<Regex>, name: &str) -> &'static Regex {
@@ -66,7 +67,12 @@ fn find_root_end(html: &str, tag: &str, from: usize) -> Option<usize> {
 ///
 /// Returns `None` when the fragment has no single root element or the root already carries its
 /// own `id` (theme CSS/anchors may depend on it); callers then fall back to a wrapper element.
-pub(crate) fn inject_root_attrs(raw: &str, id: &str, extra_cls: Option<&str>, css: &str) -> Option<String> {
+pub(crate) fn inject_root_attrs(
+    raw: &str,
+    id: &str,
+    extra_cls: Option<&str>,
+    css: &str,
+) -> Option<String> {
     let trimmed = raw.trim();
     let root_re = ROOT_TAG_RE.get_or_init(|| {
         Regex::new(r#"^<([a-zA-Z][a-zA-Z0-9-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(/?)>"#)
@@ -79,7 +85,11 @@ pub(crate) fn inject_root_attrs(raw: &str, id: &str, extra_cls: Option<&str>, cs
     let self_closing = caps.get(3).map(|m| !m.as_str().is_empty()).unwrap_or(false)
         || VOID_TAGS.iter().any(|v| v.eq_ignore_ascii_case(tag));
 
-    let root_end = if self_closing { open_end } else { find_root_end(trimmed, tag, open_end)? };
+    let root_end = if self_closing {
+        open_end
+    } else {
+        find_root_end(trimmed, tag, open_end)?
+    };
     if !trimmed[root_end..].trim().is_empty() {
         return None; // multiple top-level nodes
     }
@@ -93,7 +103,10 @@ pub(crate) fn inject_root_attrs(raw: &str, id: &str, extra_cls: Option<&str>, cs
     if let Some(extra) = extra_cls.map(str::trim).filter(|s| !s.is_empty()) {
         let class_re = attr_re(&CLASS_ATTR_RE, "class");
         if let Some(c) = class_re.captures(&new_attrs) {
-            let mut tokens: Vec<String> = attr_value(&c).split_whitespace().map(String::from).collect();
+            let mut tokens: Vec<String> = attr_value(&c)
+                .split_whitespace()
+                .map(String::from)
+                .collect();
             for t in extra.split_whitespace() {
                 if !tokens.iter().any(|x| x == t) {
                     tokens.push(t.to_string());
@@ -112,7 +125,10 @@ pub(crate) fn inject_root_attrs(raw: &str, id: &str, extra_cls: Option<&str>, cs
     if !css.trim().is_empty() {
         let style_re = attr_re(&STYLE_ATTR_RE, "style");
         if let Some(s) = style_re.captures(&new_attrs) {
-            let existing = attr_value(&s).trim().trim_end_matches(';').replace('"', "'");
+            let existing = attr_value(&s)
+                .trim()
+                .trim_end_matches(';')
+                .replace('"', "'");
             let lead = s.get(1).map(|m| m.as_str()).unwrap_or("");
             let merged = if existing.is_empty() {
                 css.trim().to_string()
@@ -126,7 +142,11 @@ pub(crate) fn inject_root_attrs(raw: &str, id: &str, extra_cls: Option<&str>, cs
         }
     }
 
-    let close = if caps.get(3).map(|m| !m.as_str().is_empty()).unwrap_or(false) { " />" } else { ">" };
+    let close = if caps.get(3).map(|m| !m.as_str().is_empty()).unwrap_or(false) {
+        " />"
+    } else {
+        ">"
+    };
     Some(format!(
         "<{} id=\"{}\"{}{}{}",
         tag,

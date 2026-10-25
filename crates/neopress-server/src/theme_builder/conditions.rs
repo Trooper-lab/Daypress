@@ -224,7 +224,11 @@ mod tests {
     use crate::theme_builder::models::*;
     use neopress_ast::NeopressLayout;
 
-    fn make_test_template(id: i64, priority: i32, conditions: Vec<TemplateCondition>) -> ThemeTemplateRecord {
+    fn make_test_template(
+        id: i64,
+        priority: i32,
+        conditions: Vec<TemplateCondition>,
+    ) -> ThemeTemplateRecord {
         ThemeTemplateRecord {
             id,
             title: format!("Template {}", id),
@@ -245,47 +249,10 @@ mod tests {
     fn test_specificity_hierarchy() {
         let ctx = RequestContext::for_post(42, "post", false, vec![]);
 
-        let t_entire_site = make_test_template(1, 10, vec![TemplateCondition {
-            id: Some(1),
-            template_id: 1,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::EntireSite,
-            target_id: String::new(),
-            priority: 10,
-            created_at: None,
-        }]);
-
-        let t_all_posts = make_test_template(2, 10, vec![TemplateCondition {
-            id: Some(2),
-            template_id: 2,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::AllPosts,
-            target_id: String::new(),
-            priority: 10,
-            created_at: None,
-        }]);
-
-        let t_specific_post = make_test_template(3, 10, vec![TemplateCondition {
-            id: Some(3),
-            template_id: 3,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::Post,
-            target_id: "42".to_string(),
-            priority: 10,
-            created_at: None,
-        }]);
-
-        let templates = vec![t_entire_site, t_all_posts, t_specific_post];
-        let winner = resolve_template_for_type(&templates, TemplateType::Header, &ctx).expect("Winner found");
-        assert_eq!(winner.id, 3, "Specific post ID (40) must beat AllPosts (20) and EntireSite (10)");
-    }
-
-    #[test]
-    fn test_exclusion_strictly_overrides_inclusion() {
-        let ctx = RequestContext::for_post(42, "post", false, vec![]);
-
-        let tpl = make_test_template(1, 10, vec![
-            TemplateCondition {
+        let t_entire_site = make_test_template(
+            1,
+            10,
+            vec![TemplateCondition {
                 id: Some(1),
                 template_id: 1,
                 condition_type: ConditionType::Include,
@@ -293,81 +260,165 @@ mod tests {
                 target_id: String::new(),
                 priority: 10,
                 created_at: None,
-            },
-            TemplateCondition {
+            }],
+        );
+
+        let t_all_posts = make_test_template(
+            2,
+            10,
+            vec![TemplateCondition {
                 id: Some(2),
-                template_id: 1,
-                condition_type: ConditionType::Exclude,
+                template_id: 2,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::AllPosts,
+                target_id: String::new(),
+                priority: 10,
+                created_at: None,
+            }],
+        );
+
+        let t_specific_post = make_test_template(
+            3,
+            10,
+            vec![TemplateCondition {
+                id: Some(3),
+                template_id: 3,
+                condition_type: ConditionType::Include,
                 rule_target: RuleTarget::Post,
                 target_id: "42".to_string(),
                 priority: 10,
                 created_at: None,
-            },
-        ]);
+            }],
+        );
+
+        let templates = vec![t_entire_site, t_all_posts, t_specific_post];
+        let winner = resolve_template_for_type(&templates, TemplateType::Header, &ctx)
+            .expect("Winner found");
+        assert_eq!(
+            winner.id, 3,
+            "Specific post ID (40) must beat AllPosts (20) and EntireSite (10)"
+        );
+    }
+
+    #[test]
+    fn test_exclusion_strictly_overrides_inclusion() {
+        let ctx = RequestContext::for_post(42, "post", false, vec![]);
+
+        let tpl = make_test_template(
+            1,
+            10,
+            vec![
+                TemplateCondition {
+                    id: Some(1),
+                    template_id: 1,
+                    condition_type: ConditionType::Include,
+                    rule_target: RuleTarget::EntireSite,
+                    target_id: String::new(),
+                    priority: 10,
+                    created_at: None,
+                },
+                TemplateCondition {
+                    id: Some(2),
+                    template_id: 1,
+                    condition_type: ConditionType::Exclude,
+                    rule_target: RuleTarget::Post,
+                    target_id: "42".to_string(),
+                    priority: 10,
+                    created_at: None,
+                },
+            ],
+        );
 
         let eval = evaluate_template(&tpl, &ctx);
         assert_eq!(eval, None, "Excluded post 42 must disqualify template");
 
         let ctx_other = RequestContext::for_post(43, "post", false, vec![]);
         let eval_other = evaluate_template(&tpl, &ctx_other);
-        assert!(eval_other.is_some(), "Template must match post 43 via EntireSite");
+        assert!(
+            eval_other.is_some(),
+            "Template must match post 43 via EntireSite"
+        );
     }
 
     #[test]
     fn test_user_priority_override() {
         let ctx = RequestContext::for_post(42, "post", false, vec![]);
 
-        let t_high_priority = make_test_template(1, 50, vec![TemplateCondition {
-            id: Some(1),
-            template_id: 1,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::EntireSite,
-            target_id: String::new(),
-            priority: 10,
-            created_at: None,
-        }]);
+        let t_high_priority = make_test_template(
+            1,
+            50,
+            vec![TemplateCondition {
+                id: Some(1),
+                template_id: 1,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::EntireSite,
+                target_id: String::new(),
+                priority: 10,
+                created_at: None,
+            }],
+        );
 
-        let t_specific = make_test_template(2, 10, vec![TemplateCondition {
-            id: Some(2),
-            template_id: 2,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::Post,
-            target_id: "42".to_string(),
-            priority: 10,
-            created_at: None,
-        }]);
+        let t_specific = make_test_template(
+            2,
+            10,
+            vec![TemplateCondition {
+                id: Some(2),
+                template_id: 2,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::Post,
+                target_id: "42".to_string(),
+                priority: 10,
+                created_at: None,
+            }],
+        );
 
         let templates = vec![t_high_priority, t_specific];
-        let winner = resolve_template_for_type(&templates, TemplateType::Header, &ctx).expect("Winner found");
-        assert_eq!(winner.id, 1, "User priority 50 must override default priority 10 even with lower specificity");
+        let winner = resolve_template_for_type(&templates, TemplateType::Header, &ctx)
+            .expect("Winner found");
+        assert_eq!(
+            winner.id, 1,
+            "User priority 50 must override default priority 10 even with lower specificity"
+        );
     }
 
     #[test]
     fn test_tie_break_on_highest_id() {
         let ctx = RequestContext::for_front_page();
 
-        let t_old = make_test_template(1, 10, vec![TemplateCondition {
-            id: Some(1),
-            template_id: 1,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::FrontPage,
-            target_id: String::new(),
-            priority: 10,
-            created_at: None,
-        }]);
+        let t_old = make_test_template(
+            1,
+            10,
+            vec![TemplateCondition {
+                id: Some(1),
+                template_id: 1,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::FrontPage,
+                target_id: String::new(),
+                priority: 10,
+                created_at: None,
+            }],
+        );
 
-        let t_new = make_test_template(2, 10, vec![TemplateCondition {
-            id: Some(2),
-            template_id: 2,
-            condition_type: ConditionType::Include,
-            rule_target: RuleTarget::FrontPage,
-            target_id: String::new(),
-            priority: 10,
-            created_at: None,
-        }]);
+        let t_new = make_test_template(
+            2,
+            10,
+            vec![TemplateCondition {
+                id: Some(2),
+                template_id: 2,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::FrontPage,
+                target_id: String::new(),
+                priority: 10,
+                created_at: None,
+            }],
+        );
 
         let templates = vec![t_old, t_new];
-        let winner = resolve_template_for_type(&templates, TemplateType::Header, &ctx).expect("Winner found");
-        assert_eq!(winner.id, 2, "Equal priority and specificity must tie-break on highest ID");
+        let winner = resolve_template_for_type(&templates, TemplateType::Header, &ctx)
+            .expect("Winner found");
+        assert_eq!(
+            winner.id, 2,
+            "Equal priority and specificity must tie-break on highest ID"
+        );
     }
 }

@@ -48,7 +48,14 @@ fn extract_attrs_from_json(val: &serde_json::Value, out: &mut HashMap<String, St
                 } else if let Some(f) = v.as_f64() {
                     out.insert(k.clone(), f.to_string());
                 } else if let Some(b) = v.as_bool() {
-                    out.insert(k.clone(), if b { "on".to_string() } else { "off".to_string() });
+                    out.insert(
+                        k.clone(),
+                        if b {
+                            "on".to_string()
+                        } else {
+                            "off".to_string()
+                        },
+                    );
                 }
             }
         }
@@ -63,7 +70,14 @@ fn extract_attrs_from_json(val: &serde_json::Value, out: &mut HashMap<String, St
             } else if let Some(f) = v.as_f64() {
                 out.insert(k.clone(), f.to_string());
             } else if let Some(b) = v.as_bool() {
-                out.insert(k.clone(), if b { "on".to_string() } else { "off".to_string() });
+                out.insert(
+                    k.clone(),
+                    if b {
+                        "on".to_string()
+                    } else {
+                        "off".to_string()
+                    },
+                );
             }
         }
     }

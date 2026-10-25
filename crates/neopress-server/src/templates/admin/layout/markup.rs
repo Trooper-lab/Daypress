@@ -63,51 +63,51 @@ pub fn render_wp_admin_shell(
 		<nav class="sidebar-nav">
 			<!-- 1. DASHBOARD -->
 			<div class="nav-group {is_dash_open}">
-				<a href="/n-admin/index.php" class="nav-item {is_dash}">
+				<a href="/n-admin/" class="nav-item {is_dash}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
 					<span>Dashboard</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/index.php" class="nav-subitem {sub_dash_home}">Home</a>
-					<a href="/n-admin/update-core.php" class="nav-subitem {sub_dash_updates}">Updates</a>
+					<a href="/n-admin/" class="nav-subitem {sub_dash_home}">Home</a>
+					<a href="/n-admin/update-core" class="nav-subitem {sub_dash_updates}">Updates</a>
 				</div>
 			</div>
 
 			<!-- 2. POSTS -->
 			<div class="nav-group {is_posts_open}">
-				<a href="/n-admin/edit.php" class="nav-item {is_posts}">
+				<a href="/n-admin/edit" class="nav-item {is_posts}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
 					<span>Posts</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/edit.php" class="nav-subitem {sub_posts_all}">All Posts</a>
-					<a href="/n-admin/post-new.php" class="nav-subitem {sub_posts_new}">Add New</a>
-					<a href="/n-admin/edit-tags.php?taxonomy=category" class="nav-subitem {sub_posts_cats}">Categories</a>
-					<a href="/n-admin/edit-tags.php?taxonomy=post_tag" class="nav-subitem {sub_posts_tags}">Tags</a>
+					<a href="/n-admin/edit" class="nav-subitem {sub_posts_all}">All Posts</a>
+					<a href="/n-admin/post-new" class="nav-subitem {sub_posts_new}">Add New</a>
+					<a href="/n-admin/edit-tags?taxonomy=category" class="nav-subitem {sub_posts_cats}">Categories</a>
+					<a href="/n-admin/edit-tags?taxonomy=post_tag" class="nav-subitem {sub_posts_tags}">Tags</a>
 				</div>
 			</div>
 
 			<!-- 3. MEDIA -->
 			<div class="nav-group {is_media_open}">
-				<a href="/n-admin/upload.php" class="nav-item {is_media}">
+				<a href="/n-admin/upload" class="nav-item {is_media}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
 					<span>Media</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/upload.php" class="nav-subitem {sub_media_lib}">Library</a>
-					<a href="/n-admin/media-new.php" class="nav-subitem {sub_media_new}">Add New</a>
+					<a href="/n-admin/upload" class="nav-subitem {sub_media_lib}">Library</a>
+					<a href="/n-admin/media-new" class="nav-subitem {sub_media_new}">Add New</a>
 				</div>
 			</div>
 
 			<!-- 4. PAGES -->
 			<div class="nav-group {is_pages_open}">
-				<a href="/n-admin/edit.php?post_type=page" class="nav-item {is_pages}">
+				<a href="/n-admin/edit?post_type=page" class="nav-item {is_pages}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
 					<span>Pages</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/edit.php?post_type=page" class="nav-subitem {sub_pages_all}">All Pages</a>
-					<a href="/n-admin/post-new.php?post_type=page" class="nav-subitem {sub_pages_new}">Add New</a>
+					<a href="/n-admin/edit?post_type=page" class="nav-subitem {sub_pages_all}">All Pages</a>
+					<a href="/n-admin/post-new?post_type=page" class="nav-subitem {sub_pages_new}">Add New</a>
 				</div>
 			</div>
 
@@ -116,7 +116,7 @@ pub fn render_wp_admin_shell(
 
 			<!-- 6. COMMENTS -->
 			<div class="nav-group">
-				<a href="/n-admin/edit-comments.php" class="nav-item {is_comments}">
+				<a href="/n-admin/edit-comments" class="nav-item {is_comments}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
 					<span>Comments</span>
 				</a>
@@ -124,35 +124,36 @@ pub fn render_wp_admin_shell(
 
 			<!-- 7. APPEARANCE -->
 			<div class="nav-group {is_app_open}">
-				<a href="/n-admin/themes.php" class="nav-item {is_appearance}">
+				<a href="/n-admin/themes" class="nav-item {is_appearance}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
 					<span>Appearance</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/themes.php" class="nav-subitem {sub_app_themes}">Themes</a>
-					<a href="/n-admin/customize.php" class="nav-subitem {sub_app_cust}">Customize</a>
-					<a href="/n-admin/widgets.php" class="nav-subitem {sub_app_widg}">Widgets</a>
-					<a href="/n-admin/nav-menus.php" class="nav-subitem {sub_app_menus}">Menus</a>
-					<a href="/n-admin/theme-editor.php" class="nav-subitem {sub_app_editor}">Theme File Editor</a>
+					<a href="/n-admin/themes" class="nav-subitem {sub_app_themes}">Themes</a>
+					<a href="/n-admin/headers-footers" class="nav-subitem {sub_app_hf}">Header &amp; Footer</a>
+					<a href="/n-admin/customize" class="nav-subitem {sub_app_cust}">Customize</a>
+					<a href="/n-admin/widgets" class="nav-subitem {sub_app_widg}">Widgets</a>
+					<a href="/n-admin/nav-menus" class="nav-subitem {sub_app_menus}">Menus</a>
+					<a href="/n-admin/theme-editor" class="nav-subitem {sub_app_editor}">Theme File Editor</a>
 				</div>
 			</div>
 
 			<!-- 8. PLUGINS -->
 			<div class="nav-group {is_plugins_open}">
-				<a href="/n-admin/plugins.php" class="nav-item {is_plugins}">
+				<a href="/n-admin/plugins" class="nav-item {is_plugins}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
 					<span>Plugins</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/plugins.php" class="nav-subitem {sub_plug_list}">Installed Plugins</a>
-					<a href="/n-admin/plugin-install.php" class="nav-subitem {sub_plug_new}">Add New &amp; SDK</a>
-					<a href="/n-admin/plugin-editor.php" class="nav-subitem {sub_plug_editor}">Plugin File Editor</a>
+					<a href="/n-admin/plugins" class="nav-subitem {sub_plug_list}">Installed Plugins</a>
+					<a href="/n-admin/plugin-install" class="nav-subitem {sub_plug_new}">Add New &amp; SDK</a>
+					<a href="/n-admin/plugin-editor" class="nav-subitem {sub_plug_editor}">Plugin File Editor</a>
 				</div>
 			</div>
 
 			<!-- 8b. FORMS STUDIO -->
 			<div class="nav-group">
-				<a href="/n-admin/forms.php" class="nav-item {is_forms}">
+				<a href="/n-admin/forms" class="nav-item {is_forms}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
 					<span>Forms Studio</span>
 				</a>
@@ -160,55 +161,55 @@ pub fn render_wp_admin_shell(
 
 			<!-- 9. USERS -->
 			<div class="nav-group {is_users_open}">
-				<a href="/n-admin/users.php" class="nav-item {is_users}">
+				<a href="/n-admin/users" class="nav-item {is_users}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
 					<span>Users</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/users.php" class="nav-subitem {sub_users_all}">All Users</a>
-					<a href="/n-admin/user-new.php" class="nav-subitem {sub_users_new}">Add New</a>
-					<a href="/n-admin/profile.php" class="nav-subitem {sub_users_prof}">Profile</a>
+					<a href="/n-admin/users" class="nav-subitem {sub_users_all}">All Users</a>
+					<a href="/n-admin/user-new" class="nav-subitem {sub_users_new}">Add New</a>
+					<a href="/n-admin/profile" class="nav-subitem {sub_users_prof}">Profile</a>
 				</div>
 			</div>
 
 			<!-- 10. TOOLS -->
 			<div class="nav-group {is_tools_open}">
-				<a href="/n-admin/tools.php" class="nav-item {is_tools}">
+				<a href="/n-admin/tools" class="nav-item {is_tools}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
 					<span>Tools</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/tools.php" class="nav-subitem {sub_tools_avail}">Available Tools</a>
-					<a href="/n-admin/import.php" class="nav-subitem {sub_tools_import}">Import</a>
-					<a href="/n-admin/export.php" class="nav-subitem {sub_tools_export}">Export</a>
-					<a href="/n-admin/seo.php" class="nav-subitem {is_seo}">SEO &amp; Redirects</a>
-					<a href="/n-admin/backups.php" class="nav-subitem {is_backups}">Backups</a>
-					<a href="/n-admin/site-health.php" class="nav-subitem {sub_tools_health}">Site Health</a>
-					<a href="/n-admin/export-personal-data.php" class="nav-subitem {sub_tools_exp_data}">Export Personal Data</a>
-					<a href="/n-admin/erase-personal-data.php" class="nav-subitem {sub_tools_era_data}">Erase Personal Data</a>
+					<a href="/n-admin/tools" class="nav-subitem {sub_tools_avail}">Available Tools</a>
+					<a href="/n-admin/import" class="nav-subitem {sub_tools_import}">Import</a>
+					<a href="/n-admin/export" class="nav-subitem {sub_tools_export}">Export</a>
+					<a href="/n-admin/seo" class="nav-subitem {is_seo}">SEO &amp; Redirects</a>
+					<a href="/n-admin/backups" class="nav-subitem {is_backups}">Backups</a>
+					<a href="/n-admin/site-health" class="nav-subitem {sub_tools_health}">Site Health</a>
+					<a href="/n-admin/export-personal-data" class="nav-subitem {sub_tools_exp_data}">Export Personal Data</a>
+					<a href="/n-admin/erase-personal-data" class="nav-subitem {sub_tools_era_data}">Erase Personal Data</a>
 				</div>
 			</div>
 
 			<!-- 11. SETTINGS -->
 			<div class="nav-group {is_settings_open}">
-				<a href="/n-admin/options-general.php" class="nav-item {is_settings}">
+				<a href="/n-admin/options-general" class="nav-item {is_settings}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
 					<span>Settings</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/options-general.php" class="nav-subitem {sub_set_gen}">General</a>
-					<a href="/n-admin/options-writing.php" class="nav-subitem {sub_set_writ}">Writing</a>
-					<a href="/n-admin/options-reading.php" class="nav-subitem {sub_set_read}">Reading</a>
-					<a href="/n-admin/options-discussion.php" class="nav-subitem {sub_set_disc}">Discussion</a>
-					<a href="/n-admin/options-media.php" class="nav-subitem {sub_set_media}">Media</a>
-					<a href="/n-admin/options-permalink.php" class="nav-subitem {sub_set_perm}">Permalinks</a>
-					<a href="/n-admin/options-privacy.php" class="nav-subitem {sub_set_priv}">Privacy</a>
+					<a href="/n-admin/options-general" class="nav-subitem {sub_set_gen}">General</a>
+					<a href="/n-admin/options-writing" class="nav-subitem {sub_set_writ}">Writing</a>
+					<a href="/n-admin/options-reading" class="nav-subitem {sub_set_read}">Reading</a>
+					<a href="/n-admin/options-discussion" class="nav-subitem {sub_set_disc}">Discussion</a>
+					<a href="/n-admin/options-media" class="nav-subitem {sub_set_media}">Media</a>
+					<a href="/n-admin/options-permalink" class="nav-subitem {sub_set_perm}">Permalinks</a>
+					<a href="/n-admin/options-privacy" class="nav-subitem {sub_set_priv}">Privacy</a>
 				</div>
 			</div>
 
 			<!-- SYSTEM TELEMETRY -->
 			<div class="nav-group">
-				<a href="/n-admin/neopress-engine.php" class="nav-item {is_engine}">
+				<a href="/n-admin/neopress-engine" class="nav-item {is_engine}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
 					<span>Engine Telemetry</span>
 				</a>
@@ -247,22 +248,22 @@ pub fn render_wp_admin_shell(
 
 <script>
 	const NEO_QS_SCREENS = [
-		['Dashboard', '/n-admin/'], ['All Posts', '/n-admin/edit.php'], ['Add New Post', '/n-admin/post-new.php'],
-		['Categories', '/n-admin/edit-tags.php?taxonomy=category'], ['Tags', '/n-admin/edit-tags.php?taxonomy=post_tag'],
-		['Media Library', '/n-admin/upload.php'], ['Upload Media', '/n-admin/media-new.php'],
-		['All Pages', '/n-admin/edit.php?post_type=page'], ['Add New Page', '/n-admin/post-new.php?post_type=page'],
-		['Comments', '/n-admin/edit-comments.php'], ['Themes', '/n-admin/themes.php'], ['Customize', '/n-admin/customize.php'],
-		['Widgets', '/n-admin/widgets.php'], ['Menus', '/n-admin/nav-menus.php'], ['Theme File Editor', '/n-admin/theme-editor.php'],
-		['Installed Plugins', '/n-admin/plugins.php'], ['Add New Plugin', '/n-admin/plugin-install.php'],
-		['Forms Studio', '/n-admin/forms.php'], ['Users', '/n-admin/users.php'], ['Add New User', '/n-admin/user-new.php'],
-		['Profile', '/n-admin/profile.php'], ['Tools', '/n-admin/tools.php'], ['Import', '/n-admin/import.php'],
-		['Export', '/n-admin/export.php'], ['SEO & Redirects', '/n-admin/seo.php'], ['Backups', '/n-admin/backups.php'],
-		['Site Health', '/n-admin/site-health.php'], ['Export Personal Data', '/n-admin/export-personal-data.php'],
-		['Erase Personal Data', '/n-admin/erase-personal-data.php'], ['General Settings', '/n-admin/options-general.php'],
-		['Writing Settings', '/n-admin/options-writing.php'], ['Reading Settings', '/n-admin/options-reading.php'],
-		['Discussion Settings', '/n-admin/options-discussion.php'], ['Media Settings', '/n-admin/options-media.php'],
-		['Permalink Settings', '/n-admin/options-permalink.php'], ['Privacy Settings', '/n-admin/options-privacy.php'],
-		['Engine Telemetry', '/n-admin/neopress-engine.php'], ['Analytics', '/n-admin/analytics.php']
+		['Dashboard', '/n-admin/'], ['All Posts', '/n-admin/edit'], ['Add New Post', '/n-admin/post-new'],
+		['Categories', '/n-admin/edit-tags?taxonomy=category'], ['Tags', '/n-admin/edit-tags?taxonomy=post_tag'],
+		['Media Library', '/n-admin/upload'], ['Upload Media', '/n-admin/media-new'],
+		['All Pages', '/n-admin/edit?post_type=page'], ['Add New Page', '/n-admin/post-new?post_type=page'],
+		['Comments', '/n-admin/edit-comments'], ['Themes', '/n-admin/themes'], ['Header & Footer Manager', '/n-admin/headers-footers'], ['Customize', '/n-admin/customize'],
+		['Widgets', '/n-admin/widgets'], ['Menus', '/n-admin/nav-menus'], ['Theme File Editor', '/n-admin/theme-editor'],
+		['Installed Plugins', '/n-admin/plugins'], ['Add New Plugin', '/n-admin/plugin-install'],
+		['Forms Studio', '/n-admin/forms'], ['Users', '/n-admin/users'], ['Add New User', '/n-admin/user-new'],
+		['Profile', '/n-admin/profile'], ['Tools', '/n-admin/tools'], ['Import', '/n-admin/import'],
+		['Export', '/n-admin/export'], ['SEO & Redirects', '/n-admin/seo'], ['Backups', '/n-admin/backups'],
+		['Site Health', '/n-admin/site-health'], ['Export Personal Data', '/n-admin/export-personal-data'],
+		['Erase Personal Data', '/n-admin/erase-personal-data'], ['General Settings', '/n-admin/options-general'],
+		['Writing Settings', '/n-admin/options-writing'], ['Reading Settings', '/n-admin/options-reading'],
+		['Discussion Settings', '/n-admin/options-discussion'], ['Media Settings', '/n-admin/options-media'],
+		['Permalink Settings', '/n-admin/options-permalink'], ['Privacy Settings', '/n-admin/options-privacy'],
+		['Engine Telemetry', '/n-admin/neopress-engine'], ['Analytics', '/n-admin/analytics']
 	];
 	let neoQsItems = [];
 	let neoQsActive = 0;
@@ -321,7 +322,7 @@ pub fn render_wp_admin_shell(
 				const rows = await res.json();
 				content = (Array.isArray(rows) ? rows : []).map(r => ({{
 					label: (r.title || '(no title)').replace(/<[^>]*>/g, ''),
-					url: '/n-admin/post.php?post=' + encodeURIComponent(r.id),
+					url: '/n-admin/post?post=' + encodeURIComponent(r.id),
 					kind: r.subtype || 'post'
 				}}));
 			}}
@@ -429,6 +430,7 @@ pub fn render_wp_admin_shell(
         is_appearance = nav.is_appearance,
         is_app_open = nav.is_app_open,
         sub_app_themes = nav.sub_app_themes,
+        sub_app_hf = nav.sub_app_hf,
         sub_app_cust = nav.sub_app_cust,
         sub_app_widg = nav.sub_app_widg,
         sub_app_menus = nav.sub_app_menus,

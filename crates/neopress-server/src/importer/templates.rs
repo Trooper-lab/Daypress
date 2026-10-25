@@ -42,7 +42,9 @@ pub fn upsert_theme_template(
                 version: 1,
                 root: neopress_ast::NeopressNode {
                     id: format!("tpl_{}_root", template_type),
-                    kind: neopress_ast::NodeKind::CustomHtml { raw: content_html.to_string() },
+                    kind: neopress_ast::NodeKind::CustomHtml {
+                        raw: content_html.to_string(),
+                    },
                     children: Vec::new(),
                     styles: neopress_ast::StyleProperties::default(),
                 },
@@ -74,7 +76,11 @@ pub fn upsert_theme_template(
         }
     };
 
-    let opt_name = if template_type == "header" { "neopress_elementor_header_html" } else { "neopress_elementor_footer_html" };
+    let opt_name = if template_type == "header" {
+        "neopress_elementor_header_html"
+    } else {
+        "neopress_elementor_footer_html"
+    };
     let _ = tx.execute(
         "INSERT INTO wp_options (option_name, option_value) VALUES (?1, ?2) ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
         params![opt_name, content_html],
@@ -100,32 +106,54 @@ pub fn normalize_template_type(raw_type: &str) -> &'static str {
 /// Safely extracts a vector of condition rule strings from PHP serialized or JSON metadata.
 pub fn extract_condition_strings(raw: &str) -> Vec<String> {
     let trimmed = raw.trim();
-    if trimmed.is_empty() { return Vec::new(); }
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
     if trimmed.starts_with("a:") {
         if let Some(val) = neopress_ast::parse_php_serialized_to_json(trimmed) {
             let items: Vec<String> = match val {
-                serde_json::Value::Array(a) => a.into_iter().filter_map(|v| v.as_str().map(String::from)).collect(),
-                serde_json::Value::Object(m) => m.into_iter().filter_map(|(_, v)| v.as_str().map(String::from)).collect(),
+                serde_json::Value::Array(a) => a
+                    .into_iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect(),
+                serde_json::Value::Object(m) => m
+                    .into_iter()
+                    .filter_map(|(_, v)| v.as_str().map(String::from))
+                    .collect(),
                 _ => Vec::new(),
             };
-            if !items.is_empty() { return items; }
+            if !items.is_empty() {
+                return items;
+            }
         }
     }
     if trimmed.starts_with('[') {
-        if let Ok(strings) = serde_json::from_str::<Vec<String>>(trimmed) { return strings; }
+        if let Ok(strings) = serde_json::from_str::<Vec<String>>(trimmed) {
+            return strings;
+        }
     }
-    trimmed.split(',').map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty()).collect()
+    trimmed
+        .split(',')
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 /// Parses an Elementor condition rule string into typed (ConditionType, RuleTarget, target_id, priority).
-pub fn parse_elementor_condition_rule(rule_str: &str) -> Option<(ConditionType, RuleTarget, String, i32)> {
+pub fn parse_elementor_condition_rule(
+    rule_str: &str,
+) -> Option<(ConditionType, RuleTarget, String, i32)> {
     let trimmed = rule_str.trim();
-    if trimmed.is_empty() { return None; }
+    if trimmed.is_empty() {
+        return None;
+    }
     let parts: Vec<&str> = trimmed
         .split('/')
         .map(|s| s.trim().trim_matches('"'))
         .collect();
-    if parts.is_empty() { return None; }
+    if parts.is_empty() {
+        return None;
+    }
 
     let (c_type, offset) = match parts[0].to_lowercase().as_str() {
         "exclude" | "ex" => (ConditionType::Exclude, 1),
@@ -138,14 +166,18 @@ pub fn parse_elementor_condition_rule(rule_str: &str) -> Option<(ConditionType, 
     let id_part = rem.get(2).copied().unwrap_or("");
 
     let (target, target_id, priority) = match cat.as_str() {
-        "general" | "entire_site" | "all" | "site" | "" => (RuleTarget::EntireSite, String::new(), 10),
+        "general" | "entire_site" | "all" | "site" | "" => {
+            (RuleTarget::EntireSite, String::new(), 10)
+        }
         "singular" => match sub.as_str() {
             "front_page" | "home" => (RuleTarget::FrontPage, String::new(), 40),
             "not_found404" | "404" | "not_found" => (RuleTarget::NotFound, String::new(), 40),
             "posts" | "all_posts" => (RuleTarget::AllPosts, String::new(), 20),
             "pages" | "all_pages" => (RuleTarget::AllPages, String::new(), 20),
-            "post" => (!id_part.is_empty()).then(|| (RuleTarget::Post, id_part.to_string(), 40)).unwrap_or((RuleTarget::AllPosts, String::new(), 20)),
-            "page" => (!id_part.is_empty()).then(|| (RuleTarget::Page, id_part.to_string(), 40)).unwrap_or((RuleTarget::AllPages, String::new(), 20)),
+            "post" if !id_part.is_empty() => (RuleTarget::Post, id_part.to_string(), 40),
+            "post" => (RuleTarget::AllPosts, String::new(), 20),
+            "page" if !id_part.is_empty() => (RuleTarget::Page, id_part.to_string(), 40),
+            "page" => (RuleTarget::AllPages, String::new(), 20),
             "by_author" | "author" => (RuleTarget::Author, id_part.to_string(), 30),
             "in_category" | "category" => (RuleTarget::Category, id_part.to_string(), 30),
             "in_tag" | "tag" => (RuleTarget::Tag, id_part.to_string(), 30),
@@ -265,12 +297,19 @@ pub fn ingest_elementor_library_template(
         }
     };
 
-    let _ = tx.execute("DELETE FROM wp_neopress_template_conditions WHERE template_id = ?1", params![template_id]);
+    let _ = tx.execute(
+        "DELETE FROM wp_neopress_template_conditions WHERE template_id = ?1",
+        params![template_id],
+    );
     for (c_type, r_target, target_id, cond_priority) in &conditions {
         let final_target_id = target_id
             .parse::<i64>()
             .ok()
-            .and_then(|old_id| old_to_new_post_id.get(&old_id).map(|new_id| new_id.to_string()))
+            .and_then(|old_id| {
+                old_to_new_post_id
+                    .get(&old_id)
+                    .map(|new_id| new_id.to_string())
+            })
             .unwrap_or_else(|| target_id.clone());
 
         let _ = tx.execute(
@@ -279,10 +318,18 @@ pub fn ingest_elementor_library_template(
         );
     }
 
-    let is_entire_site = conditions.iter().any(|(c, r, _, _)| *c == ConditionType::Include && *r == RuleTarget::EntireSite);
-    let has_exclusions = conditions.iter().any(|(c, _, _, _)| *c == ConditionType::Exclude);
+    let is_entire_site = conditions
+        .iter()
+        .any(|(c, r, _, _)| *c == ConditionType::Include && *r == RuleTarget::EntireSite);
+    let has_exclusions = conditions
+        .iter()
+        .any(|(c, _, _, _)| *c == ConditionType::Exclude);
     if is_entire_site && !has_exclusions {
-        let opt_name = if tpl_type == "header" { "neopress_elementor_header_html" } else { "neopress_elementor_footer_html" };
+        let opt_name = if tpl_type == "header" {
+            "neopress_elementor_header_html"
+        } else {
+            "neopress_elementor_footer_html"
+        };
         let _ = tx.execute(
             "INSERT INTO wp_options (option_name, option_value) VALUES (?1, ?2) ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
             params![opt_name, rendered_html],
@@ -301,8 +348,18 @@ mod tests {
         let raw = r#"a:2:{i:0;s:15:"include/general";i:1;s:24:"exclude/singular/page/42";}"#;
         let conds = parse_elementor_conditions(raw);
         assert_eq!(conds.len(), 2);
-        assert_eq!(conds[0], (ConditionType::Include, RuleTarget::EntireSite, String::new()));
-        assert_eq!(conds[1], (ConditionType::Exclude, RuleTarget::Page, "42".to_string()));
+        assert_eq!(
+            conds[0],
+            (
+                ConditionType::Include,
+                RuleTarget::EntireSite,
+                String::new()
+            )
+        );
+        assert_eq!(
+            conds[1],
+            (ConditionType::Exclude, RuleTarget::Page, "42".to_string())
+        );
     }
 
     #[test]
@@ -310,7 +367,17 @@ mod tests {
         let raw = r#"["include/general", "include/singular/front_page"]"#;
         let conds = parse_elementor_conditions(raw);
         assert_eq!(conds.len(), 2);
-        assert_eq!(conds[0], (ConditionType::Include, RuleTarget::EntireSite, String::new()));
-        assert_eq!(conds[1], (ConditionType::Include, RuleTarget::FrontPage, String::new()));
+        assert_eq!(
+            conds[0],
+            (
+                ConditionType::Include,
+                RuleTarget::EntireSite,
+                String::new()
+            )
+        );
+        assert_eq!(
+            conds[1],
+            (ConditionType::Include, RuleTarget::FrontPage, String::new())
+        );
     }
 }

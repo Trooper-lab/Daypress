@@ -141,9 +141,10 @@ fn parse_php_val(bytes: &[u8], pos: &mut usize) -> Option<Value> {
                 *pos += 1;
             }
 
-            let is_sequential_list = entries.iter().enumerate().all(|(idx, (k, _))| {
-                k.as_i64() == Some(idx as i64)
-            });
+            let is_sequential_list = entries
+                .iter()
+                .enumerate()
+                .all(|(idx, (k, _))| k.as_i64() == Some(idx as i64));
 
             if is_sequential_list {
                 Some(Value::Array(entries.into_iter().map(|(_, v)| v).collect()))

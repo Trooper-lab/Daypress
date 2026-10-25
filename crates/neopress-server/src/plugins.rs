@@ -1,7 +1,6 @@
 use crate::db::Database;
 use crate::models::{
-    PluginHooksManifest, PluginManifest, PluginSettingField, WpPostResponse,
-    WpSettingsResponse,
+    PluginHooksManifest, PluginManifest, PluginSettingField, WpPostResponse, WpSettingsResponse,
 };
 use std::collections::HashMap;
 
@@ -14,9 +13,9 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "2.5.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "Full Yoast & RankMath parity: Per-post SEO title/description/focus-keyphrase analyzer, Schema.org JSON-LD graph, OpenGraph cards, 301/302 Redirect Manager, and 404 Monitor.".to_string(),
-            settings_url: Some("/n-admin/seo.php".to_string()),
+            settings_url: Some("/n-admin/seo".to_string()),
             is_builtin: true,
-            // Global SEO settings live in `wp_options` and are edited on /n-admin/seo.php
+            // Global SEO settings live in `wp_options` and are edited on /n-admin/seo
             // (see `Database::save_global_seo_settings`), so no duplicate plugin-config schema here.
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -27,10 +26,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "2.2.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "Full Contact Form 7, WPForms & Ninja Forms parity: Declarative form builder, honeypot anti-spam protection, SQLite submissions inbox, CSV export, email notifications, and webhook triggers.".to_string(),
-            settings_url: Some("/n-admin/forms.php".to_string()),
+            settings_url: Some("/n-admin/forms".to_string()),
             is_builtin: true,
             // Per-form settings (notifications, honeypot, webhooks) are stored on each form
-            // in `wp_neopress_forms.settings_json` and edited on /n-admin/forms.php.
+            // in `wp_neopress_forms.settings_json` and edited on /n-admin/forms.
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
         },
@@ -40,7 +39,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "1.8.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "UpdraftPlus & All-in-One WP Migration parity: Zero-downtime SQLite VACUUM INTO hot snapshots, 1-click point-in-time restore, and full JSON/WXR archive downloads.".to_string(),
-            settings_url: Some("/n-admin/backups.php".to_string()),
+            settings_url: Some("/n-admin/backups".to_string()),
             is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -51,7 +50,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "1.5.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "Joinchat & Click-to-Chat parity: Zero-JS floating WhatsApp chat launcher with customizable phone number, welcome message, CTA tooltip badge, and corner placement.".to_string(),
-            settings_url: Some("/n-admin/plugin-settings.php?plugin=whatsapp-chat".to_string()),
+            settings_url: Some("/n-admin/plugin-settings?plugin=whatsapp-chat".to_string()),
             is_builtin: true,
             settings_schema: vec![
                 PluginSettingField {
@@ -103,7 +102,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "1.4.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "WPCode & Insert Headers and Footers parity: Safely inject custom HTML, CSS, tracking pixels (GTM, Meta Pixel, Plausible), or scripts into <head>, <body>, or <footer>.".to_string(),
-            settings_url: Some("/n-admin/plugin-settings.php?plugin=code-snippets".to_string()),
+            settings_url: Some("/n-admin/plugin-settings?plugin=code-snippets".to_string()),
             is_builtin: true,
             settings_schema: vec![
                 PluginSettingField {
@@ -139,7 +138,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "1.0.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "Automated Write-Ahead-Log checkpointing: while active, runs PRAGMA wal_checkpoint(TRUNCATE) every 5 minutes to keep the -wal file small and reads fast.".to_string(),
-            settings_url: Some("/n-admin/neopress-engine.php".to_string()),
+            settings_url: Some("/n-admin/neopress-engine".to_string()),
             is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -150,7 +149,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "2.4.1".to_string(),
             author: "ImageRS Engine".to_string(),
             description: "On-the-fly dynamic image dimension scaling, auto-crop matrix, and WebP transcoding.".to_string(),
-            settings_url: Some("/n-admin/options-media.php".to_string()),
+            settings_url: Some("/n-admin/options-media".to_string()),
             is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -161,7 +160,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             version: "2.0.0".to_string(),
             author: "Neopress Core".to_string(),
             description: "High-throughput WordPress XML & 1-Click JSON importer that automatically converges Yoast, RankMath, Contact Form 7, WPForms, Redirection, and Joinchat settings.".to_string(),
-            settings_url: Some("/n-admin/import.php".to_string()),
+            settings_url: Some("/n-admin/import".to_string()),
             is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -185,7 +184,9 @@ pub fn is_core_always_on(slug: &str) -> bool {
 
 /// Returns the compiled catalog manifest for a built-in slug (if any).
 pub fn builtin_manifest(slug: &str) -> Option<PluginManifest> {
-    builtin_plugins_catalog().into_iter().find(|m| m.slug == slug)
+    builtin_plugins_catalog()
+        .into_iter()
+        .find(|m| m.slug == slug)
 }
 
 /// Editable "files" of a declarative community plugin in the Plugin File Editor.
@@ -201,7 +202,10 @@ pub const PLUGIN_HOOK_FILES: &[&str] = &[
 ];
 
 /// Returns a mutable reference to the hook template backing an editor hook file.
-pub fn hook_field_mut<'a>(hooks: &'a mut PluginHooksManifest, file: &str) -> Option<&'a mut String> {
+pub fn hook_field_mut<'a>(
+    hooks: &'a mut PluginHooksManifest,
+    file: &str,
+) -> Option<&'a mut String> {
     match file {
         "hooks/head_html.html" => Some(&mut hooks.head_html),
         "hooks/body_top_html.html" => Some(&mut hooks.body_top_html),
@@ -249,7 +253,9 @@ pub fn validate_community_manifest(manifest: &mut PluginManifest) -> Result<Vec<
     manifest.slug = manifest.slug.trim().to_string();
     manifest.name = manifest.name.trim().to_string();
     if !is_valid_plugin_slug(&manifest.slug) {
-        return Err("\"slug\" must be 1-64 chars of lowercase letters, digits, '-' or '_'".to_string());
+        return Err(
+            "\"slug\" must be 1-64 chars of lowercase letters, digits, '-' or '_'".to_string(),
+        );
     }
     if manifest.name.is_empty() {
         return Err("\"name\" is required".to_string());
@@ -545,15 +551,20 @@ pub fn expand_shortcodes_in_content(
     // with Contact Form 7 deactivated, the raw shortcode is left untouched when it is inactive.
     let forms_active = out.contains('[') && db.is_plugin_active("neopress-forms");
 
-    // 1. Expand [neopress_form id="X"]
+    // 1. Expand [neopress_form id="X"] (or a bare [neopress_form] -> the first form)
     if forms_active && out.contains("[neopress_form") {
-        if let Ok(re) = regex::Regex::new(r#"\[neopress_form\s+id=["']?(\d+)["']?[^\]]*\]"#) {
+        if let Ok(re) = regex::Regex::new(r#"\[neopress_form(?:\s+id=["']?(\d+)["']?)?[^\]]*\]"#) {
+            let default_form_id = db
+                .list_forms()
+                .ok()
+                .and_then(|v| v.first().map(|(f, _)| f.id))
+                .unwrap_or(1);
             out = re
                 .replace_all(&out, |caps: &regex::Captures| {
                     let form_id: i64 = caps
                         .get(1)
                         .and_then(|m| m.as_str().parse().ok())
-                        .unwrap_or(1);
+                        .unwrap_or(default_form_id);
                     render_public_form_html(db, form_id)
                 })
                 .into_owned();
@@ -775,10 +786,15 @@ pub fn inject_plugin_hooks_into_html(
     current_post: Option<&WpPostResponse>,
     html: String,
 ) -> String {
+    // AST-rendered bodies never pass through `expand_shortcodes_in_content`, so expand any
+    // shortcodes still present in the page's main content region here.
+    let html = if current_post.is_some() {
+        expand_shortcodes_in_main_region(db, settings, html)
+    } else {
+        html
+    };
     let hooks = render_active_plugin_hooks(db, settings, current_post);
-    if hooks.head_html.is_empty()
-        && hooks.body_top_html.is_empty()
-        && hooks.footer_html.is_empty()
+    if hooks.head_html.is_empty() && hooks.body_top_html.is_empty() && hooks.footer_html.is_empty()
     {
         return html;
     }
@@ -799,6 +815,28 @@ pub fn inject_plugin_hooks_into_html(
         out = out.replacen("</body>", &format!("{}\n</body>", hooks.footer_html), 1);
     }
     out
+}
+
+/// Runs [`expand_shortcodes_in_content`] on the `<main class="neo-main">` region only, so
+/// shortcode text quoted in `<head>` metadata or the theme header/footer is left alone.
+fn expand_shortcodes_in_main_region(
+    db: &Database,
+    settings: &WpSettingsResponse,
+    html: String,
+) -> String {
+    const MAIN_OPEN: &str = "<main class=\"neo-main\">";
+    let Some(start) = html.find(MAIN_OPEN).map(|i| i + MAIN_OPEN.len()) else {
+        return html;
+    };
+    let Some(len) = html[start..].find("</main>") else {
+        return html;
+    };
+    let region = &html[start..start + len];
+    if !region.contains('[') {
+        return html;
+    }
+    let expanded = expand_shortcodes_in_content(region, db, settings);
+    format!("{}{}{}", &html[..start], expanded, &html[start + len..])
 }
 
 /// Returns a complete starter Community Plugin JSON manifest that developers can download and customize.

@@ -15,7 +15,8 @@ pub fn synchronize_post_ast_layout(
     // 1. Gather existing postmeta
     let mut meta: HashMap<String, String> = HashMap::new();
     {
-        let mut stmt = conn.prepare("SELECT meta_key, meta_value FROM wp_postmeta WHERE post_id = ?1")?;
+        let mut stmt =
+            conn.prepare("SELECT meta_key, meta_value FROM wp_postmeta WHERE post_id = ?1")?;
         let rows = stmt.query_map(params![post_id], |r| {
             Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
         })?;

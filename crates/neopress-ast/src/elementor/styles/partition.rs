@@ -7,9 +7,7 @@ use crate::schema::StyleProperties;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
-pub(crate) fn partition_elementor_settings(
-    settings: &Value,
-) -> (Value, Value, Value, Value) {
+pub(crate) fn partition_elementor_settings(settings: &Value) -> (Value, Value, Value, Value) {
     let mut desktop = Map::new();
     let mut tablet = Map::new();
     let mut mobile = Map::new();
@@ -41,7 +39,10 @@ pub(crate) fn partition_elementor_settings(
     )
 }
 
-pub(crate) fn extract_elementor_styles(settings: &Value, ctx: &ElementorContext) -> StyleProperties {
+pub(crate) fn extract_elementor_styles(
+    settings: &Value,
+    ctx: &ElementorContext,
+) -> StyleProperties {
     let (desktop, tablet, mobile, hover) = partition_elementor_settings(settings);
     let mut styles = extract_elementor_single_state_styles(&desktop, ctx);
 

@@ -3,12 +3,15 @@ use super::gallery::map_gutenberg_gallery;
 use super::lists::map_gutenberg_list;
 use crate::gutenberg::parser::GutenbergBlock;
 use crate::gutenberg::styles::{
-    detect_heading_level, extract_attr_from_html, extract_gutenberg_styles,
-    strip_html_tags, strip_outer_heading_tag,
+    detect_heading_level, extract_attr_from_html, extract_gutenberg_styles, strip_html_tags,
+    strip_outer_heading_tag,
 };
 use crate::schema::{BackgroundConfig, NeopressNode, NodeKind, Spacing, StyleProperties};
 
-pub(crate) fn map_gutenberg_block(block: &GutenbergBlock, counter: &mut usize) -> Option<NeopressNode> {
+pub(crate) fn map_gutenberg_block(
+    block: &GutenbergBlock,
+    counter: &mut usize,
+) -> Option<NeopressNode> {
     *counter += 1;
     let short_name = block
         .name
@@ -310,7 +313,10 @@ pub(crate) fn map_gutenberg_block(block: &GutenbergBlock, counter: &mut usize) -
                         inner, cite
                     )
                 } else if !inner.starts_with("<blockquote") {
-                    format!(r#"<blockquote class="wp-block-quote">{}</blockquote>"#, inner)
+                    format!(
+                        r#"<blockquote class="wp-block-quote">{}</blockquote>"#,
+                        inner
+                    )
                 } else {
                     inner.to_string()
                 };
@@ -329,7 +335,10 @@ pub(crate) fn map_gutenberg_block(block: &GutenbergBlock, counter: &mut usize) -
                 NodeKind::Container
             }
         }
-        _ if norm_name.starts_with("embed") || norm_name.starts_with("core-embed") || norm_name == "video" => {
+        _ if norm_name.starts_with("embed")
+            || norm_name.starts_with("core-embed")
+            || norm_name == "video" =>
+        {
             map_gutenberg_embed(block)
         }
         "code" | "preformatted" | "html" | "table" => NodeKind::CustomHtml {

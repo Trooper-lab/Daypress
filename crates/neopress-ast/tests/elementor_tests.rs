@@ -52,10 +52,7 @@ fn test_elementor_transpilation_and_rendering() {
 
     let section = &layout.root.children[0];
     assert_eq!(section.kind, NodeKind::Section);
-    assert_eq!(
-        section.styles.background_color.as_deref(),
-        Some("#0f172a")
-    );
+    assert_eq!(section.styles.background_color.as_deref(), Some("#0f172a"));
     assert_eq!(section.styles.padding_top.as_deref(), Some("60px"));
     assert_eq!(section.children.len(), 1);
 
@@ -147,7 +144,10 @@ fn test_elementor_container_globals_and_youtube() {
     let cont = &layout.root.children[0];
     assert_eq!(cont.kind, NodeKind::Container);
     assert_eq!(cont.styles.display.as_deref(), Some("flex"));
-    assert_eq!(cont.styles.justify_content.as_deref(), Some("space-between"));
+    assert_eq!(
+        cont.styles.justify_content.as_deref(),
+        Some("space-between")
+    );
     assert_eq!(cont.styles.gap.as_deref(), Some("24px"));
     assert_eq!(
         cont.styles.background_color.as_deref(),
@@ -370,14 +370,25 @@ fn test_elementor_css_grid_container() {
     let layout = transpile_content("", &meta).expect("Grid transpilation failed");
     let grid_node = &layout.root.children[0];
     assert_eq!(grid_node.styles.display.as_deref(), Some("grid"));
-    assert_eq!(grid_node.styles.grid_template_columns.as_deref(), Some("repeat(3, 1fr)"));
+    assert_eq!(
+        grid_node.styles.grid_template_columns.as_deref(),
+        Some("repeat(3, 1fr)")
+    );
     assert_eq!(grid_node.styles.grid_gap.as_deref(), Some("24px"));
     assert_eq!(grid_node.styles.grid_auto_flow.as_deref(), Some("row"));
 
     // Responsive overrides
-    let tab = grid_node.styles.tablet.as_ref().expect("Missing tablet styles");
+    let tab = grid_node
+        .styles
+        .tablet
+        .as_ref()
+        .expect("Missing tablet styles");
     assert_eq!(tab.grid_template_columns.as_deref(), Some("repeat(2, 1fr)"));
-    let mob = grid_node.styles.mobile.as_ref().expect("Missing mobile styles");
+    let mob = grid_node
+        .styles
+        .mobile
+        .as_ref()
+        .expect("Missing mobile styles");
     assert_eq!(mob.grid_template_columns.as_deref(), Some("repeat(1, 1fr)"));
 
     // Grid item column span

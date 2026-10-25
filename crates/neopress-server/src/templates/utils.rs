@@ -11,10 +11,22 @@ pub fn clean_wp_content(raw: &str) -> String {
             .into_owned();
     }
 
-    // Expand [neopress_form ...] and [contact-form-7 ...]
-    if let Ok(re_form) = regex::Regex::new(r#"(?i)\[(?:neopress_form|contact-form-7)[^\]]*\]"#) {
-        let form_html = r#"<form class="np-inline-form" onsubmit="event.preventDefault();var f=this;fetch('/wp-json/neopress/v1/forms/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({form_id:'inline_form',data:{name:f.querySelector('[name=name]').value,email:f.querySelector('[name=email]').value,message:f.querySelector('[name=message]').value}})}).then(function(){f.innerHTML='<p style=&quot;color:#10b981;font-weight:600;margin:0;&quot;>✓ Thank you! Your message has been received.</p>';});" style="display:flex;flex-direction:column;gap:12px;max-width:520px;margin:24px 0;padding:20px;background:#111114;border:1px solid #222226;border-radius:8px;"><input type="text" name="name" placeholder="Your Name" required style="padding:10px 12px;border-radius:6px;border:1px solid #27272a;background:#09090b;color:#fff;" /><input type="email" name="email" placeholder="Email Address" required style="padding:10px 12px;border-radius:6px;border:1px solid #27272a;background:#09090b;color:#fff;" /><textarea name="message" rows="4" placeholder="Your Message..." required style="padding:10px 12px;border-radius:6px;border:1px solid #27272a;background:#09090b;color:#fff;"></textarea><button type="submit" class="btn-primary-neon" style="align-self:flex-start;border:none;cursor:pointer;">Send Message</button></form>"#;
-        s = re_form.replace_all(&s, form_html).into_owned();
+    // Expand [neopress_form ...] and [contact-form-7 ...] left over after plugin expansion,
+    // posting to the form's real submit route (`id="N"` when given, else form 1).
+    if let Ok(re_form) = regex::Regex::new(r#"(?i)\[(?:neopress_form|contact-form-7)([^\]]*)\]"#) {
+        let form_html = r#"<form class="np-inline-form" onsubmit="event.preventDefault();var f=this;fetch('/wp-json/neopress/v1/forms/__FORM_ID__/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{name:f.querySelector('[name=name]').value,email:f.querySelector('[name=email]').value,message:f.querySelector('[name=message]').value}})}).then(function(r){if(!r.ok)throw r;f.innerHTML='<p style=&quot;color:#10b981;font-weight:600;margin:0;&quot;>✓ Thank you! Your message has been received.</p>';}).catch(function(){alert('Sorry, your message could not be sent. Please try again.');});" style="display:flex;flex-direction:column;gap:12px;max-width:520px;margin:24px 0;padding:20px;background:#111114;border:1px solid #222226;border-radius:8px;"><input type="text" name="name" placeholder="Your Name" required style="padding:10px 12px;border-radius:6px;border:1px solid #27272a;background:#09090b;color:#fff;" /><input type="email" name="email" placeholder="Email Address" required style="padding:10px 12px;border-radius:6px;border:1px solid #27272a;background:#09090b;color:#fff;" /><textarea name="message" rows="4" placeholder="Your Message..." required style="padding:10px 12px;border-radius:6px;border:1px solid #27272a;background:#09090b;color:#fff;"></textarea><button type="submit" class="btn-primary-neon" style="align-self:flex-start;border:none;cursor:pointer;">Send Message</button></form>"#;
+        let re_id = regex::Regex::new(r#"id=["']?(\d+)"#).ok();
+        s = re_form
+            .replace_all(&s, |caps: &regex::Captures| {
+                let form_id = re_id
+                    .as_ref()
+                    .and_then(|re| re.captures(caps.get(1).map_or("", |m| m.as_str())))
+                    .and_then(|c| c.get(1))
+                    .map_or("1", |m| m.as_str())
+                    .to_string();
+                form_html.replace("__FORM_ID__", &form_id)
+            })
+            .into_owned();
     }
 
     // Expand [audio src="..."]
@@ -79,6 +91,10 @@ pub fn escape_json(s: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
+            // Keep `</script>` and HTML comments from closing an inline <script> block (JSON-LD).
+            '<' => out.push_str("\\u003c"),
+            '>' => out.push_str("\\u003e"),
+            '&' => out.push_str("\\u0026"),
             c if c.is_control() => out.push_str(&format!("\\u{:04x}", c as u32)),
             c => out.push(c),
         }
@@ -86,9 +102,46 @@ pub fn escape_json(s: &str) -> String {
     out
 }
 
+/// Inline tags a visitor's comment may keep; they are restored only in their exact,
+/// attribute-free form after the whole comment has been escaped.
+const COMMENT_ALLOWED_TAGS: [&str; 7] = ["p", "br", "b", "strong", "i", "em", "code"];
+
+/// Renders untrusted comment text as safe HTML: everything is escaped, a few attribute-free
+/// inline tags are restored, and line breaks become `<br>`.
+pub fn sanitize_comment_html(raw: &str) -> String {
+    let mut out = escape_html(raw.trim());
+    for tag in COMMENT_ALLOWED_TAGS {
+        for (escaped, plain) in [
+            (format!("&lt;{tag}&gt;"), format!("<{tag}>")),
+            (format!("&lt;/{tag}&gt;"), format!("</{tag}>")),
+            (format!("&lt;{tag} /&gt;"), format!("<{tag} />")),
+            (format!("&lt;{tag}/&gt;"), format!("<{tag} />")),
+        ] {
+            out = out.replace(&escaped, &plain);
+        }
+    }
+    out.replace("\r\n", "\n").replace('\n', "<br>\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sanitize_comment_html_neutralises_markup() {
+        let out = sanitize_comment_html(
+            "Hi <b>there</b>\n<img src=x onerror=alert(1)><script>alert(2)</script><a href=\"javascript:x\">l</a>",
+        );
+        assert!(out.starts_with("Hi <b>there</b><br>"));
+        assert!(!out.contains("<img") && !out.contains("<script") && !out.contains("<a "));
+        assert!(out.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn test_escape_json_cannot_close_script_block() {
+        let out = escape_json("</script><img src=x onerror=alert(1)>");
+        assert!(!out.contains('<') && !out.contains('>'));
+    }
 
     #[test]
     fn test_escape_html() {
@@ -110,9 +163,12 @@ mod tests {
 
     #[test]
     fn test_shortcodes_in_clean_wp_content() {
-        let raw = r#"[caption id="1"]<img src="a.jpg" /> Cute cat[/caption] [audio src="song.mp3"]"#;
+        let raw =
+            r#"[caption id="1"]<img src="a.jpg" /> Cute cat[/caption] [audio src="song.mp3"]"#;
         let cleaned = clean_wp_content(raw);
-        assert!(cleaned.contains(r#"<figure class="wp-caption"><img src="a.jpg" /> Cute cat</figure>"#));
+        assert!(
+            cleaned.contains(r#"<figure class="wp-caption"><img src="a.jpg" /> Cute cat</figure>"#)
+        );
         assert!(cleaned.contains(r#"<audio controls src="song.mp3""#));
     }
 }

@@ -3,8 +3,8 @@
 //! and leak prevention under adversarial conditions.
 
 use neopress_ast::{
-    compile_theme_json_to_css, parse_theme_json, render_layout_to_html,
-    transpile_content, transpile_gutenberg_content, NodeKind,
+    compile_theme_json_to_css, parse_theme_json, render_layout_to_html, transpile_content,
+    transpile_gutenberg_content, NodeKind,
 };
 use std::collections::HashMap;
 
@@ -54,14 +54,22 @@ fn test_adversarial_multiline_json_and_spacing_attributes() {
 "#;
 
     let layout = transpile_gutenberg_content(input).expect("Should transpile multiline JSON");
-    assert_eq!(layout.root.children.len(), 1, "Root should have 1 columns block");
+    assert_eq!(
+        layout.root.children.len(),
+        1,
+        "Root should have 1 columns block"
+    );
     let columns = &layout.root.children[0];
     assert!(
         matches!(columns.kind, NodeKind::Flex { .. }),
         "Columns block should be mapped to Flex"
     );
-    assert_eq!(columns.children.len(), 2, "Columns should contain 2 column children");
-    
+    assert_eq!(
+        columns.children.len(),
+        2,
+        "Columns should contain 2 column children"
+    );
+
     // Check column 1
     let col1 = &columns.children[0];
     if let NodeKind::Flex { basis, .. } = &col1.kind {
@@ -98,7 +106,11 @@ fn test_adversarial_json_string_literals_with_braces_and_escapes() {
 "#;
 
     let layout = transpile_gutenberg_content(input).expect("Should parse strings with braces");
-    assert_eq!(layout.root.children.len(), 2, "Should parse paragraph and heading");
+    assert_eq!(
+        layout.root.children.len(),
+        2,
+        "Should parse paragraph and heading"
+    );
 
     let p = &layout.root.children[0];
     assert!(matches!(p.kind, NodeKind::Text { .. }));
@@ -143,7 +155,8 @@ fn test_deeply_nested_containers_and_embedded_html_comments() {
 <!-- /wp:columns -->
 "#;
 
-    let layout = transpile_gutenberg_content(input).expect("Should parse nested columns 3 levels deep");
+    let layout =
+        transpile_gutenberg_content(input).expect("Should parse nested columns 3 levels deep");
     assert_eq!(layout.root.children.len(), 1);
     let level1 = &layout.root.children[0];
     assert_eq!(level1.children.len(), 1);
@@ -186,7 +199,11 @@ fn test_core_gallery_modern_and_legacy() {
     } else {
         panic!("Gallery should map to Grid node");
     }
-    assert_eq!(gallery_node.children.len(), 2, "Should have 2 image child nodes");
+    assert_eq!(
+        gallery_node.children.len(),
+        2,
+        "Should have 2 image child nodes"
+    );
     if let NodeKind::Image { src, alt, link, .. } = &gallery_node.children[0].kind {
         assert_eq!(src, "https://example.com/img1.jpg");
         assert_eq!(alt, "Image 1");
@@ -206,14 +223,19 @@ fn test_core_gallery_modern_and_legacy() {
 <!-- /wp:gallery -->
 "#;
 
-    let layout_legacy = transpile_gutenberg_content(legacy_gallery).expect("Transpile legacy gallery");
+    let layout_legacy =
+        transpile_gutenberg_content(legacy_gallery).expect("Transpile legacy gallery");
     let gallery_legacy_node = &layout_legacy.root.children[0];
     if let NodeKind::Grid { columns, .. } = &gallery_legacy_node.kind {
         assert_eq!(*columns, 3, "Columns should be 3");
     } else {
         panic!("Legacy gallery should map to Grid node");
     }
-    assert_eq!(gallery_legacy_node.children.len(), 3, "Extracted 3 images from legacy HTML");
+    assert_eq!(
+        gallery_legacy_node.children.len(),
+        3,
+        "Extracted 3 images from legacy HTML"
+    );
     if let NodeKind::Image { src, alt, link, .. } = &gallery_legacy_node.children[1].kind {
         assert_eq!(src, "https://example.com/photoB.jpg");
         assert_eq!(alt, "Photo B");
@@ -255,16 +277,30 @@ https://twitter.com/WordPress/status/123456789
     assert_eq!(layout.root.children.len(), 4, "Should have 4 embed nodes");
 
     // 1. YouTube
-    if let NodeKind::Video { url, aspect_ratio, .. } = &layout.root.children[0].kind {
-        assert!(url.contains("youtube.com/embed/ScMzIvxBSi4"), "YouTube embed URL normalized: {}", url);
+    if let NodeKind::Video {
+        url, aspect_ratio, ..
+    } = &layout.root.children[0].kind
+    {
+        assert!(
+            url.contains("youtube.com/embed/ScMzIvxBSi4"),
+            "YouTube embed URL normalized: {}",
+            url
+        );
         assert_eq!(aspect_ratio, "16/9");
     } else {
         panic!("YouTube should map to NodeKind::Video");
     }
 
     // 2. Vimeo
-    if let NodeKind::Video { url, aspect_ratio, .. } = &layout.root.children[1].kind {
-        assert!(url.contains("player.vimeo.com/video/76979871"), "Vimeo embed URL normalized: {}", url);
+    if let NodeKind::Video {
+        url, aspect_ratio, ..
+    } = &layout.root.children[1].kind
+    {
+        assert!(
+            url.contains("player.vimeo.com/video/76979871"),
+            "Vimeo embed URL normalized: {}",
+            url
+        );
         assert_eq!(aspect_ratio, "16/9");
     } else {
         panic!("Vimeo should map to NodeKind::Video");
@@ -273,7 +309,11 @@ https://twitter.com/WordPress/status/123456789
     // 3. Spotify
     if let NodeKind::CustomHtml { raw } = &layout.root.children[2].kind {
         assert!(raw.contains("wp-block-embed-spotify"));
-        assert!(raw.contains("open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT"), "Spotify embed URL: {}", raw);
+        assert!(
+            raw.contains("open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT"),
+            "Spotify embed URL: {}",
+            raw
+        );
         assert!(raw.contains("border-radius:12px"));
     } else {
         panic!("Spotify should map to CustomHtml");
@@ -326,7 +366,11 @@ fn test_core_list_multi_level_and_ordered_attributes() {
     let layout = transpile_gutenberg_content(input).expect("Transpile multi-level list");
     assert_eq!(layout.root.children.len(), 1);
     if let NodeKind::Text { content_html } = &layout.root.children[0].kind {
-        assert!(content_html.starts_with("<ol start=\"5\" reversed>"), "HTML: {}", content_html);
+        assert!(
+            content_html.starts_with("<ol start=\"5\" reversed>"),
+            "HTML: {}",
+            content_html
+        );
         assert!(content_html.contains("Item 5 (Start)"));
         assert!(content_html.contains("<ul>"));
         assert!(content_html.contains("Nested bullet A"));
@@ -419,9 +463,17 @@ fn test_theme_json_full_compilation_and_presets() {
     let css = compile_theme_json_to_css(raw_theme_json).expect("Compile to CSS");
 
     // 1. Root variables
-    assert!(css.contains("--wp--preset--color--primary: #1d4ed8;"), "Primary color var");
-    assert!(css.contains("--wp--preset--color--accent: #f97316;"), "Accent color var");
-    assert!(css.contains("--wp--preset--gradient--warm-sunset: linear-gradient(135deg, #f97316 0%, #dc2626 100%);"));
+    assert!(
+        css.contains("--wp--preset--color--primary: #1d4ed8;"),
+        "Primary color var"
+    );
+    assert!(
+        css.contains("--wp--preset--color--accent: #f97316;"),
+        "Accent color var"
+    );
+    assert!(css.contains(
+        "--wp--preset--gradient--warm-sunset: linear-gradient(135deg, #f97316 0%, #dc2626 100%);"
+    ));
     assert!(css.contains("--wp--preset--font-size--small: 14px;"));
     assert!(css.contains("--wp--preset--font-size--hero: 48px;"));
     assert!(css.contains("--wp--preset--font-family--inter: \"Inter\", sans-serif;"));
@@ -432,12 +484,20 @@ fn test_theme_json_full_compilation_and_presets() {
     assert!(css.contains("--wp--style--global--wide-size: 1200px;"));
 
     // 2. Utility classes
-    assert!(css.contains(".has-primary-color { color: var(--wp--preset--color--primary) !important; }"));
+    assert!(
+        css.contains(".has-primary-color { color: var(--wp--preset--color--primary) !important; }")
+    );
     assert!(css.contains(".has-primary-background-color { background-color: var(--wp--preset--color--primary) !important; }"));
-    assert!(css.contains(".has-primary-border-color { border-color: var(--wp--preset--color--primary) !important; }"));
+    assert!(css.contains(
+        ".has-primary-border-color { border-color: var(--wp--preset--color--primary) !important; }"
+    ));
     assert!(css.contains(".has-warm-sunset-gradient-background { background: var(--wp--preset--gradient--warm-sunset) !important; }"));
-    assert!(css.contains(".has-hero-font-size { font-size: var(--wp--preset--font-size--hero) !important; }"));
-    assert!(css.contains(".has-inter-font-family { font-family: var(--wp--preset--font-family--inter) !important; }"));
+    assert!(css.contains(
+        ".has-hero-font-size { font-size: var(--wp--preset--font-size--hero) !important; }"
+    ));
+    assert!(css.contains(
+        ".has-inter-font-family { font-family: var(--wp--preset--font-family--inter) !important; }"
+    ));
 
     // 3. Layout constraints
     assert!(css.contains(".is-layout-constrained"));
@@ -465,7 +525,10 @@ fn test_transpile_content_dispatcher_handles_gutenberg_with_empty_meta() {
 "#;
     let meta = HashMap::new();
     let res = transpile_content(wp_content, &meta);
-    assert!(res.is_some(), "transpile_content should automatically detect <!-- wp: comments");
+    assert!(
+        res.is_some(),
+        "transpile_content should automatically detect <!-- wp: comments"
+    );
     let layout = res.unwrap();
     assert_eq!(layout.root.children.len(), 2);
     let html = render_layout_to_html(&layout);
@@ -497,10 +560,14 @@ fn test_escaped_quotes_and_braces_in_json_attributes() {
 <!-- /wp:paragraph -->
 "#;
 
-    let layout = transpile_gutenberg_content(input).expect("Should parse escaped quotes in attributes");
+    let layout =
+        transpile_gutenberg_content(input).expect("Should parse escaped quotes in attributes");
     assert_eq!(layout.root.children.len(), 1);
     let html = render_layout_to_html(&layout);
-    assert!(html.contains("He said, &quot;Hello, {world}!&quot;") || html.contains("He said, \"Hello, {world}!\""));
+    assert!(
+        html.contains("He said, &quot;Hello, {world}!&quot;")
+            || html.contains("He said, \"Hello, {world}!\"")
+    );
     assert!(!html.contains("<!-- wp:"));
 }
 
@@ -522,7 +589,8 @@ fn test_unclosed_and_mismatched_block_recovery_without_panics() {
 <!-- /wp:orphan_close -->
 "#;
 
-    let layout = transpile_gutenberg_content(input).expect("Should recover from unclosed tags cleanly");
+    let layout =
+        transpile_gutenberg_content(input).expect("Should recover from unclosed tags cleanly");
     assert_eq!(layout.root.children.len(), 1);
     let col = &layout.root.children[0].children[0];
     assert_eq!(col.children.len(), 1);
@@ -543,7 +611,10 @@ fn test_void_self_closing_blocks_with_attributes() {
     assert_eq!(layout.root.children.len(), 3, "Expected 3 void blocks");
 
     // Block 1: separator
-    assert!(matches!(layout.root.children[0].kind, NodeKind::Divider { .. }));
+    assert!(matches!(
+        layout.root.children[0].kind,
+        NodeKind::Divider { .. }
+    ));
 
     // Block 2: spacer
     if let NodeKind::Spacer { height } = &layout.root.children[1].kind {
@@ -553,7 +624,10 @@ fn test_void_self_closing_blocks_with_attributes() {
     }
 
     // Block 3: plain separator
-    assert!(matches!(layout.root.children[2].kind, NodeKind::Divider { .. }));
+    assert!(matches!(
+        layout.root.children[2].kind,
+        NodeKind::Divider { .. }
+    ));
 
     let html = render_layout_to_html(&layout);
     assert!(!html.contains("<!-- wp:"));
@@ -574,12 +648,18 @@ fn test_gutenberg_style_and_color_preset_extraction() {
 
     // Verify background color mapped to preset var
     assert_eq!(
-        node.styles.background.as_ref().and_then(|b| b.color.as_deref()),
+        node.styles
+            .background
+            .as_ref()
+            .and_then(|b| b.color.as_deref()),
         Some("var(--wp--preset--color--primary)")
     );
     // Verify text color mapped to preset var
     assert_eq!(
-        node.styles.typography.as_ref().and_then(|t| t.color.as_deref()),
+        node.styles
+            .typography
+            .as_ref()
+            .and_then(|t| t.color.as_deref()),
         Some("var(--wp--preset--color--accent)")
     );
     // Verify padding
@@ -591,4 +671,3 @@ fn test_gutenberg_style_and_color_preset_extraction() {
     assert!(!html.contains("<!-- wp:"));
     assert!(html.contains("Styled paragraph with presets"));
 }
-

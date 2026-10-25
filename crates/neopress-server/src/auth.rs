@@ -72,30 +72,39 @@ pub fn hash_user_password(password: &str) -> String {
     format!("$neopress$sha256${}${}", salt, hash)
 }
 
+/// Placeholder hash written by older seeds for the initial `admin` account.
+/// It matches no password; [`crate::db::Database::ensure_admin_credentials`] replaces it on startup.
+pub const LEGACY_SEED_PASSWORD_HASH: &str = "$2y$10$abcdefghijklmnopqrstuvwxyz1234567890";
+
 /// Verifies a user password against a stored password hash.
-/// Only allows the `"admin"` fallback when `stored_pass` is the initial seed placeholder
-/// (`$P$B...` or initial seed placeholder) AND the username is `"admin"`.
-pub fn verify_user_password(password: &str, stored_pass: &str, login: &str) -> bool {
+/// Only Neopress hashes are accepted: imported WordPress (`$P$` / `$wp$`) hashes, seed
+/// placeholders, and plaintext values never authenticate.
+pub fn verify_user_password(password: &str, stored_pass: &str) -> bool {
     if password.is_empty() {
         return false;
     }
     if let Some(rest) = stored_pass.strip_prefix("$neopress$sha256$") {
         if let Some((salt, expected_hash)) = rest.split_once('$') {
             let computed = sha256_hex(format!("{}:{}", salt, password).as_bytes());
-            return computed.eq_ignore_ascii_case(expected_hash);
+            return constant_time_eq(
+                computed.to_ascii_lowercase().as_bytes(),
+                expected_hash.to_ascii_lowercase().as_bytes(),
+            );
         }
         return false;
     }
     if stored_pass.len() == 64 && stored_pass.chars().all(|c| c.is_ascii_hexdigit()) {
-        return sha256_hex(password.as_bytes()).eq_ignore_ascii_case(stored_pass);
+        return constant_time_eq(
+            sha256_hex(password.as_bytes()).as_bytes(),
+            stored_pass.to_ascii_lowercase().as_bytes(),
+        );
     }
-    if (stored_pass.starts_with("$P$B")
-        || stored_pass == "$2y$10$abcdefghijklmnopqrstuvwxyz1234567890")
-        && login.eq_ignore_ascii_case("admin")
-    {
-        return password == "admin";
-    }
-    !stored_pass.is_empty() && !stored_pass.starts_with('$') && password == stored_pass
+    false
+}
+
+/// Generates a random 20-character password for first-run and imported accounts.
+pub fn generate_random_password() -> String {
+    random_hex_64().chars().take(20).collect()
 }
 
 /// Generates a standard 24-character WordPress Application Password in 4 chunks of 4 characters:
@@ -188,7 +197,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 /// Builds the `Set-Cookie` header value for a freshly authenticated user.
@@ -205,11 +217,23 @@ pub fn session_cookie_header(user_id: i64, secret: &str, remember: bool) -> Stri
             SESSION_COOKIE, token, ttl
         )
     } else {
-        format!("{}={}; Path=/; SameSite=Lax; HttpOnly", SESSION_COOKIE, token)
+        format!(
+            "{}={}; Path=/; SameSite=Lax; HttpOnly",
+            SESSION_COOKIE, token
+        )
     }
 }
 
-/// Resolves the logged-in admin from session cookies (signed tokens or test cookie format).
+/// `Cookie` header value carrying a fresh signed session for `user_id`
+/// (what `/login` would issue); used by integration tests and tooling.
+pub fn session_cookie_for(user_id: i64, db: &Database) -> String {
+    let secret = db.get_auth_secret().unwrap_or_default();
+    let token = create_session_token(user_id, &secret, SESSION_TTL_DEFAULT_SECS);
+    format!("{}={}", SESSION_COOKIE, token)
+}
+
+/// Resolves the logged-in user from the signed `neopress_admin` session cookie.
+/// Unsigned, forged, or expired values are rejected.
 pub fn session_user_from_cookie_header(cookie_header: &str, db: &Database) -> Option<AuthUser> {
     let secret = db.get_auth_secret().ok()?;
     for item in cookie_header.split(';') {
@@ -224,32 +248,44 @@ pub fn session_user_from_cookie_header(cookie_header: &str, db: &Database) -> Op
                     });
                 }
             }
-            // Support backward-compatible test format where cookie holds raw user_id
-            if let Ok(uid) = val.parse::<i64>() {
-                if let Ok(Some(u)) = db.get_user_detail(uid) {
-                    return Some(AuthUser {
-                        user_id: u.id,
-                        username: u.username,
-                        role: u.role,
-                    });
-                }
-                return Some(AuthUser {
-                    user_id: 1,
-                    username: "admin".to_string(),
-                    role: "administrator".to_string(),
-                });
-            }
-        }
-        if trimmed.starts_with("wordpress_logged_in_") {
-            return Some(AuthUser {
-                user_id: 1,
-                username: "admin".to_string(),
-                role: "administrator".to_string(),
-            });
         }
     }
     None
 }
+
+impl AuthUser {
+    /// Full site management: settings, users, plugins, imports, theme templates.
+    pub fn is_admin(&self) -> bool {
+        self.role.trim().eq_ignore_ascii_case("administrator")
+    }
+
+    /// Content management: posts, pages, media, terms, comments, and layouts.
+    pub fn can_edit_content(&self) -> bool {
+        matches!(
+            self.role.trim().to_ascii_lowercase().as_str(),
+            "administrator" | "editor" | "author" | "contributor"
+        )
+    }
+}
+
+/// Whether content with `status` may be shown to this visitor. Published content (and media,
+/// stored as `inherit`) is public; drafts, pending, private, and scheduled posts are visible
+/// only to users who can edit content, which doubles as preview. Trash is never shown.
+pub fn can_view_status(status: &str, user: Option<&AuthUser>) -> bool {
+    match status {
+        "publish" | "inherit" => true,
+        "trash" => false,
+        _ => user.is_some_and(|u| u.can_edit_content()),
+    }
+}
+
+/// Extractor for endpoints that require a content-editing role (not a subscriber).
+#[derive(Debug, Clone)]
+pub struct EditorUser(pub AuthUser);
+
+/// Extractor for endpoints that require the administrator role.
+#[derive(Debug, Clone)]
+pub struct AdminUser(pub AuthUser);
 
 /// Strips whitespace and dashes from application passwords for flexible comparison.
 pub fn normalize_app_password(s: &str) -> String {
@@ -345,7 +381,7 @@ pub fn verify_jwt_token(token: &str, secret: &str) -> Result<JwtClaims, AppError
         .decode(parts[2])
         .map_err(|_| AppError::Unauthorized("Invalid token signature encoding".to_string()))?;
 
-    if expected_sig != provided_sig {
+    if !constant_time_eq(&expected_sig, &provided_sig) {
         return Err(AppError::Unauthorized(
             "Invalid token signature".to_string(),
         ));
@@ -369,7 +405,7 @@ pub fn verify_jwt_token(token: &str, secret: &str) -> Result<JwtClaims, AppError
 /// Authenticates an incoming request using either:
 /// 1. Bearer JWT Token
 /// 2. Basic Auth (Username + User Password or Application Password)
-/// 3. Cookie / Session or X-WP-Nonce
+/// 3. Signed session cookie
 pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUser, AppError> {
     let secret = db.get_auth_secret()?;
 
@@ -378,15 +414,16 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
         if let Ok(auth_str) = auth_header.to_str() {
             let auth_str = auth_str.trim();
 
-            // Bearer Token
+            // Bearer Token: the role always comes from the current user record, never the token.
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 let claims = verify_jwt_token(token.trim(), &secret)?;
-                let user_id = claims.data.user.id;
-                let username = claims.data.user.username;
+                let user = db.get_user_detail(claims.data.user.id)?.ok_or_else(|| {
+                    AppError::Unauthorized("Token user no longer exists".to_string())
+                })?;
                 return Ok(AuthUser {
-                    user_id,
-                    username,
-                    role: "administrator".to_string(),
+                    user_id: user.id,
+                    username: user.username,
+                    role: user.role,
                 });
             }
 
@@ -409,33 +446,8 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
         }
     }
 
-    // 2. Check X-WP-Nonce Header or _wpnonce Query Param
-    let nonce_opt = parts
-        .headers
-        .get("X-WP-Nonce")
-        .or_else(|| parts.headers.get("x-wp-nonce"))
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .or_else(|| {
-            parts.uri.query().and_then(|q| {
-                q.split('&')
-                    .find_map(|pair| pair.strip_prefix("_wpnonce="))
-                    .map(|s| s.to_string())
-            })
-        });
-
-    if let Some(nonce) = nonce_opt {
-        // Nonce validated for admin (user_id = 1) and action "wp_rest", or admin panel nonce
-        if verify_wp_nonce(&nonce, "wp_rest", 1, &secret) || nonce == "wp_rest_admin" {
-            return Ok(AuthUser {
-                user_id: 1,
-                username: "admin".to_string(),
-                role: "administrator".to_string(),
-            });
-        }
-    }
-
-    // 3. Check signed session cookie (issued by wp-login.php). Unsigned / forged values are rejected.
+    // 2. Check signed session cookie (issued by /login). Unsigned / forged values are rejected.
+    // As in WordPress, an `X-WP-Nonce` on its own never authenticates a request.
     if let Some(cookie_header) = parts.headers.get(header::COOKIE) {
         if let Ok(cookie_str) = cookie_header.to_str() {
             if let Some(user) = session_user_from_cookie_header(cookie_str, db) {
@@ -480,11 +492,39 @@ fn path_requires_admin_session(path: &str) -> bool {
     if path != "/n-admin" && !path.starts_with("/n-admin/") {
         return false;
     }
-    !matches!(path, "/n-admin/login.php" | "/n-admin/logout.php")
+    !matches!(path, "/n-admin/login" | "/n-admin/logout")
 }
 
 fn is_admin_machine_endpoint(path: &str) -> bool {
     path.starts_with("/n-admin/api/")
+}
+
+/// Admin screens a role may open. Administrators reach everything; content roles reach the
+/// content screens; everyone else (subscribers, unknown roles) only their own profile.
+fn admin_path_allowed(path: &str, user: &AuthUser) -> bool {
+    if user.is_admin() {
+        return true;
+    }
+    let path = path.trim_end_matches('/');
+    if path == "/n-admin/profile" {
+        return true;
+    }
+    user.can_edit_content()
+        && matches!(
+            path,
+            "/n-admin"
+                | "/n-admin/index"
+                | "/n-admin/edit"
+                | "/n-admin/post-new"
+                | "/n-admin/post"
+                | "/n-admin/builder"
+                | "/n-admin/studio"
+                | "/studio"
+                | "/n-admin/upload"
+                | "/n-admin/media-new"
+                | "/n-admin/edit-tags"
+                | "/n-admin/edit-comments"
+        )
 }
 
 fn url_encode_component(raw: &str) -> String {
@@ -501,8 +541,9 @@ fn url_encode_component(raw: &str) -> String {
 }
 
 /// Axum middleware: every admin screen and `/n-admin/api/*` endpoint requires a valid,
-/// signed login session. Unauthenticated page loads are redirected to `wp-login.php`
-/// (with `redirect_to`), API calls receive `401`. Subscribers may only reach their profile.
+/// signed login session. Unauthenticated page loads are redirected to `/login`
+/// (with `redirect_to`), API calls receive `401`. Screens outside the user's role
+/// (see [`admin_path_allowed`]) redirect to the profile, or return `403` for API calls.
 pub async fn admin_session_gate(
     axum::extract::State(db): axum::extract::State<Database>,
     req: axum::extract::Request,
@@ -515,11 +556,11 @@ pub async fn admin_session_gate(
         return next.run(req).await;
     }
 
-    let user = req
-        .headers()
-        .get(header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|c| session_user_from_cookie_header(c, &db));
+    // Same credentials as the REST API: signed session cookie, Basic (user or application
+    // password), or Bearer JWT.
+    let (parts, body) = req.into_parts();
+    let user = authenticate_request(&parts, &db).await.ok();
+    let req = axum::extract::Request::from_parts(parts, body);
 
     let user = match user {
         Some(u) => u,
@@ -538,13 +579,12 @@ pub async fn admin_session_gate(
                 Some(q) => format!("{}?{}", path, q),
                 None => path.clone(),
             };
-            let location = format!("/wp-login.php?redirect_to={}", url_encode_component(&target));
+            let location = format!("/login?redirect_to={}", url_encode_component(&target));
             return axum::response::Redirect::to(&location).into_response();
         }
     };
 
-    let is_subscriber = user.role.eq_ignore_ascii_case("subscriber");
-    if is_subscriber && !matches!(path.as_str(), "/n-admin/profile.php") {
+    if !admin_path_allowed(&path, &user) {
         if is_admin_machine_endpoint(&path) {
             return (
                 axum::http::StatusCode::FORBIDDEN,
@@ -555,7 +595,7 @@ pub async fn admin_session_gate(
             )
                 .into_response();
         }
-        return axum::response::Redirect::to("/n-admin/profile.php").into_response();
+        return axum::response::Redirect::to("/n-admin/profile").into_response();
     }
 
     let detail = db.get_user_detail(user.user_id).ok().flatten();
@@ -600,6 +640,40 @@ impl FromRequestParts<Database> for AuthUser {
         state: &Database,
     ) -> Result<Self, Self::Rejection> {
         authenticate_request(parts, state).await
+    }
+}
+
+impl FromRequestParts<Database> for EditorUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Database,
+    ) -> Result<Self, Self::Rejection> {
+        let user = authenticate_request(parts, state).await?;
+        if !user.can_edit_content() {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to edit content.".to_string(),
+            ));
+        }
+        Ok(EditorUser(user))
+    }
+}
+
+impl FromRequestParts<Database> for AdminUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Database,
+    ) -> Result<Self, Self::Rejection> {
+        let user = authenticate_request(parts, state).await?;
+        if !user.is_admin() {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to manage this site.".to_string(),
+            ));
+        }
+        Ok(AdminUser(user))
     }
 }
 

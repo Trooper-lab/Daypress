@@ -29,7 +29,7 @@ pub fn render_admin_bar(
             format!(
                 r##"
                 <li>
-                    <a class="ab-item" href="/n-admin/post.php?post={id}&action=edit">
+                    <a class="ab-item" href="/n-admin/post?post={id}&action=edit">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         <span>Edit {label}</span>
                     </a>
@@ -46,7 +46,7 @@ pub fn render_admin_bar(
         } else {
             r##"
             <li>
-                <a class="ab-item" href="/n-admin/customize.php">
+                <a class="ab-item" href="/n-admin/customize">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
                     <span>Customize</span>
                 </a>
@@ -173,14 +173,14 @@ pub fn render_admin_bar(
                 <div class="ab-top-menu-wrap" id="wp-toolbar" role="navigation" aria-label="Toolbar">
                     <ul id="wp-admin-bar-root-default" class="ab-top-menu">
                         <li id="wp-admin-bar-wp-logo" class="menupop">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/index.php" title="About Neopress" style="padding: 0 12px !important;">
+                            <a class="ab-item" aria-haspopup="true" href="/n-admin/" title="About Neopress" style="padding: 0 12px !important;">
                                 <img src="/static/neopress-icon.svg" style="width: 18px; height: 18px; border-radius: 4px;" alt="Neopress" />
                             </a>
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/index.php">About Neopress</a></li>
-                                    <li><a class="ab-item" href="/n-admin/site-health.php">Site Health</a></li>
-                                    <li><a class="ab-item" href="/n-admin/neopress-engine.php">Engine Telemetry</a></li>
+                                    <li><a class="ab-item" href="/n-admin/">About Neopress</a></li>
+                                    <li><a class="ab-item" href="/n-admin/site-health">Site Health</a></li>
+                                    <li><a class="ab-item" href="/n-admin/neopress-engine">Engine Telemetry</a></li>
                                 </ul>
                             </div>
                         </li>
@@ -192,42 +192,42 @@ pub fn render_admin_bar(
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
                                     <li><a class="ab-item" href="/n-admin/">Dashboard</a></li>
-                                    <li><a class="ab-item" href="/n-admin/themes.php">Themes</a></li>
-                                    <li><a class="ab-item" href="/n-admin/widgets.php">Widgets</a></li>
-                                    <li><a class="ab-item" href="/n-admin/nav-menus.php">Menus</a></li>
-                                    <li><a class="ab-item" href="/n-admin/customize.php">Customize</a></li>
+                                    <li><a class="ab-item" href="/n-admin/themes">Themes</a></li>
+                                    <li><a class="ab-item" href="/n-admin/widgets">Widgets</a></li>
+                                    <li><a class="ab-item" href="/n-admin/nav-menus">Menus</a></li>
+                                    <li><a class="ab-item" href="/n-admin/customize">Customize</a></li>
                                 </ul>
                             </div>
                         </li>
                         <li>
-                            <a class="ab-item" href="/n-admin/update-core.php" title="Updates">
+                            <a class="ab-item" href="/n-admin/update-core" title="Updates">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                                 <span>0</span>
                             </a>
                         </li>
                         <li>
-                            <a class="ab-item" href="/n-admin/edit.php" title="Quick Search (Ctrl+K)">
+                            <a class="ab-item" href="/n-admin/edit" title="Quick Search (Ctrl+K)">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                                 <span>Ctrl+K</span>
                             </a>
                         </li>
                         <li id="wp-admin-bar-comments">
-                            <a class="ab-item" href="/n-admin/edit-comments.php" title="Comments">
+                            <a class="ab-item" href="/n-admin/edit-comments" title="Comments">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                                 <span>{pending_comments}</span>
                             </a>
                         </li>
                         <li id="wp-admin-bar-new-content" class="menupop">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/post-new.php">
+                            <a class="ab-item" aria-haspopup="true" href="/n-admin/post-new">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                 <span>New</span>
                             </a>
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/post-new.php">Post</a></li>
-                                    <li><a class="ab-item" href="/n-admin/media-new.php">Media</a></li>
-                                    <li><a class="ab-item" href="/n-admin/post-new.php?post_type=page">Page</a></li>
-                                    <li><a class="ab-item" href="/n-admin/user-new.php">User</a></li>
+                                    <li><a class="ab-item" href="/n-admin/post-new">Post</a></li>
+                                    <li><a class="ab-item" href="/n-admin/media-new">Media</a></li>
+                                    <li><a class="ab-item" href="/n-admin/post-new?post_type=page">Page</a></li>
+                                    <li><a class="ab-item" href="/n-admin/user-new">User</a></li>
                                 </ul>
                             </div>
                         </li>
@@ -235,14 +235,14 @@ pub fn render_admin_bar(
                     </ul>
                     <ul id="wp-admin-bar-top-secondary" class="ab-top-secondary ab-top-menu">
                         <li id="wp-admin-bar-my-account" class="menupop with-avatar">
-                            <a class="ab-item" aria-haspopup="true" href="/n-admin/profile.php">
+                            <a class="ab-item" aria-haspopup="true" href="/n-admin/profile">
                                 <span>Howdy, <span class="display-name">{username}</span></span>
                                 <span class="ab-avatar">{avatar_initial}</span>
                             </a>
                             <div class="ab-sub-wrapper ab-sub-right">
                                 <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/n-admin/profile.php">Edit Profile</a></li>
-                                    <li><a class="ab-item" href="/wp-login.php?action=logout" style="color: #f87171 !important;">Log Out</a></li>
+                                    <li><a class="ab-item" href="/n-admin/profile">Edit Profile</a></li>
+                                    <li><a class="ab-item" href="/login?action=logout" style="color: #f87171 !important;">Log Out</a></li>
                                 </ul>
                             </div>
                         </li>

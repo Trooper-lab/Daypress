@@ -90,7 +90,12 @@ pub fn map_commercial_module(
                 .map(|u| ctx.resolve_divi_attr(u))
                 .unwrap_or_else(|| "#".to_string());
 
-            if divi.attributes.get("featured").map(|v| v == "on").unwrap_or(false) {
+            if divi
+                .attributes
+                .get("featured")
+                .map(|v| v == "on")
+                .unwrap_or(false)
+            {
                 let bdr = styles.border.get_or_insert_with(Default::default);
                 bdr.color = Some("#3D2B01".to_string());
                 bdr.width = Some("2px".to_string());
@@ -113,10 +118,26 @@ pub fn map_commercial_module(
                 .get("date_time")
                 .cloned()
                 .unwrap_or_else(|| "2026-12-31 23:59:59".to_string());
-            let show_days = divi.attributes.get("show_days").map(|v| v != "off").unwrap_or(true);
-            let show_hours = divi.attributes.get("show_hours").map(|v| v != "off").unwrap_or(true);
-            let show_minutes = divi.attributes.get("show_minutes").map(|v| v != "off").unwrap_or(true);
-            let show_seconds = divi.attributes.get("show_seconds").map(|v| v != "off").unwrap_or(true);
+            let show_days = divi
+                .attributes
+                .get("show_days")
+                .map(|v| v != "off")
+                .unwrap_or(true);
+            let show_hours = divi
+                .attributes
+                .get("show_hours")
+                .map(|v| v != "off")
+                .unwrap_or(true);
+            let show_minutes = divi
+                .attributes
+                .get("show_minutes")
+                .map(|v| v != "off")
+                .unwrap_or(true);
+            let show_seconds = divi
+                .attributes
+                .get("show_seconds")
+                .map(|v| v != "off")
+                .unwrap_or(true);
             Some(NodeKind::Countdown {
                 target_date,
                 mode: "due_date".to_string(),
@@ -172,9 +193,7 @@ pub fn map_commercial_module(
                 .get(&cf7_id)
                 .cloned()
                 .or_else(|| ctx.cf7_forms.values().next().cloned())
-                .unwrap_or_else(|| {
-                    render_fallback_cf7_form(&cf7_id)
-                });
+                .unwrap_or_else(|| render_fallback_cf7_form(&cf7_id));
             children.clear();
             Some(NodeKind::CustomHtml {
                 raw: format!("<div class=\"dvppl-cf7-styler\">{}</div>", form_html),

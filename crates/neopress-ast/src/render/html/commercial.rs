@@ -39,7 +39,12 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 .unwrap_or_default();
             let per_html = period
                 .as_ref()
-                .map(|p| format!("<span class=\"np-price-period\">/ {}</span>", escape_attr(p)))
+                .map(|p| {
+                    format!(
+                        "<span class=\"np-price-period\">/ {}</span>",
+                        escape_attr(p)
+                    )
+                })
                 .unwrap_or_default();
 
             let mut feats_html = String::new();
@@ -52,11 +57,12 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 ));
             }
 
-            let featured_cls = if *featured { " np-price-card-featured" } else { "" };
-            let cls = with_extra_classes(
-                &format!("np-price-card{}", featured_cls),
-                extra_cls,
-            );
+            let featured_cls = if *featured {
+                " np-price-card-featured"
+            } else {
+                ""
+            };
+            let cls = with_extra_classes(&format!("np-price-card{}", featured_cls), extra_cls);
 
             Some(format!(
                 "<div id=\"{}\" class=\"{}\"{}>\n{}\n<div class=\"np-price-header\"><h3 class=\"np-price-title\">{}</h3>{}</div>\n<div class=\"np-price-amount\">{}{}<span class=\"np-price-val\">{}</span>{}</div>\n<ul class=\"np-price-features\">\n{}</ul>\n<a href=\"{}\" class=\"np-button np-price-btn\">{}</a>\n</div>",
@@ -231,22 +237,35 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
         } => {
             let icon_html = front_icon
                 .as_ref()
-                .map(|ic| format!("<div class=\"np-flipbox-icon\"><i class=\"{}\"></i></div>\n", escape_attr(ic)))
+                .map(|ic| {
+                    format!(
+                        "<div class=\"np-flipbox-icon\"><i class=\"{}\"></i></div>\n",
+                        escape_attr(ic)
+                    )
+                })
                 .unwrap_or_default();
             let img_html = front_image
                 .as_ref()
-                .map(|img| format!("<div class=\"np-flipbox-image\"><img src=\"{}\" alt=\"{}\" /></div>\n", escape_attr(img), escape_attr(front_title)))
+                .map(|img| {
+                    format!(
+                        "<div class=\"np-flipbox-image\"><img src=\"{}\" alt=\"{}\" /></div>\n",
+                        escape_attr(img),
+                        escape_attr(front_title)
+                    )
+                })
                 .unwrap_or_default();
             let btn_html = match (button_text, button_url) {
                 (Some(txt), Some(url)) if !txt.is_empty() => {
-                    format!("<a href=\"{}\" class=\"np-button np-flipbox-btn\">{}</a>\n", escape_attr(url), escape_attr(txt))
+                    format!(
+                        "<a href=\"{}\" class=\"np-button np-flipbox-btn\">{}</a>\n",
+                        escape_attr(url),
+                        escape_attr(txt)
+                    )
                 }
                 _ => String::new(),
             };
-            let cls = with_extra_classes(
-                &format!("np-flipbox np-flipbox-{}", direction),
-                extra_cls,
-            );
+            let cls =
+                with_extra_classes(&format!("np-flipbox np-flipbox-{}", direction), extra_cls);
             Some(format!(
                 "<div id=\"{}\" class=\"{}\"{}>\n<div class=\"np-flipbox-front\">\n{}{}<h3 class=\"np-flipbox-title\">{}</h3>\n<p class=\"np-flipbox-desc\">{}</p>\n</div>\n<div class=\"np-flipbox-back\">\n<h3 class=\"np-flipbox-title\">{}</h3>\n<p class=\"np-flipbox-desc\">{}</p>\n{}</div>\n</div>",
                 escape_attr(&node.id),

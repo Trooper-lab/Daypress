@@ -2,7 +2,7 @@ use super::layout::render_wp_admin_shell;
 use crate::models::{DbStats, UserListItem, WpCategoryResponse, WpSettingsResponse, WpUserDetail};
 use crate::templates::utils::escape_html;
 
-// 5. Neopress Engine & Verification Loop View (/n-admin/neopress-engine.php)
+// 5. Neopress Engine & Verification Loop View (/n-admin/neopress-engine)
 pub fn render_wp_engine_view(settings: &WpSettingsResponse, stats: &DbStats) -> String {
     let kb_size = stats.file_size_bytes as f64 / 1024.0;
     let body = format!(
@@ -88,7 +88,7 @@ pub fn render_wp_engine_view(settings: &WpSettingsResponse, stats: &DbStats) -> 
     render_wp_admin_shell("engine", "Neopress Engine", &body, settings)
 }
 
-// 8. Users View (/n-admin/users.php)
+// 8. Users View (/n-admin/users)
 pub fn render_wp_users_view(settings: &WpSettingsResponse, users: &[UserListItem]) -> String {
     let mut rows_html = String::new();
     for u in users {
@@ -127,7 +127,7 @@ pub fn render_wp_users_view(settings: &WpSettingsResponse, users: &[UserListItem
                 <td><strong>{post_count}</strong></td>
                 <td>
                     <div style="display: flex; gap: 6px;">
-                        <a href="/n-admin/profile.php?user_id={id}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit Profile</a>
+                        <a href="/n-admin/profile?user_id={id}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit Profile</a>
                         {delete_btn}
                     </div>
                 </td>
@@ -152,8 +152,8 @@ pub fn render_wp_users_view(settings: &WpSettingsResponse, users: &[UserListItem
                 <p class="page-subtitle">Manage user accounts and author permissions</p>
             </div>
             <div style="display: flex; gap: 10px;">
-                <a href="/n-admin/user-new.php" class="btn btn-primary">+ Add New User</a>
-                <a href="/n-admin/profile.php" class="btn btn-secondary">Edit My Profile</a>
+                <a href="/n-admin/user-new" class="btn btn-primary">+ Add New User</a>
+                <a href="/n-admin/profile" class="btn btn-secondary">Edit My Profile</a>
             </div>
         </div>
 
@@ -180,7 +180,7 @@ pub fn render_wp_users_view(settings: &WpSettingsResponse, users: &[UserListItem
                     return;
                 }}
                 try {{
-                    const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || 'wp_rest_admin';
+                    const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                     const res = await fetch('/wp-json/wp/v2/users/' + id, {{
                         method: 'DELETE',
                         headers: {{ 'X-WP-Nonce': nonce }}
@@ -205,7 +205,7 @@ pub fn render_wp_users_view(settings: &WpSettingsResponse, users: &[UserListItem
     render_wp_admin_shell("users", "Users", &body, settings)
 }
 
-// 8c. Add New User View (/n-admin/user-new.php)
+// 8c. Add New User View (/n-admin/user-new)
 pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
@@ -214,13 +214,13 @@ pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
                 <p class="page-subtitle">Create a brand new user and assign permissions</p>
             </div>
             <div>
-                <a href="/n-admin/users.php" class="btn btn-secondary">&larr; Back to Users</a>
+                <a href="/n-admin/users" class="btn btn-secondary">&larr; Back to Users</a>
             </div>
         </div>
 
         <div class="neo-card" style="max-width: 720px;">
             <div class="neo-card-body">
-                <form id="newUserForm" method="post" action="/n-admin/user-new.php" onsubmit="handleCreateUser(event)" style="display: flex; flex-direction: column; gap: 16px;">
+                <form id="newUserForm" method="post" action="/n-admin/user-new" onsubmit="handleCreateUser(event)" style="display: flex; flex-direction: column; gap: 16px;">
                     <div>
                         <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">
                             Username <span style="color: #ef4444;">*</span>
@@ -256,7 +256,7 @@ pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
                             Password <span style="color: #ef4444;">*</span>
                         </label>
                         <div style="display: flex; gap: 8px; max-width: 400px;">
-                            <input type="text" id="newPassword" name="password" required value="NeoPass_2026_Secure!" class="input" style="flex: 1; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px; font-family: monospace;" />
+                            <input type="text" id="newPassword" name="password" required minlength="8" value="" class="input" style="flex: 1; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px; font-family: monospace;" />
                             <button type="button" class="btn btn-secondary" onclick="generateRandomPass()">Generate</button>
                         </div>
                     </div>
@@ -282,12 +282,15 @@ pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
         <script>
             function generateRandomPass() {
                 const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';
+                const bytes = crypto.getRandomValues(new Uint8Array(16));
                 let pass = '';
-                for (let i = 0; i < 16; i++) {
-                    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                for (let i = 0; i < bytes.length; i++) {
+                    pass += chars.charAt(bytes[i] % chars.length);
                 }
                 document.getElementById('newPassword').value = pass;
             }
+            // Every new user starts with their own random password, never a shared default.
+            generateRandomPass();
 
             async function handleCreateUser(e) {
                 e.preventDefault();
@@ -309,7 +312,7 @@ pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
                 }
 
                 try {
-                    const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || 'wp_rest_admin';
+                    const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                     const res = await fetch('/wp-json/wp/v2/users', {
                         method: 'POST',
                         headers: {
@@ -330,7 +333,7 @@ pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
 
                     const data = await res.json();
                     if (res.ok) {
-                        window.location.href = '/n-admin/users.php';
+                        window.location.href = '/n-admin/users';
                     } else {
                         alert('Error creating user: ' + (data.message || JSON.stringify(data)));
                     }
@@ -347,7 +350,7 @@ pub fn render_wp_user_new_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("users", "Add New User", &body, settings)
 }
 
-// 8d. WordPress Login View (/wp-login.php)
+// 8d. Login View (/login)
 pub fn render_wp_login_view(
     settings: &WpSettingsResponse,
     error_message: Option<&str>,
@@ -359,7 +362,7 @@ pub fn render_wp_login_view(
     } else {
         &settings.title
     };
-    let target = redirect_to.unwrap_or("/n-admin/");
+    let target = escape_html(&crate::auth::sanitize_redirect_target(redirect_to));
 
     let notice_html = if let Some(err) = error_message {
         format!(
@@ -474,7 +477,7 @@ pub fn render_wp_login_view(
 	</div>
 	<div class="login-card">
 		{notice_html}
-		<form method="post" action="/wp-login.php">
+		<form method="post" action="/login">
 			<input type="hidden" name="redirect_to" value="{target}" />
 			<label for="user_login">Username or Email Address</label>
 			<input type="text" name="log" id="user_login" required autofocus />
@@ -500,7 +503,7 @@ pub fn render_wp_login_view(
     )
 }
 
-// 8b. User Profile View (/n-admin/profile.php and /n-admin/user-edit.php)
+// 8b. User Profile View (/n-admin/profile and /n-admin/user-edit)
 pub fn render_wp_profile_view(settings: &WpSettingsResponse, user: &WpUserDetail) -> String {
     let initial = user
         .display_name
@@ -788,8 +791,8 @@ fn legacy_tools(settings: &WpSettingsResponse, stats: &DbStats) -> String {
                     <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">
                         Download a standalone, portable snapshot of your entire CMS database in native SQLite format.
                     </p>
-                    <a href="/data/neopress.sqlite" download class="btn btn-secondary">
-                        <span>&darr;</span> Download SQLite Snapshot (.sqlite)
+                    <a href="/n-admin/backups" class="btn btn-secondary">
+                        <span>&darr;</span> Create &amp; download a snapshot in Backups
                     </a>
                 </div>
             </div>
@@ -855,7 +858,7 @@ fn legacy_tools(settings: &WpSettingsResponse, stats: &DbStats) -> String {
                             '<strong>' + data.imported_pages + '</strong> pages, ' +
                             '<strong>' + data.imported_media + '</strong> media attachments, ' +
                             '<strong>' + data.imported_categories + '</strong> categories.<br>' +
-                            '<a href="/n-admin/edit.php" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">View Posts &rarr;</a>';
+                            '<a href="/n-admin/edit" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">View Posts &rarr;</a>';
                         showToast('✓ WXR import completed successfully');
                     }} else {{
                         alertBox.style.background = '#fef2f2';
@@ -925,7 +928,7 @@ fn legacy_tools(settings: &WpSettingsResponse, stats: &DbStats) -> String {
     render_wp_admin_shell("tools", "Tools", &body, settings)
 }
 
-// 11. Taxonomy View (/n-admin/edit-tags.php)
+// 11. Taxonomy View (/n-admin/edit-tags)
 pub fn render_wp_tags_view(
     settings: &WpSettingsResponse,
     taxonomy: &str,

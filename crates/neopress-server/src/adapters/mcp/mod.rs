@@ -351,12 +351,15 @@ fn dispatch_tool_call(
             let res = service.migrate_wordpress_bundle(bundle)?;
             Ok(serde_json::to_value(res).unwrap_or(Value::Null))
         }
-        unknown => Err(DomainError::NotFound(format!("Unknown MCP tool: {unknown}"))),
+        unknown => Err(DomainError::NotFound(format!(
+            "Unknown MCP tool: {unknown}"
+        ))),
     }
 }
 
 /// Axum HTTP handler for `POST /mcp` and `POST /wp-json/neopress/v1/mcp`.
 pub async fn handle_http_mcp(
+    _auth: crate::auth::AdminUser,
     State(db): State<crate::db::Database>,
     Json(req): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {

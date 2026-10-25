@@ -11,11 +11,7 @@ pub fn map_dynamic_module(
 ) -> Option<NodeKind> {
     match divi.tag.as_str() {
         "et_pb_video" => {
-            let raw_url = divi
-                .attributes
-                .get("src")
-                .cloned()
-                .unwrap_or_default();
+            let raw_url = divi.attributes.get("src").cloned().unwrap_or_default();
             let url = normalize_video_embed_url(&raw_url);
             Some(NodeKind::Video {
                 url,
@@ -32,7 +28,11 @@ pub fn map_dynamic_module(
                 .map(|u| ctx.normalize_url(u))
                 .unwrap_or_default();
             let title = divi.attributes.get("title").cloned().unwrap_or_default();
-            let artist = divi.attributes.get("artist_name").cloned().unwrap_or_default();
+            let artist = divi
+                .attributes
+                .get("artist_name")
+                .cloned()
+                .unwrap_or_default();
             let raw = format!(
                 "<div class=\"et_pb_audio_module np-audio\"><div class=\"np-audio-title\"><strong>{}</strong> - {}</div><audio controls style=\"width:100%\"><source src=\"{}\" type=\"audio/mpeg\" /></audio></div>",
                 escape_html(&title),
@@ -181,11 +181,7 @@ pub fn map_dynamic_module(
             Some(NodeKind::Container)
         }
         "et_pb_slide" => {
-            let title = divi
-                .attributes
-                .get("heading")
-                .cloned()
-                .unwrap_or_default();
+            let title = divi.attributes.get("heading").cloned().unwrap_or_default();
             let description = if !divi.inner_text.trim().is_empty() {
                 ctx.normalize_html(divi.inner_text.trim())
             } else {

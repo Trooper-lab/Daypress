@@ -57,7 +57,11 @@ pub(crate) fn map_dynamic_widget(
             let post_type = settings
                 .get("posts_post_type")
                 .and_then(|v| v.as_str())
-                .unwrap_or(if widget_type == "portfolio" { "portfolio" } else { "post" })
+                .unwrap_or(if widget_type == "portfolio" {
+                    "portfolio"
+                } else {
+                    "post"
+                })
                 .to_string();
             let posts_per_page = settings
                 .get("posts_per_page")

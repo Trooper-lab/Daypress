@@ -1,6 +1,7 @@
 //! WordPress REST API v2 Settings, Media Upload/CRUD, and Database Diagnostics.
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::AuthUser;
 use crate::db::Database;
 use crate::errors::AppError;
@@ -18,16 +19,17 @@ use serde_json::Value;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
-use super::*;
 
-
-pub(crate) async fn get_settings(State(db): State<Database>) -> Result<Json<WpSettingsResponse>, AppError> {
+pub(crate) async fn get_settings(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<WpSettingsResponse>, AppError> {
     let settings = db.get_settings()?;
     Ok(Json(settings))
 }
 
 pub(crate) async fn update_settings(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<UpdateSettingsRequest>,
 ) -> Result<Json<WpSettingsResponse>, AppError> {
@@ -103,12 +105,18 @@ pub(crate) async fn update_settings(
     Ok(Json(updated))
 }
 
-pub(crate) async fn get_db_stats(State(db): State<Database>) -> Result<Json<DbStats>, AppError> {
+pub(crate) async fn get_db_stats(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<DbStats>, AppError> {
     let stats = db.get_stats()?;
     Ok(Json(stats))
 }
 
-pub(crate) async fn vacuum_db(_auth: AuthUser, State(db): State<Database>) -> Result<Json<Value>, AppError> {
+pub(crate) async fn vacuum_db(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
     db.vacuum()?;
     let stats = db.get_stats()?;
     Ok(Json(serde_json::json!({
@@ -118,7 +126,10 @@ pub(crate) async fn vacuum_db(_auth: AuthUser, State(db): State<Database>) -> Re
     })))
 }
 
-pub(crate) async fn check_integrity(State(db): State<Database>) -> Result<Json<Value>, AppError> {
+pub(crate) async fn check_integrity(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
     let result = db.integrity_check()?;
     Ok(Json(serde_json::json!({
         "status": "success",
@@ -145,7 +156,7 @@ pub(crate) async fn get_media_item(
 }
 
 pub(crate) async fn update_media_item(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateMediaRequest>,
@@ -157,7 +168,7 @@ pub(crate) async fn update_media_item(
 }
 
 pub(crate) async fn upload_media(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<WpMediaResponse>), AppError> {
@@ -221,7 +232,7 @@ pub(crate) async fn upload_media(
 }
 
 pub(crate) async fn delete_media(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {

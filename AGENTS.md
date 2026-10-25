@@ -6,7 +6,7 @@ Neopress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
 ## Core Engineering Mandates
 
 1. **Zero Mock / Zero Toast-Only Handlers**:
-   - Every Admin Portal screen (`/n-admin/*.php`) and REST API route (`/wp-json/wp/v2/*` and `/wp-json/neopress/v1/*`) MUST persist to and read from SQLite (`db.rs`).
+   - Every Admin Portal screen (`/n-admin/*`) and REST API route (`/wp-json/wp/v2/*` and `/wp-json/neopress/v1/*`) MUST persist to and read from SQLite (`db.rs`).
    - Client-side `showToast(...)` handlers that do not make network requests to persist state are strictly forbidden.
 
 2. **Zero Runtime Panics & Safe UTF-8 Handling**:

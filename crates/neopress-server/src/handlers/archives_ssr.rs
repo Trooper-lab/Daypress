@@ -41,7 +41,11 @@ pub async fn handle_category_archive(
         let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
         (
             StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
+            Html(templates::render_not_found_page(
+                &settings,
+                user.as_ref(),
+                Some(&partials),
+            )),
         )
     }
 }
@@ -72,7 +76,11 @@ pub async fn handle_tag_archive(
         let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
         (
             StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
+            Html(templates::render_not_found_page(
+                &settings,
+                user.as_ref(),
+                Some(&partials),
+            )),
         )
     }
 }
@@ -107,7 +115,11 @@ pub async fn handle_author_archive(
         let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
         (
             StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
+            Html(templates::render_not_found_page(
+                &settings,
+                user.as_ref(),
+                Some(&partials),
+            )),
         )
     }
 }
@@ -151,7 +163,8 @@ pub fn try_handle_cpt_archive(
     user: Option<&crate::auth::AuthUser>,
 ) -> Option<Response> {
     let archive_html = render_cpt_archive(db, cpt_slug, settings, user)?;
-    let final_html = crate::plugins::inject_plugin_hooks_into_html(db, settings, None, archive_html);
+    let final_html =
+        crate::plugins::inject_plugin_hooks_into_html(db, settings, None, archive_html);
     Some((StatusCode::OK, Html(final_html)).into_response())
 }
 
@@ -198,19 +211,25 @@ pub async fn handle_cpt_single(
     }
 
     let settings = db.get_settings().unwrap_or_default();
-    if let Ok(Some(mut post)) = db.get_post_by_slug(clean_slug) {
+    if let Some(mut post) = db
+        .get_post_by_slug(clean_slug)
+        .ok()
+        .flatten()
+        .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+    {
         if post.template == "page_templates/leeg.php"
-            || post.content.rendered.trim_start().starts_with("<!DOCTYPE html")
+            || post
+                .content
+                .rendered
+                .trim_start()
+                .starts_with("<!DOCTYPE html")
         {
             return (StatusCode::OK, Html(post.content.rendered)).into_response();
         }
         let layout_json = db.get_post_layout(post.id).unwrap_or(None);
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded = crate::plugins::expand_shortcodes_in_content(
-            &post.content.rendered,
-            &db,
-            &settings,
-        );
+        let expanded =
+            crate::plugins::expand_shortcodes_in_content(&post.content.rendered, &db, &settings);
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html

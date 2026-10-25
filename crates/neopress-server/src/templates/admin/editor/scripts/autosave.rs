@@ -169,7 +169,7 @@ pub fn render_autosave_script(post_type: &str) -> String {
                         data = await res.json();
                         if (res.ok && data.id) {{
                             activePostId = data.id.toString();
-                            const newUrl = '/n-admin/post.php?post=' + data.id + '&action=edit' + (post_type === 'page' ? '&post_type=page' : '');
+                            const newUrl = '/n-admin/post?post=' + data.id + '&action=edit' + (post_type === 'page' ? '&post_type=page' : '');
                             window.history.replaceState({{ id: data.id }}, '', newUrl);
                         }}
                     }}

@@ -1,7 +1,7 @@
-pub mod styles;
 pub mod markup;
-pub mod scripts;
 pub mod scoping;
+pub mod scripts;
+pub mod styles;
 
 use crate::models::{WpPostResponse, WpSettingsResponse};
 use crate::templates::utils::escape_html;
@@ -103,8 +103,10 @@ pub fn render_wp_builder_view(
         || post.template == "canvas"
         || post.template == "elementor_canvas"
         || post.template == "leeg.php";
+    let is_editing_header = post.post_type == "template:header";
+    let is_editing_footer = post.post_type == "template:footer";
 
-    let preview_header_html = if is_blank_template {
+    let preview_header_html = if is_blank_template || is_editing_header || is_editing_footer {
         String::new()
     } else if !settings.elementor_header_html.trim().is_empty() {
         format!(
@@ -119,7 +121,10 @@ pub fn render_wp_builder_view(
                 site_title
             )
         } else {
-            format!(r#"<i class="fa-solid fa-bolt" style="color: #ff4f00;"></i> {}"#, site_title)
+            format!(
+                r#"<i class="fa-solid fa-bolt" style="color: #ff4f00;"></i> {}"#,
+                site_title
+            )
         };
         let preview_nav_html = if settings.nav_menu_items.is_empty() {
             r#"<a href="/">Home</a><a href="/n-admin/">Dashboard</a>"#.to_string()
@@ -149,7 +154,7 @@ pub fn render_wp_builder_view(
         )
     };
 
-    let preview_footer_html = if is_blank_template {
+    let preview_footer_html = if is_blank_template || is_editing_header || is_editing_footer {
         String::new()
     } else if !settings.elementor_footer_html.trim().is_empty() {
         format!(

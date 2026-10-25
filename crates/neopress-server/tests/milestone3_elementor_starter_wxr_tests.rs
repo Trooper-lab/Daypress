@@ -12,7 +12,9 @@ use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
 };
-use neopress_server::theme_builder::models::{ConditionType, RuleTarget, TemplateFilter, TemplateType};
+use neopress_server::theme_builder::models::{
+    ConditionType, RuleTarget, TemplateFilter, TemplateType,
+};
 use neopress_server::{create_app, Database};
 use std::io::Cursor;
 use tower::ServiceExt;
@@ -60,37 +62,79 @@ async fn test_elementor_starter_kit_wxr_ingestion_and_ssr_head_css() {
 </rss>"##;
 
     let res = db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
-    assert!(res.imported_posts >= 2, "Expected elementor_kit and post to count as posts");
+    assert!(
+        res.imported_posts >= 2,
+        "Expected elementor_kit and post to count as posts"
+    );
     assert_eq!(res.imported_pages, 1, "Expected 1 page");
 
     // Verify dual-write persistence to wp_options
     let kit_css_1 = db.get_option("neopress_elementor_kit_css").unwrap();
     let kit_css_2 = db.get_option("elementor_active_kit_css").unwrap();
-    assert!(kit_css_1.is_some(), "neopress_elementor_kit_css must be persisted");
-    assert!(kit_css_2.is_some(), "elementor_active_kit_css must be persisted");
+    assert!(
+        kit_css_1.is_some(),
+        "neopress_elementor_kit_css must be persisted"
+    );
+    assert!(
+        kit_css_2.is_some(),
+        "elementor_active_kit_css must be persisted"
+    );
 
     let css = kit_css_1.unwrap();
-    assert!(css.contains("--e-global-color-primary: #ff4f00;"), "Primary color variable missing");
-    assert!(css.contains("--e-global-color-secondary: #212529;"), "Secondary color variable missing");
-    assert!(css.contains("fonts.googleapis.com"), "Google Fonts @import missing");
+    assert!(
+        css.contains("--e-global-color-primary: #ff4f00;"),
+        "Primary color variable missing"
+    );
+    assert!(
+        css.contains("--e-global-color-secondary: #212529;"),
+        "Secondary color variable missing"
+    );
+    assert!(
+        css.contains("fonts.googleapis.com"),
+        "Google Fonts @import missing"
+    );
     assert!(css.contains("Montserrat"), "Montserrat font missing");
-    assert!(css.contains("--e-global-typography-primary-font-family: Montserrat;"), "Typography font variable missing");
-    assert!(css.contains("--e-content-width: 1200px;"), "Content width variable missing or default");
-    assert!(css.contains("--content-width: 1200px;"), "Standard content width variable missing");
-    assert!(css.contains("--container-max-width: 1200px;"), "Container max width variable missing");
+    assert!(
+        css.contains("--e-global-typography-primary-font-family: Montserrat;"),
+        "Typography font variable missing"
+    );
+    assert!(
+        css.contains("--e-content-width: 1200px;"),
+        "Content width variable missing or default"
+    );
+    assert!(
+        css.contains("--content-width: 1200px;"),
+        "Standard content width variable missing"
+    );
+    assert!(
+        css.contains("--container-max-width: 1200px;"),
+        "Container max width variable missing"
+    );
 
     // Verify SSR <head> injection
     let app = create_app(db);
-    let req = Request::builder().uri("/home/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/home/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&body);
 
-    assert!(html.contains(r#"<style id="neopress-elementor-kit-css">"#), "SSR must contain kit css block");
-    assert!(html.contains("--e-global-color-primary: #ff4f00;"), "SSR head must contain primary color");
-    assert!(html.contains("Welcome to Brandstore"), "SSR must render page content");
+    assert!(
+        html.contains(r#"<style id="neopress-elementor-kit-css">"#),
+        "SSR must contain kit css block"
+    );
+    assert!(
+        html.contains("--e-global-color-primary: #ff4f00;"),
+        "SSR head must contain primary color"
+    );
+    assert!(
+        html.contains("Welcome to Brandstore"),
+        "SSR must render page content"
+    );
 }
 
 #[tokio::test]
@@ -109,7 +153,10 @@ async fn test_multi_chunk_cdata_streaming_without_truncation() {
         r#"[{{"id":"s1","elType":"section","elements":[{{"id":"c1","elType":"column","elements":[{}]}}]}}]"#,
         large_widgets.join(",")
     );
-    assert!(large_json.len() > 65536, "Payload must be >64KB to trigger multi-chunk CDATA streaming");
+    assert!(
+        large_json.len() > 65536,
+        "Payload must be >64KB to trigger multi-chunk CDATA streaming"
+    );
 
     let wxr = format!(
         r##"<?xml version="1.0" encoding="UTF-8" ?>
@@ -138,9 +185,18 @@ async fn test_multi_chunk_cdata_streaming_without_truncation() {
     let res = db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
     assert_eq!(res.imported_pages, 1);
 
-    let post = db.get_post_by_slug("large-page").unwrap().expect("post found");
-    assert!(post.content.rendered.contains("Heading Widget Index 0"), "First widget must be rendered");
-    assert!(post.content.rendered.contains("Heading Widget Index 399"), "Last widget in chunk must be rendered");
+    let post = db
+        .get_post_by_slug("large-page")
+        .unwrap()
+        .expect("post found");
+    assert!(
+        post.content.rendered.contains("Heading Widget Index 0"),
+        "First widget must be rendered"
+    );
+    assert!(
+        post.content.rendered.contains("Heading Widget Index 399"),
+        "Last widget in chunk must be rendered"
+    );
 
     // Verify AST layout was parsed from the full, non-truncated JSON
     let layout = db.get_post_layout(post.id).unwrap();
@@ -211,39 +267,82 @@ async fn test_elementor_library_theme_templates_and_display_conditions_ssr() {
     db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
 
     // Verify wp_neopress_templates records and conditions
-    let templates = db.theme_templates().list(&TemplateFilter::default()).expect("list templates");
-    assert_eq!(templates.len(), 2, "Expected 1 header and 1 footer template");
+    let templates = db
+        .theme_templates()
+        .list(&TemplateFilter::default())
+        .expect("list templates");
+    assert_eq!(
+        templates.len(),
+        2,
+        "Expected 1 header and 1 footer template"
+    );
 
-    let header_tpl = templates.iter().find(|t| t.template_type == TemplateType::Header).expect("Header exists");
+    let header_tpl = templates
+        .iter()
+        .find(|t| t.template_type == TemplateType::Header)
+        .expect("Header exists");
     assert_eq!(header_tpl.title, "Site Header");
     assert_eq!(header_tpl.conditions.len(), 1);
-    assert_eq!(header_tpl.conditions[0].condition_type, ConditionType::Include);
+    assert_eq!(
+        header_tpl.conditions[0].condition_type,
+        ConditionType::Include
+    );
     assert_eq!(header_tpl.conditions[0].rule_target, RuleTarget::EntireSite);
 
-    let footer_tpl = templates.iter().find(|t| t.template_type == TemplateType::Footer).expect("Footer exists");
+    let footer_tpl = templates
+        .iter()
+        .find(|t| t.template_type == TemplateType::Footer)
+        .expect("Footer exists");
     assert_eq!(footer_tpl.title, "Site Footer");
     assert_eq!(footer_tpl.conditions.len(), 1);
-    assert_eq!(footer_tpl.conditions[0].condition_type, ConditionType::Include);
+    assert_eq!(
+        footer_tpl.conditions[0].condition_type,
+        ConditionType::Include
+    );
     assert_eq!(footer_tpl.conditions[0].rule_target, RuleTarget::EntireSite);
 
     // Verify dual-write to wp_options
-    let opt_hdr = db.get_option("neopress_elementor_header_html").unwrap().unwrap_or_default();
-    let opt_ftr = db.get_option("neopress_elementor_footer_html").unwrap().unwrap_or_default();
-    assert!(opt_hdr.contains("Global Header Landmark"), "Header HTML option missing");
-    assert!(opt_ftr.contains("Global Footer Copyright"), "Footer HTML option missing");
+    let opt_hdr = db
+        .get_option("neopress_elementor_header_html")
+        .unwrap()
+        .unwrap_or_default();
+    let opt_ftr = db
+        .get_option("neopress_elementor_footer_html")
+        .unwrap()
+        .unwrap_or_default();
+    assert!(
+        opt_hdr.contains("Global Header Landmark"),
+        "Header HTML option missing"
+    );
+    assert!(
+        opt_ftr.contains("Global Footer Copyright"),
+        "Footer HTML option missing"
+    );
 
     // Verify SSR renders header and footer landmarks
     let app = create_app(db);
-    let req = Request::builder().uri("/about-us/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/about-us/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&body);
 
-    assert!(html.contains("Global Header Landmark"), "SSR must include Elementor header landmark");
-    assert!(html.contains("Global Footer Copyright"), "SSR must include Elementor footer landmark");
-    assert!(html.contains("Our company story"), "SSR must include page content");
+    assert!(
+        html.contains("Global Header Landmark"),
+        "SSR must include Elementor header landmark"
+    );
+    assert!(
+        html.contains("Global Footer Copyright"),
+        "SSR must include Elementor footer landmark"
+    );
+    assert!(
+        html.contains("Our company story"),
+        "SSR must include page content"
+    );
 }
 
 #[tokio::test]
@@ -301,22 +400,65 @@ async fn test_universal_link_and_media_remapping() {
 
     db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
 
-    let post = db.get_post_by_slug("product-showcase").unwrap().expect("post found");
+    let post = db
+        .get_post_by_slug("product-showcase")
+        .unwrap()
+        .expect("post found");
 
     // Internal demo link and media remapped in standard content
-    assert!(post.content.rendered.contains(r#"href="/shop/""#), "Internal demo shop link must be remapped to relative");
-    assert!(post.content.rendered.contains(r#"src="/uploads/2026/02/sneaker.png""#), "Absolute uploads must be remapped to /uploads/");
-    assert!(post.content.rendered.contains(r#"src="/uploads/2026/02/hat.png""#), "Relative /wp-content/uploads/ must be remapped to /uploads/");
+    assert!(
+        post.content.rendered.contains(r#"href="/shop/""#),
+        "Internal demo shop link must be remapped to relative"
+    );
+    assert!(
+        post.content
+            .rendered
+            .contains(r#"src="/uploads/2026/02/sneaker.png""#),
+        "Absolute uploads must be remapped to /uploads/"
+    );
+    assert!(
+        post.content
+            .rendered
+            .contains(r#"src="/uploads/2026/02/hat.png""#),
+        "Relative /wp-content/uploads/ must be remapped to /uploads/"
+    );
 
     // External URLs preserved intact
-    assert!(post.content.rendered.contains(r#"href="https://github.com/rust-lang/rust""#), "GitHub link must be preserved");
-    assert!(post.content.rendered.contains(r#"href="https://twitter.com/rustlang""#), "Twitter link must be preserved");
-    assert!(post.content.rendered.contains("https://fonts.googleapis.com/css2?family=Roboto"), "Google Fonts link must be preserved");
+    assert!(
+        post.content
+            .rendered
+            .contains(r#"href="https://github.com/rust-lang/rust""#),
+        "GitHub link must be preserved"
+    );
+    assert!(
+        post.content
+            .rendered
+            .contains(r#"href="https://twitter.com/rustlang""#),
+        "Twitter link must be preserved"
+    );
+    assert!(
+        post.content
+            .rendered
+            .contains("https://fonts.googleapis.com/css2?family=Roboto"),
+        "Google Fonts link must be preserved"
+    );
 
     // Escaped URLs in Elementor JSON remapped
-    let post_elem = db.get_post_by_slug("elementor-showcase").unwrap().expect("elem post found");
-    assert!(post_elem.content.rendered.contains(r#"/uploads/2026/02/hero.jpg"#), "Elementor JSON media must be remapped to /uploads/");
-    assert!(post_elem.content.rendered.contains(r#"/about/"#), "Elementor JSON link must be remapped to relative");
+    let post_elem = db
+        .get_post_by_slug("elementor-showcase")
+        .unwrap()
+        .expect("elem post found");
+    assert!(
+        post_elem
+            .content
+            .rendered
+            .contains(r#"/uploads/2026/02/hero.jpg"#),
+        "Elementor JSON media must be remapped to /uploads/"
+    );
+    assert!(
+        post_elem.content.rendered.contains(r#"/about/"#),
+        "Elementor JSON link must be remapped to relative"
+    );
 }
 
 #[tokio::test]
@@ -350,7 +492,16 @@ async fn test_wxr_base_blog_url_precedence_over_base_site_url() {
 
     db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
 
-    let post = db.get_post_by_slug("sub-test").unwrap().expect("post found");
-    assert!(post.content.rendered.contains(r#"href="/checkout/""#), "Subdirectory prefix must be stripped using base_blog_url precedence");
-    assert!(!post.content.rendered.contains("/brandstore-02/checkout/"), "Old subdirectory path must not linger");
+    let post = db
+        .get_post_by_slug("sub-test")
+        .unwrap()
+        .expect("post found");
+    assert!(
+        post.content.rendered.contains(r#"href="/checkout/""#),
+        "Subdirectory prefix must be stripped using base_blog_url precedence"
+    );
+    assert!(
+        !post.content.rendered.contains("/brandstore-02/checkout/"),
+        "Old subdirectory path must not linger"
+    );
 }

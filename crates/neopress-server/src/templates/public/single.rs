@@ -3,7 +3,7 @@
 use super::shell::render_base_layout;
 use crate::auth::AuthUser;
 use crate::models::{WpPostResponse, WpSettingsResponse};
-use crate::templates::utils::{clean_wp_content, escape_html};
+use crate::templates::utils::{clean_wp_content, escape_html, sanitize_comment_html};
 use neopress_ast::NeopressLayout;
 
 pub fn render_single_post(
@@ -19,12 +19,12 @@ pub fn render_single_post(
 
     let ast_rendered = parsed_layout
         .as_ref()
-        .map(|l| neopress_ast::render_layout_to_html(l))
+        .map(neopress_ast::render_layout_to_html)
         .filter(|h| !h.trim().is_empty());
 
     let layout_scoped_css = parsed_layout
         .as_ref()
-        .map(|l| neopress_ast::compile_layout_css(l))
+        .map(neopress_ast::compile_layout_css)
         .unwrap_or_default();
 
     let has_ast_layout = ast_rendered.is_some();
@@ -185,7 +185,7 @@ pub fn render_single_post(
                         escape_html(&c.author_name)
                     };
                     let c_date: String = c.date.chars().take(10).collect();
-                    let c_body = clean_wp_content(&c.content.rendered);
+                    let c_body = sanitize_comment_html(&c.content.rendered);
                     let indent_style = if c.parent > 0 {
                         "margin-left: 32px; border-left: 3px solid #2563eb;"
                     } else {
@@ -244,7 +244,17 @@ pub fn render_single_post(
                             body: JSON.stringify({{ post: {post_id}, author_name, author_email, content }})
                         }});
                         if (res.ok) {{
-                            window.location.reload();
+                            const saved = await res.json().catch(() => ({{}}));
+                            if (saved.status === 'approved') {{
+                                window.location.reload();
+                                return;
+                            }}
+                            document.getElementById('comment-form').reset();
+                            btn.textContent = 'Comment submitted';
+                            const note = document.createElement('p');
+                            note.style.cssText = 'color: var(--text-dim); font-size: 14px; margin-top: 10px;';
+                            note.textContent = 'Thanks! Your comment is awaiting moderation.';
+                            document.getElementById('comment-form').appendChild(note);
                         }} else {{
                             btn.disabled = false;
                             btn.textContent = 'Post Comment';

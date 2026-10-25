@@ -1,11 +1,7 @@
 //! Native SEO & Streaming Sitemap.xml / Robots.txt HTTP Handlers.
 
 use crate::db::Database;
-use axum::{
-    extract::State,
-    http::header,
-    response::IntoResponse,
-};
+use axum::{extract::State, http::header, response::IntoResponse};
 
 pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();

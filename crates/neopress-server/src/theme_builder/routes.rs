@@ -3,7 +3,6 @@
 use super::conditions::resolve_template_for_type;
 use super::models::*;
 use super::repository::ThemeTemplateRepository;
-use crate::auth::AuthUser;
 use crate::adapters::database::Database;
 use crate::errors::AppError;
 use axum::{
@@ -46,12 +45,21 @@ pub fn theme_builder_routes() -> Router<Database> {
             "/neopress/v1/templates",
             get(list_templates_handler).post(create_template_handler),
         )
+        .route("/neopress/v1/templates/matrix", get(get_matrix_handler))
+        .route(
+            "/neopress/v1/templates/assign-page",
+            axum::routing::post(assign_page_template_handler),
+        )
         .route(
             "/neopress/v1/templates/{id}",
             get(get_template_handler)
                 .put(update_template_handler)
                 .post(update_template_handler)
                 .delete(delete_template_handler),
+        )
+        .route(
+            "/neopress/v1/templates/{id}/duplicate",
+            axum::routing::post(duplicate_template_handler),
         )
         .route(
             "/neopress/v1/templates/{id}/conditions",
@@ -62,12 +70,40 @@ pub fn theme_builder_routes() -> Router<Database> {
         .route("/neopress/v1/templates/active", get(resolve_active_handler))
         .route(
             "/neopress/v1/templates/starter",
-            get(super::starters::list_starters_handler).post(super::starters::install_starter_handler),
+            get(super::starters::list_starters_handler)
+                .post(super::starters::install_starter_handler),
         )
         .route(
             "/neopress/v1/templates/preview/{id}",
             get(super::preview::preview_template_handler),
         )
+}
+
+pub async fn get_matrix_handler(
+    State(db): State<Database>,
+) -> Result<Json<HeaderFooterMatrixResponse>, AppError> {
+    Ok(Json(super::matrix::build_header_footer_matrix(&db)))
+}
+
+pub async fn assign_page_template_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    Json(payload): Json<AssignPageTemplateRequest>,
+) -> Result<Json<HeaderFooterMatrixResponse>, AppError> {
+    super::matrix::assign_page_or_route_templates(&db, &payload)?;
+    Ok(Json(super::matrix::build_header_footer_matrix(&db)))
+}
+
+pub async fn duplicate_template_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    AxPath(id): AxPath<i64>,
+) -> Result<(StatusCode, Json<ThemeTemplateRecord>), AppError> {
+    let repo = ThemeTemplateRepository::from_database(&db);
+    let cloned = repo
+        .duplicate(id)?
+        .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))?;
+    Ok((StatusCode::CREATED, Json(cloned)))
 }
 
 pub async fn list_templates_handler(
@@ -86,12 +122,14 @@ pub async fn list_templates_handler(
 }
 
 pub async fn create_template_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTemplateRequest>,
 ) -> Result<(StatusCode, Json<ThemeTemplateRecord>), AppError> {
     if payload.title.trim().is_empty() {
-        return Err(AppError::BadRequest("Template title cannot be empty".to_string()));
+        return Err(AppError::BadRequest(
+            "Template title cannot be empty".to_string(),
+        ));
     }
     let repo = ThemeTemplateRepository::from_database(&db);
     let record = repo.create(&payload)?;
@@ -110,7 +148,7 @@ pub async fn get_template_handler(
 }
 
 pub async fn update_template_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTemplateRequest>,
@@ -123,7 +161,7 @@ pub async fn update_template_handler(
 }
 
 pub async fn delete_template_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Query(query): Query<DeleteTemplateQuery>,
@@ -155,7 +193,7 @@ pub async fn get_conditions_handler(
 }
 
 pub async fn set_conditions_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<SetConditionsPayload>,

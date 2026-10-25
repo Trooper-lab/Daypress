@@ -1,6 +1,10 @@
 //! Save, duplicate, trash, and media actions (`scripts/actions.rs`).
 
-pub fn render_actions_script(post_type: &str, type_singular: &str, known_tags_json: &str) -> String {
+pub fn render_actions_script(
+    post_type: &str,
+    type_singular: &str,
+    known_tags_json: &str,
+) -> String {
     format!(
         r#"
             function copyPermalink() {{
@@ -106,7 +110,7 @@ pub fn render_actions_script(post_type: &str, type_singular: &str, known_tags_js
                         const cloned = await res.json();
                         showToast('✓ Cloned! Redirecting to Draft #' + cloned.id + '...');
                         setTimeout(() => {{
-                            window.location.href = '/n-admin/post.php?post=' + cloned.id + '&action=edit';
+                            window.location.href = '/n-admin/post?post=' + cloned.id + '&action=edit';
                         }}, 500);
                     }} else {{
                         showToast('Failed to duplicate item', true);
@@ -125,7 +129,7 @@ pub fn render_actions_script(post_type: &str, type_singular: &str, known_tags_js
                     if (res.ok) {{
                         showToast('✓ {type_singular} deleted');
                         setTimeout(() => {{
-                            window.location.href = '/n-admin/edit.php' + ('{post_type}' === 'page' ? '?post_type=page' : '');
+                            window.location.href = '/n-admin/edit' + ('{post_type}' === 'page' ? '?post_type=page' : '');
                         }}, 400);
                     }}
                 }} catch(e) {{
@@ -236,12 +240,30 @@ pub fn render_actions_script(post_type: &str, type_singular: &str, known_tags_js
                     }});
 
                     if (res.ok) {{
+                        const savedPost = await res.json().catch(() => null);
+                        const savedId = (savedPost && savedPost.id) ? savedPost.id : (existingId ? parseInt(existingId, 10) : 0);
+                        const hSel = document.getElementById('editorHeaderSelect');
+                        const fSel = document.getElementById('editorFooterSelect');
+                        if (savedId > 0 && hSel && fSel) {{
+                            try {{
+                                await fetch('/wp-json/neopress/v1/templates/assign-page', {{
+                                    method: 'POST',
+                                    headers: {{ 'Content-Type': 'application/json' }},
+                                    body: JSON.stringify({{
+                                        post_id: savedId,
+                                        header: hSel.value,
+                                        footer: fSel.value
+                                    }})
+                                }});
+                            }} catch (_) {{}}
+                        }}
+
                         isDirty = false;
                         const key = 'neopress_draft_' + (activePostId || 'new_{post_type}');
                         localStorage.removeItem(key);
                         showToast('✓ {type_singular} saved to SQLite successfully!');
                         setTimeout(() => {{
-                            window.location.href = '/n-admin/edit.php' + (post_type !== 'post' ? '?post_type=' + post_type : '');
+                            window.location.href = '/n-admin/edit' + (post_type !== 'post' ? '?post_type=' + post_type : '');
                         }}, 500);
                     }} else {{
                         showToast('Error saving {type_singular}', true);
@@ -250,6 +272,111 @@ pub fn render_actions_script(post_type: &str, type_singular: &str, known_tags_js
                     showToast('Network error: ' + e, true);
                 }}
             }}
+
+            function updateEditorSlotSummary(slot, statusObj) {{
+                const summaryEl = document.getElementById(slot === 'header' ? 'editorResolvedHeaderSummary' : 'editorResolvedFooterSummary');
+                const editLinkEl = document.getElementById(slot === 'header' ? 'editorEditHeaderLink' : 'editorEditFooterLink');
+                if (!summaryEl || !statusObj) return;
+                summaryEl.innerHTML = '<strong style="color:#0f172a;">' + statusObj.display_name + '</strong><div style="font-size:10.5px;color:#64748b;margin-top:2px;">' + statusObj.reason + '</div>';
+                if (editLinkEl) {{
+                    if (statusObj.template_id) {{
+                        editLinkEl.href = '/n-admin/builder?template_id=' + statusObj.template_id;
+                        editLinkEl.style.display = 'inline';
+                    }} else {{
+                        editLinkEl.style.display = 'none';
+                    }}
+                }}
+            }}
+
+            async function loadEditorHeaderFooterState() {{
+                const hSel = document.getElementById('editorHeaderSelect');
+                const fSel = document.getElementById('editorFooterSelect');
+                if (!hSel || !fSel) return;
+                try {{
+                    const res = await fetch('/wp-json/neopress/v1/templates/matrix');
+                    if (!res.ok) return;
+                    const matrix = await res.json();
+                    const buildOpts = (templates, slotLabel, currentVal) => {{
+                        let html = '<option value="inherit"' + (currentVal === 'inherit' ? ' selected' : '') + '>Inherit Global Rules</option>';
+                        if (templates && templates.length > 0) {{
+                            html += '<optgroup label="' + slotLabel + ' Templates">';
+                            for (const t of templates) {{
+                                const val = 'template:' + t.id;
+                                const st = t.status === 'publish' ? '' : ' (Inactive)';
+                                html += '<option value="' + val + '"' + (currentVal === val ? ' selected' : '') + '>Assign: ' + t.title + ' (#' + t.id + ')' + st + '</option>';
+                            }}
+                            html += '</optgroup>';
+                        }}
+                        html += '<optgroup label="System Overrides">';
+                        html += '<option value="fallback"' + (currentVal === 'fallback' ? ' selected' : '') + '>Built-in Theme Fallback ' + slotLabel + '</option>';
+                        html += '<option value="none"' + (currentVal === 'none' ? ' selected' : '') + '>Hide / No ' + slotLabel + ' on this Page</option>';
+                        html += '</optgroup>';
+                        return html;
+                    }};
+
+                    const pid = activePostId ? parseInt(activePostId, 10) : 0;
+                    const allRows = (matrix.pages || []).concat(matrix.posts || []);
+                    const matchedRow = pid > 0 ? allRows.find(r => r.post_id === pid) : null;
+                    const defaultRouteKey = '{post_type}' === 'page' ? 'all_pages' : 'all_posts';
+                    const fallbackRow = (matrix.routes || []).find(r => r.route_key === defaultRouteKey) || (matrix.routes || [])[0];
+                    const activeRow = matchedRow || fallbackRow;
+
+                    const hVal = matchedRow ? (matchedRow.header.mode || 'inherit') : 'inherit';
+                    const fVal = matchedRow ? (matchedRow.footer.mode || 'inherit') : 'inherit';
+
+                    const headers = (matrix.templates || []).filter(t => t.template_type === 'header');
+                    const footers = (matrix.templates || []).filter(t => t.template_type === 'footer');
+
+                    hSel.innerHTML = buildOpts(headers, 'Header', hVal);
+                    fSel.innerHTML = buildOpts(footers, 'Footer', fVal);
+
+                    if (activeRow) {{
+                        updateEditorSlotSummary('header', activeRow.header);
+                        updateEditorSlotSummary('footer', activeRow.footer);
+                    }}
+                }} catch (_) {{}}
+            }}
+
+            async function onEditorSlotChange() {{
+                const pid = activePostId ? parseInt(activePostId, 10) : 0;
+                const hSel = document.getElementById('editorHeaderSelect');
+                const fSel = document.getElementById('editorFooterSelect');
+                if (!hSel || !fSel) return;
+                if (pid <= 0) {{
+                    markDirty();
+                    showToast('Header/Footer selection will be applied when you save this {type_singular}.');
+                    return;
+                }}
+                try {{
+                    const res = await fetch('/wp-json/neopress/v1/templates/assign-page', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{
+                            post_id: pid,
+                            header: hSel.value,
+                            footer: fSel.value
+                        }})
+                    }});
+                    if (res.ok) {{
+                        const matrix = await res.json();
+                        const allRows = (matrix.pages || []).concat(matrix.posts || []);
+                        const matchedRow = allRows.find(r => r.post_id === pid);
+                        if (matchedRow) {{
+                            updateEditorSlotSummary('header', matchedRow.header);
+                            updateEditorSlotSummary('footer', matchedRow.footer);
+                        }}
+                        showToast('✓ Header & Footer assignment updated in SQLite');
+                    }} else {{
+                        showToast('Failed to update Header/Footer assignment', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
+            document.addEventListener('DOMContentLoaded', () => {{
+                loadEditorHeaderFooterState();
+            }});
         "#,
         post_type = post_type,
         type_singular = type_singular,

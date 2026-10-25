@@ -67,7 +67,11 @@ pub(crate) fn apply_divi_responsive_styles(
         .filter(|s| !s.is_empty())
         .cloned();
 
-    if phone_pad.is_some() || phone_mar.is_some() || phone_font_sz.is_some() || phone_align.is_some() {
+    if phone_pad.is_some()
+        || phone_mar.is_some()
+        || phone_font_sz.is_some()
+        || phone_align.is_some()
+    {
         let mob = styles
             .mobile
             .get_or_insert_with(|| Box::new(StyleProperties::default()));

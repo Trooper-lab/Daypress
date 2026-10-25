@@ -1,7 +1,9 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-pub(crate) fn deserialize_opt_string_or_size<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+pub(crate) fn deserialize_opt_string_or_size<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -32,7 +34,10 @@ where
     }
 }
 
-pub(crate) fn deserialize_u32_or_size<'de, D>(deserializer: D, default_val: u32) -> Result<u32, D::Error>
+pub(crate) fn deserialize_u32_or_size<'de, D>(
+    deserializer: D,
+    default_val: u32,
+) -> Result<u32, D::Error>
 where
     D: Deserializer<'de>,
 {

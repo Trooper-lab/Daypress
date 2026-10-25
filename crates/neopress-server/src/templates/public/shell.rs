@@ -5,8 +5,8 @@
 //! scoped responsive stylesheets, and 3-tier DOM leak sanitizer.
 
 use super::admin_bar::render_admin_bar;
-use super::head_meta::{render_head_meta, HeadMetaOutput};
 pub use super::head_meta::plain_text_excerpt;
+use super::head_meta::{render_head_meta, HeadMetaOutput};
 use crate::auth::AuthUser;
 use crate::models::{WpPostResponse, WpSettingsResponse};
 use crate::templates::utils::{escape_html, escape_json};
@@ -49,12 +49,13 @@ pub fn render_base_layout(
         settings.brand_color.trim()
     };
 
-    let (admin_bar_html, body_class_admin) = render_admin_bar(current_user, current_post, settings, site_name);
+    let (admin_bar_html, body_class_admin) =
+        render_admin_bar(current_user, current_post, settings, site_name);
 
     let header_login_btn = if current_user.is_some() {
         r##"<a href="/n-admin/" class="np-button np-btn-sm"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>"##
     } else {
-        r##"<a href="/n-admin/login.php" class="btn-login">Log In</a>"##
+        r##"<a href="/login" class="btn-login">Log In</a>"##
     };
 
     let brand_display = escape_html(site_name);
@@ -116,15 +117,40 @@ pub fn render_base_layout(
     };
 
     // Header Resolution Pipeline
-    let has_tb_header = partials.map(|p| p.has_theme_builder_header).unwrap_or(false);
-    let site_header_html = if is_blank_template {
+    let has_tb_header = partials
+        .map(|p| p.has_theme_builder_header)
+        .unwrap_or(false);
+    let header_hidden = partials.map(|p| p.header_hidden).unwrap_or(false);
+    let header_force_fallback = partials.map(|p| p.header_force_fallback).unwrap_or(false);
+    let site_header_html = if is_blank_template || header_hidden {
         String::new()
-    } else if let Some(ref h_html) = partials.and_then(|p| p.header_html.as_ref()) {
-        let sticky_cls = if partials.map(|p| p.header_sticky).unwrap_or(false) { " np-sticky" } else { "" };
-        let trans_cls = if partials.map(|p| p.header_transparent).unwrap_or(false) { " np-transparent" } else { "" };
-        format!(r#"<header class="np-theme-header{}{}">{}</header>"#, sticky_cls, trans_cls, h_html)
-    } else if !has_tb_header && !settings.elementor_header_html.trim().is_empty() {
-        format!(r#"<header class="np-elementor-header">{}</header>"#, settings.elementor_header_html)
+    } else if !header_force_fallback && partials.and_then(|p| p.header_html.as_ref()).is_some() {
+        let h_html = partials
+            .and_then(|p| p.header_html.as_ref())
+            .unwrap_or(&String::new())
+            .clone();
+        let sticky_cls = if partials.map(|p| p.header_sticky).unwrap_or(false) {
+            " np-sticky"
+        } else {
+            ""
+        };
+        let trans_cls = if partials.map(|p| p.header_transparent).unwrap_or(false) {
+            " np-transparent"
+        } else {
+            ""
+        };
+        format!(
+            r#"<header class="np-theme-header{}{}">{}</header>"#,
+            sticky_cls, trans_cls, h_html
+        )
+    } else if !header_force_fallback
+        && !has_tb_header
+        && !settings.elementor_header_html.trim().is_empty()
+    {
+        format!(
+            r#"<header class="np-elementor-header">{}</header>"#,
+            settings.elementor_header_html
+        )
     } else {
         format!(
             r##"<header class="neo-header">
@@ -151,13 +177,27 @@ pub fn render_base_layout(
     };
 
     // Footer Resolution Pipeline
-    let has_tb_footer = partials.map(|p| p.has_theme_builder_footer).unwrap_or(false);
-    let site_footer_html = if is_blank_template {
+    let has_tb_footer = partials
+        .map(|p| p.has_theme_builder_footer)
+        .unwrap_or(false);
+    let footer_hidden = partials.map(|p| p.footer_hidden).unwrap_or(false);
+    let footer_force_fallback = partials.map(|p| p.footer_force_fallback).unwrap_or(false);
+    let site_footer_html = if is_blank_template || footer_hidden {
         String::new()
-    } else if let Some(ref f_html) = partials.and_then(|p| p.footer_html.as_ref()) {
+    } else if !footer_force_fallback && partials.and_then(|p| p.footer_html.as_ref()).is_some() {
+        let f_html = partials
+            .and_then(|p| p.footer_html.as_ref())
+            .unwrap_or(&String::new())
+            .clone();
         format!(r#"<footer class="np-theme-footer">{}</footer>"#, f_html)
-    } else if !has_tb_footer && !settings.elementor_footer_html.trim().is_empty() {
-        format!(r#"<footer class="np-elementor-footer">{}</footer>"#, settings.elementor_footer_html)
+    } else if !footer_force_fallback
+        && !has_tb_footer
+        && !settings.elementor_footer_html.trim().is_empty()
+    {
+        format!(
+            r#"<footer class="np-elementor-footer">{}</footer>"#,
+            settings.elementor_footer_html
+        )
     } else {
         format!(
             r##"<footer class="neo-footer">
@@ -201,12 +241,22 @@ pub fn render_base_layout(
 
     let theme_header_css = partials
         .and_then(|p| p.header_css.as_ref())
-        .map(|css| format!("\n\t<style id=\"np-theme-header-css\">\n{}\n\t</style>", css))
+        .map(|css| {
+            format!(
+                "\n\t<style id=\"np-theme-header-css\">\n{}\n\t</style>",
+                css
+            )
+        })
         .unwrap_or_default();
 
     let theme_footer_css = partials
         .and_then(|p| p.footer_css.as_ref())
-        .map(|css| format!("\n\t<style id=\"np-theme-footer-css\">\n{}\n\t</style>", css))
+        .map(|css| {
+            format!(
+                "\n\t<style id=\"np-theme-footer-css\">\n{}\n\t</style>",
+                css
+            )
+        })
         .unwrap_or_default();
 
     let theme_head_assets = if !settings.theme_assets_html.trim().is_empty() {
@@ -218,7 +268,11 @@ pub fn render_base_layout(
     let theme_slug = if settings.active_theme.trim().is_empty() {
         "neopress".to_string()
     } else {
-        settings.active_theme.trim().to_lowercase().replace(' ', "-")
+        settings
+            .active_theme
+            .trim()
+            .to_lowercase()
+            .replace(' ', "-")
     };
     let theme_body_class = format!("wp-theme-{}", theme_slug);
     let post_classes = if let Some(p) = current_post {
@@ -226,12 +280,21 @@ pub fn render_base_layout(
             format!("archive post-type-archive-{} {}", p.slug, theme_body_class)
         } else if p.post_type == "page" {
             if settings.page_on_front > 0 && p.id == settings.page_on_front {
-                format!("home wp-singular page-template-default page page-id-{} {}", p.id, theme_body_class)
+                format!(
+                    "home wp-singular page-template-default page page-id-{} {}",
+                    p.id, theme_body_class
+                )
             } else {
-                format!("wp-singular page-template-default page page-id-{} {}", p.id, theme_body_class)
+                format!(
+                    "wp-singular page-template-default page page-id-{} {}",
+                    p.id, theme_body_class
+                )
             }
         } else {
-            format!("single single-{} wp-singular {}", p.post_type, theme_body_class)
+            format!(
+                "single single-{} wp-singular {}",
+                p.post_type, theme_body_class
+            )
         }
     } else {
         format!("home wp-singular page {}", theme_body_class)

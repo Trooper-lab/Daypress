@@ -9,7 +9,9 @@ pub const JS_CORE_STATE: &str = r###"
         postType: "__POST_TYPE__",
         siteTitle: "__SITE_TITLE__",
         pageAst: null,
-        currentContext: { type: "post", id: __POST_ID__, title: "__POST_TITLE__", slug: "__POST_SLUG__", postType: "__POST_TYPE__" },
+        currentContext: "__POST_TYPE__".indexOf("template:") === 0
+            ? { type: "template", id: __POST_ID__, title: "__POST_TITLE__", slug: "__POST_SLUG__", templateType: "__POST_TYPE__".slice(9) }
+            : { type: "post", id: __POST_ID__, title: "__POST_TITLE__", slug: "__POST_SLUG__", postType: "__POST_TYPE__" },
 
         // Active Selection & Modifiers
         activeElementId: null,
@@ -204,6 +206,7 @@ pub const JS_CORE_STATE: &str = r###"
     setTimeout(() => {
         pushHistorySnapshot();
         markDirty(false);
+        updateViewLiveLink();
     }, 50);
 
     // -------------------------------------------------------------

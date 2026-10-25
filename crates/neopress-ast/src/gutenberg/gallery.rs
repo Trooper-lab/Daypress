@@ -36,7 +36,8 @@ pub(crate) fn map_gutenberg_gallery(
 
     // If no AST children were parsed from block.children, extract <img> tags from legacy inner_html
     if children.is_empty() && !block.inner_html.is_empty() {
-        let img_tag_re = Regex::new(r"(?is)<figure[^>]*>.*?<img(?P<attrs>[^>]+)>.*?</figure>").unwrap();
+        let img_tag_re =
+            Regex::new(r"(?is)<figure[^>]*>.*?<img(?P<attrs>[^>]+)>.*?</figure>").unwrap();
         let fallback_img_re = Regex::new(r"(?is)<img(?P<attrs>[^>]+)>").unwrap();
 
         let mut matched_attrs = Vec::new();
@@ -59,9 +60,15 @@ pub(crate) fn map_gutenberg_gallery(
                 continue;
             }
             let alt = extract_attr_from_html(&raw_attrs, "alt").unwrap_or_default();
-            let width = extract_attr_from_html(&raw_attrs, "width").and_then(|w| w.parse::<u32>().ok());
-            let height = extract_attr_from_html(&raw_attrs, "height").and_then(|h| h.parse::<u32>().ok());
-            let link = if link_to_media { Some(src.clone()) } else { None };
+            let width =
+                extract_attr_from_html(&raw_attrs, "width").and_then(|w| w.parse::<u32>().ok());
+            let height =
+                extract_attr_from_html(&raw_attrs, "height").and_then(|h| h.parse::<u32>().ok());
+            let link = if link_to_media {
+                Some(src.clone())
+            } else {
+                None
+            };
 
             *counter += 1;
             children.push(NeopressNode {

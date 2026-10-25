@@ -180,7 +180,10 @@ pub fn ingest_forms_and_spb(
                 is_extra,
             });
         }
-        if item.post_type == "custom_css" && item.post_status == "publish" && !item.content.trim().is_empty() {
+        if item.post_type == "custom_css"
+            && item.post_status == "publish"
+            && !item.content.trim().is_empty()
+        {
             accumulated_custom_css.push_str(&item.content);
             accumulated_custom_css.push('\n');
         }
@@ -191,7 +194,9 @@ pub fn ingest_forms_and_spb(
         }
         if item.post_type == "et_template"
             && item.post_status == "publish"
-            && !item.postmeta.contains_key("_et_theme_builder_marked_as_unused")
+            && !item
+                .postmeta
+                .contains_key("_et_theme_builder_marked_as_unused")
         {
             if item
                 .postmeta

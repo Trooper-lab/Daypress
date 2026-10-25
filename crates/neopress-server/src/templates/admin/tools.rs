@@ -1,7 +1,7 @@
 use super::layout::render_wp_admin_shell;
 use crate::models::{DbStats, WpSettingsResponse};
 
-// 1. Available Tools (/n-admin/tools.php)
+// 1. Available Tools (/n-admin/tools)
 pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> String {
     let body = format!(
         r##"
@@ -21,7 +21,7 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
                 <p style="font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.5;">
                     If you want to convert your categories to tags (or tags to categories), manage your taxonomy relationships in the Categories editor.
                 </p>
-                <a href="/n-admin/edit-tags.php?taxonomy=category" class="btn btn-secondary" style="font-size: 12.5px;">Manage Taxonomies &rarr;</a>
+                <a href="/n-admin/edit-tags?taxonomy=category" class="btn btn-secondary" style="font-size: 12.5px;">Manage Taxonomies &rarr;</a>
             </div>
 
             <div class="neo-card" style="padding: 24px;">
@@ -29,7 +29,7 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
                 <p style="font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.5;">
                     Check your Rust binary execution state, embedded SQLite WAL mode integrity, file permissions, and memory allocations.
                 </p>
-                <a href="/n-admin/site-health.php" class="btn btn-secondary" style="font-size: 12.5px;">Run Site Health Check &rarr;</a>
+                <a href="/n-admin/site-health" class="btn btn-secondary" style="font-size: 12.5px;">Run Site Health Check &rarr;</a>
             </div>
 
             <div class="neo-card" style="padding: 24px;">
@@ -37,7 +37,7 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
                 <p style="font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.5;">
                     Download an authentic WordPress eXtended RSS (.xml) file containing all your posts, pages, terms, and comments.
                 </p>
-                <a href="/n-admin/export.php" class="btn btn-secondary" style="font-size: 12.5px;">Go to Export &rarr;</a>
+                <a href="/n-admin/export" class="btn btn-secondary" style="font-size: 12.5px;">Go to Export &rarr;</a>
             </div>
 
             <div class="neo-card" style="padding: 24px;">
@@ -46,8 +46,8 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
                     Fulfill GDPR compliance requests by exporting user archives or anonymizing personal details across the database.
                 </p>
                 <div style="display: flex; gap: 8px;">
-                    <a href="/n-admin/export-personal-data.php" class="btn btn-secondary" style="font-size: 12px;">Export Data</a>
-                    <a href="/n-admin/erase-personal-data.php" class="btn btn-secondary" style="font-size: 12px; color: #ef4444;">Erase Data</a>
+                    <a href="/n-admin/export-personal-data" class="btn btn-secondary" style="font-size: 12px;">Export Data</a>
+                    <a href="/n-admin/erase-personal-data" class="btn btn-secondary" style="font-size: 12px; color: #ef4444;">Erase Data</a>
                 </div>
             </div>
         </div>
@@ -86,7 +86,7 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
     render_wp_admin_shell("tools", "Tools", &body, settings)
 }
 
-// 2. Import (/n-admin/import.php)
+// 2. Import (/n-admin/import)
 pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
@@ -210,7 +210,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                         bar.style.width = '100%';
                         status.textContent = '✓ ' + data.message;
                         showToast('✓ ' + data.message);
-                        setTimeout(() => location.href = '/n-admin/edit.php', 1500);
+                        setTimeout(() => location.href = '/n-admin/edit', 1500);
                     } else {
                         status.textContent = 'Import error occurred';
                         showToast('Import failed', true);
@@ -235,7 +235,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-WP-Nonce': 'wp_rest_admin'
+                            'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                         },
                         body: file
                     });
@@ -245,7 +245,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                         const msg = data.message || ('Successfully imported ' + (data.migrated_posts || data.imported_posts || 0) + ' posts, ' + (data.migrated_pages || data.imported_pages || 0) + ' pages, and ' + (data.migrated_media || data.imported_media || 0) + ' media files!');
                         summary.textContent = '✓ ' + msg;
                         showToast('✓ ' + msg);
-                        setTimeout(() => location.href = '/n-admin/edit.php?post_type=page', 1500);
+                        setTimeout(() => location.href = '/n-admin/edit?post_type=page', 1500);
                     } else {
                         summary.style.color = '#ef4444';
                         const err = data.message || data.error || (data.code ? data.code + ': ' + data.message : 'HTTP ' + res.status);
@@ -273,7 +273,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-WP-Nonce': 'wp_rest_admin'
+                            'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                         },
                         body: raw
                     });
@@ -283,7 +283,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
                         const msg = data.message || ('Successfully imported ' + (data.migrated_posts || data.imported_posts || 0) + ' posts, ' + (data.migrated_pages || data.imported_pages || 0) + ' pages');
                         summary.textContent = '✓ ' + msg;
                         showToast('✓ ' + msg);
-                        setTimeout(() => location.href = '/n-admin/edit.php?post_type=page', 1500);
+                        setTimeout(() => location.href = '/n-admin/edit?post_type=page', 1500);
                     } else {
                         summary.style.color = '#ef4444';
                         const err = data.message || data.error || ('HTTP ' + res.status);
@@ -302,7 +302,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("import", "Import", body, settings)
 }
 
-// 3. Export (/n-admin/export.php)
+// 3. Export (/n-admin/export)
 pub fn render_wp_export_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
@@ -360,7 +360,7 @@ pub fn render_wp_export_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("export", "Export", body, settings)
 }
 
-// 4. Site Health (/n-admin/site-health.php)
+// 4. Site Health (/n-admin/site-health)
 pub fn render_wp_site_health_view(settings: &WpSettingsResponse, stats: &DbStats) -> String {
     let body = format!(
         r##"
@@ -467,7 +467,7 @@ pub fn render_wp_site_health_view(settings: &WpSettingsResponse, stats: &DbStats
     render_wp_admin_shell("site-health", "Site Health", &body, settings)
 }
 
-// 5. Export Personal Data (/n-admin/export-personal-data.php)
+// 5. Export Personal Data (/n-admin/export-personal-data)
 pub fn render_wp_export_personal_data_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
@@ -526,7 +526,7 @@ pub fn render_wp_export_personal_data_view(settings: &WpSettingsResponse) -> Str
     )
 }
 
-// 6. Erase Personal Data (/n-admin/erase-personal-data.php)
+// 6. Erase Personal Data (/n-admin/erase-personal-data)
 pub fn render_wp_erase_personal_data_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">

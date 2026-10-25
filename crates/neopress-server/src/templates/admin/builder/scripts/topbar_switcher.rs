@@ -33,7 +33,7 @@ pub const JS_TOPBAR_SWITCHER: &str = r###"
             }
             state.activeElementId = null;
             if (window.history && window.history.pushState) {
-                window.history.pushState({}, "", `/n-admin/builder.php?post=${post.id}`);
+                window.history.pushState({}, "", `/n-admin/builder?post=${post.id}`);
             }
             if (window.updateViewLiveLink) window.updateViewLiveLink();
             window.markDirty(false);

@@ -39,10 +39,15 @@ pub fn render_cpt_archive(
     let taxonomies = get_cpt_taxonomies(db, cpt_slug);
     let mut filters_html = String::new();
     if !taxonomies.is_empty() {
-        filters_html.push_str("<div class=\"filters_desktop\"><div class=\"facetwp-facet facetwp-type-checkboxes\">");
+        filters_html.push_str(
+            "<div class=\"filters_desktop\"><div class=\"facetwp-facet facetwp-type-checkboxes\">",
+        );
         for (tax_name, terms) in &taxonomies {
             let tax_label = format_cpt_title(tax_name);
-            filters_html.push_str(&format!("<div class=\"facet-group\"><span class=\"facet-title\">{}</span>", tax_label));
+            filters_html.push_str(&format!(
+                "<div class=\"facet-group\"><span class=\"facet-title\">{}</span>",
+                tax_label
+            ));
             for (_term_id, name, slug) in terms {
                 filters_html.push_str(&format!(
                     r#"<div class="facetwp-checkbox" data-value="{}"><span class="facetwp-display-value">{}</span></div>"#,
@@ -148,7 +153,13 @@ fn resolve_cpt_card_media(db: &Database, post: &WpPostResponse) -> (String, Stri
             return (media_post.guid.rendered, media_post.title.rendered);
         }
     }
-    for meta_key in ["banner_image", "profile_img", "header_image", "_thumbnail_id", "image"] {
+    for meta_key in [
+        "banner_image",
+        "profile_img",
+        "header_image",
+        "_thumbnail_id",
+        "image",
+    ] {
         let val = get_postmeta_value(db, post.id, meta_key);
         if val.is_empty() {
             continue;
@@ -166,7 +177,8 @@ fn resolve_cpt_card_media(db: &Database, post: &WpPostResponse) -> (String, Stri
 }
 
 fn get_cpt_taxonomies(db: &Database, cpt_slug: &str) -> Vec<(String, Vec<(i64, String, String)>)> {
-    let mut map: std::collections::BTreeMap<String, Vec<(i64, String, String)>> = std::collections::BTreeMap::new();
+    let mut map: std::collections::BTreeMap<String, Vec<(i64, String, String)>> =
+        std::collections::BTreeMap::new();
     if let Ok(conn) = db.conn.lock() {
         let sql = "SELECT DISTINCT tt.taxonomy, t.term_id, t.name, t.slug \
                    FROM wp_term_relationships r \
@@ -177,7 +189,12 @@ fn get_cpt_taxonomies(db: &Database, cpt_slug: &str) -> Vec<(String, Vec<(i64, S
                    ORDER BY t.name ASC";
         if let Ok(mut stmt) = conn.prepare_cached(sql) {
             if let Ok(rows) = stmt.query_map(rusqlite::params![cpt_slug], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?))
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
             }) {
                 for row in rows.flatten() {
                     map.entry(row.0).or_default().push((row.1, row.2, row.3));

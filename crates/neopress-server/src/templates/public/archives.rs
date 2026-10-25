@@ -28,7 +28,11 @@ pub fn render_archive_page(
                 escape_html(&post.author_name)
             };
 
-            let card_cls = if post.sticky { "np-card sticky" } else { "np-card" };
+            let card_cls = if post.sticky {
+                "np-card sticky"
+            } else {
+                "np-card"
+            };
 
             cards_html.push_str(&format!(
                 r##"
@@ -113,5 +117,12 @@ pub fn render_not_found_page(
         </section>
     "##;
 
-    render_base_layout("404 Not Found", settings, body, current_user, None, partials)
+    render_base_layout(
+        "404 Not Found",
+        settings,
+        body,
+        current_user,
+        None,
+        partials,
+    )
 }

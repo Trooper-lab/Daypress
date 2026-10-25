@@ -27,7 +27,7 @@ fn auth_req(method: &str, uri: &str, body: Option<Value>) -> Request<Body> {
         .method(method)
         .uri(uri)
         .header("Content-Type", "application/json")
-        .header("X-WP-Nonce", "wp_rest_admin");
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=");
     match body {
         Some(val) => builder.body(Body::from(val.to_string())).unwrap(),
         None => builder.body(Body::empty()).unwrap(),
@@ -51,7 +51,11 @@ async fn test_e2e_visual_builder_pro_blocks_dual_write_and_ssr_roundtrip() {
         "content": "<p>Initial markdown draft.</p>",
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload)))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let post_id = parse_body(res).await["id"].as_i64().expect("post id");
 
@@ -84,7 +88,10 @@ async fn test_e2e_visual_builder_pro_blocks_dual_write_and_ssr_roundtrip() {
         },
         styles: StyleProperties {
             // Intentionally contaminated editor chrome
-            css_classes: Some("elementor-grid-handle neostudio-selection-outline neostudio-node active-element".to_string()),
+            css_classes: Some(
+                "elementor-grid-handle neostudio-selection-outline neostudio-node active-element"
+                    .to_string(),
+            ),
             ..Default::default()
         },
         children: vec![],
@@ -186,43 +193,94 @@ async fn test_e2e_visual_builder_pro_blocks_dual_write_and_ssr_roundtrip() {
     let save_payload = json!({
         "layout": layout
     });
-    let res = app.clone().oneshot(auth_req("POST", &format!("/wp-json/neopress/v1/layout/{}", post_id), Some(save_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            &format!("/wp-json/neopress/v1/layout/{}", post_id),
+            Some(save_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let save_res = parse_body(res).await;
     assert_eq!(save_res["success"], true);
 
     // 4. Verify SQLite Dual-Write Persistence
-    let stored_layout = db.get_post_layout(post_id).expect("layout query").expect("layout exists");
+    let stored_layout = db
+        .get_post_layout(post_id)
+        .expect("layout query")
+        .expect("layout exists");
     assert!(stored_layout.contains("Enterprise Dedicated"));
     assert!(stored_layout.contains("Dr. Evelyn Reed"));
 
-    let post_in_db = db.get_post_by_id(post_id).expect("post query").expect("post exists");
+    let post_in_db = db
+        .get_post_by_id(post_id)
+        .expect("post query")
+        .expect("post exists");
     assert!(post_in_db.content.rendered.contains("Enterprise Dedicated"));
 
     // 5. Fetch Public SSR Route (GET /enterprise-cloud/)
-    let ssr_req = Request::builder().method("GET").uri("/enterprise-cloud/").body(Body::empty()).unwrap();
+    let ssr_req = Request::builder()
+        .method("GET")
+        .uri("/enterprise-cloud/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(ssr_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html_bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&html_bytes);
 
     // 6. Verify Pro Block Content Rendered in Public HTML
-    assert!(html.contains("Enterprise Dedicated"), "Missing PriceCard title");
+    assert!(
+        html.contains("Enterprise Dedicated"),
+        "Missing PriceCard title"
+    );
     assert!(html.contains("$"), "Missing PriceCard currency");
     assert!(html.contains("299"), "Missing PriceCard price");
-    assert!(html.contains("Sub-millisecond SSR latency"), "Missing PriceCard feature item");
-    assert!(html.contains("Dr. Evelyn Reed"), "Missing Testimonial author");
-    assert!(html.contains("2026-12-31T23:59:59Z"), "Missing Countdown target");
+    assert!(
+        html.contains("Sub-millisecond SSR latency"),
+        "Missing PriceCard feature item"
+    );
+    assert!(
+        html.contains("Dr. Evelyn Reed"),
+        "Missing Testimonial author"
+    );
+    assert!(
+        html.contains("2026-12-31T23:59:59Z"),
+        "Missing Countdown target"
+    );
     assert!(html.contains("Platform Overview"), "Missing NavMenu item");
 
     // 7. Verify 3-Tier SSR DOM Leak Sanitizer
-    assert!(!html.contains("contenteditable"), "Sanitizer leaked contenteditable");
-    assert!(!html.contains("draggable=\"true\"") && !html.contains(" draggable"), "Sanitizer leaked draggable");
-    assert!(!html.contains("elementor-grid-handle"), "Sanitizer leaked elementor-grid-handle");
-    assert!(!html.contains("neostudio-selection-outline"), "Sanitizer leaked neostudio-selection-outline");
-    assert!(!html.contains("neostudio-node"), "Sanitizer leaked neostudio-node");
-    assert!(!html.contains("data-neostudio"), "Sanitizer leaked data-neostudio");
-    assert!(!html.contains("class=\"\""), "Sanitizer left empty class attribute");
+    assert!(
+        !html.contains("contenteditable"),
+        "Sanitizer leaked contenteditable"
+    );
+    assert!(
+        !html.contains("draggable=\"true\"") && !html.contains(" draggable"),
+        "Sanitizer leaked draggable"
+    );
+    assert!(
+        !html.contains("elementor-grid-handle"),
+        "Sanitizer leaked elementor-grid-handle"
+    );
+    assert!(
+        !html.contains("neostudio-selection-outline"),
+        "Sanitizer leaked neostudio-selection-outline"
+    );
+    assert!(
+        !html.contains("neostudio-node"),
+        "Sanitizer leaked neostudio-node"
+    );
+    assert!(
+        !html.contains("data-neostudio"),
+        "Sanitizer leaked data-neostudio"
+    );
+    assert!(
+        !html.contains("class=\"\""),
+        "Sanitizer left empty class attribute"
+    );
 }
 
 #[tokio::test]
@@ -237,7 +295,11 @@ async fn test_e2e_visual_builder_scoped_responsive_css_pipeline() {
         "content": "<p>Initial text.</p>",
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload)))
+        .await
+        .unwrap();
     let post_id = parse_body(res).await["id"].as_i64().expect("post id");
 
     // 2. Build AST with desktop, tablet, mobile, and hover styles
@@ -270,20 +332,41 @@ async fn test_e2e_visual_builder_scoped_responsive_css_pipeline() {
     };
 
     // 3. Save layout
-    let res = app.clone().oneshot(auth_req("POST", &format!("/wp-json/neopress/v1/layout/{}", post_id), Some(json!({ "layout": layout })))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            &format!("/wp-json/neopress/v1/layout/{}", post_id),
+            Some(json!({ "layout": layout })),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
     // 4. Fetch Public SSR Page
-    let ssr_req = Request::builder().method("GET").uri("/responsive-matrix/").body(Body::empty()).unwrap();
+    let ssr_req = Request::builder()
+        .method("GET")
+        .uri("/responsive-matrix/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(ssr_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html_bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&html_bytes);
 
     // 5. Assert Scoped Responsive Media Queries and Hover Styles are Present in SSR Output
-    assert!(html.contains("@media (max-width: 1024px)"), "Expected tablet breakpoint CSS in SSR");
-    assert!(html.contains("@media (max-width: 767px)"), "Expected mobile breakpoint CSS in SSR");
-    assert!(html.contains(":hover"), "Expected hover selector in scoped CSS");
+    assert!(
+        html.contains("@media (max-width: 1024px)"),
+        "Expected tablet breakpoint CSS in SSR"
+    );
+    assert!(
+        html.contains("@media (max-width: 767px)"),
+        "Expected mobile breakpoint CSS in SSR"
+    );
+    assert!(
+        html.contains(":hover"),
+        "Expected hover selector in scoped CSS"
+    );
 }
 
 #[tokio::test]
@@ -299,7 +382,11 @@ async fn test_e2e_visual_builder_layout_deletion_and_ssr_fallback() {
         "content": format!("<p>{}</p>", fallback_text),
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload)))
+        .await
+        .unwrap();
     let post_id = parse_body(res).await["id"].as_i64().expect("post id");
 
     // 2. Attach a visual layout
@@ -307,17 +394,35 @@ async fn test_e2e_visual_builder_layout_deletion_and_ssr_fallback() {
         version: 1,
         root: NeopressNode {
             id: "visual_block_1".to_string(),
-            kind: NodeKind::Text { content_html: "<p>Visual Layout Content</p>".to_string() },
+            kind: NodeKind::Text {
+                content_html: "<p>Visual Layout Content</p>".to_string(),
+            },
             styles: StyleProperties::default(),
             children: vec![],
         },
         global_styles: None,
     };
-    let res = app.clone().oneshot(auth_req("POST", &format!("/wp-json/neopress/v1/layout/{}", post_id), Some(json!({ "layout": layout })))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            &format!("/wp-json/neopress/v1/layout/{}", post_id),
+            Some(json!({ "layout": layout })),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
     // 3. Delete Visual Layout via DELETE /wp-json/neopress/v1/layout/:id
-    let res = app.clone().oneshot(auth_req("DELETE", &format!("/wp-json/neopress/v1/layout/{}", post_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "DELETE",
+            &format!("/wp-json/neopress/v1/layout/{}", post_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let del_res = parse_body(res).await;
     assert_eq!(del_res["success"], true);
@@ -327,12 +432,22 @@ async fn test_e2e_visual_builder_layout_deletion_and_ssr_fallback() {
     assert!(db.get_post_layout(post_id).unwrap().is_none());
 
     // 5. Query Public SSR: Should render cleanly as standard post without np-visual-canvas wrapper
-    let ssr_req = Request::builder().method("GET").uri("/fallback-matrix/").body(Body::empty()).unwrap();
+    let ssr_req = Request::builder()
+        .method("GET")
+        .uri("/fallback-matrix/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(ssr_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html_bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&html_bytes);
 
-    assert!(html.contains("Visual Layout Content"), "Expected standard post content to render");
-    assert!(!html.contains("<div class=\"np-visual-canvas\">"), "Expected visual canvas wrapper to be absent after layout deletion");
+    assert!(
+        html.contains("Visual Layout Content"),
+        "Expected standard post content to render"
+    );
+    assert!(
+        !html.contains("<div class=\"np-visual-canvas\">"),
+        "Expected visual canvas wrapper to be absent after layout deletion"
+    );
 }

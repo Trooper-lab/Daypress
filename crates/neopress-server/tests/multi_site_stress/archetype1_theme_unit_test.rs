@@ -1,6 +1,8 @@
 //! Archetype 1: WordPress Theme Unit Test WXR Ingestion & SSR Parity.
 
-use super::common::{assert_zero_comment_leaks, body_to_string, load_fixture_or_fallback, setup_test_db};
+use super::common::{
+    assert_zero_comment_leaks, body_to_string, load_fixture_or_fallback, setup_test_db,
+};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use neopress_server::create_app;
@@ -128,22 +130,50 @@ pub async fn run_test() {
         FALLBACK_THEME_UNIT_WXR,
     );
 
-    let res = db.import_wxr(Cursor::new(wxr_data)).expect("WXR import failed");
-    assert!(res.imported_posts >= 2, "Expected at least 2 imported posts");
-    assert!(res.imported_comments >= 2, "Expected at least 2 threaded comments");
+    let res = db
+        .import_wxr(Cursor::new(wxr_data))
+        .expect("WXR import failed");
+    assert!(
+        res.imported_posts >= 2,
+        "Expected at least 2 imported posts"
+    );
+    assert!(
+        res.imported_comments >= 2,
+        "Expected at least 2 threaded comments"
+    );
 
     // 1. Relational Assertions: Sticky Post Priority
     let posts = db.get_posts("post", Some("publish"), None, 10).unwrap();
     assert!(!posts.is_empty(), "Posts should not be empty");
-    assert_eq!(posts[0].slug, "sticky-announcement", "Sticky post must be ordered first");
+    assert_eq!(
+        posts[0].slug, "sticky-announcement",
+        "Sticky post must be ordered first"
+    );
     assert!(posts[0].sticky, "Sticky flag must be true");
 
     // 2. Relational Assertions: Threaded Comments Remapping
-    let disc_post = db.get_post_by_slug("threaded-discussion").unwrap().expect("Discussion post exists");
-    assert!(disc_post.comments.len() >= 2, "Expected at least 2 comments");
-    let parent_c = disc_post.comments.iter().find(|c| c.author_name == "Alice").expect("Alice comment exists");
-    let child_c = disc_post.comments.iter().find(|c| c.author_name == "Bob").expect("Bob comment exists");
-    assert_eq!(child_c.parent, parent_c.id, "Child comment parent must be remapped to Alice's DB ID");
+    let disc_post = db
+        .get_post_by_slug("threaded-discussion")
+        .unwrap()
+        .expect("Discussion post exists");
+    assert!(
+        disc_post.comments.len() >= 2,
+        "Expected at least 2 comments"
+    );
+    let parent_c = disc_post
+        .comments
+        .iter()
+        .find(|c| c.author_name == "Alice")
+        .expect("Alice comment exists");
+    let child_c = disc_post
+        .comments
+        .iter()
+        .find(|c| c.author_name == "Bob")
+        .expect("Bob comment exists");
+    assert_eq!(
+        child_c.parent, parent_c.id,
+        "Child comment parent must be remapped to Alice's DB ID"
+    );
 
     // 3. Relational Assertions: Hierarchical Navigation Menu Tree (3 Levels)
     let menu_items: Vec<NavMenuItemDto> = db
@@ -153,13 +183,17 @@ pub async fn run_test() {
         .unwrap_or_default();
     let tree = build_nav_menu_tree(&menu_items);
     assert!(!tree.is_empty(), "Menu tree must not be empty");
-    let branch = tree.iter().find(|item| !item.children.is_empty()).expect("Level 1 branch with children");
+    let branch = tree
+        .iter()
+        .find(|item| !item.children.is_empty())
+        .expect("Level 1 branch with children");
     assert!(!branch.children.is_empty(), "Level 2 child must exist");
     let grandchild = &branch.children[0].children;
     assert!(!grandchild.is_empty(), "Level 3 grandchild must exist");
 
     // 4. Safe UTF-8 Slugification
-    let unicode_post = db.get_post_by_slug("привет-мир")
+    let unicode_post = db
+        .get_post_by_slug("привет-мир")
         .ok()
         .flatten()
         .or_else(|| db.get_post_by_slug("core-blocks").ok().flatten());
@@ -178,8 +212,17 @@ pub async fn run_test() {
     let html = body_to_string(resp).await;
 
     assert_zero_comment_leaks(&html, "Archetype 1 /core-blocks/");
-    assert!(html.contains("<blockquote") || html.contains("wp-block-quote"), "Must render semantic blockquote");
-    assert!(html.contains("Neopress delivers"), "Must render blockquote text");
-    assert!(html.contains("<ol") || html.contains("<ul") || html.contains("wp-block-list"), "Must render list");
+    assert!(
+        html.contains("<blockquote") || html.contains("wp-block-quote"),
+        "Must render semantic blockquote"
+    );
+    assert!(
+        html.contains("Neopress delivers"),
+        "Must render blockquote text"
+    );
+    assert!(
+        html.contains("<ol") || html.contains("<ul") || html.contains("wp-block-list"),
+        "Must render list"
+    );
     assert!(html.contains("First Nested Item"), "Must render list items");
 }

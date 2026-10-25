@@ -143,7 +143,10 @@ async fn test_universal_cpt_archive_ssr_rendering() {
     let app = create_app(db.clone());
 
     // 1. Query /portfolio/ archive route
-    let req = Request::builder().uri("/portfolio/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/portfolio/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html = body_to_string(res).await;
@@ -154,7 +157,10 @@ async fn test_universal_cpt_archive_ssr_rendering() {
     assert!(html.contains("src=\"/uploads/neo-design-banner.webp\""));
 
     // 2. Query /events/ archive route
-    let req = Request::builder().uri("/events/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/events/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html = body_to_string(res).await;
@@ -163,7 +169,10 @@ async fn test_universal_cpt_archive_ssr_rendering() {
     assert!(html.contains("Rust Global Summit 2026"));
 
     // 3. Query /services/ archive route
-    let req = Request::builder().uri("/services/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/services/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html = body_to_string(res).await;
@@ -172,7 +181,10 @@ async fn test_universal_cpt_archive_ssr_rendering() {
     assert!(html.contains("Cloud Architecture Migration"));
 
     // 4. Query Nonexistent CPT archive -> 404
-    let req = Request::builder().uri("/nonexistent-cpt/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/nonexistent-cpt/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
@@ -185,7 +197,10 @@ async fn test_cpt_single_post_routes_ssr() {
     let app = create_app(db.clone());
 
     // 1. Single CPT: /portfolio/neo-design-system/
-    let req = Request::builder().uri("/portfolio/neo-design-system/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/portfolio/neo-design-system/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html = body_to_string(res).await;
@@ -193,14 +208,20 @@ async fn test_cpt_single_post_routes_ssr() {
     assert!(html.contains("High performance 2026 design system showcase."));
 
     // 2. Single CPT: /events/rust-global-summit-2026/
-    let req = Request::builder().uri("/events/rust-global-summit-2026/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/events/rust-global-summit-2026/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html = body_to_string(res).await;
     assert!(html.contains("Rust Global Summit 2026"));
 
     // 3. Nonexistent CPT post -> 404
-    let req = Request::builder().uri("/portfolio/non-existent-item/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/portfolio/non-existent-item/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
@@ -229,7 +250,7 @@ async fn test_theme_header_footer_resolution_across_root_and_cpt_archives() {
                 .method("POST")
                 .uri("/wp-json/neopress/v1/templates")
                 .header("Content-Type", "application/json")
-                .header("X-WP-Nonce", "wp_rest_admin")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::from(header_payload.to_string()))
                 .unwrap(),
         )
@@ -254,7 +275,7 @@ async fn test_theme_header_footer_resolution_across_root_and_cpt_archives() {
                 .method("POST")
                 .uri("/wp-json/neopress/v1/templates")
                 .header("Content-Type", "application/json")
-                .header("X-WP-Nonce", "wp_rest_admin")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::from(footer_payload.to_string()))
                 .unwrap(),
         )
@@ -267,13 +288,28 @@ async fn test_theme_header_footer_resolution_across_root_and_cpt_archives() {
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let root_html = body_to_string(res).await;
-    assert!(root_html.contains("np-theme-header"), "Root must contain .np-theme-header");
-    assert!(root_html.contains("⚡ NEO-CHALLENGER-HEADER-2026"), "Root must render Challenger Theme Header");
-    assert!(root_html.contains("np-theme-footer"), "Root must contain .np-theme-footer");
-    assert!(root_html.contains("🔒 NEO-CHALLENGER-FOOTER-2026"), "Root must render Challenger Theme Footer");
+    assert!(
+        root_html.contains("np-theme-header"),
+        "Root must contain .np-theme-header"
+    );
+    assert!(
+        root_html.contains("⚡ NEO-CHALLENGER-HEADER-2026"),
+        "Root must render Challenger Theme Header"
+    );
+    assert!(
+        root_html.contains("np-theme-footer"),
+        "Root must contain .np-theme-footer"
+    );
+    assert!(
+        root_html.contains("🔒 NEO-CHALLENGER-FOOTER-2026"),
+        "Root must render Challenger Theme Footer"
+    );
 
     // 2. Verify CPT Archive Route (`/portfolio/`) resolves both Header and Footer
-    let req = Request::builder().uri("/portfolio/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/portfolio/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let portfolio_html = body_to_string(res).await;
@@ -283,7 +319,10 @@ async fn test_theme_header_footer_resolution_across_root_and_cpt_archives() {
     assert!(portfolio_html.contains("🔒 NEO-CHALLENGER-FOOTER-2026"));
 
     // 3. Verify CPT Archive Route (`/events/`) resolves both Header and Footer
-    let req = Request::builder().uri("/events/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/events/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let events_html = body_to_string(res).await;
@@ -291,7 +330,10 @@ async fn test_theme_header_footer_resolution_across_root_and_cpt_archives() {
     assert!(events_html.contains("🔒 NEO-CHALLENGER-FOOTER-2026"));
 
     // 4. Verify Single CPT Route (`/portfolio/neo-design-system/`) resolves both Header and Footer
-    let req = Request::builder().uri("/portfolio/neo-design-system/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/portfolio/neo-design-system/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let single_html = body_to_string(res).await;
@@ -312,8 +354,11 @@ async fn test_cpt_archive_dynamic_taxonomy_hydration() {
                 .method("POST")
                 .uri("/wp-json/wp/v2/categories")
                 .header("Content-Type", "application/json")
-                .header("X-WP-Nonce", "wp_rest_admin")
-                .body(Body::from(json!({ "name": "Mobile Engineering", "slug": "mobile-engineering" }).to_string()))
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .body(Body::from(
+                    json!({ "name": "Mobile Engineering", "slug": "mobile-engineering" })
+                        .to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -331,15 +376,18 @@ async fn test_cpt_archive_dynamic_taxonomy_hydration() {
                 .method("POST")
                 .uri("/wp-json/wp/v2/posts")
                 .header("Content-Type", "application/json")
-                .header("X-WP-Nonce", "wp_rest_admin")
-                .body(Body::from(json!({
-                    "title": "FinTech iOS App",
-                    "slug": "fintech-ios-app",
-                    "content": "<p>FinTech banking application.</p>",
-                    "status": "publish",
-                    "post_type": "portfolio",
-                    "categories": [cat_id]
-                }).to_string()))
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .body(Body::from(
+                    json!({
+                        "title": "FinTech iOS App",
+                        "slug": "fintech-ios-app",
+                        "content": "<p>FinTech banking application.</p>",
+                        "status": "publish",
+                        "post_type": "portfolio",
+                        "categories": [cat_id]
+                    })
+                    .to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -347,15 +395,30 @@ async fn test_cpt_archive_dynamic_taxonomy_hydration() {
     assert_eq!(post_res.status(), StatusCode::CREATED);
 
     // 3. Request /portfolio/ archive SSR
-    let req = Request::builder().uri("/portfolio/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/portfolio/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html = body_to_string(res).await;
 
     // Verify dynamic taxonomy facet filters are hydrated!
-    assert!(html.contains("filters_desktop"), "Must render desktop filters container");
-    assert!(html.contains("Category"), "Must render Category facet group");
-    assert!(html.contains("data-value=\"mobile-engineering\""), "Must render term slug data-value");
-    assert!(html.contains("Mobile Engineering"), "Must render term display name");
+    assert!(
+        html.contains("filters_desktop"),
+        "Must render desktop filters container"
+    );
+    assert!(
+        html.contains("Category"),
+        "Must render Category facet group"
+    );
+    assert!(
+        html.contains("data-value=\"mobile-engineering\""),
+        "Must render term slug data-value"
+    );
+    assert!(
+        html.contains("Mobile Engineering"),
+        "Must render term display name"
+    );
     assert!(html.contains("FinTech iOS App"), "Must render card title");
 }

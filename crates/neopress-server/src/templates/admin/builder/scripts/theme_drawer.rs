@@ -299,7 +299,11 @@ pub const JS_THEME_DRAWER: &str = r###"
         listContainer.innerHTML = "<p>Loading conditions...</p>";
 
         try {
-            const conditions = await window.StudioApi.getConditions(templateId);
+            const [conditions, siteItems] = await Promise.all([
+                window.StudioApi.getConditions(templateId),
+                window.StudioApi.getPagesAndPosts()
+            ]);
+            window._cachedCondSiteItems = siteItems;
             renderConditionsRows(listContainer, conditions);
         } catch(e) {
             listContainer.innerHTML = `<p style="color:var(--neo-crimson);">Error: ${e.message}</p>`;
@@ -308,29 +312,47 @@ pub const JS_THEME_DRAWER: &str = r###"
 
     function renderConditionsRows(container, conditions) {
         container.innerHTML = "";
+        const siteItems = window._cachedCondSiteItems || { pages: [], posts: [] };
+        const allItems = [...(siteItems.pages || []).map(p => ({ id: String(p.id), label: `[Page] ${p.title?.rendered || p.title || p.slug} (#${p.id})` })), ...(siteItems.posts || []).map(p => ({ id: String(p.id), label: `[Post] ${p.title?.rendered || p.title || p.slug} (#${p.id})` }))];
         const list = Array.isArray(conditions) && conditions.length > 0
             ? conditions
-            : [{ condition_type: "include", rule_target: "entire_site", priority: 10 }];
+            : [{ condition_type: "include", rule_target: "entire_site", target_id: "", priority: 10 }];
 
         list.forEach(cond => {
+            const rt = cond.rule_target === "post_id" ? "page" : (cond.rule_target || "entire_site");
+            const needsTarget = rt === "page" || rt === "post";
             const row = document.createElement("div");
             row.className = "cad-row condition-rule-row";
-            row.style.cssText = "margin-bottom: 8px; gap: 8px; background: var(--neo-surface-inset); padding: 8px; border-radius: 4px;";
+            row.style.cssText = "margin-bottom: 8px; gap: 8px; background: var(--neo-surface-inset); padding: 8px; border-radius: 4px; flex-wrap: wrap;";
+            const optsHtml = allItems.map(it => `<option value="${it.id}" ${String(cond.target_id || "") === it.id ? "selected" : ""}>${it.label}</option>`).join("");
             row.innerHTML = `
-                <select class="cad-select cond-type" style="width: 100px;">
+                <select class="cad-select cond-type" style="width: 96px;">
                     <option value="include" ${cond.condition_type === "include" ? "selected" : ""}>INCLUDE</option>
                     <option value="exclude" ${cond.condition_type === "exclude" ? "selected" : ""}>EXCLUDE</option>
                 </select>
-                <select class="cad-select cond-target" style="flex: 1;">
-                    <option value="entire_site" ${cond.rule_target === "entire_site" ? "selected" : ""}>Entire Site (All Pages & Posts)</option>
-                    <option value="front_page" ${cond.rule_target === "front_page" ? "selected" : ""}>Front Page Only</option>
-                    <option value="all_posts" ${cond.rule_target === "all_posts" ? "selected" : ""}>All Blog Posts</option>
-                    <option value="all_pages" ${cond.rule_target === "all_pages" ? "selected" : ""}>All Static Pages</option>
-                    <option value="post_id" ${cond.rule_target === "post_id" ? "selected" : ""}>Specific Post/Page ID</option>
+                <select class="cad-select cond-target" style="flex: 1; min-width: 150px;">
+                    <option value="entire_site" ${rt === "entire_site" ? "selected" : ""}>Entire Site (All Pages & Posts)</option>
+                    <option value="front_page" ${rt === "front_page" ? "selected" : ""}>Front Page Only</option>
+                    <option value="all_pages" ${rt === "all_pages" ? "selected" : ""}>All Static Pages</option>
+                    <option value="all_posts" ${rt === "all_posts" ? "selected" : ""}>All Blog Posts</option>
+                    <option value="page" ${rt === "page" ? "selected" : ""}>Specific Page</option>
+                    <option value="post" ${rt === "post" ? "selected" : ""}>Specific Blog Post</option>
+                    <option value="archive" ${rt === "archive" ? "selected" : ""}>All Archives</option>
+                    <option value="not_found" ${rt === "not_found" ? "selected" : ""}>404 Not Found Page</option>
                 </select>
-                <input type="number" class="cad-input cond-priority font-mono" style="width: 70px;" value="${cond.priority || 10}" title="Priority">
+                <select class="cad-select cond-target-id" style="width: 165px; display: ${needsTarget ? "block" : "none"};">
+                    <option value="">-- Select Item --</option>
+                    ${optsHtml}
+                </select>
+                <input type="number" class="cad-input cond-priority font-mono" style="width: 64px;" value="${cond.priority || 10}" title="Priority">
                 <button class="cad-btn secondary btn-del-cond" style="color: var(--neo-crimson);"><i class="fa-solid fa-xmark"></i></button>
             `;
+            const targetSel = row.querySelector(".cond-target");
+            const idSel = row.querySelector(".cond-target-id");
+            targetSel.onchange = () => {
+                const v = targetSel.value;
+                idSel.style.display = (v === "page" || v === "post") ? "block" : "none";
+            };
             row.querySelector(".btn-del-cond").onclick = () => row.remove();
             container.appendChild(row);
         });
@@ -338,17 +360,15 @@ pub const JS_THEME_DRAWER: &str = r###"
         const btnAdd = document.getElementById("btn-add-condition-rule");
         if (btnAdd) {
             btnAdd.onclick = () => {
-                const dummy = { condition_type: "include", rule_target: "entire_site", priority: 10 };
+                const dummy = { condition_type: "include", rule_target: "entire_site", target_id: "", priority: 10 };
                 renderConditionsRows(container, [...getConditionsFromModal(), dummy]);
             };
         }
-
         const btnSave = document.getElementById("btn-save-conditions");
         if (btnSave) {
             btnSave.onclick = async () => {
-                const finalConditions = getConditionsFromModal();
                 try {
-                    await window.StudioApi.setConditions(currentTemplateIdForConditions, finalConditions);
+                    await window.StudioApi.setConditions(currentTemplateIdForConditions, getConditionsFromModal());
                     document.getElementById("modal-conditions").classList.remove("open");
                     if (window.showToast) window.showToast("Conditions updated successfully");
                     const drawerCont = document.getElementById("drawer-panel-container");
@@ -358,7 +378,6 @@ pub const JS_THEME_DRAWER: &str = r###"
                 }
             };
         }
-
         const btnCancel = document.getElementById("btn-cancel-conditions");
         const btnClose = document.getElementById("btn-close-conditions");
         if (btnCancel) btnCancel.onclick = () => document.getElementById("modal-conditions").classList.remove("open");
@@ -366,14 +385,12 @@ pub const JS_THEME_DRAWER: &str = r###"
     }
 
     function getConditionsFromModal() {
-        const rows = document.querySelectorAll(".condition-rule-row");
         const list = [];
-        rows.forEach(r => {
-            list.push({
-                condition_type: r.querySelector(".cond-type").value,
-                rule_target: r.querySelector(".cond-target").value,
-                priority: parseInt(r.querySelector(".cond-priority").value, 10) || 10
-            });
+        document.querySelectorAll(".condition-rule-row").forEach(r => {
+            const rt = r.querySelector(".cond-target").value;
+            const idEl = r.querySelector(".cond-target-id");
+            const tid = (rt === "page" || rt === "post") && idEl ? idEl.value : "";
+            list.push({ condition_type: r.querySelector(".cond-type").value, rule_target: rt, target_id: tid, priority: parseInt(r.querySelector(".cond-priority").value, 10) || 10 });
         });
         return list;
     }

@@ -76,7 +76,7 @@ pub struct CommentCounts {
     pub trash: i64,
 }
 
-/// One row of the admin Comments moderation table (`/n-admin/edit-comments.php`).
+/// One row of the admin Comments moderation table (`/n-admin/edit-comments`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminCommentRow {
     pub item: WpCommentAdminItem,

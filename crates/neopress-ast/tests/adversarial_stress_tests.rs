@@ -1,7 +1,9 @@
-use neopress_ast::render::{compile_layout_css, render_layout_to_html, render_node_to_html, sanitize_ssr_html};
+use neopress_ast::render::{
+    compile_layout_css, render_layout_to_html, render_node_to_html, sanitize_ssr_html,
+};
 use neopress_ast::schema::{
-    NavMenuItem, NeopressLayout, NeopressNode, NodeKind, PriceFeatureItem,
-    SharePlatformItem, SocialIconItem, StyleProperties, TestimonialSlide,
+    NavMenuItem, NeopressLayout, NeopressNode, NodeKind, PriceFeatureItem, SharePlatformItem,
+    SocialIconItem, StyleProperties, TestimonialSlide,
 };
 use neopress_ast::{transpile_content, transpile_divi_content};
 use serde_json::json;
@@ -145,7 +147,11 @@ fn test_roundtrip_all_pro_node_kinds() {
             id: "animated_headline_test".to_string(),
             kind: NodeKind::AnimatedHeadline {
                 before_text: "Build websites that are ".to_string(),
-                words: vec!["Instant".to_string(), "Unbreakable".to_string(), "Scalable".to_string()],
+                words: vec![
+                    "Instant".to_string(),
+                    "Unbreakable".to_string(),
+                    "Scalable".to_string(),
+                ],
                 after_text: " with Neopress.".to_string(),
                 animation_style: "typing".to_string(),
             },
@@ -246,7 +252,9 @@ fn test_roundtrip_all_pro_node_kinds() {
                     SharePlatformItem {
                         platform: "twitter".to_string(),
                         label: Some("Tweet".to_string()),
-                        url_template: Some("https://twitter.com/intent/tweet?url={url}".to_string()),
+                        url_template: Some(
+                            "https://twitter.com/intent/tweet?url={url}".to_string(),
+                        ),
                     },
                     SharePlatformItem {
                         platform: "linkedin".to_string(),
@@ -373,9 +381,10 @@ fn test_roundtrip_all_pro_node_kinds() {
         // Test direct serialization and deserialization
         let json = serde_json::to_string(&node)
             .unwrap_or_else(|e| panic!("Failed to serialize node #{}: {:?}", i, e));
-        
-        let deserialized: NeopressNode = serde_json::from_str(&json)
-            .unwrap_or_else(|e| panic!("Failed to deserialize node #{}: {:?}\nJSON: {}", i, e, json));
+
+        let deserialized: NeopressNode = serde_json::from_str(&json).unwrap_or_else(|e| {
+            panic!("Failed to deserialize node #{}: {:?}\nJSON: {}", i, e, json)
+        });
 
         assert_eq!(
             node.id, deserialized.id,
@@ -417,10 +426,16 @@ fn test_flat_visual_builder_data_deserialization() {
         "styles": {}
     }"#;
 
-    let node: NeopressNode = serde_json::from_str(flat_price_card)
-        .expect("Flat PriceCard should deserialize cleanly");
+    let node: NeopressNode =
+        serde_json::from_str(flat_price_card).expect("Flat PriceCard should deserialize cleanly");
     match &node.kind {
-        NodeKind::PriceCard { title, price, featured, features, .. } => {
+        NodeKind::PriceCard {
+            title,
+            price,
+            featured,
+            features,
+            ..
+        } => {
             assert_eq!(title, "Startup Bundle");
             assert_eq!(price, "49");
             assert!(*featured);
@@ -439,10 +454,15 @@ fn test_flat_visual_builder_data_deserialization() {
         "styles": {}
     }"#;
 
-    let node_cnt: NeopressNode = serde_json::from_str(flat_counter)
-        .expect("Flat Counter should deserialize cleanly");
+    let node_cnt: NeopressNode =
+        serde_json::from_str(flat_counter).expect("Flat Counter should deserialize cleanly");
     match &node_cnt.kind {
-        NodeKind::Counter { number, suffix, title, .. } => {
+        NodeKind::Counter {
+            number,
+            suffix,
+            title,
+            ..
+        } => {
             assert_eq!(*number, 99); // String "99.9%" integer part is parsed as 99
             assert_eq!(suffix.as_deref(), Some("%"));
             assert_eq!(title.as_deref(), Some("Uptime SLA"));
@@ -457,8 +477,8 @@ fn test_flat_visual_builder_data_deserialization() {
         "styles": { "height": "64px" }
     }"#;
 
-    let node_sp: NeopressNode = serde_json::from_str(flat_spacer)
-        .expect("Flat Spacer should extract height from style");
+    let node_sp: NeopressNode =
+        serde_json::from_str(flat_spacer).expect("Flat Spacer should extract height from style");
     match &node_sp.kind {
         NodeKind::Spacer { height } => assert_eq!(*height, 64),
         _ => panic!("Expected Spacer with 64px height"),
@@ -474,10 +494,15 @@ fn test_flat_visual_builder_data_deserialization() {
         "styles": {}
     }"#;
 
-    let node_vid: NeopressNode = serde_json::from_str(flat_vid)
-        .expect("Flat Video should deserialize cleanly");
+    let node_vid: NeopressNode =
+        serde_json::from_str(flat_vid).expect("Flat Video should deserialize cleanly");
     match &node_vid.kind {
-        NodeKind::Video { url, aspect_ratio, loop_video, .. } => {
+        NodeKind::Video {
+            url,
+            aspect_ratio,
+            loop_video,
+            ..
+        } => {
             assert_eq!(url, "https://youtu.be/dQw4w9WgXcQ");
             assert_eq!(aspect_ratio, "4/3");
             assert!(*loop_video);
@@ -565,19 +590,27 @@ fn test_deep_style_properties_with_responsive_hover_and_raw_settings() {
 
     // 1. Serialize to JSON and back
     let json_str = serde_json::to_string_pretty(&layout).expect("Layout serialization failed");
-    let roundtripped: NeopressLayout = serde_json::from_str(&json_str).expect("Layout deserialization failed");
+    let roundtripped: NeopressLayout =
+        serde_json::from_str(&json_str).expect("Layout deserialization failed");
 
     let styles = &roundtripped.root.styles;
     assert_eq!(styles.display.as_deref(), Some("grid"));
-    assert_eq!(styles.grid_template_columns.as_deref(), Some("repeat(4, 1fr)"));
+    assert_eq!(
+        styles.grid_template_columns.as_deref(),
+        Some("repeat(4, 1fr)")
+    );
     assert_eq!(styles.position.as_deref(), Some("relative"));
     assert_eq!(styles.z_index.as_deref(), Some("10"));
 
     // Verify raw_settings lossless retention
-    let raw = styles.raw_settings.as_ref().expect("raw_settings should be preserved");
+    let raw = styles
+        .raw_settings
+        .as_ref()
+        .expect("raw_settings should be preserved");
     assert!(raw.contains_key("elementor_motion_fx"));
     assert_eq!(
-        raw.get("divi_custom_addon_property").and_then(|v| v.as_str()),
+        raw.get("divi_custom_addon_property")
+            .and_then(|v| v.as_str()),
         Some("unrecognized_third_party_token_v42")
     );
 
@@ -643,13 +676,11 @@ fn test_multi_byte_utf8_safety_and_no_slicing_panic() {
                 period: Some("月".to_string()),
                 badge: Some("⭐ 特選".to_string()),
                 featured: true,
-                features: vec![
-                    PriceFeatureItem {
-                        text: format!("Feature: {}", text),
-                        included: true,
-                        icon: Some("fa-solid fa-check".to_string()),
-                    },
-                ],
+                features: vec![PriceFeatureItem {
+                    text: format!("Feature: {}", text),
+                    included: true,
+                    icon: Some("fa-solid fa-check".to_string()),
+                }],
                 button_text: "購入する 🛒".to_string(),
                 button_url: format!("https://example.com/checkout?item={}", idx),
             },
@@ -781,7 +812,8 @@ fn test_transpile_content_utf8_and_malformed_inputs() {
     "##;
 
     let empty_meta = HashMap::new();
-    let divi_layout = transpile_content(divi_utf8, &empty_meta).expect("Divi UTF-8 transpilation failed");
+    let divi_layout =
+        transpile_content(divi_utf8, &empty_meta).expect("Divi UTF-8 transpilation failed");
     let d_sec = &divi_layout.root.children[0];
     let d_row = &d_sec.children[0];
     let d_col = &d_row.children[0];
@@ -799,12 +831,14 @@ fn test_transpile_content_utf8_and_malformed_inputs() {
     "#;
 
     // 3a. Direct call to transpile_divi_content succeeds:
-    let divi5_direct = transpile_divi_content(divi5_utf8).expect("Divi 5 direct transpilation failed");
+    let divi5_direct =
+        transpile_divi_content(divi5_utf8).expect("Divi 5 direct transpilation failed");
     let d5_dir_sec = &divi5_direct.root.children[0];
     assert_eq!(d5_dir_sec.id, "divi5-кириллица");
 
     // 3b. Universal transpile_content MUST route Divi 5 content to Divi transpiler, not Gutenberg!
-    let divi5_layout = transpile_content(divi5_utf8, &empty_meta).expect("Divi 5 UTF-8 transpilation failed");
+    let divi5_layout =
+        transpile_content(divi5_utf8, &empty_meta).expect("Divi 5 UTF-8 transpilation failed");
     let d5_sec = &divi5_layout.root.children[0];
     assert_eq!(
         d5_sec.id, "divi5-кириллица",
@@ -818,7 +852,8 @@ fn test_transpile_content_utf8_and_malformed_inputs() {
         <!-- /wp:heading -->
     "#;
 
-    let gb_layout = transpile_content(gb_utf8, &empty_meta).expect("Gutenberg UTF-8 transpilation failed");
+    let gb_layout =
+        transpile_content(gb_utf8, &empty_meta).expect("Gutenberg UTF-8 transpilation failed");
     assert_eq!(gb_layout.root.children.len(), 1);
 }
 

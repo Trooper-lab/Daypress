@@ -6,9 +6,11 @@ use axum::{
     http::{Request, StatusCode},
 };
 use neopress_ast::{render_layout_to_html, transpile_gutenberg_content};
-use neopress_server::{create_app, Database};
 use neopress_server::domain::models::NavMenuItemDto;
-use neopress_server::templates::public::menus::{build_nav_menu_tree, render_hierarchical_nav_menu};
+use neopress_server::templates::public::menus::{
+    build_nav_menu_tree, render_hierarchical_nav_menu,
+};
+use neopress_server::{create_app, Database};
 use std::io::Cursor;
 use tower::ServiceExt;
 
@@ -28,14 +30,29 @@ fn test_balanced_brace_nested_gutenberg_comments_without_leaks() {
 "#;
 
     let layout = transpile_gutenberg_content(gutenberg_content).expect("Transpilation succeeds");
-    assert!(!layout.root.children.is_empty(), "Transpiled nodes should not be empty");
+    assert!(
+        !layout.root.children.is_empty(),
+        "Transpiled nodes should not be empty"
+    );
     let html = render_layout_to_html(&layout);
 
     // Verify zero Gutenberg raw comment leaks
-    assert!(!html.contains("<!-- wp:"), "HTML must not leak raw <!-- wp: comments");
-    assert!(!html.contains("<!-- /wp:"), "HTML must not leak raw <!-- /wp: comments");
-    assert!(html.contains("Universal Gutenberg Test"), "Heading text must be preserved");
-    assert!(html.contains("Testing complex braces"), "Paragraph text must be preserved");
+    assert!(
+        !html.contains("<!-- wp:"),
+        "HTML must not leak raw <!-- wp: comments"
+    );
+    assert!(
+        !html.contains("<!-- /wp:"),
+        "HTML must not leak raw <!-- /wp: comments"
+    );
+    assert!(
+        html.contains("Universal Gutenberg Test"),
+        "Heading text must be preserved"
+    );
+    assert!(
+        html.contains("Testing complex braces"),
+        "Paragraph text must be preserved"
+    );
 }
 
 #[test]
@@ -67,10 +84,22 @@ https://www.youtube.com/watch?v=dQw4w9WgXcQ
     let html = render_layout_to_html(&layout);
 
     assert!(html.contains("<blockquote"), "Must render blockquote");
-    assert!(html.contains("Neopress delivers sub-millisecond"), "Must render quote content");
-    assert!(html.contains("<ol") || html.contains("<ul"), "Must render list");
-    assert!(html.contains("<li>First Item</li>"), "Must render list items");
-    assert!(html.contains("youtube.com") || html.contains("iframe") || html.contains("video"), "Must render video embed");
+    assert!(
+        html.contains("Neopress delivers sub-millisecond"),
+        "Must render quote content"
+    );
+    assert!(
+        html.contains("<ol") || html.contains("<ul"),
+        "Must render list"
+    );
+    assert!(
+        html.contains("<li>First Item</li>"),
+        "Must render list items"
+    );
+    assert!(
+        html.contains("youtube.com") || html.contains("iframe") || html.contains("video"),
+        "Must render video embed"
+    );
     assert!(!html.contains("<!-- wp:"), "Must zero comment leaks");
 }
 
@@ -131,12 +160,22 @@ fn test_hierarchical_3_plus_level_navigation_ssr_markup() {
     let tree = build_nav_menu_tree(&items);
     assert_eq!(tree.len(), 1, "Root should have 1 top-level parent");
     assert_eq!(tree[0].children.len(), 1, "Level 1 should have 1 child");
-    assert_eq!(tree[0].children[0].children.len(), 1, "Level 2 should have 1 grandchild");
+    assert_eq!(
+        tree[0].children[0].children.len(),
+        1,
+        "Level 2 should have 1 grandchild"
+    );
 
     let markup = render_hierarchical_nav_menu(&tree, false);
     assert!(markup.contains(r#"<ul class="menu np-primary-menu">"#));
-    assert!(markup.contains("menu-item-has-children"), "Parent must have menu-item-has-children class");
-    assert!(markup.contains(r#"<ul class="sub-menu">"#), "Sub-menu must have sub-menu class");
+    assert!(
+        markup.contains("menu-item-has-children"),
+        "Parent must have menu-item-has-children class"
+    );
+    assert!(
+        markup.contains(r#"<ul class="sub-menu">"#),
+        "Sub-menu must have sub-menu class"
+    );
     assert!(markup.contains("Parent Level 1"));
     assert!(markup.contains("Child Level 2"));
     assert!(markup.contains("Grandchild Level 3"));
@@ -196,18 +235,35 @@ fn test_sticky_posts_and_threaded_comments_wxr_remapping() {
     // Verify Sticky Post Query Order: sticky post must come first despite being older!
     let posts = db.get_posts("post", Some("publish"), None, 10).unwrap();
     assert!(posts.len() >= 2);
-    assert_eq!(posts[0].slug, "sticky-older-post", "Sticky post must be ordered first");
+    assert_eq!(
+        posts[0].slug, "sticky-older-post",
+        "Sticky post must be ordered first"
+    );
     assert!(posts[0].sticky, "Sticky post flag must be true");
-    let normal_post = posts.iter().find(|p| p.slug == "normal-post").expect("normal post found");
+    let normal_post = posts
+        .iter()
+        .find(|p| p.slug == "normal-post")
+        .expect("normal post found");
     assert!(!normal_post.sticky, "Normal post flag must be false");
 
     // Verify Threaded Comments Remapping
     let sticky_id = posts[0].id;
     let post_hydrated = db.get_post_by_id(sticky_id).unwrap().expect("Post exists");
     assert_eq!(post_hydrated.comments.len(), 2);
-    let parent_comment = post_hydrated.comments.iter().find(|c| c.author_name == "Alice").unwrap();
-    let child_comment = post_hydrated.comments.iter().find(|c| c.author_name == "Bob").unwrap();
-    assert_eq!(child_comment.parent, parent_comment.id, "Child comment parent must match remapped parent ID");
+    let parent_comment = post_hydrated
+        .comments
+        .iter()
+        .find(|c| c.author_name == "Alice")
+        .unwrap();
+    let child_comment = post_hydrated
+        .comments
+        .iter()
+        .find(|c| c.author_name == "Bob")
+        .unwrap();
+    assert_eq!(
+        child_comment.parent, parent_comment.id,
+        "Child comment parent must match remapped parent ID"
+    );
 }
 
 #[tokio::test]
@@ -255,7 +311,16 @@ async fn test_dynamic_taxonomy_archive_route_ssr() {
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body_str = String::from_utf8_lossy(&body);
 
-    assert!(body_str.contains("Genre: Cyberpunk"), "Title should show genre name");
-    assert!(body_str.contains("Stories of high tech and low life."), "Description should be rendered");
-    assert!(body_str.contains("Neuromancer Tribute"), "Associated post title should be rendered");
+    assert!(
+        body_str.contains("Genre: Cyberpunk"),
+        "Title should show genre name"
+    );
+    assert!(
+        body_str.contains("Stories of high tech and low life."),
+        "Description should be rendered"
+    );
+    assert!(
+        body_str.contains("Neuromancer Tribute"),
+        "Associated post title should be rendered"
+    );
 }

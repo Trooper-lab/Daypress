@@ -24,7 +24,10 @@ impl ThemeAssetsManifest {
     pub fn compile_to_html(&self) -> String {
         let mut html = String::new();
         for css in &self.stylesheets {
-            html.push_str(&format!(r#"<link rel="stylesheet" href="{}" media="all" />"#, css));
+            html.push_str(&format!(
+                r#"<link rel="stylesheet" href="{}" media="all" />"#,
+                css
+            ));
             html.push('\n');
         }
         for js in &self.scripts {
@@ -33,7 +36,10 @@ impl ThemeAssetsManifest {
         }
         if let Some(ref custom_css) = self.custom_css {
             if !custom_css.trim().is_empty() {
-                html.push_str(&format!("<style id=\"neopress-theme-manifest-css\">{}</style>\n", custom_css));
+                html.push_str(&format!(
+                    "<style id=\"neopress-theme-manifest-css\">{}</style>\n",
+                    custom_css
+                ));
             }
         }
         if let Some(ref snippet) = self.head_snippet {

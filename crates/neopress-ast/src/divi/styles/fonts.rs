@@ -1,9 +1,6 @@
 use crate::schema::StyleProperties;
 
-pub(crate) fn parse_divi_font_composite(
-    font_raw: &str,
-    styles: &mut StyleProperties,
-) {
+pub(crate) fn parse_divi_font_composite(font_raw: &str, styles: &mut StyleProperties) {
     let parts: Vec<&str> = font_raw.split('|').collect();
     if let Some(fam) = parts.first().map(|s| s.trim()).filter(|s| !s.is_empty()) {
         let resolved_fam = match fam {

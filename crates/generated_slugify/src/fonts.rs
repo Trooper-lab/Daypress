@@ -23,9 +23,8 @@ pub mod wp_font_library {
         if trimmed.is_empty() {
             return String::new();
         }
-        let is_exclusively_alpha_or_dash = trimmed
-            .chars()
-            .all(|c| c.is_ascii_alphabetic() || c == '-');
+        let is_exclusively_alpha_or_dash =
+            trimmed.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
 
         let is_generic_wrapper = trimmed
             .strip_prefix("generic(")
@@ -110,10 +109,7 @@ pub mod wp_font_library {
         let elements: Vec<String> = [family, style, weight, stretch, range]
             .into_iter()
             .map(|elem| {
-                let cleaned = elem
-                    .replace(['"', '\'', ';'], "")
-                    .trim()
-                    .to_string();
+                let cleaned = elem.replace(['"', '\'', ';'], "").trim().to_string();
                 re_comma_ws.replace_all(&cleaned, ",").into_owned()
             })
             .collect();
@@ -169,11 +165,7 @@ pub mod wp_font_library {
                     ordered_src.push((url.clone(), "data"));
                     continue;
                 }
-                let ext = trimmed_url
-                    .rsplit('.')
-                    .next()
-                    .unwrap_or("")
-                    .to_lowercase();
+                let ext = trimmed_url.rsplit('.').next().unwrap_or("").to_lowercase();
                 by_ext.insert(ext, url.clone());
             }
 

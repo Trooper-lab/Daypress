@@ -31,7 +31,10 @@ async fn test_challenger_extreme_cdata_streaming_128kb() {
         r#"[{{"id":"sec_main","elType":"section","elements":[{{"id":"col_main","elType":"column","elements":[{}]}}]}}]"#,
         widgets.join(",")
     );
-    assert!(large_json.len() > 120_000, "Must be >120KB for extreme CDATA test");
+    assert!(
+        large_json.len() > 120_000,
+        "Must be >120KB for extreme CDATA test"
+    );
 
     let wxr = format!(
         r##"<?xml version="1.0" encoding="UTF-8" ?>
@@ -60,12 +63,24 @@ async fn test_challenger_extreme_cdata_streaming_128kb() {
     let res = db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
     assert_eq!(res.imported_pages, 1);
 
-    let post = db.get_post_by_slug("massive-cdata").unwrap().expect("post found");
-    assert!(post.content.rendered.contains("Heading 0 - Lorem ipsum"), "First heading must be present");
-    assert!(post.content.rendered.contains("Heading 599 - Lorem ipsum"), "Last heading in chunk must be present");
+    let post = db
+        .get_post_by_slug("massive-cdata")
+        .unwrap()
+        .expect("post found");
+    assert!(
+        post.content.rendered.contains("Heading 0 - Lorem ipsum"),
+        "First heading must be present"
+    );
+    assert!(
+        post.content.rendered.contains("Heading 599 - Lorem ipsum"),
+        "Last heading in chunk must be present"
+    );
 
     let layout = db.get_post_layout(post.id).unwrap();
-    assert!(layout.is_some(), "Complete AST layout must be parsed and stored");
+    assert!(
+        layout.is_some(),
+        "Complete AST layout must be parsed and stored"
+    );
 }
 
 #[tokio::test]
@@ -99,13 +114,18 @@ async fn test_challenger_base_url_precedence_reverse_tag_order() {
 
     db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
 
-    let post = db.get_post_by_slug("precedence-item").unwrap().expect("post found");
+    let post = db
+        .get_post_by_slug("precedence-item")
+        .unwrap()
+        .expect("post found");
     assert!(
         post.content.rendered.contains(r#"href="/pricing/""#),
         "Link must be remapped to relative /pricing/ based on base_blog_url"
     );
     assert!(
-        post.content.rendered.contains(r#"src="/uploads/2026/04/logo.svg""#),
+        post.content
+            .rendered
+            .contains(r#"src="/uploads/2026/04/logo.svg""#),
         "Media must be remapped to /uploads/ based on base_blog_url"
     );
     assert!(
@@ -165,7 +185,10 @@ async fn test_challenger_elementor_kit_css_full_token_injection() {
     db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
 
     // 1. Verify CSS stored in wp_options
-    let kit_css = db.get_option("neopress_elementor_kit_css").unwrap().expect("kit css option must exist");
+    let kit_css = db
+        .get_option("neopress_elementor_kit_css")
+        .unwrap()
+        .expect("kit css option must exist");
     assert!(kit_css.contains("--e-global-color-primary: #1e3a8a;"));
     assert!(kit_css.contains("--e-global-color-secondary: #3b82f6;"));
     assert!(kit_css.contains("--e-global-color-text: #1f2937;"));
@@ -174,12 +197,21 @@ async fn test_challenger_elementor_kit_css_full_token_injection() {
     assert!(kit_css.contains("--e-global-typography-primary-font-family: Plus Jakarta Sans;"));
     assert!(kit_css.contains("--e-global-typography-primary-font-weight: 600;"));
     // Note: Elementor kit setting `container_width` defaults to 1140px when alias is missing on `content_width`
-    assert!(kit_css.contains("--e-content-width: 1140px;") || kit_css.contains("--e-content-width: 1280px;"));
-    assert!(kit_css.contains("family=Plus+Jakarta+Sans"), "Google Fonts url must encode spaces with +");
+    assert!(
+        kit_css.contains("--e-content-width: 1140px;")
+            || kit_css.contains("--e-content-width: 1280px;")
+    );
+    assert!(
+        kit_css.contains("family=Plus+Jakarta+Sans"),
+        "Google Fonts url must encode spaces with +"
+    );
 
     // 2. Verify SSR <head> injection
     let app = create_app(db);
-    let req = Request::builder().uri("/public-landing/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/public-landing/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
@@ -234,16 +266,61 @@ async fn test_challenger_url_remapping_queries_hashes_and_json_escapes() {
 
     db.import_wxr(Cursor::new(wxr)).expect("import_wxr failed");
 
-    let page1 = db.get_post_by_slug("gadget-page").unwrap().expect("page1 found");
-    assert!(page1.content.rendered.contains(r#"href="/""#), "Root demo link must become /");
-    assert!(page1.content.rendered.contains(r#"href="/shop/?view=grid&cat=deals#products""#), "Query and hash preserved on relative path");
-    assert!(page1.content.rendered.contains(r#"href="https://github.com/rust-lang/rust""#), "GitHub external URL preserved");
-    assert!(page1.content.rendered.contains(r#"href="https://twitter.com/rustlang""#), "Twitter external URL preserved");
-    assert!(page1.content.rendered.contains(r#"src="https://cdn.example.com/assets/badge.png""#), "CDN external media preserved");
+    let page1 = db
+        .get_post_by_slug("gadget-page")
+        .unwrap()
+        .expect("page1 found");
+    assert!(
+        page1.content.rendered.contains(r#"href="/""#),
+        "Root demo link must become /"
+    );
+    assert!(
+        page1
+            .content
+            .rendered
+            .contains(r#"href="/shop/?view=grid&cat=deals#products""#),
+        "Query and hash preserved on relative path"
+    );
+    assert!(
+        page1
+            .content
+            .rendered
+            .contains(r#"href="https://github.com/rust-lang/rust""#),
+        "GitHub external URL preserved"
+    );
+    assert!(
+        page1
+            .content
+            .rendered
+            .contains(r#"href="https://twitter.com/rustlang""#),
+        "Twitter external URL preserved"
+    );
+    assert!(
+        page1
+            .content
+            .rendered
+            .contains(r#"src="https://cdn.example.com/assets/badge.png""#),
+        "CDN external media preserved"
+    );
 
-    let page2 = db.get_post_by_slug("gadget-elementor").unwrap().expect("page2 found");
-    assert!(page2.content.rendered.contains(r#"/checkout/?promo=save10#pay"#), "Elementor JSON escaped URL remapped with query and hash");
-    assert!(page2.content.rendered.contains("https://github.com/rust-lang/cargo"), "Elementor JSON external link preserved");
+    let page2 = db
+        .get_post_by_slug("gadget-elementor")
+        .unwrap()
+        .expect("page2 found");
+    assert!(
+        page2
+            .content
+            .rendered
+            .contains(r#"/checkout/?promo=save10#pay"#),
+        "Elementor JSON escaped URL remapped with query and hash"
+    );
+    assert!(
+        page2
+            .content
+            .rendered
+            .contains("https://github.com/rust-lang/cargo"),
+        "Elementor JSON external link preserved"
+    );
 }
 
 #[tokio::test]
@@ -252,7 +329,11 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
 
     // Pre-populate legacy wp_options elementor_footer_html with a canary string
     // that MUST NEVER leak if Theme Builder has an active template or excludes it!
-    db.set_option("neopress_elementor_footer_html", "<div id=\"CANARY_LEAKED_LEGACY_FOOTER\">Legacy Footer</div>").unwrap();
+    db.set_option(
+        "neopress_elementor_footer_html",
+        "<div id=\"CANARY_LEAKED_LEGACY_FOOTER\">Legacy Footer</div>",
+    )
+    .unwrap();
 
     let wxr = r##"<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wp="http://wordpress.org/export/1.2/"><channel>
 	<item><title>Global EntireSite Header</title><wp:post_id>1001</wp:post_id><wp:post_name>global-header</wp:post_name><wp:post_type>elementor_library</wp:post_type><wp:status>publish</wp:status><content:encoded><![CDATA[]]></content:encoded>
@@ -276,8 +357,14 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
 
     db.import_wxr(Cursor::new(wxr)).expect("WXR import failed");
 
-    let vip_page = db.get_post_by_slug("vip-page").unwrap().expect("vip page found");
-    let landing_page = db.get_post_by_slug("clean-landing").unwrap().expect("landing page found");
+    let vip_page = db
+        .get_post_by_slug("vip-page")
+        .unwrap()
+        .expect("vip page found");
+    let landing_page = db
+        .get_post_by_slug("clean-landing")
+        .unwrap()
+        .expect("landing page found");
 
     // 1. Empirically verify target_id relational remapping in SQLite without any manual updates!
     use neopress_server::theme_builder::models::{ConditionType, RuleTarget, TemplateType};
@@ -285,7 +372,10 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
     let repo = ThemeTemplateRepository::from_database(&db);
 
     let vip_headers = repo.find_active_by_type(TemplateType::Header).unwrap();
-    let vip_tpl = vip_headers.iter().find(|t| t.title == "VIP Page Specific Header").expect("vip tpl exists");
+    let vip_tpl = vip_headers
+        .iter()
+        .find(|t| t.title == "VIP Page Specific Header")
+        .expect("vip tpl exists");
     assert_eq!(vip_tpl.conditions.len(), 1);
     assert_eq!(vip_tpl.conditions[0].rule_target, RuleTarget::Page);
     assert_eq!(
@@ -296,8 +386,15 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
     );
 
     let footers = repo.find_active_by_type(TemplateType::Footer).unwrap();
-    let footer_tpl = footers.iter().find(|t| t.title == "Universal Footer with Landing Exclusion").expect("footer tpl exists");
-    let exclude_cond = footer_tpl.conditions.iter().find(|c| c.condition_type == ConditionType::Exclude).expect("exclude condition exists");
+    let footer_tpl = footers
+        .iter()
+        .find(|t| t.title == "Universal Footer with Landing Exclusion")
+        .expect("footer tpl exists");
+    let exclude_cond = footer_tpl
+        .conditions
+        .iter()
+        .find(|c| c.condition_type == ConditionType::Exclude)
+        .expect("exclude condition exists");
     assert_eq!(exclude_cond.rule_target, RuleTarget::Page);
     assert_eq!(
         exclude_cond.target_id,
@@ -309,7 +406,10 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
     let app = create_app(db);
 
     // 2. VIP Page: Post-specific header MUST beat EntireSite header! Footer must render.
-    let req = Request::builder().uri("/vip-page/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/vip-page/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -329,7 +429,10 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
     );
 
     // 3. Clean Landing: Excluded footer must NOT render Elementor footer, must NOT leak legacy footer, MUST render fallback neo-footer!
-    let req = Request::builder().uri("/clean-landing/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/clean-landing/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -352,4 +455,3 @@ async fn test_challenger_theme_builder_conditions_remapping_and_fallback_landmar
         "Clean Landing must render theme fallback neo-footer landmark"
     );
 }
-

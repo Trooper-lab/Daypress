@@ -60,7 +60,10 @@ mod tests {
         assert_eq!(remove_accents("Übermensch"), "Ubermensch");
         assert_eq!(remove_accents("Español & Niño"), "Espanol & Nino");
         assert_eq!(remove_accents("Łódź & Gdańsk"), "Lodz & Gdansk");
-        assert_eq!(remove_accents("Œuvre & Æther & Straße"), "OEuvre & AEther & Strasse");
+        assert_eq!(
+            remove_accents("Œuvre & Æther & Straße"),
+            "OEuvre & AEther & Strasse"
+        );
 
         assert_eq!(
             sanitize_title_with_dashes("<h1>Café & Crème Brûlée!</h1>"),
@@ -115,7 +118,12 @@ mod tests {
         assert_eq!(parsed.get("columns").map(String::as_str), Some("4"));
 
         let merged = shortcode_atts(
-            &[("id", "1"), ("layout", "list"), ("columns", "3"), ("gap", "16px")],
+            &[
+                ("id", "1"),
+                ("layout", "list"),
+                ("columns", "3"),
+                ("gap", "16px"),
+            ],
             &parsed,
         );
         assert_eq!(merged.get("id").map(String::as_str), Some("123"));
@@ -129,7 +137,10 @@ mod tests {
     fn test_wp_font_library_parity() {
         use wp_font_library::*;
 
-        assert_eq!(sanitize_font_family("Inter, sans-serif"), "Inter, sans-serif");
+        assert_eq!(
+            sanitize_font_family("Inter, sans-serif"),
+            "Inter, sans-serif"
+        );
         assert_eq!(
             sanitize_font_family("Open Sans, generic(sans-serif)"),
             "\"Open Sans\", generic(sans-serif)"

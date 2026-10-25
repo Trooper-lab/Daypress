@@ -43,12 +43,19 @@ impl ThemeTemplateRepository {
         self.load_conditions_with_conn(&conn, template_id)
     }
 
-    pub fn set_conditions(&self, template_id: i64, conds: &[CreateConditionDto]) -> Result<Vec<TemplateCondition>> {
+    pub fn set_conditions(
+        &self,
+        template_id: i64,
+        conds: &[CreateConditionDto],
+    ) -> Result<Vec<TemplateCondition>> {
         let mut conn = self.conn().lock().unwrap();
         let tx = conn.transaction()?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        tx.execute("DELETE FROM wp_neopress_template_conditions WHERE template_id = ?1", params![template_id])?;
+        tx.execute(
+            "DELETE FROM wp_neopress_template_conditions WHERE template_id = ?1",
+            params![template_id],
+        )?;
 
         let mut saved = Vec::new();
         for c in conds {
@@ -80,7 +87,10 @@ impl ThemeTemplateRepository {
         Ok(saved)
     }
 
-    pub fn find_active_by_type(&self, template_type: TemplateType) -> Result<Vec<ThemeTemplateRecord>> {
+    pub fn find_active_by_type(
+        &self,
+        template_type: TemplateType,
+    ) -> Result<Vec<ThemeTemplateRecord>> {
         self.list(&TemplateFilter {
             template_type: Some(template_type),
             status: Some("publish".to_string()),
@@ -88,7 +98,11 @@ impl ThemeTemplateRepository {
         })
     }
 
-    pub(crate) fn load_conditions_with_conn(&self, conn: &Connection, template_id: i64) -> Result<Vec<TemplateCondition>> {
+    pub(crate) fn load_conditions_with_conn(
+        &self,
+        conn: &Connection,
+        template_id: i64,
+    ) -> Result<Vec<TemplateCondition>> {
         let mut cond_stmt = conn.prepare(
             r#"SELECT id, template_id, condition_type, rule_target, target_id, priority, created_at
                FROM wp_neopress_template_conditions WHERE template_id = ?1 ORDER BY priority DESC, id ASC"#,
@@ -99,8 +113,10 @@ impl ThemeTemplateRepository {
             Ok(TemplateCondition {
                 id: Some(cr.get(0)?),
                 template_id: cr.get(1)?,
-                condition_type: ConditionType::from_str_loose(&c_type_str).unwrap_or(ConditionType::Include),
-                rule_target: RuleTarget::from_str_loose(&r_target_str).unwrap_or(RuleTarget::EntireSite),
+                condition_type: ConditionType::from_str_loose(&c_type_str)
+                    .unwrap_or(ConditionType::Include),
+                rule_target: RuleTarget::from_str_loose(&r_target_str)
+                    .unwrap_or(RuleTarget::EntireSite),
                 target_id: cr.get(4)?,
                 priority: cr.get(5)?,
                 created_at: Some(cr.get(6)?),

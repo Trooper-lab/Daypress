@@ -63,9 +63,8 @@ pub struct PhpFunctionSignature {
 
 /// Extracts PHP class and function/method signatures from a PHP source file.
 pub fn extract_php_signatures(php_source: &str) -> Vec<PhpFunctionSignature> {
-    let re_class =
-        Regex::new(r"(?m)^\s*(?:final\s+|abstract\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .expect("valid class regex");
+    let re_class = Regex::new(r"(?m)^\s*(?:final\s+|abstract\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)")
+        .expect("valid class regex");
     let re_func = Regex::new(
         r"(?m)^\s*(?:(public|protected|private)\s+)?(?:(static)\s+)?(?:(public|protected|private)\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",
     )
@@ -1013,7 +1012,11 @@ async fn call_llm_initial(target_php_code: &str, golden_master_json: &str, args:
     let signatures = extract_php_signatures(target_php_code);
 
     println!("\n🤖 [Rig LLM Call #1] Initiating translation from PHP to Rust...");
-    println!("   Detected PHP Target: `{}` ({} signature(s) parsed)", target_fn, signatures.len());
+    println!(
+        "   Detected PHP Target: `{}` ({} signature(s) parsed)",
+        target_fn,
+        signatures.len()
+    );
     println!("   System Prompt:\n   \"{}\"", SYSTEM_PROMPT);
 
     // Build Rig CompletionRequest with the mandatory System Prompt preamble
@@ -1255,10 +1258,7 @@ function slugify($text) {
         assert_eq!(sigs[0].class_name, None);
         assert_eq!(sigs[0].function_name, "slugify");
         assert_eq!(sigs[0].params, vec!["text".to_string()]);
-        assert_eq!(
-            detect_primary_target_function(slugify_php, None),
-            "slugify"
-        );
+        assert_eq!(detect_primary_target_function(slugify_php, None), "slugify");
 
         let font_utils_php = r#"<?php
 /**
@@ -1275,10 +1275,7 @@ class WP_Font_Utils {
 "#;
         let class_sigs = extract_php_signatures(font_utils_php);
         assert_eq!(class_sigs.len(), 2);
-        assert_eq!(
-            class_sigs[1].class_name,
-            Some("WP_Font_Utils".to_string())
-        );
+        assert_eq!(class_sigs[1].class_name, Some("WP_Font_Utils".to_string()));
         assert_eq!(class_sigs[1].function_name, "sanitize_font_family");
         assert!(class_sigs[1].is_static);
         assert_eq!(class_sigs[1].visibility, "public");

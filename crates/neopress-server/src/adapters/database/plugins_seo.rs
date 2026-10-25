@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -300,7 +300,10 @@ impl Database {
 
     pub fn delete_redirect(&self, id: i64) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
-        let rows = conn.execute("DELETE FROM wp_neopress_redirects WHERE id = ?1", params![id])?;
+        let rows = conn.execute(
+            "DELETE FROM wp_neopress_redirects WHERE id = ?1",
+            params![id],
+        )?;
         Ok(rows > 0)
     }
 
@@ -490,11 +493,17 @@ impl Database {
                 Ok(v) => v != 0,
                 Err(_) => {
                     // Default active for built-in catalog plugins before table seed
-                    matches!(slug, "neopress-seo" | "neopress-forms" | "neopress-wal-optimizer")
+                    matches!(
+                        slug,
+                        "neopress-seo" | "neopress-forms" | "neopress-wal-optimizer"
+                    )
                 }
             }
         } else {
-            matches!(slug, "neopress-seo" | "neopress-forms" | "neopress-wal-optimizer")
+            matches!(
+                slug,
+                "neopress-seo" | "neopress-forms" | "neopress-wal-optimizer"
+            )
         }
     }
 
@@ -752,7 +761,10 @@ impl Database {
             .to_string_lossy()
             .replace('\\', "/")
             .replace('\'', "''");
-        conn.execute(&format!("ATTACH DATABASE '{}' AS snap_db;", escaped_path), [])?;
+        conn.execute(
+            &format!("ATTACH DATABASE '{}' AS snap_db;", escaped_path),
+            [],
+        )?;
 
         let tables = [
             "wp_options",

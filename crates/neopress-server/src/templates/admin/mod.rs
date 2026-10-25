@@ -3,6 +3,7 @@ pub mod builder;
 pub mod comments;
 pub mod dashboard;
 pub mod editor;
+pub mod headers_footers;
 pub mod layout;
 pub mod media;
 pub mod plugins;
@@ -16,6 +17,7 @@ pub use builder::*;
 pub use comments::*;
 pub use dashboard::*;
 pub use editor::*;
+pub use headers_footers::*;
 #[allow(unused_imports)]
 pub use layout::*;
 pub use media::*;

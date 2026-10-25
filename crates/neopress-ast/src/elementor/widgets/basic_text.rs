@@ -69,7 +69,8 @@ pub(crate) fn map_basic_text_widget(
                 .unwrap_or("Click Here")
                 .to_string();
 
-            let url = resolve_setting_link(settings, "link", ctx).unwrap_or_else(|| "#".to_string());
+            let url =
+                resolve_setting_link(settings, "link", ctx).unwrap_or_else(|| "#".to_string());
 
             let is_external = settings
                 .get("link")

@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use super::*;
 use crate::schema::{
     AccordionItem, BackgroundConfig, BorderConfig, IconListItem, NeopressLayout, NeopressNode,
     NodeKind, SocialIconItem, Spacing, StyleProperties, TabItem, ToggleItem, TypographyConfig,
@@ -6,7 +7,6 @@ use crate::schema::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
-use super::*;
 
 pub(crate) fn parse_elementor_node(
     val: &Value,
@@ -259,10 +259,8 @@ pub(crate) fn parse_grid_gap_def(settings: &Value, base_key: &str) -> Option<Str
                 (None, Some(c)) => Some(format!("{}{}", c, unit)),
                 (None, None) => None,
             }
-        } else if let Some(s) = extract_spacing_val(val) {
-            Some(format!("{}px", s))
         } else {
-            None
+            extract_spacing_val(val).map(|s| format!("{}px", s))
         }
     } else {
         None

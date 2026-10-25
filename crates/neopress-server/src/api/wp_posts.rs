@@ -1,6 +1,7 @@
 //! WordPress REST API v2 Posts & Pages Endpoints (`/wp-json/wp/v2/posts` & `/pages`).
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::AuthUser;
 use crate::db::Database;
 use crate::errors::AppError;
@@ -18,13 +19,13 @@ use serde_json::Value;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
-use super::*;
-
 
 pub(crate) async fn list_posts(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
-    Query(params): Query<PostQueryParams>,
+    Query(mut params): Query<PostQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<WpPostResponse>>), AppError> {
+    restrict_status_for_visitor(&mut params, user.as_ref());
     let per_page = params.per_page.unwrap_or(10).clamp(1, 500) as usize;
     if let Some(slug) = params.slug.as_deref() {
         if !slug.is_empty()
@@ -33,7 +34,9 @@ pub(crate) async fn list_posts(
             && params.categories.is_none()
             && params.tags.is_none()
         {
-            let p = db.get_post_by_slug(slug)?;
+            let p = db
+                .get_post_by_slug(slug)?
+                .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()));
             let vec: Vec<WpPostResponse> = p.into_iter().collect();
             let total = vec.len() as i64;
             return Ok(wp_list_response(vec, total, per_page as i64));
@@ -66,17 +69,18 @@ pub(crate) async fn list_posts(
 }
 
 pub(crate) async fn get_post(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<WpPostResponse>, AppError> {
     match db.get_post_by_id(id)? {
-        Some(post) => Ok(Json(post)),
-        None => Err(AppError::NotFound(format!("Post {} not found", id))),
+        Some(post) if crate::auth::can_view_status(&post.status, user.as_ref()) => Ok(Json(post)),
+        _ => Err(AppError::NotFound(format!("Post {} not found", id))),
     }
 }
 
 pub(crate) async fn create_post(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreatePostRequest>,
 ) -> Result<(StatusCode, Json<WpPostResponse>), AppError> {
@@ -85,7 +89,7 @@ pub(crate) async fn create_post(
 }
 
 pub(crate) async fn update_post(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdatePostRequest>,
@@ -97,7 +101,7 @@ pub(crate) async fn update_post(
 }
 
 pub(crate) async fn delete_post(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Query(params): Query<DeleteQueryParams>,
@@ -131,9 +135,11 @@ pub(crate) async fn delete_post(
 }
 
 pub(crate) async fn list_pages(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
-    Query(params): Query<PostQueryParams>,
+    Query(mut params): Query<PostQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<WpPostResponse>>), AppError> {
+    restrict_status_for_visitor(&mut params, user.as_ref());
     let per_page = params.per_page.unwrap_or(10).clamp(1, 500) as usize;
     let page = params.page.unwrap_or(1).max(1) as usize;
     let offset = params
@@ -161,17 +167,23 @@ pub(crate) async fn list_pages(
 }
 
 pub(crate) async fn get_page(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<WpPostResponse>, AppError> {
     match db.get_post_by_id(id)? {
-        Some(page) if page.post_type == "page" => Ok(Json(page)),
+        Some(page)
+            if page.post_type == "page"
+                && crate::auth::can_view_status(&page.status, user.as_ref()) =>
+        {
+            Ok(Json(page))
+        }
         _ => Err(AppError::NotFound(format!("Page {} not found", id))),
     }
 }
 
 pub(crate) async fn create_page(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(mut payload): Json<CreatePostRequest>,
 ) -> Result<(StatusCode, Json<WpPostResponse>), AppError> {
@@ -181,7 +193,7 @@ pub(crate) async fn create_page(
 }
 
 pub(crate) async fn update_page(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdatePostRequest>,
@@ -193,10 +205,17 @@ pub(crate) async fn update_page(
 }
 
 pub(crate) async fn delete_page(
-    auth: AuthUser,
+    auth: crate::auth::EditorUser,
     state: State<Database>,
     path: AxPath<i64>,
     query: Query<DeleteQueryParams>,
 ) -> Result<Json<Value>, AppError> {
     delete_post(auth, state, path, query).await
+}
+
+/// Visitors (and subscribers) may only list published content, whatever `status` they ask for.
+fn restrict_status_for_visitor(params: &mut PostQueryParams, user: Option<&crate::auth::AuthUser>) {
+    if !user.is_some_and(|u| u.can_edit_content()) {
+        params.status = Some("publish".to_string());
+    }
 }

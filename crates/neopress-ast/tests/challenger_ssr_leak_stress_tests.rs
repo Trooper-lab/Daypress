@@ -1,6 +1,5 @@
 use neopress_ast::render::{
-    clean_empty_class_artifacts, render_layout_to_html,
-    sanitize_ssr_html, strip_editor_classes,
+    clean_empty_class_artifacts, render_layout_to_html, sanitize_ssr_html, strip_editor_classes,
 };
 use neopress_ast::schema::{
     NeopressLayout, NeopressNode, NodeKind, PriceFeatureItem, StyleProperties,
@@ -97,13 +96,34 @@ fn test_firewall_case_insensitivity_and_unquoted() {
     let raw = r#"<div cOnTeNtEdItAbLe="true" DRAGGABLE='false' contenteditable=true contenteditable data-elementor-type="widget" data-neostudio-block="heading" class="card elementor-grid-handle neostudio-canvas"><p>Content</p></div>"#;
     let sanitized = sanitize_ssr_html(raw);
 
-    assert!(!sanitized.to_ascii_lowercase().contains("contenteditable"), "Leaked contenteditable");
-    assert!(!sanitized.to_ascii_lowercase().contains("draggable"), "Leaked draggable");
-    assert!(!sanitized.contains("data-elementor-type"), "Leaked data-elementor-type");
-    assert!(!sanitized.contains("data-neostudio-block"), "Leaked data-neostudio-block");
-    assert!(!sanitized.contains("elementor-grid-handle"), "Leaked elementor-grid-handle");
-    assert!(!sanitized.contains("neostudio-canvas"), "Leaked neostudio-canvas");
-    assert!(sanitized.contains("class=\"card\""), "Legitimate class 'card' missing");
+    assert!(
+        !sanitized.to_ascii_lowercase().contains("contenteditable"),
+        "Leaked contenteditable"
+    );
+    assert!(
+        !sanitized.to_ascii_lowercase().contains("draggable"),
+        "Leaked draggable"
+    );
+    assert!(
+        !sanitized.contains("data-elementor-type"),
+        "Leaked data-elementor-type"
+    );
+    assert!(
+        !sanitized.contains("data-neostudio-block"),
+        "Leaked data-neostudio-block"
+    );
+    assert!(
+        !sanitized.contains("elementor-grid-handle"),
+        "Leaked elementor-grid-handle"
+    );
+    assert!(
+        !sanitized.contains("neostudio-canvas"),
+        "Leaked neostudio-canvas"
+    );
+    assert!(
+        sanitized.contains("class=\"card\""),
+        "Legitimate class 'card' missing"
+    );
 }
 
 #[test]
@@ -112,8 +132,14 @@ fn test_firewall_empty_class_cleanup() {
     let sanitized = sanitize_ssr_html(raw);
 
     assert!(!sanitized.contains("class=\"\""), "Found empty class=\"\"");
-    assert!(!sanitized.contains("class=\"   \""), "Found whitespace class");
-    assert!(!sanitized.contains("class="), "Should have removed all class attributes when empty");
+    assert!(
+        !sanitized.contains("class=\"   \""),
+        "Found whitespace class"
+    );
+    assert!(
+        !sanitized.contains("class="),
+        "Should have removed all class attributes when empty"
+    );
 }
 
 #[test]
@@ -121,12 +147,30 @@ fn test_firewall_preserves_legitimate_attributes() {
     let raw = r#"<div class="elementor-section elementor-container et_pb_section et_pb_row" data-post-id="42" data-track="xyz"><p>Safe</p></div>"#;
     let sanitized = sanitize_ssr_html(raw);
 
-    assert!(sanitized.contains("elementor-section"), "Legitimate Elementor frontend class stripped");
-    assert!(sanitized.contains("elementor-container"), "Legitimate Elementor container class stripped");
-    assert!(sanitized.contains("et_pb_section"), "Legitimate Divi section class stripped");
-    assert!(sanitized.contains("et_pb_row"), "Legitimate Divi row class stripped");
-    assert!(sanitized.contains("data-post-id=\"42\""), "Legitimate data attribute stripped");
-    assert!(sanitized.contains("data-track=\"xyz\""), "Legitimate data attribute stripped");
+    assert!(
+        sanitized.contains("elementor-section"),
+        "Legitimate Elementor frontend class stripped"
+    );
+    assert!(
+        sanitized.contains("elementor-container"),
+        "Legitimate Elementor container class stripped"
+    );
+    assert!(
+        sanitized.contains("et_pb_section"),
+        "Legitimate Divi section class stripped"
+    );
+    assert!(
+        sanitized.contains("et_pb_row"),
+        "Legitimate Divi row class stripped"
+    );
+    assert!(
+        sanitized.contains("data-post-id=\"42\""),
+        "Legitimate data attribute stripped"
+    );
+    assert!(
+        sanitized.contains("data-track=\"xyz\""),
+        "Legitimate data attribute stripped"
+    );
 }
 
 #[test]
@@ -144,9 +188,18 @@ fn test_strip_editor_classes_standalone() {
 fn test_clean_empty_class_artifacts_standalone() {
     let html = r#"<div class="" id="1"><span class="   ">Text</span><p class="card   active  ">Paragraph</p></div>"#;
     let cleaned = clean_empty_class_artifacts(html);
-    assert!(!cleaned.contains("class=\"\""), "Should not contain empty class");
-    assert!(!cleaned.contains("class=\"   \""), "Should not contain whitespace class");
-    assert!(cleaned.contains("class=\"card active\""), "Should normalize whitespace in remaining classes");
+    assert!(
+        !cleaned.contains("class=\"\""),
+        "Should not contain empty class"
+    );
+    assert!(
+        !cleaned.contains("class=\"   \""),
+        "Should not contain whitespace class"
+    );
+    assert!(
+        cleaned.contains("class=\"card active\""),
+        "Should normalize whitespace in remaining classes"
+    );
 }
 
 #[test]
@@ -190,7 +243,10 @@ fn test_commercial_pro_block_attribute_breakout_resilience() {
     let html = render_layout_to_html(&layout);
 
     // Verify button URL cannot break out of href attribute
-    assert!(!html.contains("onmouseover=\"alert('xss')\""), "Attribute breakout in PriceCard button URL!");
+    assert!(
+        !html.contains("onmouseover=\"alert('xss')\""),
+        "Attribute breakout in PriceCard button URL!"
+    );
     assert!(html.contains("href=\"/checkout?plan=pro&quot; onmouseover=&quot;alert('xss')\""));
     assert!(html.contains("Popular &amp; &quot;Best Value&quot; &lt;Top&gt;"));
     assert!(html.contains("For teams &quot;ready&quot; to scale &amp; grow"));
@@ -225,9 +281,18 @@ fn test_call_to_action_attribute_breakout_resilience() {
 
     let html = render_layout_to_html(&layout);
 
-    assert!(!html.contains("onclick=\"evil()\""), "Breakout in CTA button_url");
-    assert!(!html.contains("onfocus=\"evil()\""), "Breakout in CTA secondary_button_url");
-    assert!(!html.contains("onerror=\"evil()\""), "Breakout in CTA image_url");
+    assert!(
+        !html.contains("onclick=\"evil()\""),
+        "Breakout in CTA button_url"
+    );
+    assert!(
+        !html.contains("onfocus=\"evil()\""),
+        "Breakout in CTA secondary_button_url"
+    );
+    assert!(
+        !html.contains("onerror=\"evil()\""),
+        "Breakout in CTA image_url"
+    );
     assert!(html.contains("https://example.com/img.png&quot; onerror=&quot;evil()"));
 }
 
@@ -254,8 +319,13 @@ fn test_nav_menu_and_animated_headline_resilience() {
     let html = render_layout_to_html(&layout);
 
     // Verify data-words JSON attribute does not break out
-    assert!(!html.contains("data-words=\"[\""), "Unescaped quotes inside data-words attribute");
-    assert!(html.contains("data-words=\"[&quot;Smart \\&quot;Apps\\&quot;&quot;,&quot;Better &lt;Sites&gt;&quot;]\""));
+    assert!(
+        !html.contains("data-words=\"[\""),
+        "Unescaped quotes inside data-words attribute"
+    );
+    assert!(html.contains(
+        "data-words=\"[&quot;Smart \\&quot;Apps\\&quot;&quot;,&quot;Better &lt;Sites&gt;&quot;]\""
+    ));
 }
 
 #[test]
@@ -273,7 +343,9 @@ fn test_sanitizer_edge_contenteditable_and_draggable_behavior() {
     // Test with mixed whitespace, newline and uppercase
     let raw_whitespace = "<div\n  CONTENTEDITABLE=\"true\"\n  DRAGGABLE=\"true\"\n  class=\"elementor-grid-handle\"\n><p>Whitespace</p></div>";
     let sanitized_ws = sanitize_ssr_html(raw_whitespace);
-    assert!(!sanitized_ws.to_ascii_lowercase().contains("contenteditable"));
+    assert!(!sanitized_ws
+        .to_ascii_lowercase()
+        .contains("contenteditable"));
     assert!(!sanitized_ws.to_ascii_lowercase().contains("draggable"));
     assert!(!sanitized_ws.contains("elementor-grid-handle"));
 }

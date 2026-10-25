@@ -17,7 +17,10 @@ pub(crate) fn extract_gutenberg_styles(attrs: &Value) -> StyleProperties {
     {
         if let Some(pad) = spacing.get("padding").and_then(|p| p.as_object()) {
             styles.padding = Some(Spacing {
-                top: pad.get("top").and_then(|v| v.as_str()).map(normalize_wp_preset),
+                top: pad
+                    .get("top")
+                    .and_then(|v| v.as_str())
+                    .map(normalize_wp_preset),
                 right: pad
                     .get("right")
                     .and_then(|v| v.as_str())
@@ -34,7 +37,10 @@ pub(crate) fn extract_gutenberg_styles(attrs: &Value) -> StyleProperties {
         }
         if let Some(mar) = spacing.get("margin").and_then(|m| m.as_object()) {
             styles.margin = Some(Spacing {
-                top: mar.get("top").and_then(|v| v.as_str()).map(normalize_wp_preset),
+                top: mar
+                    .get("top")
+                    .and_then(|v| v.as_str())
+                    .map(normalize_wp_preset),
                 right: mar
                     .get("right")
                     .and_then(|v| v.as_str())

@@ -31,10 +31,7 @@ pub fn shortcode_atts(
 ) -> HashMap<String, String> {
     let mut out = HashMap::with_capacity(defaults.len());
     for &(key, default_val) in defaults {
-        if let Some(val) = atts
-            .get(key)
-            .or_else(|| atts.get(&key.to_lowercase()))
-        {
+        if let Some(val) = atts.get(key).or_else(|| atts.get(&key.to_lowercase())) {
             out.insert(key.to_string(), val.clone());
         } else {
             out.insert(key.to_string(), default_val.to_string());

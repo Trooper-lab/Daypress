@@ -17,13 +17,7 @@ pub struct Pass1Result {
     pub post_urls: HashMap<String, String>,
     pub sticky_post_ids: Vec<i64>,
     pub pending_ast_items: Vec<PendingAstItem>,
-    pub raw_nav_menu_items: Vec<(
-        i64,
-        String,
-        i64,
-        Option<String>,
-        HashMap<String, String>,
-    )>,
+    pub raw_nav_menu_items: Vec<(i64, String, i64, Option<String>, HashMap<String, String>)>,
     pub detected_logo_url: Option<String>,
     pub detected_kit_raw_settings: Option<String>,
 }
@@ -49,13 +43,8 @@ pub fn ingest_posts_pass1(
     let mut old_to_new_comment_id: HashMap<i64, i64> = HashMap::new();
     let mut pending_comment_parent_remaps: Vec<(i64, i64)> = Vec::new();
     let mut sticky_post_ids: Vec<i64> = Vec::new();
-    let mut raw_nav_menu_items: Vec<(
-        i64,
-        String,
-        i64,
-        Option<String>,
-        HashMap<String, String>,
-    )> = Vec::new();
+    let mut raw_nav_menu_items: Vec<(i64, String, i64, Option<String>, HashMap<String, String>)> =
+        Vec::new();
 
     let mut detected_logo_url: Option<String> = None;
     let mut detected_kit_raw_settings: Option<String> = None;
@@ -131,7 +120,13 @@ pub fn ingest_posts_pass1(
         };
 
         let inferred_mime = if p_type == "attachment" {
-            infer_attachment_mime(&item.post_mime_type, &item.attachment_url, &guid, &slug, &item.postmeta)
+            infer_attachment_mime(
+                &item.post_mime_type,
+                &item.attachment_url,
+                &guid,
+                &slug,
+                &item.postmeta,
+            )
         } else {
             item.post_mime_type.clone()
         };
@@ -141,10 +136,16 @@ pub fn ingest_posts_pass1(
         // Detect Elementor Kit
         let is_kit = p_type == "elementor_kit"
             || item.elementor_library_type.as_deref() == Some("kit")
-            || item.postmeta.get("_elementor_template_type").map(|s| s.as_str()) == Some("kit")
+            || item
+                .postmeta
+                .get("_elementor_template_type")
+                .map(|s| s.as_str())
+                == Some("kit")
             || ((p_type == "elementor_snippet" || p_type == "elementor_library")
                 && (slug.contains("kit") || item.title.to_lowercase().contains("kit")))
-            || item.postmeta.get("_elementor_page_settings")
+            || item
+                .postmeta
+                .get("_elementor_page_settings")
                 .map(|s| s.contains("system_colors"))
                 .unwrap_or(false);
 
@@ -158,10 +159,18 @@ pub fn ingest_posts_pass1(
 
         let is_leeg_template = item.postmeta.get("_wp_page_template").map(|s| s.as_str())
             == Some("page_templates/leeg.php")
-            || item.postmeta.get("custom_html").map(|s| !s.trim().is_empty()).unwrap_or(false);
+            || item
+                .postmeta
+                .get("custom_html")
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
 
         let mut initial_content = if is_leeg_template {
-            if let Some(ch) = item.postmeta.get("custom_html").filter(|s| !s.trim().is_empty()) {
+            if let Some(ch) = item
+                .postmeta
+                .get("custom_html")
+                .filter(|s| !s.trim().is_empty())
+            {
                 ch.clone()
             } else {
                 item.content.clone()
@@ -203,14 +212,18 @@ pub fn ingest_posts_pass1(
         }
 
         let site_slug = generated_slugify::slugify(wxr_site_title);
-        let is_temp = item.title.to_lowercase().contains("temp") || slug.to_lowercase().contains("temp");
+        let is_temp =
+            item.title.to_lowercase().contains("temp") || slug.to_lowercase().contains("temp");
         let is_front_page = p_type == "page"
             && p_status == "publish"
             && !is_temp
             && ((item.id.is_some() && item.id == detected_front_page_old_id)
                 || slug.eq_ignore_ascii_case("home")
                 || slug.eq_ignore_ascii_case("front-page")
-                || item.title.trim().eq_ignore_ascii_case(wxr_site_title.trim())
+                || item
+                    .title
+                    .trim()
+                    .eq_ignore_ascii_case(wxr_site_title.trim())
                 || (!site_slug.is_empty() && slug.eq_ignore_ascii_case(&site_slug)));
         if is_front_page {
             let _ = tx.execute(
@@ -299,16 +312,9 @@ pub fn ingest_posts_pass1(
         match p_type.as_str() {
             "page" => page_count += 1,
             "attachment" => media_count += 1,
-            "nav_menu_item"
-            | "elementor_library"
-            | "et_header_layout"
-            | "et_footer_layout"
-            | "et_template"
-            | "et_pb_layout"
-            | "custom_css"
-            | "wp_global_styles"
-            | "wp_navigation"
-            | "spb_service" => {}
+            "nav_menu_item" | "elementor_library" | "et_header_layout" | "et_footer_layout"
+            | "et_template" | "et_pb_layout" | "custom_css" | "wp_global_styles"
+            | "wp_navigation" | "spb_service" => {}
             _ => post_count += 1,
         }
     }

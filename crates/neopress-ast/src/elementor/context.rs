@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use super::*;
 use crate::schema::{
     AccordionItem, BackgroundConfig, BorderConfig, IconListItem, NeopressLayout, NeopressNode,
     NodeKind, SocialIconItem, Spacing, StyleProperties, TabItem, ToggleItem, TypographyConfig,
@@ -6,7 +7,6 @@ use crate::schema::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
-use super::*;
 
 pub use crate::schema::NavMenuItem;
 
@@ -68,7 +68,10 @@ impl ElementorContext {
                 if let Some(raw_host) = crate::url_utils::extract_url_host(trimmed) {
                     if raw_host.eq_ignore_ascii_case(host) {
                         if let Some(idx) = trimmed.find("/wp-content/uploads/") {
-                            return format!("/uploads/{}", &trimmed[idx + "/wp-content/uploads/".len()..]);
+                            return format!(
+                                "/uploads/{}",
+                                &trimmed[idx + "/wp-content/uploads/".len()..]
+                            );
                         }
                     }
                 }
@@ -97,7 +100,10 @@ impl ElementorContext {
                 .replace(&https_base, "/")
                 .replace(&http_base, "/");
             if let Some(host) = crate::url_utils::extract_url_host(clean_base) {
-                s = s.replace(&format!("https://{}/wp-content/uploads/", host), "/uploads/");
+                s = s.replace(
+                    &format!("https://{}/wp-content/uploads/", host),
+                    "/uploads/",
+                );
                 s = s.replace(&format!("http://{}/wp-content/uploads/", host), "/uploads/");
             }
             s
@@ -331,7 +337,11 @@ pub fn resolve_dynamic_tag(tag_str: &str, ctx: &ElementorContext) -> Option<Stri
     }
 }
 
-pub(crate) fn resolve_setting_link(settings: &Value, key: &str, ctx: &ElementorContext) -> Option<String> {
+pub(crate) fn resolve_setting_link(
+    settings: &Value,
+    key: &str,
+    ctx: &ElementorContext,
+) -> Option<String> {
     if let Some(dyn_str) = settings
         .get("__dynamic__")
         .and_then(|d| d.get(key))

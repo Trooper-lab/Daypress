@@ -108,10 +108,8 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                 .as_ref()
                 .map(|t| format!(" data-taxonomy=\"{}\"", escape_attr(t)))
                 .unwrap_or_default();
-            let cls = with_extra_classes(
-                &format!("np-loop-grid np-grid-cols-{}", columns),
-                extra_cls,
-            );
+            let cls =
+                with_extra_classes(&format!("np-loop-grid np-grid-cols-{}", columns), extra_cls);
             Some(format!(
                 "<div id=\"{}\" class=\"{}\" data-post-type=\"{}\" data-posts-per-page=\"{}\" data-show-thumb=\"{}\" data-show-excerpt=\"{}\" data-show-meta=\"{}\" data-show-pagination=\"{}\"{}{}>\n<div class=\"np-loop-posts\"></div>\n</div>",
                 escape_attr(&node.id),

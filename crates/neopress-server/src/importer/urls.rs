@@ -6,7 +6,9 @@ use std::collections::HashMap;
 /// Extracts the host and optional port from a URL (e.g. "websitedemos.net" or "localhost:8085").
 pub fn extract_url_host(url: &str) -> Option<&str> {
     let after_scheme = url.split("://").nth(1)?;
-    let host_end = after_scheme.find(['/', '?', '#']).unwrap_or(after_scheme.len());
+    let host_end = after_scheme
+        .find(['/', '?', '#'])
+        .unwrap_or(after_scheme.len());
     let host = &after_scheme[..host_end];
     if host.is_empty() {
         None
@@ -48,13 +50,19 @@ pub fn remap_single_url(raw: &str, source_site_url: Option<&str>) -> String {
             if let Some(raw_host) = extract_url_host(trimmed) {
                 if raw_host.eq_ignore_ascii_case(src_host) {
                     if let Some(idx) = trimmed.find("/wp-content/uploads/") {
-                        return format!("/uploads/{}", &trimmed[idx + "/wp-content/uploads/".len()..]);
+                        return format!(
+                            "/uploads/{}",
+                            &trimmed[idx + "/wp-content/uploads/".len()..]
+                        );
                     }
                 }
             }
         }
     } else if trimmed.starts_with("http://localhost") || trimmed.starts_with("http://127.0.0.1") {
-        if let Some(idx) = trimmed.find("://").and_then(|i| trimmed[i + 3..].find('/').map(|j| i + 3 + j)) {
+        if let Some(idx) = trimmed
+            .find("://")
+            .and_then(|i| trimmed[i + 3..].find('/').map(|j| i + 3 + j))
+        {
             let rest = &trimmed[idx..];
             if rest.is_empty() {
                 return "/".to_string();
@@ -69,7 +77,10 @@ pub fn remap_single_url(raw: &str, source_site_url: Option<&str>) -> String {
     // Convert root-relative uploads path to /uploads/
     if let Some(idx) = trimmed.find("/wp-content/uploads/") {
         if trimmed.starts_with('/') && !trimmed.starts_with("//") {
-            return format!("/uploads/{}", &trimmed[idx + "/wp-content/uploads/".len()..]);
+            return format!(
+                "/uploads/{}",
+                &trimmed[idx + "/wp-content/uploads/".len()..]
+            );
         }
     }
     if let Some(media_rest) = trimmed.strip_prefix("wp-content/uploads/") {
@@ -122,15 +133,27 @@ pub fn remap_content_urls(content: &str, source_site_url: Option<&str>) -> Strin
             out = out.replace(&format!("{}/wp-content/uploads/", base), "/uploads/");
         }
         for base_esc in [&https_esc, &http_esc] {
-            out = out.replace(&format!("{}\\/wp-content\\/uploads\\/", base_esc), "\\/uploads\\/");
+            out = out.replace(
+                &format!("{}\\/wp-content\\/uploads\\/", base_esc),
+                "\\/uploads\\/",
+            );
         }
 
         // 2. Domain-level media paths: host + /wp-content/uploads/ -> /uploads/
         if let Some(host) = extract_url_host(src) {
-            out = out.replace(&format!("https://{}/wp-content/uploads/", host), "/uploads/");
+            out = out.replace(
+                &format!("https://{}/wp-content/uploads/", host),
+                "/uploads/",
+            );
             out = out.replace(&format!("http://{}/wp-content/uploads/", host), "/uploads/");
-            out = out.replace(&format!("https:\\/\\/{}\\/wp-content\\/uploads\\/", host), "\\/uploads\\/");
-            out = out.replace(&format!("http:\\/\\/{}\\/wp-content\\/uploads\\/", host), "\\/uploads\\/");
+            out = out.replace(
+                &format!("https:\\/\\/{}\\/wp-content\\/uploads\\/", host),
+                "\\/uploads\\/",
+            );
+            out = out.replace(
+                &format!("http:\\/\\/{}\\/wp-content\\/uploads\\/", host),
+                "\\/uploads\\/",
+            );
         }
 
         // 3. Internal page/post links: base + / -> /

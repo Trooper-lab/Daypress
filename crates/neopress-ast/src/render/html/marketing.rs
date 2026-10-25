@@ -219,10 +219,7 @@ pub(crate) fn render_marketing(args: &RenderArgs) -> Option<String> {
             } else {
                 ""
             };
-            let cls = with_extra_classes(
-                &format!("np-alert np-alert-{}", alert_type),
-                extra_cls,
-            );
+            let cls = with_extra_classes(&format!("np-alert np-alert-{}", alert_type), extra_cls);
             Some(format!(
                 "<div id=\"{}\" class=\"{}\" role=\"alert\"{}>\n{}<strong>{}</strong> <span>{}</span>\n{}\n</div>",
                 escape_attr(&node.id),
@@ -264,7 +261,10 @@ pub(crate) fn render_marketing(args: &RenderArgs) -> Option<String> {
             let skin_str = skin.as_deref().unwrap_or("default");
             let color_str = color_type.as_deref().unwrap_or("official");
             let cls = with_extra_classes(
-                &format!("np-social-icons np-social-skin-{} np-social-{}", skin_str, color_str),
+                &format!(
+                    "np-social-icons np-social-skin-{} np-social-{}",
+                    skin_str, color_str
+                ),
                 extra_cls,
             );
             let mut icons_html = String::new();
@@ -289,7 +289,11 @@ pub(crate) fn render_marketing(args: &RenderArgs) -> Option<String> {
             official_colors,
         } => {
             let skin_str = skin.as_deref().unwrap_or("gradient");
-            let col_cls = if *official_colors { " np-share-official" } else { " np-share-custom" };
+            let col_cls = if *official_colors {
+                " np-share-official"
+            } else {
+                " np-share-custom"
+            };
             let cls = with_extra_classes(
                 &format!("np-share-buttons np-share-{}{}", skin_str, col_cls),
                 extra_cls,

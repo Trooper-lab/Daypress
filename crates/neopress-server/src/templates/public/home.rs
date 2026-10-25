@@ -26,7 +26,10 @@ pub fn render_home_page(
     };
 
     // 1. Construct the Hero Section as a genuine NeopressLayout AST and compile it to HTML
-    let first_post = posts.iter().find(|p| p.post_type == "post").or_else(|| posts.first());
+    let first_post = posts
+        .iter()
+        .find(|p| p.post_type == "post")
+        .or_else(|| posts.first());
     let cta_url = first_post
         .map(|p| format!("/{}/", p.slug))
         .unwrap_or_else(|| "#posts".to_string());
@@ -167,7 +170,11 @@ pub fn render_home_page(
             String::new()
         };
 
-        let card_cls = if post.sticky { "np-card sticky" } else { "np-card" };
+        let card_cls = if post.sticky {
+            "np-card sticky"
+        } else {
+            "np-card"
+        };
 
         post_cards_html.push_str(&format!(
             r##"
@@ -257,6 +264,12 @@ pub fn render_home_page(
         pages_section_html = pages_section_html,
     );
 
-    render_base_layout(&settings.title, settings, &home_content, current_user, None, partials)
+    render_base_layout(
+        &settings.title,
+        settings,
+        &home_content,
+        current_user,
+        None,
+        partials,
+    )
 }
-

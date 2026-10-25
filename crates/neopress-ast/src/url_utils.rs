@@ -3,7 +3,9 @@
 /// Extracts host and optional port from a URL (e.g. "example.com" or "localhost:8085").
 pub fn extract_url_host(url: &str) -> Option<&str> {
     let after_scheme = url.split("://").nth(1)?;
-    let host_end = after_scheme.find(['/', '?', '#']).unwrap_or(after_scheme.len());
+    let host_end = after_scheme
+        .find(['/', '?', '#'])
+        .unwrap_or(after_scheme.len());
     let host = &after_scheme[..host_end];
     if host.is_empty() {
         None
@@ -23,7 +25,8 @@ pub fn is_external_url_prefix(prefix: &str) -> bool {
 /// Remaps root-relative occurrences of `/wp-content/uploads/` to `/uploads/` (and escaped `\/uploads\/`)
 /// in HTML, JSON, CSS, and markdown content, preserving external third-party WordPress URLs.
 pub fn remap_root_relative_uploads(content: &str) -> String {
-    if !content.contains("/wp-content/uploads/") && !content.contains("\\/wp-content\\/uploads\\/") {
+    if !content.contains("/wp-content/uploads/") && !content.contains("\\/wp-content\\/uploads\\/")
+    {
         return content.to_string();
     }
 
@@ -58,8 +61,23 @@ pub fn remap_root_relative_uploads(content: &str) -> String {
             .rfind(|c: char| {
                 matches!(
                     c,
-                    '"' | '\'' | '`' | '<' | '>' | '=' | '(' | ')' | '[' | ']' | '{' | '}' | ' '
-                        | '\t' | '\r' | '\n' | ',' | ';'
+                    '"' | '\''
+                        | '`'
+                        | '<'
+                        | '>'
+                        | '='
+                        | '('
+                        | ')'
+                        | '['
+                        | ']'
+                        | '{'
+                        | '}'
+                        | ' '
+                        | '\t'
+                        | '\r'
+                        | '\n'
+                        | ','
+                        | ';'
                 )
             })
             .map(|i| i + 1)
@@ -92,7 +110,8 @@ mod tests {
     #[test]
     fn test_remap_escaped_json_preserves_external() {
         let input = r#"{"local":"\/wp-content\/uploads\/1.jpg","ext":"https:\/\/cdn.org\/wp-content\/uploads\/2.jpg"}"#;
-        let expected = r#"{"local":"\/uploads\/1.jpg","ext":"https:\/\/cdn.org\/wp-content\/uploads\/2.jpg"}"#;
+        let expected =
+            r#"{"local":"\/uploads\/1.jpg","ext":"https:\/\/cdn.org\/wp-content\/uploads\/2.jpg"}"#;
         assert_eq!(remap_root_relative_uploads(input), expected);
     }
 }

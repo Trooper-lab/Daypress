@@ -17,19 +17,39 @@ pub fn render_acf_fields_card(existing: Option<&WpPostResponse>, post_type: &str
 
     let header_height = {
         let v = get_meta("header_height");
-        if v.is_empty() { get_meta("header_hoogte") } else { v }
+        if v.is_empty() {
+            get_meta("header_hoogte")
+        } else {
+            v
+        }
     };
-    let hh_full_sel = if header_height == "full" { "selected" } else { "" };
-    let hh_auto_sel = if header_height != "full" { "selected" } else { "" };
+    let hh_full_sel = if header_height == "full" {
+        "selected"
+    } else {
+        ""
+    };
+    let hh_auto_sel = if header_height != "full" {
+        "selected"
+    } else {
+        ""
+    };
     let show_title = {
         let v = get_meta("show_title");
-        if v.is_empty() { get_meta("header_title") } else { v }
+        if v.is_empty() {
+            get_meta("header_title")
+        } else {
+            v
+        }
     };
     let st_show_sel = if show_title != "hide" { "selected" } else { "" };
     let st_hide_sel = if show_title == "hide" { "selected" } else { "" };
     let show_icon = {
         let v = get_meta("show_icon");
-        if v.is_empty() { get_meta("header_shape") } else { v }
+        if v.is_empty() {
+            get_meta("header_shape")
+        } else {
+            v
+        }
     };
     let si_show_sel = if show_icon != "hide" { "selected" } else { "" };
     let si_hide_sel = if show_icon == "hide" { "selected" } else { "" };
@@ -41,11 +61,19 @@ pub fn render_acf_fields_card(existing: Option<&WpPostResponse>, post_type: &str
             let start_time = get_meta("start_time");
             let training_tijd = {
                 let v = get_meta("training_tijd");
-                if v.is_empty() { get_meta("time_investment") } else { v }
+                if v.is_empty() {
+                    get_meta("time_investment")
+                } else {
+                    v
+                }
             };
             let deelnemers = {
                 let v = get_meta("training_deelnemers");
-                if v.is_empty() { get_meta("deelnemers") } else { v }
+                if v.is_empty() {
+                    get_meta("deelnemers")
+                } else {
+                    v
+                }
             };
             let score = get_meta("score_training");
             let sterren = get_meta("sterren_training");

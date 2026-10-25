@@ -1,3 +1,4 @@
+#![allow(clippy::field_reassign_with_default)]
 use neopress_ast::*;
 
 #[test]

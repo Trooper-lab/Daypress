@@ -104,9 +104,9 @@ impl ContentUseCase for CmsService {
         if normalized.is_empty() {
             return Err(DomainError::Validation("Post slug cannot be empty".into()));
         }
-        self.posts
-            .find_post_by_slug(normalized)?
-            .ok_or_else(|| DomainError::NotFound(format!("Post with slug '{normalized}' not found")))
+        self.posts.find_post_by_slug(normalized)?.ok_or_else(|| {
+            DomainError::NotFound(format!("Post with slug '{normalized}' not found"))
+        })
     }
 
     fn publish_content(&self, mut req: CreatePostRequest) -> DomainResult<WpPostResponse> {
@@ -146,8 +146,10 @@ impl ContentUseCase for CmsService {
     }
 
     fn update_layout_ast(&self, post_id: i64, layout_json: &str) -> DomainResult<()> {
-        let layout: neopress_ast::NeopressLayout = serde_json::from_str(layout_json)
-            .map_err(|e| DomainError::Validation(format!("Invalid NeopressLayout AST JSON: {e}")))?;
+        let layout: neopress_ast::NeopressLayout =
+            serde_json::from_str(layout_json).map_err(|e| {
+                DomainError::Validation(format!("Invalid NeopressLayout AST JSON: {e}"))
+            })?;
         let compiled_html = neopress_ast::render_layout_to_html(&layout);
         let canonical_json = serde_json::to_string(&layout)
             .map_err(|e| DomainError::Internal(format!("Failed to serialize AST layout: {e}")))?;
@@ -199,7 +201,9 @@ impl SettingsUseCase for CmsService {
     fn update_site_option(&self, name: &str, value: &str) -> DomainResult<()> {
         let key = name.trim();
         if key.is_empty() {
-            return Err(DomainError::Validation("Option name cannot be empty".into()));
+            return Err(DomainError::Validation(
+                "Option name cannot be empty".into(),
+            ));
         }
         self.options.set_option(key, value)
     }
@@ -442,13 +446,7 @@ mod tests {
     #[test]
     fn test_hexagonal_cms_service_with_pure_mock_repo() {
         let mock = Arc::new(MockRepo::default());
-        let service = CmsService::new(
-            mock.clone(),
-            mock.clone(),
-            mock.clone(),
-            mock.clone(),
-            mock,
-        );
+        let service = CmsService::new(mock.clone(), mock.clone(), mock.clone(), mock.clone(), mock);
 
         // Rejects empty post
         let empty_res = service.publish_content(CreatePostRequest::default());

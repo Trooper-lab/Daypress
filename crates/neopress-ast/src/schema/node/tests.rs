@@ -54,8 +54,7 @@ fn test_roundtrip_pro_blocks_serialization() {
     assert!(json.contains("\"tablet\""));
     assert!(json.contains("\"hover\""));
 
-    let deserialized: NeopressNode =
-        serde_json::from_str(&json).expect("Deserialization failed");
+    let deserialized: NeopressNode = serde_json::from_str(&json).expect("Deserialization failed");
     assert_eq!(deserialized.id, "price_card_1");
     match &deserialized.kind {
         NodeKind::PriceCard {

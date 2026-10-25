@@ -52,16 +52,17 @@ pub(crate) fn map_gutenberg_embed(block: &GutenbergBlock) -> NodeKind {
                 ),
             }
         }
-        "twitter" => {
-            NodeKind::CustomHtml {
-                raw: format!(
-                    r#"<div class="wp-block-embed wp-block-embed-twitter is-type-rich is-provider-twitter"><blockquote class="twitter-tweet"><a href="{}"></a></blockquote><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script></div>"#,
-                    clean_url
-                ),
-            }
-        }
+        "twitter" => NodeKind::CustomHtml {
+            raw: format!(
+                r#"<div class="wp-block-embed wp-block-embed-twitter is-type-rich is-provider-twitter"><blockquote class="twitter-tweet"><a href="{}"></a></blockquote><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script></div>"#,
+                clean_url
+            ),
+        },
         _ => {
-            if clean_url.contains("youtube.com") || clean_url.contains("youtu.be") || clean_url.contains("vimeo.com") {
+            if clean_url.contains("youtube.com")
+                || clean_url.contains("youtu.be")
+                || clean_url.contains("vimeo.com")
+            {
                 let url = normalize_video_embed_url(clean_url);
                 NodeKind::Video {
                     url,

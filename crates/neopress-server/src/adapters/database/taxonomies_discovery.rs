@@ -78,10 +78,10 @@ impl Database {
                     continue;
                 }
                 let pt_stem = post_type.trim_end_matches('s').trim_end_matches("en");
-                if slug.starts_with(pt_stem) || slug.ends_with(pt_stem) || slug.contains(pt_stem) {
-                    if !relevant_slugs.contains(slug) {
-                        relevant_slugs.push(slug.clone());
-                    }
+                if (slug.starts_with(pt_stem) || slug.ends_with(pt_stem) || slug.contains(pt_stem))
+                    && !relevant_slugs.contains(slug)
+                {
+                    relevant_slugs.push(slug.clone());
                 }
             }
 
@@ -129,7 +129,8 @@ impl Database {
                 Vec::new()
             };
 
-            let hierarchical = !(slug == "post_tag" || slug.ends_with("_tag") || slug.ends_with("_tags"));
+            let hierarchical =
+                !(slug == "post_tag" || slug.ends_with("_tag") || slug.ends_with("_tags"));
             let name = format_taxonomy_display_name(&slug);
 
             results.push(TaxonomyInfo {
@@ -151,8 +152,7 @@ pub fn format_taxonomy_display_name(slug: &str) -> String {
         "post_tag" => "Tags".to_string(),
         other => {
             let parts: Vec<String> = other
-                .replace('_', " ")
-                .replace('-', " ")
+                .replace(['_', '-'], " ")
                 .split_whitespace()
                 .map(|w| {
                     let mut c = w.chars();

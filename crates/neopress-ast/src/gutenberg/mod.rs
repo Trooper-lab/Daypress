@@ -30,15 +30,28 @@ pub fn transpile_gutenberg_content_with_context(
             normalized = normalized.replace(&format!("{}/wp-content/uploads/", base), "/uploads/");
         }
         for base_esc in [&https_esc, &http_esc] {
-            normalized = normalized.replace(&format!("{}\\/wp-content\\/uploads\\/", base_esc), "\\/uploads\\/");
+            normalized = normalized.replace(
+                &format!("{}\\/wp-content\\/uploads\\/", base_esc),
+                "\\/uploads\\/",
+            );
         }
 
         // 2. Domain-level media paths (when source_site_url has a host)
         if let Some(host) = crate::url_utils::extract_url_host(src) {
-            normalized = normalized.replace(&format!("https://{}/wp-content/uploads/", host), "/uploads/");
-            normalized = normalized.replace(&format!("http://{}/wp-content/uploads/", host), "/uploads/");
-            normalized = normalized.replace(&format!("https:\\/\\/{}\\/wp-content\\/uploads\\/", host), "\\/uploads\\/");
-            normalized = normalized.replace(&format!("http:\\/\\/{}\\/wp-content\\/uploads\\/", host), "\\/uploads\\/");
+            normalized = normalized.replace(
+                &format!("https://{}/wp-content/uploads/", host),
+                "/uploads/",
+            );
+            normalized =
+                normalized.replace(&format!("http://{}/wp-content/uploads/", host), "/uploads/");
+            normalized = normalized.replace(
+                &format!("https:\\/\\/{}\\/wp-content\\/uploads\\/", host),
+                "\\/uploads\\/",
+            );
+            normalized = normalized.replace(
+                &format!("http:\\/\\/{}\\/wp-content\\/uploads\\/", host),
+                "\\/uploads\\/",
+            );
         }
 
         // 3. Internal page/post links: base + / -> /

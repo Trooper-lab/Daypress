@@ -62,14 +62,17 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
             }
 
             if terms_html.is_empty() {
-                terms_html = format!(r#"<p style="font-size: 12px; color: #94a3b8; margin: 0 0 8px 0;">No {} found.</p>"#, tax_name);
+                terms_html = format!(
+                    r#"<p style="font-size: 12px; color: #94a3b8; margin: 0 0 8px 0;">No {} found.</p>"#,
+                    tax_name
+                );
             }
 
             out.push_str(&format!(
                 r#"<div class="neo-card" id="taxonomy-card-{tax_slug}">
                     <div class="neo-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h2 class="neo-card-title">{tax_name}</h2>
-                        <a href="/n-admin/edit-tags.php?taxonomy={tax_slug}" target="_blank" style="font-size: 11.5px; color: #2563eb; text-decoration: none;">Manage</a>
+                        <a href="/n-admin/edit-tags?taxonomy={tax_slug}" target="_blank" style="font-size: 11.5px; color: #2563eb; text-decoration: none;">Manage</a>
                     </div>
                     <div class="neo-card-body">
                         <div id="taxonomy-list-{tax_slug}" style="max-height: 160px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px;">
@@ -132,7 +135,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
             <div class="neo-card" style="{post_tax_style}">
                 <div class="neo-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="neo-card-title">Categories</h2>
-                    <a href="/n-admin/edit-tags.php?taxonomy=category" target="_blank" style="font-size: 11.5px; color: #2563eb; text-decoration: none;">Manage</a>
+                    <a href="/n-admin/edit-tags?taxonomy=category" target="_blank" style="font-size: 11.5px; color: #2563eb; text-decoration: none;">Manage</a>
                 </div>
                 <div class="neo-card-body">
                     <div id="categoryList" style="max-height: 160px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px;">
@@ -233,6 +236,45 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                         <label class="form-label">Order</label>
                         <input type="number" id="menu_order" class="form-input" value="{initial_menu_order}" style="width: 100px;" />
                         <small style="color: #94a3b8; font-size: 11.5px; margin-top: 4px; display: block;">Numerical ordering for navigation menus.</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2b. Header & Footer Assignment Card -->
+            <div class="neo-card" id="editorHeaderFooterCard">
+                <div class="neo-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="neo-card-title">Header &amp; Footer</h2>
+                    <a href="/n-admin/headers-footers" target="_blank" style="font-size: 11.5px; color: #2563eb; text-decoration: none; font-weight: 600;">Manager &nearr;</a>
+                </div>
+                <div class="neo-card-body">
+                    <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <label class="form-label" style="margin-bottom: 0;">Active Header</label>
+                            <a id="editorEditHeaderLink" href="/n-admin/headers-footers" style="display: none; font-size: 11px; color: #2563eb; font-weight: 600; text-decoration: none;">⚡ Edit in NeoStudio</a>
+                        </div>
+                        <div id="editorResolvedHeaderSummary" style="font-size: 11.5px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">
+                            Resolving active header...
+                        </div>
+                        <select id="editorHeaderSelect" class="form-select" onchange="onEditorSlotChange()">
+                            <option value="inherit">Inherit Global Rules</option>
+                            <option value="fallback">Built-in Theme Fallback Header</option>
+                            <option value="none">Hide / No Header on this Page</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <label class="form-label" style="margin-bottom: 0;">Active Footer</label>
+                            <a id="editorEditFooterLink" href="/n-admin/headers-footers" style="display: none; font-size: 11px; color: #2563eb; font-weight: 600; text-decoration: none;">⚡ Edit in NeoStudio</a>
+                        </div>
+                        <div id="editorResolvedFooterSummary" style="font-size: 11.5px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">
+                            Resolving active footer...
+                        </div>
+                        <select id="editorFooterSelect" class="form-select" onchange="onEditorSlotChange()">
+                            <option value="inherit">Inherit Global Rules</option>
+                            <option value="fallback">Built-in Theme Fallback Footer</option>
+                            <option value="none">Hide / No Footer on this Page</option>
+                        </select>
                     </div>
                 </div>
             </div>

@@ -112,7 +112,11 @@ pub(crate) fn map_carousel_widget(
                         button_url,
                         skin: Some("cover".to_string()),
                         ribbon: None,
-                        image_url: first.get("background_image").and_then(|i| i.get("url")).and_then(|u| u.as_str()).map(|s| ctx.normalize_url(s)),
+                        image_url: first
+                            .get("background_image")
+                            .and_then(|i| i.get("url"))
+                            .and_then(|u| u.as_str())
+                            .map(|s| ctx.normalize_url(s)),
                         secondary_button_text: None,
                         secondary_button_url: None,
                     });

@@ -1,15 +1,13 @@
 //! Dynamic Placeholder AST Hydration & SSR Injection Pipeline.
 
 use super::conditions::resolve_template_for_type;
-use super::models::{
-    BreadcrumbItem, RequestContext, ResolvedThemePartials, TemplateType,
-};
+use super::models::{BreadcrumbItem, RequestContext, ResolvedThemePartials, TemplateType};
 use super::repository::ThemeTemplateRepository;
 use crate::adapters::database::Database;
 use crate::models::{WpPostResponse, WpSettingsResponse};
 use neopress_ast::{
-    compile_layout_css, render_layout_to_html, sanitize_ssr_html,
-    NavMenuItem, NeopressLayout, NeopressNode, NodeKind,
+    compile_layout_css, render_layout_to_html, sanitize_ssr_html, NavMenuItem, NeopressLayout,
+    NeopressNode, NodeKind,
 };
 use std::collections::HashMap;
 
@@ -45,11 +43,26 @@ impl SsrInjector {
         let mut partials = ResolvedThemePartials::default();
         let hyd_ctx = Self::create_hydration_context(req_ctx, settings, post);
 
-        // 1. Resolve Header Template
-        if let Ok(headers) = repo.find_active_by_type(TemplateType::Header) {
+        // 1. Resolve Header Template (checking per-post & per-route overrides first)
+        let header_override = super::matrix::get_post_slot_override(db, post, TemplateType::Header)
+            .or_else(|| {
+                super::matrix::context_route_keys(req_ctx)
+                    .into_iter()
+                    .find_map(|rk| {
+                        super::matrix::get_route_slot_override(db, rk, TemplateType::Header)
+                    })
+            });
+
+        if header_override.as_deref() == Some("none") {
+            partials.header_hidden = true;
+        } else if header_override.as_deref() == Some("fallback") {
+            partials.header_force_fallback = true;
+        } else if let Ok(headers) = repo.find_active_by_type(TemplateType::Header) {
             if !headers.is_empty() {
                 partials.has_theme_builder_header = true;
-                if let Some(tpl) = resolve_template_for_type(&headers, TemplateType::Header, req_ctx) {
+                if let Some(tpl) =
+                    resolve_template_for_type(&headers, TemplateType::Header, req_ctx)
+                {
                     let mut layout = tpl.layout.clone();
                     Self::hydrate_layout(&mut layout, &hyd_ctx);
                     let raw_html = render_layout_to_html(&layout);
@@ -57,18 +70,37 @@ impl SsrInjector {
                     let css = compile_layout_css(&layout);
 
                     partials.header_html = Some(sanitized_html);
-                    partials.header_css = if css.trim().is_empty() { None } else { Some(css) };
+                    partials.header_css = if css.trim().is_empty() {
+                        None
+                    } else {
+                        Some(css)
+                    };
                     partials.header_sticky = tpl.settings.sticky;
                     partials.header_transparent = tpl.settings.transparent;
                 }
             }
         }
 
-        // 2. Resolve Footer Template
-        if let Ok(footers) = repo.find_active_by_type(TemplateType::Footer) {
+        // 2. Resolve Footer Template (checking per-post & per-route overrides first)
+        let footer_override = super::matrix::get_post_slot_override(db, post, TemplateType::Footer)
+            .or_else(|| {
+                super::matrix::context_route_keys(req_ctx)
+                    .into_iter()
+                    .find_map(|rk| {
+                        super::matrix::get_route_slot_override(db, rk, TemplateType::Footer)
+                    })
+            });
+
+        if footer_override.as_deref() == Some("none") {
+            partials.footer_hidden = true;
+        } else if footer_override.as_deref() == Some("fallback") {
+            partials.footer_force_fallback = true;
+        } else if let Ok(footers) = repo.find_active_by_type(TemplateType::Footer) {
             if !footers.is_empty() {
                 partials.has_theme_builder_footer = true;
-                if let Some(tpl) = resolve_template_for_type(&footers, TemplateType::Footer, req_ctx) {
+                if let Some(tpl) =
+                    resolve_template_for_type(&footers, TemplateType::Footer, req_ctx)
+                {
                     let mut layout = tpl.layout.clone();
                     Self::hydrate_layout(&mut layout, &hyd_ctx);
                     let raw_html = render_layout_to_html(&layout);
@@ -76,7 +108,11 @@ impl SsrInjector {
                     let css = compile_layout_css(&layout);
 
                     partials.footer_html = Some(sanitized_html);
-                    partials.footer_css = if css.trim().is_empty() { None } else { Some(css) };
+                    partials.footer_css = if css.trim().is_empty() {
+                        None
+                    } else {
+                        Some(css)
+                    };
                 }
             }
         }
@@ -92,26 +128,39 @@ impl SsrInjector {
     /// Hydrates a single node and recursively processes all child nodes.
     pub fn hydrate_node(node: &mut NeopressNode, ctx: &HydrationContext) {
         // A. Hydrate NavMenu
-        if let NodeKind::NavMenu { menu_slug, items, .. } = &mut node.kind {
+        if let NodeKind::NavMenu {
+            menu_slug, items, ..
+        } = &mut node.kind
+        {
             if items.is_empty() {
                 if let Some(cached) = ctx.nav_menus.get(menu_slug.as_str()) {
                     *items = cached.clone();
                 } else if !ctx.settings.nav_menu_items.is_empty() {
-                    *items = ctx.settings.nav_menu_items.iter().enumerate().map(|(idx, it)| NavMenuItem {
-                        id: it.id,
-                        title: it.title.clone(),
-                        url: it.url.clone(),
-                        target: it.target.clone(),
-                        parent: it.parent,
-                        order: idx as i64,
-                        ..Default::default()
-                    }).collect();
+                    *items = ctx
+                        .settings
+                        .nav_menu_items
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, it)| NavMenuItem {
+                            id: it.id,
+                            title: it.title.clone(),
+                            url: it.url.clone(),
+                            target: it.target.clone(),
+                            parent: it.parent,
+                            order: idx as i64,
+                            ..Default::default()
+                        })
+                        .collect();
                 }
             }
         }
 
         // B. Hydrate Breadcrumbs
-        if let NodeKind::Breadcrumbs { separator, home_text } = &node.kind {
+        if let NodeKind::Breadcrumbs {
+            separator,
+            home_text,
+        } = &node.kind
+        {
             let markup = Self::render_breadcrumbs_html(&ctx.breadcrumbs, separator, home_text);
             node.kind = NodeKind::CustomHtml { raw: markup };
         }
@@ -121,12 +170,16 @@ impl SsrInjector {
             .styles
             .raw_settings
             .as_ref()
-            .and_then(|m| m.get("data-dynamic").and_then(|v| v.as_str().map(|s| s.to_string())))
+            .and_then(|m| {
+                m.get("data-dynamic")
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+            })
             .or_else(|| {
                 let lower_id = node.id.to_lowercase();
                 if lower_id.contains("post-title") || lower_id.contains("post_title") {
                     Some("post_title".to_string())
-                } else if lower_id.contains("featured-image") || lower_id.contains("featured_image") {
+                } else if lower_id.contains("featured-image") || lower_id.contains("featured_image")
+                {
                     Some("featured_image".to_string())
                 } else if lower_id.contains("post-content") || lower_id.contains("post_content") {
                     Some("post_content".to_string())
@@ -159,21 +212,33 @@ impl SsrInjector {
     fn apply_dynamic_tag(node: &mut NeopressNode, tag: &str, ctx: &HydrationContext) {
         match tag {
             "post_title" => {
-                let title = ctx.post.map(|p| p.title.rendered.clone()).unwrap_or_else(|| ctx.settings.title.clone());
+                let title = ctx
+                    .post
+                    .map(|p| p.title.rendered.clone())
+                    .unwrap_or_else(|| ctx.settings.title.clone());
                 match &mut node.kind {
                     NodeKind::Heading { text, .. } => *text = title,
                     NodeKind::Text { content_html } => *content_html = title,
                     NodeKind::CustomHtml { raw } => *raw = title,
-                    _ => node.kind = NodeKind::Heading { text: title, level: 1 },
+                    _ => {
+                        node.kind = NodeKind::Heading {
+                            text: title,
+                            level: 1,
+                        }
+                    }
                 }
             }
             "featured_image" => {
-                let img_url = ctx.post
+                let img_url = ctx
+                    .post
                     .and_then(|p| p.featured_image_url.as_ref())
                     .filter(|u| !u.is_empty())
                     .cloned()
                     .unwrap_or_else(|| "/static/placeholder.jpg".to_string());
-                let alt = ctx.post.map(|p| p.title.rendered.clone()).unwrap_or_default();
+                let alt = ctx
+                    .post
+                    .map(|p| p.title.rendered.clone())
+                    .unwrap_or_default();
                 match &mut node.kind {
                     NodeKind::Image { src, alt: a, .. } => {
                         *src = img_url;
@@ -192,22 +257,36 @@ impl SsrInjector {
             }
             "post_content" => {
                 if let Some(post) = ctx.post {
-                    node.kind = NodeKind::CustomHtml { raw: post.content.rendered.clone() };
+                    node.kind = NodeKind::CustomHtml {
+                        raw: post.content.rendered.clone(),
+                    };
                 }
             }
             "post_date" => {
-                let date_str = ctx.post
+                let date_str = ctx
+                    .post
                     .map(|p| p.date.chars().take(10).collect::<String>())
                     .unwrap_or_default();
                 match &mut node.kind {
                     NodeKind::Text { content_html } => *content_html = date_str.clone(),
                     NodeKind::Heading { text, .. } => *text = date_str.clone(),
-                    _ => node.kind = NodeKind::Text { content_html: date_str },
+                    _ => {
+                        node.kind = NodeKind::Text {
+                            content_html: date_str,
+                        }
+                    }
                 }
             }
             "author_box" => {
-                let author_name = ctx.post
-                    .map(|p| if p.author_name.is_empty() { "admin" } else { &p.author_name })
+                let author_name = ctx
+                    .post
+                    .map(|p| {
+                        if p.author_name.is_empty() {
+                            "admin"
+                        } else {
+                            &p.author_name
+                        }
+                    })
                     .unwrap_or("admin");
                 let escaped_author = html_escape(author_name);
                 let card = format!(
@@ -240,7 +319,12 @@ impl SsrInjector {
                 match &mut node.kind {
                     NodeKind::Heading { text, .. } => *text = title,
                     NodeKind::Text { content_html } => *content_html = title,
-                    _ => node.kind = NodeKind::Heading { text: title, level: 2 },
+                    _ => {
+                        node.kind = NodeKind::Heading {
+                            text: title,
+                            level: 2,
+                        }
+                    }
                 }
             }
             _ => {}
@@ -267,8 +351,20 @@ impl SsrInjector {
             return text.to_string();
         }
         let post_title = ctx.post.map(|p| p.title.rendered.as_str()).unwrap_or("");
-        let post_date: String = ctx.post.map(|p| p.date.chars().take(10).collect()).unwrap_or_default();
-        let post_author = ctx.post.map(|p| if p.author_name.is_empty() { "admin" } else { p.author_name.as_str() }).unwrap_or("admin");
+        let post_date: String = ctx
+            .post
+            .map(|p| p.date.chars().take(10).collect())
+            .unwrap_or_default();
+        let post_author = ctx
+            .post
+            .map(|p| {
+                if p.author_name.is_empty() {
+                    "admin"
+                } else {
+                    p.author_name.as_str()
+                }
+            })
+            .unwrap_or("admin");
 
         text.replace("{{post_title}}", post_title)
             .replace("{{post_date}}", &post_date)
@@ -278,11 +374,19 @@ impl SsrInjector {
             .replace("{{current_year}}", "2026")
     }
 
-    pub fn render_breadcrumbs_html(items: &[BreadcrumbItem], separator: &str, home_text: &str) -> String {
+    pub fn render_breadcrumbs_html(
+        items: &[BreadcrumbItem],
+        separator: &str,
+        home_text: &str,
+    ) -> String {
         let mut list_html = String::new();
         let mut all_items = Vec::new();
         all_items.push(BreadcrumbItem {
-            title: if home_text.is_empty() { "Home".to_string() } else { home_text.to_string() },
+            title: if home_text.is_empty() {
+                "Home".to_string()
+            } else {
+                home_text.to_string()
+            },
             url: "/".to_string(),
             is_current: items.is_empty(),
         });
@@ -307,8 +411,7 @@ impl SsrInjector {
             } else {
                 list_html.push_str(&format!(
                     r#"<li class="np-breadcrumb-item"><a href="{}">{}</a></li>"#,
-                    url_escaped,
-                    title_escaped
+                    url_escaped, title_escaped
                 ));
             }
         }
@@ -326,15 +429,20 @@ impl SsrInjector {
     ) -> HydrationContext<'a> {
         let mut nav_menus = HashMap::new();
         if !settings.nav_menu_items.is_empty() {
-            let primary_items: Vec<NavMenuItem> = settings.nav_menu_items.iter().enumerate().map(|(idx, it)| NavMenuItem {
-                id: it.id,
-                title: it.title.clone(),
-                url: it.url.clone(),
-                target: it.target.clone(),
-                parent: it.parent,
-                order: idx as i64,
-                ..Default::default()
-            }).collect();
+            let primary_items: Vec<NavMenuItem> = settings
+                .nav_menu_items
+                .iter()
+                .enumerate()
+                .map(|(idx, it)| NavMenuItem {
+                    id: it.id,
+                    title: it.title.clone(),
+                    url: it.url.clone(),
+                    target: it.target.clone(),
+                    parent: it.parent,
+                    order: idx as i64,
+                    ..Default::default()
+                })
+                .collect();
             nav_menus.insert("primary".to_string(), primary_items.clone());
             nav_menus.insert("main-menu".to_string(), primary_items);
         }

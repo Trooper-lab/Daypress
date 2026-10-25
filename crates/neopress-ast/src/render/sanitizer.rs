@@ -16,7 +16,11 @@ pub fn strip_editor_classes(raw: &str) -> String {
     let stripped = re.replace_all(raw, "");
 
     // If input contains HTML class attributes, clean up empty class artifacts
-    if stripped.contains('<') && (stripped.contains("class=") || stripped.contains("CLASS=") || stripped.contains("class =")) {
+    if stripped.contains('<')
+        && (stripped.contains("class=")
+            || stripped.contains("CLASS=")
+            || stripped.contains("class ="))
+    {
         clean_empty_class_artifacts(&stripped)
     } else if !stripped.contains('<') {
         // Plain class list string: normalize whitespace
@@ -29,9 +33,8 @@ pub fn strip_editor_classes(raw: &str) -> String {
 /// Cleans up empty class attributes (`class=""`, `class="   "`, `class=''`)
 /// and normalizes whitespace in remaining classes.
 pub fn clean_empty_class_artifacts(html: &str) -> String {
-    let class_attr_re = CLASS_ATTR_RE.get_or_init(|| {
-        Regex::new(r#"(?i)\s*class=(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#).unwrap()
-    });
+    let class_attr_re = CLASS_ATTR_RE
+        .get_or_init(|| Regex::new(r#"(?i)\s*class=(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#).unwrap());
 
     class_attr_re
         .replace_all(html, |caps: &regex::Captures| {

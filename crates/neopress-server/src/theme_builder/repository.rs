@@ -19,7 +19,9 @@ impl ThemeTemplateRepository {
     }
 
     pub fn from_database(db: &Database) -> Self {
-        Self { conn: db.conn.clone() }
+        Self {
+            conn: db.conn.clone(),
+        }
     }
 
     pub fn conn(&self) -> &Arc<Mutex<Connection>> {
@@ -133,9 +135,11 @@ impl ThemeTemplateRepository {
             let created_at: String = row.get(9)?;
             let updated_at: String = row.get(10)?;
 
-            let template_type = TemplateType::from_str_loose(&type_str).unwrap_or(TemplateType::Header);
+            let template_type =
+                TemplateType::from_str_loose(&type_str).unwrap_or(TemplateType::Header);
             let layout: NeopressLayout = serde_json::from_str(&layout_json).unwrap_or_default();
-            let settings: TemplateSettings = serde_json::from_str(&settings_json).unwrap_or_default();
+            let settings: TemplateSettings =
+                serde_json::from_str(&settings_json).unwrap_or_default();
 
             let conditions = self.load_conditions_with_conn(&conn, tpl_id)?;
 
@@ -182,7 +186,8 @@ impl ThemeTemplateRepository {
 
         query.push_str(" ORDER BY priority DESC, id DESC");
         let mut stmt = conn.prepare(&query)?;
-        let rusqlite_params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let rusqlite_params: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
 
         let rows = stmt.query_map(&rusqlite_params[..], |row| {
             let tpl_id: i64 = row.get(0)?;
@@ -197,9 +202,11 @@ impl ThemeTemplateRepository {
             let created_at: String = row.get(9)?;
             let updated_at: String = row.get(10)?;
 
-            let template_type = TemplateType::from_str_loose(&type_str).unwrap_or(TemplateType::Header);
+            let template_type =
+                TemplateType::from_str_loose(&type_str).unwrap_or(TemplateType::Header);
             let layout: NeopressLayout = serde_json::from_str(&layout_json).unwrap_or_default();
-            let settings: TemplateSettings = serde_json::from_str(&settings_json).unwrap_or_default();
+            let settings: TemplateSettings =
+                serde_json::from_str(&settings_json).unwrap_or_default();
 
             Ok(ThemeTemplateRecord {
                 id: tpl_id,
@@ -233,7 +240,7 @@ impl ThemeTemplateRepository {
                       COUNT(c.id) as cond_count, t.updated_at
                FROM wp_neopress_templates t
                LEFT JOIN wp_neopress_template_conditions c ON t.id = c.template_id
-               WHERE 1=1"#
+               WHERE 1=1"#,
         );
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -254,7 +261,8 @@ impl ThemeTemplateRepository {
 
         query.push_str(" GROUP BY t.id ORDER BY t.priority DESC, t.id DESC");
         let mut stmt = conn.prepare(&query)?;
-        let rusqlite_params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let rusqlite_params: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
 
         let rows = stmt.query_map(&rusqlite_params[..], |row| {
             let id: i64 = row.get(0)?;
@@ -266,7 +274,8 @@ impl ThemeTemplateRepository {
             let cond_count: i64 = row.get(6)?;
             let updated_at: String = row.get(7)?;
 
-            let template_type = TemplateType::from_str_loose(&type_str).unwrap_or(TemplateType::Header);
+            let template_type =
+                TemplateType::from_str_loose(&type_str).unwrap_or(TemplateType::Header);
             Ok(TemplateListItem {
                 id,
                 title,
@@ -286,7 +295,11 @@ impl ThemeTemplateRepository {
         Ok(items)
     }
 
-    pub fn update(&self, id: i64, req: &UpdateTemplateRequest) -> Result<Option<ThemeTemplateRecord>> {
+    pub fn update(
+        &self,
+        id: i64,
+        req: &UpdateTemplateRequest,
+    ) -> Result<Option<ThemeTemplateRecord>> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -305,14 +318,25 @@ impl ThemeTemplateRepository {
             )),
         );
 
-        let (cur_title, cur_type, cur_status, cur_layout_json, cur_settings_json, cur_priority, cur_active) = match existing {
+        let (
+            cur_title,
+            cur_type,
+            cur_status,
+            cur_layout_json,
+            cur_settings_json,
+            cur_priority,
+            cur_active,
+        ) = match existing {
             Ok(vals) => vals,
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
             Err(e) => return Err(e),
         };
 
         let new_title = req.title.as_ref().unwrap_or(&cur_title);
-        let new_type = req.template_type.map(|t| t.as_str().to_string()).unwrap_or(cur_type);
+        let new_type = req
+            .template_type
+            .map(|t| t.as_str().to_string())
+            .unwrap_or(cur_type);
         let new_status = req.status.as_ref().unwrap_or(&cur_status);
         let new_priority = req.priority.unwrap_or(cur_priority);
         let new_active = req.is_active.unwrap_or(cur_active);
@@ -324,17 +348,22 @@ impl ThemeTemplateRepository {
         } else {
             serde_json::from_str(&cur_layout_json).unwrap_or_default()
         };
-        let new_layout_str = serde_json::to_string(&new_layout).unwrap_or_else(|_| "{}".to_string());
+        let new_layout_str =
+            serde_json::to_string(&new_layout).unwrap_or_else(|_| "{}".to_string());
 
         let new_settings: TemplateSettings = if let Some(s) = &req.settings {
             s.clone()
         } else {
             serde_json::from_str(&cur_settings_json).unwrap_or_default()
         };
-        let new_settings_str = serde_json::to_string(&new_settings).unwrap_or_else(|_| "{}".to_string());
+        let new_settings_str =
+            serde_json::to_string(&new_settings).unwrap_or_else(|_| "{}".to_string());
 
         let raw_html = render_layout_to_html(&new_layout);
-        let new_rendered_html = req.rendered_html.clone().unwrap_or_else(|| sanitize_ssr_html(&raw_html));
+        let new_rendered_html = req
+            .rendered_html
+            .clone()
+            .unwrap_or_else(|| sanitize_ssr_html(&raw_html));
 
         tx.execute(
             r#"UPDATE wp_neopress_templates 
@@ -356,7 +385,10 @@ impl ThemeTemplateRepository {
         )?;
 
         if let Some(conds) = &req.conditions {
-            tx.execute("DELETE FROM wp_neopress_template_conditions WHERE template_id = ?1", params![id])?;
+            tx.execute(
+                "DELETE FROM wp_neopress_template_conditions WHERE template_id = ?1",
+                params![id],
+            )?;
             for c in conds {
                 tx.execute(
                     r#"INSERT INTO wp_neopress_template_conditions 
@@ -383,7 +415,10 @@ impl ThemeTemplateRepository {
     pub fn delete(&self, id: i64, force: bool) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         if force {
-            let rows = conn.execute("DELETE FROM wp_neopress_templates WHERE id = ?1", params![id])?;
+            let rows = conn.execute(
+                "DELETE FROM wp_neopress_templates WHERE id = ?1",
+                params![id],
+            )?;
             Ok(rows > 0)
         } else {
             let rows = conn.execute(
@@ -394,4 +429,3 @@ impl ThemeTemplateRepository {
         }
     }
 }
-

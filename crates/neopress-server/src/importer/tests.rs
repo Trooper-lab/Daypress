@@ -2,10 +2,10 @@ use super::*;
 use rusqlite::{params, Connection};
 use std::io::Cursor;
 
-    fn setup_test_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            r#"
+fn setup_test_db() -> Connection {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        r#"
             CREATE TABLE wp_posts (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 post_author INTEGER NOT NULL DEFAULT 1,
@@ -124,15 +124,15 @@ use std::io::Cursor;
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             "#,
-        )
-        .unwrap();
-        conn
-    }
+    )
+    .unwrap();
+    conn
+}
 
-    #[test]
-    fn test_wxr_stream_parsing_and_ingestion() {
-        let mut conn = setup_test_db();
-        let sample_xml = r#"<?xml version="1.0" encoding="UTF-8" ?>
+#[test]
+fn test_wxr_stream_parsing_and_ingestion() {
+    let mut conn = setup_test_db();
+    let sample_xml = r#"<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0"
 	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
 	xmlns:content="http://purl.org/rss/1.0/modules/content/"
@@ -188,46 +188,46 @@ use std::io::Cursor;
 </channel>
 </rss>"#;
 
-        let res = import_wxr_stream(Cursor::new(sample_xml), &mut conn).unwrap();
-        assert_eq!(res.imported_posts, 1);
-        assert_eq!(res.imported_pages, 1);
-        assert_eq!(res.imported_media, 1);
-        assert_eq!(res.imported_categories, 1);
-        assert_eq!(res.imported_tags, 1);
-        assert_eq!(res.imported_comments, 1);
+    let res = import_wxr_stream(Cursor::new(sample_xml), &mut conn).unwrap();
+    assert_eq!(res.imported_posts, 1);
+    assert_eq!(res.imported_pages, 1);
+    assert_eq!(res.imported_media, 1);
+    assert_eq!(res.imported_categories, 1);
+    assert_eq!(res.imported_tags, 1);
+    assert_eq!(res.imported_comments, 1);
 
-        let post_title: String = conn
-            .query_row(
-                "SELECT post_title FROM wp_posts WHERE post_name = 'hello-streaming-world'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(post_title, "Hello Streaming World");
+    let post_title: String = conn
+        .query_row(
+            "SELECT post_title FROM wp_posts WHERE post_name = 'hello-streaming-world'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(post_title, "Hello Streaming World");
 
-        let attachment_mime: String = conn
-            .query_row(
-                "SELECT post_mime_type FROM wp_posts WHERE post_name = 'diagram-png'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(attachment_mime, "image/png");
+    let attachment_mime: String = conn
+        .query_row(
+            "SELECT post_mime_type FROM wp_posts WHERE post_name = 'diagram-png'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(attachment_mime, "image/png");
 
-        let blog_title: String = conn
-            .query_row(
-                "SELECT option_value FROM wp_options WHERE option_name = 'blogname'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(blog_title, "Exported WP Site");
-    }
+    let blog_title: String = conn
+        .query_row(
+            "SELECT option_value FROM wp_options WHERE option_name = 'blogname'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(blog_title, "Exported WP Site");
+}
 
-    #[test]
-    fn test_wxr_id_remapping_and_ast_transpilation() {
-        let mut conn = setup_test_db();
-        let sample_xml = r##"<?xml version="1.0" encoding="UTF-8" ?>
+#[test]
+fn test_wxr_id_remapping_and_ast_transpilation() {
+    let mut conn = setup_test_db();
+    let sample_xml = r##"<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0"
 	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
 	xmlns:content="http://purl.org/rss/1.0/modules/content/"
@@ -271,48 +271,48 @@ use std::io::Cursor;
 </channel>
 </rss>"##;
 
-        let res = import_wxr_xml(sample_xml, &mut conn).unwrap();
-        assert_eq!(res.imported_pages, 2);
-        assert_eq!(res.imported_media, 1);
+    let res = import_wxr_xml(sample_xml, &mut conn).unwrap();
+    assert_eq!(res.imported_pages, 2);
+    assert_eq!(res.imported_media, 1);
 
-        let (media_new_id, media_mime): (i64, String) = conn
-            .query_row(
-                "SELECT ID, post_mime_type FROM wp_posts WHERE post_name = 'hero-image'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(media_mime, "image/webp");
+    let (media_new_id, media_mime): (i64, String) = conn
+        .query_row(
+            "SELECT ID, post_mime_type FROM wp_posts WHERE post_name = 'hero-image'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(media_mime, "image/webp");
 
-        let (parent_new_id, parent_content, parent_layout): (i64, String, Option<String>) = conn
-            .query_row(
-                "SELECT ID, post_content, layout_json FROM wp_posts WHERE post_name = 'services'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .unwrap();
-        assert!(parent_layout.is_some());
-        assert!(parent_content.contains("Divi Services Overview"));
+    let (parent_new_id, parent_content, parent_layout): (i64, String, Option<String>) = conn
+        .query_row(
+            "SELECT ID, post_content, layout_json FROM wp_posts WHERE post_name = 'services'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert!(parent_layout.is_some());
+    assert!(parent_content.contains("Divi Services Overview"));
 
-        // Verify _thumbnail_id was remapped from 500 -> media_new_id
-        let thumb_meta: String = conn
-            .query_row(
-                "SELECT meta_value FROM wp_postmeta WHERE post_id = ?1 AND meta_key = '_thumbnail_id'",
-                params![parent_new_id],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(thumb_meta.parse::<i64>().unwrap(), media_new_id);
+    // Verify _thumbnail_id was remapped from 500 -> media_new_id
+    let thumb_meta: String = conn
+        .query_row(
+            "SELECT meta_value FROM wp_postmeta WHERE post_id = ?1 AND meta_key = '_thumbnail_id'",
+            params![parent_new_id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(thumb_meta.parse::<i64>().unwrap(), media_new_id);
 
-        // Verify child page post_parent was remapped from 100 -> parent_new_id and Elementor AST transpiled
-        let (child_parent_id, child_content, child_layout): (i64, String, Option<String>) = conn
+    // Verify child page post_parent was remapped from 100 -> parent_new_id and Elementor AST transpiled
+    let (child_parent_id, child_content, child_layout): (i64, String, Option<String>) = conn
             .query_row(
                 "SELECT post_parent, post_content, layout_json FROM wp_posts WHERE post_name = 'rust-migration'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .unwrap();
-        assert_eq!(child_parent_id, parent_new_id);
-        assert!(child_layout.is_some());
-        assert!(child_content.contains("Sub-Millisecond Rust SSR"));
-    }
+    assert_eq!(child_parent_id, parent_new_id);
+    assert!(child_layout.is_some());
+    assert!(child_content.contains("Sub-Millisecond Rust SSR"));
+}

@@ -6,13 +6,19 @@
 //! 4. Multi-byte UTF-8 extremes (astral emojis, ZWJs, RTL Hebrew/Arabic, Cyrillic, CJK).
 //! 5. Comprehensive editor chrome leak penetration testing across 35+ variants.
 
-use axum::{body::Body, http::{Request, StatusCode}};
+#![allow(clippy::field_reassign_with_default)]
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use neopress_ast::{
     render_layout_to_html, sanitize_ssr_html, NeopressLayout, NeopressNode, NodeKind,
     StyleProperties,
 };
 use neopress_server::{
-    create_app, models::WpSettingsResponse, templates::public::render_base_layout,
+    create_app,
+    models::WpSettingsResponse,
+    templates::public::render_base_layout,
     theme_builder::{
         conditions::{evaluate_condition, ConditionMatch},
         models::{
@@ -33,7 +39,7 @@ fn auth_req(method: &str, uri: &str, body_val: Option<serde_json::Value>) -> Req
         .method(method)
         .uri(uri)
         .header("Content-Type", "application/json")
-        .header("X-WP-Nonce", "wp_rest_admin");
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=");
     match body_val {
         Some(val) => builder.body(Body::from(val.to_string())).unwrap(),
         None => builder.body(Body::empty()).unwrap(),
@@ -60,8 +66,20 @@ async fn test_tier5_malformed_and_deep_ast_payloads() {
         });
     }
     let deep_ast = json!({ "layout": { "version": 1, "root": current } });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/neopress/v1/layout/1", Some(deep_ast))).await.unwrap();
-    assert_eq!(res.status(), StatusCode::OK, "Deeply nested AST must save without stack overflow");
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/neopress/v1/layout/1",
+            Some(deep_ast),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        res.status(),
+        StatusCode::OK,
+        "Deeply nested AST must save without stack overflow"
+    );
 
     // B. Huge string buffer payload (128 KB text in data)
     let huge_text = "A".repeat(128 * 1024);
@@ -72,13 +90,36 @@ async fn test_tier5_malformed_and_deep_ast_payloads() {
             }]
         }}
     });
-    let res_huge = app.clone().oneshot(auth_req("POST", "/wp-json/neopress/v1/layout/1", Some(huge_ast))).await.unwrap();
-    assert_eq!(res_huge.status(), StatusCode::OK, "128KB string payload must save successfully");
+    let res_huge = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/neopress/v1/layout/1",
+            Some(huge_ast),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        res_huge.status(),
+        StatusCode::OK,
+        "128KB string payload must save successfully"
+    );
 
     // C. Malformed primitive layout payload (invalid JSON schema)
     let bad_payload = json!({ "layout": "not-an-object" });
-    let res_bad = app.clone().oneshot(auth_req("POST", "/wp-json/neopress/v1/layout/1", Some(bad_payload))).await.unwrap();
-    assert!(res_bad.status().is_success() || res_bad.status().is_client_error(), "Malformed layout must not crash server");
+    let res_bad = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/neopress/v1/layout/1",
+            Some(bad_payload),
+        ))
+        .await
+        .unwrap();
+    assert!(
+        res_bad.status().is_success() || res_bad.status().is_client_error(),
+        "Malformed layout must not crash server"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -108,31 +149,74 @@ async fn test_tier5_sql_injection_and_path_traversal_firewall() {
             }]
         });
 
-        let res = app.clone().oneshot(auth_req("POST", "/wp-json/neopress/v1/templates", Some(create_req))).await.unwrap();
-        assert_eq!(res.status(), StatusCode::CREATED, "Parameterized binding must accept literal strings");
+        let res = app
+            .clone()
+            .oneshot(auth_req(
+                "POST",
+                "/wp-json/neopress/v1/templates",
+                Some(create_req),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::CREATED,
+            "Parameterized binding must accept literal strings"
+        );
 
         // Verify SQLite table was not dropped
-        let count_res: rusqlite::Result<i64> = repo.conn().lock().unwrap()
-            .query_row("SELECT COUNT(*) FROM wp_neopress_templates", [], |r| r.get(0));
-        assert!(count_res.is_ok(), "wp_neopress_templates must remain intact after injection attempt");
+        let count_res: rusqlite::Result<i64> = repo.conn().lock().unwrap().query_row(
+            "SELECT COUNT(*) FROM wp_neopress_templates",
+            [],
+            |r| r.get(0),
+        );
+        assert!(
+            count_res.is_ok(),
+            "wp_neopress_templates must remain intact after injection attempt"
+        );
 
         // Evaluate condition: invalid target_id cannot match normal numeric post ID
         let req_ctx = RequestContext::for_post(42, "post", false, vec![]);
         let conds = repo.list(&Default::default()).unwrap();
         let matched = evaluate_condition(&conds[0].conditions[0], &req_ctx);
-        assert_eq!(matched, ConditionMatch::NoMatch, "SQLi target_id must evaluate to NoMatch");
+        assert_eq!(
+            matched,
+            ConditionMatch::NoMatch,
+            "SQLi target_id must evaluate to NoMatch"
+        );
     }
 
     // Path traversal in starter template route
-    let trav_res = app.clone().oneshot(auth_req(
-        "POST", "/wp-json/neopress/v1/templates/starter",
-        Some(json!({ "starter_id": "../../../../Cargo.toml" }))
-    )).await.unwrap();
-    assert_eq!(trav_res.status(), StatusCode::NOT_FOUND, "Path traversal in starter_id must return 404");
+    let trav_res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/neopress/v1/templates/starter",
+            Some(json!({ "starter_id": "../../../../Cargo.toml" })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        trav_res.status(),
+        StatusCode::NOT_FOUND,
+        "Path traversal in starter_id must return 404"
+    );
 
     // Template list query injection
-    let list_res = app.clone().oneshot(auth_req("GET", "/wp-json/neopress/v1/templates?template_type=%27%20OR%201=1--", None)).await.unwrap();
-    assert_eq!(list_res.status(), StatusCode::OK, "Query injection must be safely bound and return 200");
+    let list_res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            "/wp-json/neopress/v1/templates?template_type=%27%20OR%201=1--",
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        list_res.status(),
+        StatusCode::OK,
+        "Query injection must be safely bound and return 200"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -152,33 +236,52 @@ fn test_tier5_high_concurrency_template_lifecycle_and_cascade() {
         handles.push(thread::spawn(move || {
             barrier_clone.wait();
             for i in 0..10 {
-                let created = repo_clone.create(&CreateTemplateRequest {
-                    title: format!("Concurrent Tpl t{}_{}", t_idx, i),
-                    template_type: TemplateType::Header,
-                    status: Some("publish".to_string()),
-                    layout: None, layout_json: None, settings: None,
-                    priority: Some(10 + t_idx as i32), is_active: Some(true),
-                    conditions: Some(vec![
-                        CreateConditionDto {
-                            id: None, condition_type: ConditionType::Include,
-                            rule_target: RuleTarget::EntireSite, target_id: String::new(), priority: 10,
-                        },
-                        CreateConditionDto {
-                            id: None, condition_type: ConditionType::Exclude,
-                            rule_target: RuleTarget::Post, target_id: format!("{}", 100 + i), priority: 20,
-                        },
-                    ]),
-                }).expect("Concurrent create failed");
+                let created = repo_clone
+                    .create(&CreateTemplateRequest {
+                        title: format!("Concurrent Tpl t{}_{}", t_idx, i),
+                        template_type: TemplateType::Header,
+                        status: Some("publish".to_string()),
+                        layout: None,
+                        layout_json: None,
+                        settings: None,
+                        priority: Some(10 + t_idx as i32),
+                        is_active: Some(true),
+                        conditions: Some(vec![
+                            CreateConditionDto {
+                                id: None,
+                                condition_type: ConditionType::Include,
+                                rule_target: RuleTarget::EntireSite,
+                                target_id: String::new(),
+                                priority: 10,
+                            },
+                            CreateConditionDto {
+                                id: None,
+                                condition_type: ConditionType::Exclude,
+                                rule_target: RuleTarget::Post,
+                                target_id: format!("{}", 100 + i),
+                                priority: 20,
+                            },
+                        ]),
+                    })
+                    .expect("Concurrent create failed");
 
-                let conds = repo_clone.get_conditions(created.id).expect("Get conditions failed");
+                let conds = repo_clone
+                    .get_conditions(created.id)
+                    .expect("Get conditions failed");
                 assert_eq!(conds.len(), 2);
 
-                let _ = repo_clone.update(created.id, &UpdateTemplateRequest {
-                    priority: Some(30), ..Default::default()
-                });
+                let _ = repo_clone.update(
+                    created.id,
+                    &UpdateTemplateRequest {
+                        priority: Some(30),
+                        ..Default::default()
+                    },
+                );
 
                 if i % 2 == 0 {
-                    let deleted = repo_clone.delete(created.id, true).expect("Force delete failed");
+                    let deleted = repo_clone
+                        .delete(created.id, true)
+                        .expect("Force delete failed");
                     assert!(deleted);
                 }
             }
@@ -191,14 +294,20 @@ fn test_tier5_high_concurrency_template_lifecycle_and_cascade() {
 
     // Direct SQLite foreign key audit: verify 0 orphaned conditions remain
     let conn = repo.conn().lock().unwrap();
-    let orphan_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM wp_neopress_template_conditions c 
+    let orphan_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM wp_neopress_template_conditions c 
          LEFT JOIN wp_neopress_templates t ON c.template_id = t.id 
          WHERE t.id IS NULL",
-        [], |r| r.get(0),
-    ).expect("Orphan query failed");
+            [],
+            |r| r.get(0),
+        )
+        .expect("Orphan query failed");
 
-    assert_eq!(orphan_count, 0, "All deleted template conditions must be cascadingly cleaned up");
+    assert_eq!(
+        orphan_count, 0,
+        "All deleted template conditions must be cascadingly cleaned up"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -215,26 +324,43 @@ fn test_tier5_multibyte_utf8_extremes_astral_emojis_rtl_and_cjk() {
     let mut layout = NeopressLayout::default();
     layout.root = NeopressNode {
         id: "utf8_root".to_string(),
-        kind: NodeKind::Heading { text: extreme_content.to_string(), level: 1 },
+        kind: NodeKind::Heading {
+            text: extreme_content.to_string(),
+            level: 1,
+        },
         styles: StyleProperties::default(),
         children: vec![],
     };
 
-    let created = repo.create(&CreateTemplateRequest {
-        title: extreme_title.to_string(),
-        template_type: TemplateType::Header,
-        status: Some("publish".to_string()),
-        layout: Some(layout.clone()),
-        layout_json: None, settings: None, priority: Some(25), is_active: Some(true),
-        conditions: Some(vec![CreateConditionDto {
-            id: None, condition_type: ConditionType::Include,
-            rule_target: RuleTarget::EntireSite, target_id: String::new(), priority: 10,
-        }]),
-    }).expect("UTF-8 template creation failed");
+    let created = repo
+        .create(&CreateTemplateRequest {
+            title: extreme_title.to_string(),
+            template_type: TemplateType::Header,
+            status: Some("publish".to_string()),
+            layout: Some(layout.clone()),
+            layout_json: None,
+            settings: None,
+            priority: Some(25),
+            is_active: Some(true),
+            conditions: Some(vec![CreateConditionDto {
+                id: None,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::EntireSite,
+                target_id: String::new(),
+                priority: 10,
+            }]),
+        })
+        .expect("UTF-8 template creation failed");
 
     // Verify round-trip retrieval from SQLite
-    let fetched = repo.get_by_id(created.id).unwrap().expect("Template not found");
-    assert_eq!(fetched.title, extreme_title, "Extreme UTF-8 title must match verbatim");
+    let fetched = repo
+        .get_by_id(created.id)
+        .unwrap()
+        .expect("Template not found");
+    assert_eq!(
+        fetched.title, extreme_title,
+        "Extreme UTF-8 title must match verbatim"
+    );
 
     // Verify public SSR shell does not panic and preserves multi-byte strings
     let rendered_node = render_layout_to_html(&layout);
@@ -247,10 +373,22 @@ fn test_tier5_multibyte_utf8_extremes_astral_emojis_rtl_and_cjk() {
     };
     let public_doc = render_base_layout(extreme_title, &settings, &rendered_node, None, None, None);
 
-    assert!(public_doc.contains("עברית: שלום עולם"), "Public SSR must contain Hebrew text");
-    assert!(public_doc.contains("العربية: مرحبا"), "Public SSR must contain Arabic text");
-    assert!(public_doc.contains("Тест темы"), "Public SSR must contain Cyrillic text");
-    assert!(public_doc.contains("日本語・中文"), "Public SSR must contain CJK text");
+    assert!(
+        public_doc.contains("עברית: שלום עולם"),
+        "Public SSR must contain Hebrew text"
+    );
+    assert!(
+        public_doc.contains("العربية: مرحبا"),
+        "Public SSR must contain Arabic text"
+    );
+    assert!(
+        public_doc.contains("Тест темы"),
+        "Public SSR must contain Cyrillic text"
+    );
+    assert!(
+        public_doc.contains("日本語・中文"),
+        "Public SSR must contain CJK text"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -284,20 +422,42 @@ fn test_tier5_editor_chrome_leak_penetration_35_variants() {
 
     // 1. Assert 100% elimination of all 35+ editor chrome variants
     let forbidden_substrings = [
-        "contenteditable", "CONTENTEDITABLE", "ContentEditable",
-        "draggable", "DRAGGABLE",
-        "data-neostudio", "data-elementor", "data-drag-handle", "data-model-cid",
-        "elementor-grid-handle", "neostudio-grid-handle", "neostudio-handle",
-        "neostudio-selection-outline", "neostudio-node", "neostudio-element",
-        "neostudio-drop-indicator", "neostudio-hovered", "neostudio-box-guide",
-        "ui-resizable", "ui-draggable", "ui-sortable", "active-element",
-        "et_pb_element_editing", "visual-builder-active",
-        "elementor-element-edit-mode", "elementor-editor-active",
-        "class=\"\"", "class=\"  \""
+        "contenteditable",
+        "CONTENTEDITABLE",
+        "ContentEditable",
+        "draggable",
+        "DRAGGABLE",
+        "data-neostudio",
+        "data-elementor",
+        "data-drag-handle",
+        "data-model-cid",
+        "elementor-grid-handle",
+        "neostudio-grid-handle",
+        "neostudio-handle",
+        "neostudio-selection-outline",
+        "neostudio-node",
+        "neostudio-element",
+        "neostudio-drop-indicator",
+        "neostudio-hovered",
+        "neostudio-box-guide",
+        "ui-resizable",
+        "ui-draggable",
+        "ui-sortable",
+        "active-element",
+        "et_pb_element_editing",
+        "visual-builder-active",
+        "elementor-element-edit-mode",
+        "elementor-editor-active",
+        "class=\"\"",
+        "class=\"  \"",
     ];
 
     for forbidden in forbidden_substrings {
-        assert!(!sanitized.contains(forbidden), "SSR leaked forbidden editor chrome: '{}'", forbidden);
+        assert!(
+            !sanitized.contains(forbidden),
+            "SSR leaked forbidden editor chrome: '{}'",
+            forbidden
+        );
     }
 
     // 2. Assert preservation of legitimate classes and structure

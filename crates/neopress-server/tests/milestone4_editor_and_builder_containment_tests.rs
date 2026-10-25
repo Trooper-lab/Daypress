@@ -414,7 +414,8 @@ fn test_feature20_21_neostudio_builder_containment_and_cad_invariants() {
 
     // Chrome isolation reset
     assert!(
-        builder_html.contains("#neostudio-shell *:not(#neostudio-artboard):not(#neostudio-artboard *) {"),
+        builder_html
+            .contains("#neostudio-shell *:not(#neostudio-artboard):not(#neostudio-artboard *) {"),
         "Shell must enforce chrome isolation reset"
     );
 

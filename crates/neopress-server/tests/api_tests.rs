@@ -227,7 +227,7 @@ async fn test_public_ssr_rendering() {
         .oneshot(
             Request::builder()
                 .uri("/")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -250,7 +250,7 @@ async fn test_public_ssr_rendering() {
         .oneshot(
             Request::builder()
                 .uri("/hello-world/")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -275,6 +275,7 @@ async fn test_admin_dashboard_rendering() {
         .oneshot(
             Request::builder()
                 .uri("/n-admin/")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -297,12 +298,25 @@ async fn test_authentication_application_passwords_and_jwt() {
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "admin:admin")
     );
 
-    // 1. Nonce Authentication (X-WP-Nonce)
+    // 1. REST nonces are issued only to authenticated users, and never authenticate on their own
+    let anon_nonce_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/neopress/v1/auth/nonce")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(anon_nonce_res.status(), StatusCode::UNAUTHORIZED);
+
     let nonce_res = app
         .clone()
         .oneshot(
             Request::builder()
                 .uri("/wp-json/neopress/v1/auth/nonce")
+                .header("Authorization", &basic_admin)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -331,7 +345,11 @@ async fn test_authentication_application_passwords_and_jwt() {
         )
         .await
         .unwrap();
-    assert_eq!(res.status(), StatusCode::CREATED);
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "A nonce alone must not authenticate"
+    );
 
     // 2. Application Passwords API (WordPress 5.6+)
     let app_pass_req = serde_json::json!({
@@ -608,12 +626,12 @@ async fn test_user_auth_login_logout_and_management() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
     let app = create_app(db);
 
-    // 1. GET /wp-login.php returns 200 OK with login form
+    // 1. GET /login returns 200 OK with login form
     let res = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/wp-login.php")
+                .uri("/login")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -625,14 +643,14 @@ async fn test_user_auth_login_logout_and_management() {
     assert!(html.contains("Log In"));
     assert!(html.contains("user_login"));
 
-    // 2. POST /wp-login.php with invalid credentials shows error
+    // 2. POST /login with invalid credentials shows error
     let bad_login = "log=admin&pwd=wrongpassword";
     let res = app
         .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/wp-login.php")
+                .uri("/login")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(Body::from(bad_login))
                 .unwrap(),
@@ -644,14 +662,14 @@ async fn test_user_auth_login_logout_and_management() {
     let html = String::from_utf8_lossy(&body);
     assert!(html.contains("Unknown username or incorrect password"));
 
-    // 3. POST /wp-login.php with valid credentials sets cookie and redirects
+    // 3. POST /login with valid credentials sets cookie and redirects
     let good_login = "log=admin&pwd=admin&redirect_to=/n-admin/";
     let res = app
         .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/wp-login.php")
+                .uri("/login")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(Body::from(good_login))
                 .unwrap(),
@@ -664,12 +682,12 @@ async fn test_user_auth_login_logout_and_management() {
     assert!(cookie_val.contains("neopress_admin=1"));
     assert!(cookie_val.contains("HttpOnly"));
 
-    // 4. GET /wp-login.php?action=logout clears cookie and redirects to loggedout=true
+    // 4. GET /login?action=logout clears cookie and redirects to loggedout=true
     let res = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/wp-login.php?action=logout")
+                .uri("/login?action=logout")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -678,17 +696,17 @@ async fn test_user_auth_login_logout_and_management() {
     assert_eq!(res.status(), StatusCode::SEE_OTHER);
     assert_eq!(
         res.headers().get("location").unwrap(),
-        "/wp-login.php?loggedout=true"
+        "/login?loggedout=true"
     );
     let cookie_clear = res.headers().get("set-cookie").unwrap().to_str().unwrap();
     assert!(cookie_clear.contains("Max-Age=0"));
 
-    // 5. GET /wp-login.php?loggedout=true shows logged out banner
+    // 5. GET /login?loggedout=true shows logged out banner
     let res = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/wp-login.php?loggedout=true")
+                .uri("/login?loggedout=true")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -704,7 +722,8 @@ async fn test_user_auth_login_logout_and_management() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/users.php")
+                .uri("/n-admin/users")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -720,7 +739,8 @@ async fn test_user_auth_login_logout_and_management() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/user-new.php")
+                .uri("/n-admin/user-new")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -749,7 +769,7 @@ async fn test_user_auth_login_logout_and_management() {
             Request::builder()
                 .method("POST")
                 .uri("/wp-json/wp/v2/users")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(serde_json::to_vec(&new_user_json).unwrap()))
                 .unwrap(),
@@ -770,7 +790,7 @@ async fn test_user_auth_login_logout_and_management() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/wp-login.php")
+                .uri("/login")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(Body::from(user_login))
                 .unwrap(),
@@ -781,12 +801,13 @@ async fn test_user_auth_login_logout_and_management() {
     let cookie_val = res.headers().get("set-cookie").unwrap().to_str().unwrap();
     assert!(cookie_val.contains(&format!("neopress_admin={}", created_user_id)));
 
-    // 9. New user appears on /n-admin/users.php list
+    // 9. New user appears on /n-admin/users list
     let res = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/users.php")
+                .uri("/n-admin/users")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -805,7 +826,7 @@ async fn test_user_auth_login_logout_and_management() {
             Request::builder()
                 .method("DELETE")
                 .uri(format!("/wp-json/wp/v2/users/{}", created_user_id))
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -822,56 +843,62 @@ async fn test_all_wp_admin_menu_routes_rendering() {
     // List of all 32 default WordPress menu & submenu route URLs
     let menu_routes = vec![
         // 1. Dashboard
-        ("/n-admin/index.php", "Dashboard"),
-        ("/n-admin/update-core.php", "WordPress Updates"),
+        ("/n-admin/index", "Dashboard"),
+        ("/n-admin/update-core", "WordPress Updates"),
         // 2. Posts
-        ("/n-admin/edit.php", "Posts"),
-        ("/n-admin/post-new.php", "Add New"),
-        ("/n-admin/edit-tags.php?taxonomy=category", "Categories"),
-        ("/n-admin/edit-tags.php?taxonomy=post_tag", "Tags"),
+        ("/n-admin/edit", "Posts"),
+        ("/n-admin/post-new", "Add New"),
+        ("/n-admin/edit-tags?taxonomy=category", "Categories"),
+        ("/n-admin/edit-tags?taxonomy=post_tag", "Tags"),
         // 3. Media
-        ("/n-admin/upload.php", "Media Library"),
-        ("/n-admin/media-new.php", "Upload New Media"),
+        ("/n-admin/upload", "Media Library"),
+        ("/n-admin/media-new", "Upload New Media"),
         // 4. Pages
-        ("/n-admin/edit.php?post_type=page", "Pages"),
-        ("/n-admin/post-new.php?post_type=page", "Add New"),
+        ("/n-admin/edit?post_type=page", "Pages"),
+        ("/n-admin/post-new?post_type=page", "Add New"),
         // 5. Comments
-        ("/n-admin/edit-comments.php", "Comments"),
+        ("/n-admin/edit-comments", "Comments"),
         // 6. Appearance
-        ("/n-admin/themes.php", "Themes"),
-        ("/n-admin/customize.php", "Customizer"),
-        ("/n-admin/widgets.php", "Widgets"),
-        ("/n-admin/nav-menus.php", "Menus"),
-        ("/n-admin/theme-editor.php", "Theme File Editor"),
+        ("/n-admin/themes", "Themes"),
+        ("/n-admin/customize", "Customizer"),
+        ("/n-admin/widgets", "Widgets"),
+        ("/n-admin/nav-menus", "Menus"),
+        ("/n-admin/theme-editor", "Theme File Editor"),
         // 7. Plugins
-        ("/n-admin/plugins.php", "Plugins"),
-        ("/n-admin/plugin-install.php", "Add Plugins"),
-        ("/n-admin/plugin-editor.php", "Plugin File Editor"),
+        ("/n-admin/plugins", "Plugins"),
+        ("/n-admin/plugin-install", "Add Plugins"),
+        ("/n-admin/plugin-editor", "Plugin File Editor"),
         // 8. Users
-        ("/n-admin/users.php", "Users"),
-        ("/n-admin/user-new.php", "Add New User"),
-        ("/n-admin/profile.php", "Profile"),
+        ("/n-admin/users", "Users"),
+        ("/n-admin/user-new", "Add New User"),
+        ("/n-admin/profile", "Profile"),
         // 9. Tools
-        ("/n-admin/tools.php", "Tools"),
-        ("/n-admin/import.php", "Import"),
-        ("/n-admin/export.php", "Export"),
-        ("/n-admin/site-health.php", "Site Health"),
-        ("/n-admin/export-personal-data.php", "Export Personal Data"),
-        ("/n-admin/erase-personal-data.php", "Erase Personal Data"),
+        ("/n-admin/tools", "Tools"),
+        ("/n-admin/import", "Import"),
+        ("/n-admin/export", "Export"),
+        ("/n-admin/site-health", "Site Health"),
+        ("/n-admin/export-personal-data", "Export Personal Data"),
+        ("/n-admin/erase-personal-data", "Erase Personal Data"),
         // 10. Settings
-        ("/n-admin/options-general.php", "General Settings"),
-        ("/n-admin/options-writing.php", "Writing Settings"),
-        ("/n-admin/options-reading.php", "Reading Settings"),
-        ("/n-admin/options-discussion.php", "Discussion Settings"),
-        ("/n-admin/options-media.php", "Media Settings"),
-        ("/n-admin/options-permalink.php", "Permalink Settings"),
-        ("/n-admin/options-privacy.php", "Privacy Settings"),
+        ("/n-admin/options-general", "General Settings"),
+        ("/n-admin/options-writing", "Writing Settings"),
+        ("/n-admin/options-reading", "Reading Settings"),
+        ("/n-admin/options-discussion", "Discussion Settings"),
+        ("/n-admin/options-media", "Media Settings"),
+        ("/n-admin/options-permalink", "Permalink Settings"),
+        ("/n-admin/options-privacy", "Privacy Settings"),
     ];
 
     for (url, expected_keyword) in menu_routes {
         let res = app
             .clone()
-            .oneshot(Request::builder().uri(url).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri(url)
+                    .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -911,6 +938,7 @@ async fn test_admin_interactive_apis_and_tools() {
         .oneshot(
             Request::builder()
                 .uri("/wp-json/wp/v2/comments")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -928,6 +956,7 @@ async fn test_admin_interactive_apis_and_tools() {
         .oneshot(
             Request::builder()
                 .uri(format!("/wp-json/wp/v2/comments/{}", comment_id))
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -942,6 +971,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri(format!("/wp-json/wp/v2/comments/{}", comment_id))
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({ "status": "spam" })).unwrap(),
@@ -959,6 +989,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("DELETE")
                 .uri(format!("/wp-json/wp/v2/comments/{}?force=true", comment_id))
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -974,6 +1005,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/options-writing")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1001,6 +1033,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/options-reading")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1026,6 +1059,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/options-discussion")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1056,6 +1090,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/options-media")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1083,6 +1118,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/options-permalink")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1105,6 +1141,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/options-privacy")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1125,6 +1162,7 @@ async fn test_admin_interactive_apis_and_tools() {
         .oneshot(
             Request::builder()
                 .uri("/n-admin/export-wxr")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1145,6 +1183,7 @@ async fn test_admin_interactive_apis_and_tools() {
         .oneshot(
             Request::builder()
                 .uri("/n-admin/export-json")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1162,6 +1201,7 @@ async fn test_admin_interactive_apis_and_tools() {
         .oneshot(
             Request::builder()
                 .uri("/n-admin/api/export-personal-data?user=admin@example.com")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1176,6 +1216,7 @@ async fn test_admin_interactive_apis_and_tools() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/erase-personal-data")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_vec(&serde_json::json!({
@@ -1209,7 +1250,7 @@ async fn test_wp_admin_redirects_compatibility() {
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.headers().get("location").unwrap(), "/n-admin/");
 
-    // 2. /wp-admin/edit.php redirects to /n-admin/edit.php
+    // 2. /wp-admin/edit.php redirects to /n-admin/edit
     let res = app
         .clone()
         .oneshot(
@@ -1221,9 +1262,9 @@ async fn test_wp_admin_redirects_compatibility() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(res.headers().get("location").unwrap(), "/n-admin/edit.php");
+    assert_eq!(res.headers().get("location").unwrap(), "/n-admin/edit");
 
-    // 3. /wp-admin/options-general.php redirects to /n-admin/options-general.php
+    // 3. /wp-admin/options-general.php redirects to /n-admin/options-general
     let res = app
         .clone()
         .oneshot(
@@ -1237,7 +1278,7 @@ async fn test_wp_admin_redirects_compatibility() {
     assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
     assert_eq!(
         res.headers().get("location").unwrap(),
-        "/n-admin/options-general.php"
+        "/n-admin/options-general"
     );
 }
 
@@ -1334,18 +1375,28 @@ async fn test_visual_builder_layout_endpoints() {
     assert!(ssr_html.contains("Compiled Leptos Layout"));
 
     // 5. Verify clean modern builder routes without .php
-    for clean_url in &["/n-admin/builder?post=1", "/n-admin/studio?post=1", "/studio?post=1", "/n-admin/builder.php?post=1"] {
+    for clean_url in &[
+        "/n-admin/builder?post=1",
+        "/n-admin/studio?post=1",
+        "/studio?post=1",
+    ] {
         let builder_res = app
             .clone()
             .oneshot(
                 Request::builder()
                     .uri(*clean_url)
+                    .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(builder_res.status(), StatusCode::OK, "Failed on builder route: {}", clean_url);
+        assert_eq!(
+            builder_res.status(),
+            StatusCode::OK,
+            "Failed on builder route: {}",
+            clean_url
+        );
     }
 }
 
@@ -1655,7 +1706,8 @@ async fn test_native_subsystems_seo_sitemap_and_email_api() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/analytics.php")
+                .uri("/n-admin/analytics")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1834,7 +1886,12 @@ async fn test_wp_rest_v2_completeness_admin_persistence_and_public_archives() {
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
-        assert_eq!(res.status(), StatusCode::OK, "Failed REST endpoint: {}", uri);
+        assert_eq!(
+            res.status(),
+            StatusCode::OK,
+            "Failed REST endpoint: {}",
+            uri
+        );
     }
 
     // 6. Verify Admin Persistence APIs (/n-admin/api/theme, /n-admin/api/customizer, /n-admin/api/plugins)
@@ -1844,7 +1901,7 @@ async fn test_wp_rest_v2_completeness_admin_persistence_and_public_archives() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/customizer")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -1886,8 +1943,8 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/plugins.php")
-                .header("Cookie", "neopress_admin=1")
+                .uri("/n-admin/plugins")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1908,11 +1965,26 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     assert!(plugins_html.contains("bulkPluginAction"));
 
     // Verify all 8 built-in plugins are listed
-    assert!(plugins_html.contains("Neopress SEO &amp; Redirection Suite") || plugins_html.contains("Neopress SEO"));
-    assert!(plugins_html.contains("Neopress Forms Studio &amp; Lead Inbox") || plugins_html.contains("Neopress Forms"));
-    assert!(plugins_html.contains("Snapshot &amp; Hot Backup Manager") || plugins_html.contains("Snapshot"));
-    assert!(plugins_html.contains("Floating WhatsApp &amp; Lead Chat Button") || plugins_html.contains("WhatsApp"));
-    assert!(plugins_html.contains("WPCode Header, Footer &amp; Custom Snippets") || plugins_html.contains("WPCode"));
+    assert!(
+        plugins_html.contains("Neopress SEO &amp; Redirection Suite")
+            || plugins_html.contains("Neopress SEO")
+    );
+    assert!(
+        plugins_html.contains("Neopress Forms Studio &amp; Lead Inbox")
+            || plugins_html.contains("Neopress Forms")
+    );
+    assert!(
+        plugins_html.contains("Snapshot &amp; Hot Backup Manager")
+            || plugins_html.contains("Snapshot")
+    );
+    assert!(
+        plugins_html.contains("Floating WhatsApp &amp; Lead Chat Button")
+            || plugins_html.contains("WhatsApp")
+    );
+    assert!(
+        plugins_html.contains("WPCode Header, Footer &amp; Custom Snippets")
+            || plugins_html.contains("WPCode")
+    );
     assert!(plugins_html.contains("Neopress WAL Optimizer"));
     assert!(plugins_html.contains("WebP Image Engine"));
     assert!(plugins_html.contains("WXR Streaming XML"));
@@ -1920,16 +1992,17 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     // Verify forms shortcode expansion works out of the box because neopress-forms is active
     let sample_content = "Please reach out to us: [contact-form-7 id=\"1\" title=\"Contact\"]";
     let settings = db.get_settings().unwrap();
-    let expanded = neopress_server::plugins::expand_shortcodes_in_content(sample_content, &db, &settings);
+    let expanded =
+        neopress_server::plugins::expand_shortcodes_in_content(sample_content, &db, &settings);
     assert!(expanded.contains("np-native-form-card") || expanded.contains("np-form-"));
 
-    // 2. Add Plugins page (/n-admin/plugin-install.php) loads cleanly with curated extensions
+    // 2. Add Plugins page (/n-admin/plugin-install) loads cleanly with curated extensions
     let install_page_res = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/plugin-install.php")
-                .header("Cookie", "neopress_admin=1")
+                .uri("/n-admin/plugin-install")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1956,7 +2029,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/plugins")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -1979,7 +2052,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/plugins")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -2002,7 +2075,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/plugins")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -2025,7 +2098,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
             Request::builder()
                 .method("POST")
                 .uri("/n-admin/api/plugin-install")
-                .header("Cookie", "neopress_admin=1")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -2053,8 +2126,8 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/n-admin/plugins.php")
-                .header("Cookie", "neopress_admin=1")
+                .uri("/n-admin/plugins")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )

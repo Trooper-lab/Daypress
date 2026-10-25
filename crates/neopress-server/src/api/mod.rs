@@ -185,7 +185,10 @@ pub fn api_routes() -> Router<Database> {
                 .patch(update_comment_handler)
                 .delete(delete_comment_handler),
         )
-        .route("/wp/v2/menus", get(get_menus_handler).post(save_menus_handler))
+        .route(
+            "/wp/v2/menus",
+            get(get_menus_handler).post(save_menus_handler),
+        )
         .route(
             "/wp/v2/widgets",
             get(get_widgets_handler).post(save_widgets_handler),

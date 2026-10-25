@@ -94,7 +94,8 @@ fn test_builder_view_rendered_cad_dock_and_containment_invariants() {
     settings.custom_css = r#"
         :root { --accent: #2563eb; }
         body { background: #fafafa; }
-    "#.to_string();
+    "#
+    .to_string();
 
     let post = db
         .create_post(&CreatePostRequest {
@@ -139,7 +140,8 @@ fn test_builder_view_rendered_cad_dock_and_containment_invariants() {
 
     // 3. Studio Chrome Isolation Reset
     assert!(
-        builder_html.contains("#neostudio-shell *:not(#neostudio-artboard):not(#neostudio-artboard *) {"),
+        builder_html
+            .contains("#neostudio-shell *:not(#neostudio-artboard):not(#neostudio-artboard *) {"),
         "Shell must have chrome isolation reset"
     );
 
@@ -162,11 +164,23 @@ fn test_builder_view_rendered_cad_dock_and_containment_invariants() {
     );
 
     // 5. Flanking Resize Handles Placement Outside Artboard
-    let left_h = builder_html.find("id=\"handle-artboard-left\"").expect("handle-artboard-left");
-    let artboard = builder_html.find("id=\"neostudio-artboard\"").expect("neostudio-artboard");
-    let right_h = builder_html.find("id=\"handle-artboard-right\"").expect("handle-artboard-right");
-    assert!(left_h < artboard, "Left resize handle must precede artboard");
-    assert!(artboard < right_h, "Right resize handle must follow artboard");
+    let left_h = builder_html
+        .find("id=\"handle-artboard-left\"")
+        .expect("handle-artboard-left");
+    let artboard = builder_html
+        .find("id=\"neostudio-artboard\"")
+        .expect("neostudio-artboard");
+    let right_h = builder_html
+        .find("id=\"handle-artboard-right\"")
+        .expect("handle-artboard-right");
+    assert!(
+        left_h < artboard,
+        "Left resize handle must precede artboard"
+    );
+    assert!(
+        artboard < right_h,
+        "Right resize handle must follow artboard"
+    );
 
     // 6. Theme CSS Scoping in Builder <head>
     assert!(

@@ -35,7 +35,10 @@ pub trait ContentUseCase: Send + Sync {
 
 /// Input port for 1-Click WordPress Migration & WXR XML interchange.
 pub trait MigrationUseCase: Send + Sync {
-    fn migrate_wordpress_bundle(&self, bundle: ImportBundleRequest) -> DomainResult<ImportBundleResponse>;
+    fn migrate_wordpress_bundle(
+        &self,
+        bundle: ImportBundleRequest,
+    ) -> DomainResult<ImportBundleResponse>;
     fn migrate_wxr_xml(&self, xml_bytes: &[u8]) -> DomainResult<WxrImportResponse>;
     fn export_site_wxr(&self) -> DomainResult<String>;
 }

@@ -88,7 +88,10 @@ pub fn render_head_meta(
             post.link.clone()
         };
         if !can_url.is_empty() {
-            format!(r#"<link rel="canonical" href="{}" />"#, escape_html(&can_url))
+            format!(
+                r#"<link rel="canonical" href="{}" />"#,
+                escape_html(&can_url)
+            )
         } else {
             String::new()
         }

@@ -27,7 +27,9 @@ use crate::importer::ast_pass::execute_ast_pass2;
 use crate::importer::forms::ingest_forms_and_spb;
 use crate::importer::menus::ingest_nav_menus;
 use crate::importer::posts::ingest_posts_pass1;
-use crate::importer::templates::{build_universal_theme_footer_html, build_universal_theme_header_html};
+use crate::importer::templates::{
+    build_universal_theme_footer_html, build_universal_theme_header_html,
+};
 use crate::importer::terms::ingest_terms;
 use crate::importer::urls::remap_post_thumbnails;
 use crate::importer::xml_stream::parse_wxr_stream;
@@ -179,7 +181,8 @@ pub fn import_wxr_stream<R: BufRead>(
     }
 
     // Persist sticky posts array to wp_options
-    let sticky_json = serde_json::to_string(&pass1.sticky_post_ids).unwrap_or_else(|_| "[]".to_string());
+    let sticky_json =
+        serde_json::to_string(&pass1.sticky_post_ids).unwrap_or_else(|_| "[]".to_string());
     let _ = tx.execute(
         "INSERT INTO wp_options (option_name, option_value) VALUES ('sticky_posts', ?1) \
          ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
@@ -235,7 +238,10 @@ pub fn import_wxr_stream<R: BufRead>(
     }
 
     // 6. Global CSS & Assets Manifest
-    if ast_res.has_divi_content || !accumulated_custom_css.trim().is_empty() || !spb_services.is_empty() {
+    if ast_res.has_divi_content
+        || !accumulated_custom_css.trim().is_empty()
+        || !spb_services.is_empty()
+    {
         let combined_css = build_divi_global_css(
             &enqueued_google_fonts,
             &accumulated_custom_css,

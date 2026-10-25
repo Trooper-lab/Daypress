@@ -692,7 +692,8 @@ pub fn converge_plugin_options(
         cfg.insert("body_top_html".to_string(), body_code);
         cfg.insert("footer_html".to_string(), footer_code);
         let _ = activate_builtin_plugin_tx(tx, "code-snippets", Some(&cfg));
-        converged_list.push("Insert Headers & Footers / WPCode -> Neopress Code Snippets".to_string());
+        converged_list
+            .push("Insert Headers & Footers / WPCode -> Neopress Code Snippets".to_string());
     }
 
     // 4. Simple 301 Redirects (`301_redirects`) or RankMath / Redirection rules in `plugin_options`
@@ -717,7 +718,9 @@ pub fn converge_plugin_options(
             }
         }
         if count > 0 {
-            converged_list.push(format!("Simple 301 Redirects ({count} rules) -> Neopress Redirect Manager"));
+            converged_list.push(format!(
+                "Simple 301 Redirects ({count} rules) -> Neopress Redirect Manager"
+            ));
         }
     }
 

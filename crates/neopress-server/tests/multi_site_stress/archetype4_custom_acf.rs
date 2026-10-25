@@ -1,6 +1,8 @@
 //! Archetype 4: Custom PHP + ACF + CPT Theme (NORTHWIND) Ingestion & SSR Parity.
 
-use super::common::{assert_zero_comment_leaks, body_to_string, load_fixture_or_fallback, setup_test_db};
+use super::common::{
+    assert_zero_comment_leaks, body_to_string, load_fixture_or_fallback, setup_test_db,
+};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use neopress_server::create_app;
@@ -89,14 +91,31 @@ pub async fn run_test() {
         FALLBACK_CUSTOM_ACF_WXR,
     );
 
-    let res = db.import_wxr(Cursor::new(xml_data)).expect("NORTHWIND WXR import failed");
-    assert!(res.imported_posts >= 3, "Expected imported posts for NORTHWIND");
+    let res = db
+        .import_wxr(Cursor::new(xml_data))
+        .expect("NORTHWIND WXR import failed");
+    assert!(
+        res.imported_posts >= 3,
+        "Expected imported posts for NORTHWIND"
+    );
 
     // 1. Dynamic CPT Discovery Assertions (all 7 CPTs)
-    let cpts = ["trainingen", "vacatures", "cases", "kandidaten", "faq", "quotes", "logo"];
+    let cpts = [
+        "trainingen",
+        "vacatures",
+        "cases",
+        "kandidaten",
+        "faq",
+        "quotes",
+        "logo",
+    ];
     for cpt in &cpts {
         let items = db.get_posts(cpt, None, None, 10).unwrap_or_default();
-        assert!(!items.is_empty(), "CPT '{}' items must be dynamically discovered in SQLite", cpt);
+        assert!(
+            !items.is_empty(),
+            "CPT '{}' items must be dynamically discovered in SQLite",
+            cpt
+        );
     }
 
     // 2. ACF Custom Fields in wp_postmeta
@@ -115,22 +134,44 @@ pub async fn run_test() {
     for route in ["/trainingen/", "/vacatures/", "/cases/"] {
         let req = Request::builder().uri(route).body(Body::empty()).unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK, "Archive route {} failed", route);
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "Archive route {} failed",
+            route
+        );
         let html = body_to_string(resp).await;
 
         assert_zero_comment_leaks(&html, route);
-        assert!(!html.contains(r#"{"theme_slug":"#), "Raw JSON must not leak into SSR for {}", route);
+        assert!(
+            !html.contains(r#"{"theme_slug":"#),
+            "Raw JSON must not leak into SSR for {}",
+            route
+        );
     }
 
     // 4. Single CPT Route & Diagonal/Swiper Markup SSR
     let single_route = format!("/trainingen/{}/", target_post.slug);
-    let req = Request::builder().uri(&single_route).body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri(&single_route)
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK, "Single CPT route {} failed", single_route);
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "Single CPT route {} failed",
+        single_route
+    );
     let html = body_to_string(resp).await;
 
     assert_zero_comment_leaks(&html, &single_route);
-    assert!(html.contains(&target_post.title.rendered), "Single CPT title must be rendered");
-    assert!(html.contains("diagonal-section") || html.contains("swiper") || html.contains("content"),
-            "Expected diagonal/swiper or rich content in single CPT HTML");
+    assert!(
+        html.contains(&target_post.title.rendered),
+        "Single CPT title must be rendered"
+    );
+    assert!(
+        html.contains("diagonal-section") || html.contains("swiper") || html.contains("content"),
+        "Expected diagonal/swiper or rich content in single CPT HTML"
+    );
 }

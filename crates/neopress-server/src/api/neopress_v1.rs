@@ -1,6 +1,7 @@
 //! Neopress V1 Native REST Extensions (`/wp-json/neopress/v1/*`: 1-Click Import, WXR, Visual Layout AST, Forms, Analytics, Email).
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::AuthUser;
 use crate::db::Database;
 use crate::errors::AppError;
@@ -18,8 +19,6 @@ use serde_json::Value;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
-use super::*;
-
 
 pub(crate) fn normalize_import_bundle_payload(raw: Value) -> Result<ImportBundleRequest, AppError> {
     // 0. Unwrap `{ "success": true, "data": { ... } }` or `{ "data": { ... } }` if present
@@ -27,7 +26,11 @@ pub(crate) fn normalize_import_bundle_payload(raw: Value) -> Result<ImportBundle
     if let Some(obj) = normalized.as_object() {
         if obj.contains_key("data") {
             if let Some(inner) = obj.get("data") {
-                if inner.is_object() && (inner.get("posts").is_some() || inner.get("site_settings").is_some() || inner.get("pages").is_some()) {
+                if inner.is_object()
+                    && (inner.get("posts").is_some()
+                        || inner.get("site_settings").is_some()
+                        || inner.get("pages").is_some())
+                {
                     normalized = inner.clone();
                 }
             }
@@ -130,7 +133,7 @@ pub(crate) fn normalize_import_bundle_payload(raw: Value) -> Result<ImportBundle
 }
 
 pub(crate) async fn import_bundle(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     body: axum::body::Bytes,
 ) -> Result<Json<ImportBundleResponse>, AppError> {
@@ -144,7 +147,7 @@ pub(crate) async fn import_bundle(
 // --- Streaming WXR XML Ingestion Endpoint ---
 
 pub(crate) async fn import_wxr_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     request: Request,
 ) -> Result<Json<WxrImportResponse>, AppError> {
@@ -193,9 +196,16 @@ pub(crate) async fn import_wxr_handler(
 // --- Visual Page Builder Layout API (Hybrid Wasm & JSON Layout Schema) ---
 
 pub(crate) async fn get_layout_handler(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    // Layouts of unpublished posts are only readable by content editors.
+    if let Some(post) = db.get_post_by_id(id)? {
+        if !crate::auth::can_view_status(&post.status, user.as_ref()) {
+            return Err(AppError::NotFound(format!("Post {} not found", id)));
+        }
+    }
     let layout_opt = db.get_post_layout(id)?;
     match layout_opt {
         Some(layout_str) => {
@@ -236,7 +246,7 @@ pub(crate) async fn get_layout_handler(
 }
 
 pub(crate) async fn save_layout_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<NeopressLayoutPayload>,
@@ -284,7 +294,7 @@ pub(crate) async fn save_layout_handler(
 }
 
 pub(crate) async fn delete_layout_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -298,7 +308,7 @@ pub(crate) async fn delete_layout_handler(
 }
 
 pub(crate) async fn duplicate_post_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<WpPostResponse>, AppError> {
@@ -466,7 +476,7 @@ pub(crate) async fn record_analytics_event_handler(
 }
 
 pub(crate) async fn get_analytics_summary_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<AnalyticsSummary>, AppError> {
     let summary = db.get_analytics_summary()?;
@@ -476,7 +486,7 @@ pub(crate) async fn get_analytics_summary_handler(
 // --- Native Subsystems: Transactional Email Handler ---
 
 pub(crate) async fn send_email_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<crate::email::EmailMessage>,
 ) -> Result<Json<Value>, AppError> {

@@ -2,6 +2,8 @@
 
 pub const JS_API_CLIENT: &str = r###"
 (function() {
+    const restNonce = () => (window.wpApiSettings && window.wpApiSettings.nonce) || "";
+
     window.StudioApi = {
         // -------------------------------------------------------------
         // LAYOUT PERSISTENCE (ZERO MOCK / SQLITE DUAL-WRITE)
@@ -42,7 +44,7 @@ pub const JS_API_CLIENT: &str = r###"
                     method: targetMethod,
                     headers: {
                         "Content-Type": "application/json",
-                        "X-WP-Nonce": "wp_rest_admin"
+                        "X-WP-Nonce": restNonce()
                     },
                     credentials: "include",
                     body: JSON.stringify(bodyPayload)
@@ -92,7 +94,7 @@ pub const JS_API_CLIENT: &str = r###"
         async createTemplate(payload) {
             const res = await fetch("/wp-json/neopress/v1/templates", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-WP-Nonce": "wp_rest_admin" },
+                headers: { "Content-Type": "application/json", "X-WP-Nonce": restNonce() },
                 credentials: "include",
                 body: JSON.stringify(payload)
             });
@@ -103,7 +105,7 @@ pub const JS_API_CLIENT: &str = r###"
         async updateTemplate(id, payload) {
             const res = await fetch(`/wp-json/neopress/v1/templates/${id}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-WP-Nonce": "wp_rest_admin" },
+                headers: { "Content-Type": "application/json", "X-WP-Nonce": restNonce() },
                 credentials: "include",
                 body: JSON.stringify(payload)
             });
@@ -114,7 +116,7 @@ pub const JS_API_CLIENT: &str = r###"
         async deleteTemplate(id) {
             const res = await fetch(`/wp-json/neopress/v1/templates/${id}?force=true`, {
                 method: "DELETE",
-                headers: { "X-WP-Nonce": "wp_rest_admin" },
+                headers: { "X-WP-Nonce": restNonce() },
                 credentials: "include"
             });
             if (!res.ok) throw new Error("Failed to delete template");
@@ -130,7 +132,7 @@ pub const JS_API_CLIENT: &str = r###"
         async setConditions(id, conditions) {
             const res = await fetch(`/wp-json/neopress/v1/templates/${id}/conditions`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-WP-Nonce": "wp_rest_admin" },
+                headers: { "Content-Type": "application/json", "X-WP-Nonce": restNonce() },
                 credentials: "include",
                 body: JSON.stringify({ conditions })
             });
@@ -147,7 +149,7 @@ pub const JS_API_CLIENT: &str = r###"
         async installStarter(starterId, title) {
             const res = await fetch("/wp-json/neopress/v1/templates/starter", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-WP-Nonce": "wp_rest_admin" },
+                headers: { "Content-Type": "application/json", "X-WP-Nonce": restNonce() },
                 credentials: "include",
                 body: JSON.stringify({ starter_id: starterId, title: title || "Starter Template" })
             });
@@ -178,7 +180,7 @@ pub const JS_API_CLIENT: &str = r###"
         async createQuickPage(title) {
             const res = await fetch("/wp-json/wp/v2/pages", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-WP-Nonce": "wp_rest_admin" },
+                headers: { "Content-Type": "application/json", "X-WP-Nonce": restNonce() },
                 credentials: "include",
                 body: JSON.stringify({ title: title || "New Page", status: "publish" })
             });

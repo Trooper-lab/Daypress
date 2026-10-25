@@ -1,7 +1,7 @@
 //! Adversarial Challenger Stress Tests for Milestone 3 (NeoStudio Visual Builder UI & Persistence).
 //!
 //! Evaluates:
-//! 1. SQLite dual-write persistence & nonce auth (`X-WP-Nonce: wp_rest_admin`) to `wp_posts` and `wp_postmeta`.
+//! 1. SQLite dual-write persistence & authenticated writes to `wp_posts` and `wp_postmeta`.
 //! 2. Zero-mock verification in client API scripts (ensuring no toast-only persistence stubs).
 //! 3. DOM leak firewall stripping 100% of builder chrome attributes.
 //! 4. Navigator hierarchy, drag-and-drop reordering, and cycle prevention.
@@ -85,7 +85,7 @@ async fn test_adversarial_sqlite_persistence_dual_write_and_nonce_auth() {
                 .method("POST")
                 .uri(format!("/wp-json/neopress/v1/layout/{}", post_id))
                 .header("Content-Type", "application/json")
-                .header("X-WP-Nonce", "wp_rest_admin")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::from(complex_ast.to_string()))
                 .unwrap(),
         )
@@ -95,7 +95,7 @@ async fn test_adversarial_sqlite_persistence_dual_write_and_nonce_auth() {
     assert_eq!(
         res.status(),
         StatusCode::OK,
-        "POST /layout/:id with X-WP-Nonce: wp_rest_admin must authenticate and return 200 OK"
+        "POST /layout/:id with valid credentials must authenticate and return 200 OK"
     );
 
     // 2. Direct SQLite verification on `wp_posts`:
@@ -121,7 +121,9 @@ async fn test_adversarial_sqlite_persistence_dual_write_and_nonce_auth() {
 
     let content_str = &post.content.rendered;
     assert!(
-        content_str.contains("<section") || content_str.contains("np-section") || content_str.contains("np-price-card"),
+        content_str.contains("<section")
+            || content_str.contains("np-section")
+            || content_str.contains("np-price-card"),
         "wp_posts.post_content must contain compiled semantic HTML from SSR pipeline"
     );
 
@@ -167,7 +169,7 @@ async fn test_adversarial_sqlite_persistence_dual_write_and_nonce_auth() {
                 .method("PUT")
                 .uri(format!("/wp-json/neopress/v1/templates/{}", created_tpl.id))
                 .header("Content-Type", "application/json")
-                .header("X-WP-Nonce", "wp_rest_admin")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::from(update_payload.to_string()))
                 .unwrap(),
         )
@@ -207,8 +209,10 @@ fn test_adversarial_zero_mock_persistence_in_scripts() {
         "saveLayout must target /wp-json/neopress/v1/templates/:id"
     );
     assert!(
-        JS_API_CLIENT.contains("\"X-WP-Nonce\": \"wp_rest_admin\""),
-        "saveLayout must include authenticating X-WP-Nonce"
+        JS_API_CLIENT.contains("\"X-WP-Nonce\": restNonce()")
+            && JS_API_CLIENT.contains("credentials: \"include\"")
+            && !JS_API_CLIENT.contains("wp_rest_admin"),
+        "StudioApi must send the session cookie and the per-session REST nonce, never a hardcoded one"
     );
     assert!(
         JS_API_CLIENT.contains("async createTemplate("),
@@ -259,20 +263,56 @@ fn test_adversarial_dom_leak_firewall_all_chrome_variants() {
     assert!(clean.contains("np-heading"));
 
     // Verify 100% of builder chrome is stripped
-    assert!(!clean.contains("contenteditable"), "contenteditable must be stripped");
-    assert!(!clean.contains("CONTENTEDITABLE"), "CONTENTEDITABLE must be stripped");
+    assert!(
+        !clean.contains("contenteditable"),
+        "contenteditable must be stripped"
+    );
+    assert!(
+        !clean.contains("CONTENTEDITABLE"),
+        "CONTENTEDITABLE must be stripped"
+    );
     assert!(!clean.contains("draggable"), "draggable must be stripped");
     assert!(!clean.contains("DRAGGABLE"), "DRAGGABLE must be stripped");
-    assert!(!clean.contains("elementor-grid-handle"), "elementor-grid-handle must be stripped");
-    assert!(!clean.contains("neostudio-grid-handle"), "neostudio-grid-handle must be stripped");
-    assert!(!clean.contains("neostudio-selection-outline"), "neostudio-selection-outline must be stripped");
-    assert!(!clean.contains("neostudio-node"), "neostudio-node must be stripped");
-    assert!(!clean.contains("neostudio-handle"), "neostudio-handle must be stripped");
-    assert!(!clean.contains("data-neostudio"), "data-neostudio must be stripped");
-    assert!(!clean.contains("data-drag-handle"), "data-drag-handle must be stripped");
-    assert!(!clean.contains("data-model-cid"), "data-model-cid must be stripped");
-    assert!(!clean.contains("data-elementor"), "data-elementor must be stripped");
-    assert!(!clean.contains("class=\"\""), "Empty class attribute must be cleaned");
+    assert!(
+        !clean.contains("elementor-grid-handle"),
+        "elementor-grid-handle must be stripped"
+    );
+    assert!(
+        !clean.contains("neostudio-grid-handle"),
+        "neostudio-grid-handle must be stripped"
+    );
+    assert!(
+        !clean.contains("neostudio-selection-outline"),
+        "neostudio-selection-outline must be stripped"
+    );
+    assert!(
+        !clean.contains("neostudio-node"),
+        "neostudio-node must be stripped"
+    );
+    assert!(
+        !clean.contains("neostudio-handle"),
+        "neostudio-handle must be stripped"
+    );
+    assert!(
+        !clean.contains("data-neostudio"),
+        "data-neostudio must be stripped"
+    );
+    assert!(
+        !clean.contains("data-drag-handle"),
+        "data-drag-handle must be stripped"
+    );
+    assert!(
+        !clean.contains("data-model-cid"),
+        "data-model-cid must be stripped"
+    );
+    assert!(
+        !clean.contains("data-elementor"),
+        "data-elementor must be stripped"
+    );
+    assert!(
+        !clean.contains("class=\"\""),
+        "Empty class attribute must be cleaned"
+    );
 }
 
 #[test]
@@ -282,9 +322,8 @@ fn test_adversarial_navigator_tree_reorder_and_cycle_prevention() {
     let has_reorder_fn = JS_NAVIGATOR.contains("moveNode") || JS_NAVIGATOR.contains("reorder");
 
     // 2. Check if cycle prevention is hooked up to tree reordering
-    let has_cycle_prevention = JS_CORE_STATE.contains("isDescendant") && (
-        JS_NAVIGATOR.contains("isDescendant") || JS_NAVIGATOR.contains("preventCycle")
-    );
+    let has_cycle_prevention = JS_CORE_STATE.contains("isDescendant")
+        && (JS_NAVIGATOR.contains("isDescendant") || JS_NAVIGATOR.contains("preventCycle"));
 
     println!(
         "Navigator Audit: has_draggable={}, has_reorder_fn={}, has_cycle_prevention={}",
@@ -312,17 +351,39 @@ fn test_adversarial_navigator_tree_reorder_and_cycle_prevention() {
 fn test_adversarial_pro_blocks_renderers_zero_cube_placeholders() {
     // 1. Verify coordinator registers all 26 widget types and delegates to modular submodules
     let pro_types = [
-        "PriceCard", "PriceTable", "CallToAction", "Testimonial", "TestimonialCarousel",
-        "Countdown", "FlipBox", "AnimatedHeadline", "StarRating", "ProgressBar",
-        "Alert", "Counter", "Benchmark", "SocialIcons", "ShareButtons",
-        "NavMenu", "MegaMenuContainer", "PopupModal", "LoopGrid", "TableOfContents",
-        "Breadcrumbs", "SearchForm", "LoginForm", "NativeForm", "Accordion", "Tabs"
+        "PriceCard",
+        "PriceTable",
+        "CallToAction",
+        "Testimonial",
+        "TestimonialCarousel",
+        "Countdown",
+        "FlipBox",
+        "AnimatedHeadline",
+        "StarRating",
+        "ProgressBar",
+        "Alert",
+        "Counter",
+        "Benchmark",
+        "SocialIcons",
+        "ShareButtons",
+        "NavMenu",
+        "MegaMenuContainer",
+        "PopupModal",
+        "LoopGrid",
+        "TableOfContents",
+        "Breadcrumbs",
+        "SearchForm",
+        "LoginForm",
+        "NativeForm",
+        "Accordion",
+        "Tabs",
     ];
 
     for pt in &pro_types {
         assert!(
             JS_CANVAS_PRO_WIDGETS.contains(pt),
-            "JS_CANVAS_PRO_WIDGETS must register '{}'", pt
+            "JS_CANVAS_PRO_WIDGETS must register '{}'",
+            pt
         );
     }
 
@@ -335,36 +396,60 @@ fn test_adversarial_pro_blocks_renderers_zero_cube_placeholders() {
 
     // 2. Commercial blocks in JS_CANVAS_PRO_COMMERCIAL
     let commercial = [
-        "PriceCard", "PriceTable", "CallToAction", "Countdown", "FlipBox",
-        "AnimatedHeadline", "StarRating", "ProgressBar", "Alert", "Counter", "Benchmark"
+        "PriceCard",
+        "PriceTable",
+        "CallToAction",
+        "Countdown",
+        "FlipBox",
+        "AnimatedHeadline",
+        "StarRating",
+        "ProgressBar",
+        "Alert",
+        "Counter",
+        "Benchmark",
     ];
     for b in &commercial {
         assert!(
             JS_CANVAS_PRO_COMMERCIAL.contains(&format!("case \"{}\":", b)),
-            "JS_CANVAS_PRO_COMMERCIAL must implement case '{}'", b
+            "JS_CANVAS_PRO_COMMERCIAL must implement case '{}'",
+            b
         );
     }
 
     // 3. Interactive blocks in JS_CANVAS_PRO_INTERACTIVE
     let interactive = [
-        "Testimonial", "TestimonialCarousel", "SocialIcons", "ShareButtons", "Accordion", "Tabs"
+        "Testimonial",
+        "TestimonialCarousel",
+        "SocialIcons",
+        "ShareButtons",
+        "Accordion",
+        "Tabs",
     ];
     for b in &interactive {
         assert!(
             JS_CANVAS_PRO_INTERACTIVE.contains(&format!("case \"{}\":", b)),
-            "JS_CANVAS_PRO_INTERACTIVE must implement case '{}'", b
+            "JS_CANVAS_PRO_INTERACTIVE must implement case '{}'",
+            b
         );
     }
 
     // 4. Dynamic blocks in JS_CANVAS_PRO_DYNAMIC
     let dynamic = [
-        "NavMenu", "LoopGrid", "NativeForm", "LoginForm", "SearchForm",
-        "Breadcrumbs", "TableOfContents", "MegaMenuContainer", "PopupModal"
+        "NavMenu",
+        "LoopGrid",
+        "NativeForm",
+        "LoginForm",
+        "SearchForm",
+        "Breadcrumbs",
+        "TableOfContents",
+        "MegaMenuContainer",
+        "PopupModal",
     ];
     for b in &dynamic {
         assert!(
             JS_CANVAS_PRO_DYNAMIC.contains(&format!("case \"{}\":", b)),
-            "JS_CANVAS_PRO_DYNAMIC must implement case '{}'", b
+            "JS_CANVAS_PRO_DYNAMIC must implement case '{}'",
+            b
         );
     }
 }

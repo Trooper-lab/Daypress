@@ -105,9 +105,22 @@ cargo run -p neopress-server --bin neopress
 
 - **🌐 Public Website**: [http://localhost:8090/](http://localhost:8090/)
 - **⚙️ Admin Dashboard**: [http://localhost:8090/n-admin/](http://localhost:8090/n-admin/) (or `/wp-admin/`)
-- **🎨 Visual Studio Builder**: [http://localhost:8090/n-admin/builder.php](http://localhost:8090/n-admin/builder.php)
+- **🎨 Visual Studio Builder**: [http://localhost:8090/n-admin/builder](http://localhost:8090/n-admin/builder)
 - **📡 WordPress REST API v2**: [http://localhost:8090/wp-json/](http://localhost:8090/wp-json/)
-- **🤖 Claude MCP HTTP Endpoint**: `POST http://localhost:8090/mcp` (or `POST http://localhost:8090/wp-json/neopress/v1/mcp`)
+- **🤖 Claude MCP HTTP Endpoint**: `POST http://localhost:8090/mcp` (or `POST http://localhost:8090/wp-json/neopress/v1/mcp`; requires an administrator session, Basic application password, or JWT)
+
+### 3. First Login
+
+There is no default password. On first start Neopress creates an `admin` account and prints a
+generated password **once** to the console (stderr):
+
+```text
+🔐 Generated a password for 'admin' (shown only once):
+   <generated-password>
+```
+
+Log in at [http://localhost:8090/login](http://localhost:8090/login) and change it under **Users → Profile**.
+To choose the initial password yourself (e.g. in Docker or CI), set `NEOPRESS_ADMIN_PASSWORD` before the first start.
 
 ---
 

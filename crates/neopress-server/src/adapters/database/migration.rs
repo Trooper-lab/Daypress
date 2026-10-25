@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -46,7 +46,10 @@ impl Database {
         out
     }
 
-    fn normalize_source_menu_url(url: &str, post_id_map: & std::collections::HashMap<i64, i64>) -> String {
+    fn normalize_source_menu_url(
+        url: &str,
+        post_id_map: &std::collections::HashMap<i64, i64>,
+    ) -> String {
         let trimmed = url.trim();
         if trimmed.is_empty() {
             return "/".to_string();
@@ -164,12 +167,26 @@ impl Database {
 
             if let Some(hdr) = &tm.header_html {
                 if !hdr.trim().is_empty() {
-                    let _ = crate::importer::templates::upsert_theme_template(&tx, "Theme Header", "header", hdr, None, 100);
+                    let _ = crate::importer::templates::upsert_theme_template(
+                        &tx,
+                        "Theme Header",
+                        "header",
+                        hdr,
+                        None,
+                        100,
+                    );
                 }
             }
             if let Some(ftr) = &tm.footer_html {
                 if !ftr.trim().is_empty() {
-                    let _ = crate::importer::templates::upsert_theme_template(&tx, "Theme Footer", "footer", ftr, None, 100);
+                    let _ = crate::importer::templates::upsert_theme_template(
+                        &tx,
+                        "Theme Footer",
+                        "footer",
+                        ftr,
+                        None,
+                        100,
+                    );
                 }
             }
         }
@@ -201,7 +218,10 @@ impl Database {
             } else {
                 u.role.trim()
             };
-            let placeholder_pass = crate::auth::hash_user_password("changeme");
+            // WordPress hashes are not carried over; imported accounts get an unknown random
+            // password until an administrator sets one for them.
+            let placeholder_pass =
+                crate::auth::hash_user_password(&crate::auth::generate_random_password());
 
             tx.execute(
                 r#"INSERT OR IGNORE INTO wp_users (user_login, user_pass, user_nicename, user_email, user_url, user_registered, display_name)
@@ -491,10 +511,8 @@ impl Database {
         // 4b. Pre-import explicit forms from bundle (`req.forms`) and any CF7/WPForms custom post types in `req.posts`
         for f in &req.forms {
             let (fields, mut settings) = if let Some(ref sj) = f.schema_json {
-                let parsed_fields: Vec<FormFieldSchema> =
-                    serde_json::from_value(sj.clone()).unwrap_or_else(|_| {
-                        crate::convergence::default_contact_fields()
-                    });
+                let parsed_fields: Vec<FormFieldSchema> = serde_json::from_value(sj.clone())
+                    .unwrap_or_else(|_| crate::convergence::default_contact_fields());
                 (parsed_fields, FormSettings::default())
             } else {
                 let mut meta = std::collections::HashMap::new();
@@ -1106,11 +1124,7 @@ impl Database {
                 crate::convergence::converge_plugin_options(&tx, &req.plugin_options);
             converged_plugins.append(&mut from_opts);
         }
-        if seo_meta_converged
-            && !converged_plugins
-                .iter()
-                .any(|c| c.contains("SEO Toolkit"))
-        {
+        if seo_meta_converged && !converged_plugins.iter().any(|c| c.contains("SEO Toolkit")) {
             let _ = crate::convergence::activate_builtin_plugin_tx(&tx, "neopress-seo", None);
             converged_plugins.push("Post SEO Metadata -> Neopress SEO Toolkit".to_string());
         }
@@ -1232,7 +1246,8 @@ impl crate::ports::output::MigrationRepository for Database {
     }
 
     fn export_wxr_xml(&self) -> DomainResult<String> {
-        self.export_wxr().map_err(|e| DomainError::Storage(e.to_string()))
+        self.export_wxr()
+            .map_err(|e| DomainError::Storage(e.to_string()))
     }
 }
 
@@ -1453,11 +1468,12 @@ mod tests {
         ));
         let db = Database::new(&db_path).expect("Database::new");
 
-        // Initial seeded admin accepts "admin" and rejects wrong password
+        // A fresh install never accepts the historical admin/admin default: the seeded admin
+        // receives a generated password on first start.
         assert!(db
             .verify_user_credentials("admin", "admin")
             .unwrap()
-            .is_some());
+            .is_none());
         assert!(db
             .verify_user_credentials("admin", "wrong-password")
             .unwrap()
@@ -1605,7 +1621,10 @@ mod tests {
             .expect("contact-us-converged");
         assert_eq!(migrated_page.seo_title, "Converged Yoast Title");
         assert_eq!(migrated_page.seo_keyword, "neopress migration");
-        assert!(migrated_page.content.rendered.contains("[neopress_form id=\""));
+        assert!(migrated_page
+            .content
+            .rendered
+            .contains("[neopress_form id=\""));
 
         // Expanding shortcodes renders the native form HTML
         let settings = db.get_settings().unwrap_or_default();

@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -12,7 +12,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 impl Database {
-    pub(crate) fn hydrate_post_relations(conn: &Connection, post: &mut WpPostResponse, base_url: &str) {
+    pub(crate) fn hydrate_post_relations(
+        conn: &Connection,
+        post: &mut WpPostResponse,
+        base_url: &str,
+    ) {
         let base_trimmed = base_url.trim_end_matches('/');
         post.link = if matches!(
             post.post_type.as_str(),
@@ -73,7 +77,9 @@ impl Database {
                 post.category_names = custom_tax_pairs.iter().map(|(_, n)| n.clone()).collect();
             } else if post.post_type == "post" {
                 let default_cat_name: String = conn
-                    .query_row("SELECT name FROM wp_terms WHERE term_id = 1", [], |r| r.get(0))
+                    .query_row("SELECT name FROM wp_terms WHERE term_id = 1", [], |r| {
+                        r.get(0)
+                    })
                     .unwrap_or_else(|_| "Uncategorized".to_string());
                 post.category_names = vec![default_cat_name];
             } else {
@@ -103,8 +109,11 @@ impl Database {
                     serde_json::Value::Bool(false)
                 } else if let Ok(n) = v.parse::<i64>() {
                     serde_json::Value::Number(n.into())
-                } else if (v.starts_with('{') && v.ends_with('}')) || (v.starts_with('[') && v.ends_with(']')) {
-                    serde_json::from_str::<serde_json::Value>(&v).unwrap_or_else(|_| serde_json::Value::String(v.clone()))
+                } else if (v.starts_with('{') && v.ends_with('}'))
+                    || (v.starts_with('[') && v.ends_with(']'))
+                {
+                    serde_json::from_str::<serde_json::Value>(&v)
+                        .unwrap_or_else(|_| serde_json::Value::String(v.clone()))
                 } else {
                     serde_json::Value::String(v)
                 };
@@ -112,7 +121,10 @@ impl Database {
             }
         }
         for (tax, label) in &custom_tax_pairs {
-            meta_obj.insert(format!("_tax_{}", tax), serde_json::Value::String(label.clone()));
+            meta_obj.insert(
+                format!("_tax_{}", tax),
+                serde_json::Value::String(label.clone()),
+            );
         }
         post.meta = serde_json::Value::Object(meta_obj);
 
@@ -223,11 +235,7 @@ impl Database {
                 |r| r.get(0),
             )
             .unwrap_or_else(|_| "Neopress".to_string());
-        crate::convergence::converge_post_seo_meta(
-            &mut seo_map,
-            &post.title.rendered,
-            &site_title,
-        );
+        crate::convergence::converge_post_seo_meta(&mut seo_map, &post.title.rendered, &site_title);
 
         post.seo_title = seo_map.remove("_neopress_seo_title").unwrap_or_default();
         post.seo_description = seo_map.remove("_neopress_seo_desc").unwrap_or_default();
@@ -364,7 +372,10 @@ impl Database {
         };
 
         let sql = if where_clause.is_empty() {
-            format!("{} ORDER BY is_sticky DESC, post_date DESC LIMIT ?", select_fields)
+            format!(
+                "{} ORDER BY is_sticky DESC, post_date DESC LIMIT ?",
+                select_fields
+            )
         } else {
             format!(
                 "{} {} ORDER BY is_sticky DESC, post_date DESC LIMIT ?",
@@ -448,31 +459,51 @@ impl Database {
                         .rendered
                         .to_lowercase()
                         .cmp(&b.title.rendered.to_lowercase());
-                    if is_asc { cmp } else { cmp.reverse() }
+                    if is_asc {
+                        cmp
+                    } else {
+                        cmp.reverse()
+                    }
                 });
             }
             Some("id") => {
                 filtered.sort_by(|a, b| {
                     let cmp = a.id.cmp(&b.id);
-                    if is_asc { cmp } else { cmp.reverse() }
+                    if is_asc {
+                        cmp
+                    } else {
+                        cmp.reverse()
+                    }
                 });
             }
             Some("slug") => {
                 filtered.sort_by(|a, b| {
                     let cmp = a.slug.cmp(&b.slug);
-                    if is_asc { cmp } else { cmp.reverse() }
+                    if is_asc {
+                        cmp
+                    } else {
+                        cmp.reverse()
+                    }
                 });
             }
             Some("modified") => {
                 filtered.sort_by(|a, b| {
                     let cmp = a.modified.cmp(&b.modified);
-                    if is_asc { cmp } else { cmp.reverse() }
+                    if is_asc {
+                        cmp
+                    } else {
+                        cmp.reverse()
+                    }
                 });
             }
             Some("menu_order") => {
                 filtered.sort_by(|a, b| {
                     let cmp = a.menu_order.cmp(&b.menu_order);
-                    if is_asc { cmp } else { cmp.reverse() }
+                    if is_asc {
+                        cmp
+                    } else {
+                        cmp.reverse()
+                    }
                 });
             }
             _ => {
@@ -616,13 +647,73 @@ impl Database {
         Ok(Some(post))
     }
 
+    /// Slugs that would be shadowed by a built-in route, so content can never claim them.
+    const RESERVED_SLUGS: [&'static str; 17] = [
+        "admin",
+        "author",
+        "category",
+        "feed",
+        "login",
+        "logout",
+        "n-admin",
+        "page",
+        "robots.txt",
+        "search",
+        "sitemap.xml",
+        "static",
+        "studio",
+        "tag",
+        "uploads",
+        "wp-admin",
+        "wp-json",
+    ];
+
+    /// Returns `desired` (or `untitled`) made unique across all routable content, appending
+    /// `-2`, `-3`, … like WordPress, since every post type shares the `/{slug}/` URL space.
+    pub(crate) fn unique_post_slug(
+        conn: &Connection,
+        desired: &str,
+        exclude_id: Option<i64>,
+    ) -> Result<String> {
+        let base = if desired.trim().is_empty() {
+            "untitled".to_string()
+        } else {
+            desired.trim().to_string()
+        };
+        let taken = |candidate: &str| -> Result<bool> {
+            if Self::RESERVED_SLUGS.contains(&candidate) {
+                return Ok(true);
+            }
+            conn.query_row(
+                "SELECT COUNT(*) FROM wp_posts WHERE post_name = ?1 AND ID <> ?2
+                   AND post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
+                   AND post_status <> 'trash'",
+                params![candidate, exclude_id.unwrap_or(-1)],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|n| n > 0)
+        };
+        if !taken(&base)? {
+            return Ok(base);
+        }
+        let mut n = 2;
+        loop {
+            let candidate = format!("{}-{}", base, n);
+            if !taken(&candidate)? {
+                return Ok(candidate);
+            }
+            n += 1;
+        }
+    }
+
     pub fn create_post(&self, req: &CreatePostRequest) -> Result<WpPostResponse> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let slug = match &req.slug {
-            Some(s) if !s.trim().is_empty() => s.trim().to_string(),
+        let desired = match &req.slug {
+            Some(s) if !s.trim().is_empty() => generated_slugify::slugify(s.trim()),
             _ => generated_slugify::slugify(&req.title),
         };
+        let slug = Self::unique_post_slug(&conn, &desired, None)?;
 
         let excerpt = req.excerpt.clone().unwrap_or_else(|| {
             if req.content.chars().count() > 140 {
@@ -668,7 +759,8 @@ impl Database {
             }
         }
 
-        let mut all_taxonomies: std::collections::HashMap<String, Vec<i64>> = req.taxonomies.clone().unwrap_or_default();
+        let mut all_taxonomies: std::collections::HashMap<String, Vec<i64>> =
+            req.taxonomies.clone().unwrap_or_default();
         if !req.categories.is_empty() && !all_taxonomies.contains_key("category") {
             all_taxonomies.insert("category".to_string(), req.categories.clone());
         }
@@ -693,7 +785,8 @@ impl Database {
         if let Some(serde_json::Value::Object(ref meta_map)) = req.meta {
             for (mk, mv) in meta_map {
                 let k = mk.trim();
-                if k.is_empty() || k.starts_with("_tax_") || k == "_neopress_layout" || mv.is_null() {
+                if k.is_empty() || k.starts_with("_tax_") || k == "_neopress_layout" || mv.is_null()
+                {
                     continue;
                 }
                 let val_str = match mv {
@@ -734,7 +827,12 @@ impl Database {
         }
 
         // Synchronize AST layout from post content (Gutenberg, Elementor, Divi)
-        let _ = super::post_ast::synchronize_post_ast_layout(&conn, id, &req.content, req.meta.as_ref());
+        let _ = super::post_ast::synchronize_post_ast_layout(
+            &conn,
+            id,
+            &req.content,
+            req.meta.as_ref(),
+        );
 
         drop(conn);
         Ok(self.get_post_by_id(id)?.unwrap())
@@ -787,9 +885,10 @@ impl Database {
                     .map(generated_slugify::slugify)
                     .unwrap_or_default()
             } else {
-                slug.trim().to_string()
+                generated_slugify::slugify(slug.trim())
             };
             if !clean_slug.is_empty() {
+                let clean_slug = Self::unique_post_slug(&tx, &clean_slug, Some(id))?;
                 tx.execute(
                     "UPDATE wp_posts SET post_name = ?1, post_modified = ?2 WHERE ID = ?3",
                     params![clean_slug, now, id],
@@ -799,8 +898,7 @@ impl Database {
                 if let Some((old_slug, old_status)) = old_slug_and_status {
                     if !old_slug.is_empty()
                         && old_slug != clean_slug
-                        && (old_status == "publish"
-                            || req.status.as_deref() == Some("publish"))
+                        && (old_status == "publish" || req.status.as_deref() == Some("publish"))
                     {
                         let auto_redir: bool = tx
                             .query_row(
@@ -869,7 +967,8 @@ impl Database {
                 let _ = tx.execute("INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (?1, '_thumbnail_id', ?2)", params![id, fm.to_string()]);
             }
         }
-        let mut all_taxonomies: std::collections::HashMap<String, Vec<i64>> = req.taxonomies.clone().unwrap_or_default();
+        let mut all_taxonomies: std::collections::HashMap<String, Vec<i64>> =
+            req.taxonomies.clone().unwrap_or_default();
         if let Some(cats) = &req.categories {
             if !all_taxonomies.contains_key("category") {
                 all_taxonomies.insert("category".to_string(), cats.clone());
@@ -963,7 +1062,8 @@ impl Database {
 
         // Keep `layout_json` / `_neopress_layout` synchronized when `post_content` is updated from the Post/Block Editor
         if let Some(ref content) = req.content {
-            let _ = super::post_ast::synchronize_post_ast_layout(&tx, id, content, req.meta.as_ref());
+            let _ =
+                super::post_ast::synchronize_post_ast_layout(&tx, id, content, req.meta.as_ref());
         }
 
         tx.commit()?;
@@ -1353,7 +1453,6 @@ impl Database {
         tx.commit()?;
         Ok(())
     }
-
 }
 
 impl crate::ports::output::PostRepository for Database {
@@ -1382,7 +1481,11 @@ impl crate::ports::output::PostRepository for Database {
         Database::create_post(self, req).map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn update_post(&self, id: i64, req: &UpdatePostRequest) -> DomainResult<Option<WpPostResponse>> {
+    fn update_post(
+        &self,
+        id: i64,
+        req: &UpdatePostRequest,
+    ) -> DomainResult<Option<WpPostResponse>> {
         Database::update_post(self, id, req).map_err(|e| DomainError::Storage(e.to_string()))
     }
 

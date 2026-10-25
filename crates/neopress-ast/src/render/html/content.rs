@@ -34,22 +34,24 @@ pub(crate) fn render_content(args: &RenderArgs) -> Option<String> {
                 title,
                 desc_html
             );
-            Some(if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
-                format!(
-                    "<a id=\"{}\" href=\"{}\" class=\"np-iconbox\"{}>\n{}\n</a>",
-                    escape_attr(&node.id),
-                    escape_attr(href),
-                    style_attr,
-                    inner
-                )
-            } else {
-                format!(
-                    "<div id=\"{}\" class=\"np-iconbox\"{}>\n{}\n</div>",
-                    escape_attr(&node.id),
-                    style_attr,
-                    inner
-                )
-            })
+            Some(
+                if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
+                    format!(
+                        "<a id=\"{}\" href=\"{}\" class=\"np-iconbox\"{}>\n{}\n</a>",
+                        escape_attr(&node.id),
+                        escape_attr(href),
+                        style_attr,
+                        inner
+                    )
+                } else {
+                    format!(
+                        "<div id=\"{}\" class=\"np-iconbox\"{}>\n{}\n</div>",
+                        escape_attr(&node.id),
+                        style_attr,
+                        inner
+                    )
+                },
+            )
         }
         NodeKind::ImageBox {
             image_url,
@@ -69,22 +71,24 @@ pub(crate) fn render_content(args: &RenderArgs) -> Option<String> {
                 title,
                 desc_html
             );
-            Some(if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
-                format!(
-                    "<a id=\"{}\" href=\"{}\" class=\"np-imagebox\"{}>\n{}\n</a>",
-                    escape_attr(&node.id),
-                    escape_attr(href),
-                    style_attr,
-                    inner
-                )
-            } else {
-                format!(
-                    "<div id=\"{}\" class=\"np-imagebox\"{}>\n{}\n</div>",
-                    escape_attr(&node.id),
-                    style_attr,
-                    inner
-                )
-            })
+            Some(
+                if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
+                    format!(
+                        "<a id=\"{}\" href=\"{}\" class=\"np-imagebox\"{}>\n{}\n</a>",
+                        escape_attr(&node.id),
+                        escape_attr(href),
+                        style_attr,
+                        inner
+                    )
+                } else {
+                    format!(
+                        "<div id=\"{}\" class=\"np-imagebox\"{}>\n{}\n</div>",
+                        escape_attr(&node.id),
+                        style_attr,
+                        inner
+                    )
+                },
+            )
         }
         NodeKind::IconList { items } => {
             let mut list_html = String::new();

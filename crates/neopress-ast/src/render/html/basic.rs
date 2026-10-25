@@ -62,15 +62,17 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
                 escape_attr(&cls),
                 style_attr
             );
-            Some(if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
-                format!(
-                    "<a href=\"{}\" class=\"np-image-link\">{}</a>",
-                    escape_attr(href),
+            Some(
+                if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
+                    format!(
+                        "<a href=\"{}\" class=\"np-image-link\">{}</a>",
+                        escape_attr(href),
+                        img_tag
+                    )
+                } else {
                     img_tag
-                )
-            } else {
-                img_tag
-            })
+                },
+            )
         }
         NodeKind::Button { text, url, target } => {
             let cls = with_extra_classes("np-button", extra_cls);
@@ -116,15 +118,17 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
                 combined.trim(),
                 escape_attr(name)
             );
-            Some(if let Some(href) = node.styles.link_url.as_deref().filter(|s| !s.is_empty()) {
-                format!(
-                    "<a href=\"{}\" class=\"np-icon-link\">{}</a>",
-                    escape_attr(href),
+            Some(
+                if let Some(href) = node.styles.link_url.as_deref().filter(|s| !s.is_empty()) {
+                    format!(
+                        "<a href=\"{}\" class=\"np-icon-link\">{}</a>",
+                        escape_attr(href),
+                        span_html
+                    )
+                } else {
                     span_html
-                )
-            } else {
-                span_html
-            })
+                },
+            )
         }
         _ => None,
     }

@@ -18,8 +18,9 @@ pub fn extract_divi_enqueued_fonts(raw: &str) -> Vec<String> {
             }
         }
     }
-    let url_re = regex::Regex::new(r"https://fonts\.googleapis\.com/css2?\?family=([^&\\'\x22\s:]+)")
-        .expect("valid gf url regex");
+    let url_re =
+        regex::Regex::new(r"https://fonts\.googleapis\.com/css2?\?family=([^&\\'\x22\s:]+)")
+            .expect("valid gf url regex");
     for caps in url_re.captures_iter(raw) {
         if let Some(fam) = caps.get(1) {
             let f = fam.as_str().trim().to_string();
@@ -218,16 +219,26 @@ pub fn resolve_and_persist_theme_assets(
         if theme_dir.join("style.css").exists() {
             stylesheets.push(format!("/wp-content/themes/{}/style.css", active_theme));
         }
-        if theme_dir.join("css/styles.css").exists() || theme_dir.join("css").join("styles.css").exists() {
-            stylesheets.push(format!("/wp-content/themes/{}/css/styles.css", active_theme));
+        if theme_dir.join("css/styles.css").exists()
+            || theme_dir.join("css").join("styles.css").exists()
+        {
+            stylesheets.push(format!(
+                "/wp-content/themes/{}/css/styles.css",
+                active_theme
+            ));
         }
-        if theme_dir.join("js/scripts.js").exists() || theme_dir.join("js").join("scripts.js").exists() {
+        if theme_dir.join("js/scripts.js").exists()
+            || theme_dir.join("js").join("scripts.js").exists()
+        {
             scripts.push(format!("/wp-content/themes/{}/js/scripts.js", active_theme));
         } else if theme_dir.join("scripts.js").exists() {
             scripts.push(format!("/wp-content/themes/{}/scripts.js", active_theme));
         }
     } else if active_theme != "neopress" {
-        stylesheets.push(format!("/wp-content/themes/{}/css/styles.css", active_theme));
+        stylesheets.push(format!(
+            "/wp-content/themes/{}/css/styles.css",
+            active_theme
+        ));
     }
 
     let manifest = ThemeAssetsManifest {
@@ -266,7 +277,10 @@ pub fn persist_elementor_kit_styles(
                 params![opt, &compiled_css],
             )?;
         }
-        for opt in ["neopress_elementor_kit_json", "elementor_active_kit_settings"] {
+        for opt in [
+            "neopress_elementor_kit_json",
+            "elementor_active_kit_settings",
+        ] {
             tx.execute(
                 "INSERT INTO wp_options (option_name, option_value) VALUES (?1, ?2) \
                  ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;",
@@ -286,4 +300,3 @@ pub fn persist_elementor_kit_styles(
     }
     Ok(None)
 }
-

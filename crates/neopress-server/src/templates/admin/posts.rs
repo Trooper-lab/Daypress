@@ -1,6 +1,7 @@
 use super::layout::render_wp_admin_shell;
 use crate::models::{WpPostResponse, WpSettingsResponse};
 use crate::templates::utils::escape_html;
+use crate::theme_builder::{HeaderFooterMatrixResponse, ResolvedSlotStatus};
 
 pub fn render_wp_posts_view(
     posts: &[WpPostResponse],
@@ -16,6 +17,35 @@ pub fn render_wp_posts_view_for_type(
     settings: &WpSettingsResponse,
     post_type: &str,
 ) -> String {
+    render_wp_posts_view_with_matrix(posts, settings, post_type, None)
+}
+
+fn format_slot_mini_badge(prefix: &str, slot: &ResolvedSlotStatus) -> String {
+    let (bg, color, border) = match slot.badge_kind.as_str() {
+        "custom" => ("#eff6ff", "#1d4ed8", "#bfdbfe"),
+        "global" => ("#ecfdf5", "#047857", "#a7f3d0"),
+        "hidden" => ("#fef2f2", "#b91c1c", "#fecaca"),
+        _ => ("#f8fafc", "#475569", "#e2e8f0"),
+    };
+    let name_short: String = slot.display_name.chars().take(24).collect();
+    format!(
+        r#"<a href="/n-admin/headers-footers?tab=matrix" title="{prefix}: {full} ({reason})" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;background:{bg};color:{color};border:1px solid {border};padding:2px 7px;border-radius:5px;font-weight:600;text-decoration:none;white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis;"><span style="opacity:0.75;font-weight:700;">{prefix}:</span> {short}</a>"#,
+        prefix = escape_html(prefix),
+        full = escape_html(&slot.display_name),
+        reason = escape_html(&slot.reason),
+        bg = bg,
+        color = color,
+        border = border,
+        short = escape_html(&name_short),
+    )
+}
+
+pub fn render_wp_posts_view_with_matrix(
+    posts: &[WpPostResponse],
+    settings: &WpSettingsResponse,
+    post_type: &str,
+    matrix: Option<&HeaderFooterMatrixResponse>,
+) -> String {
     let is_page = post_type == "page";
     let formatted_cpt = crate::templates::admin::layout::format_cpt_title(post_type);
     let (post_type_label, singular) = match post_type {
@@ -24,9 +54,9 @@ pub fn render_wp_posts_view_for_type(
         _ => (formatted_cpt.as_str(), formatted_cpt.as_str()),
     };
     let add_new_url = if post_type == "post" {
-        "/n-admin/post-new.php".to_string()
+        "/n-admin/post-new".to_string()
     } else {
-        format!("/n-admin/post-new.php?post_type={}", post_type)
+        format!("/n-admin/post-new?post_type={}", post_type)
     };
 
     let all_non_trash_count = posts.iter().filter(|p| p.status != "trash").count();
@@ -62,7 +92,7 @@ pub fn render_wp_posts_view_for_type(
     let mut rows_html = String::new();
     for p in ordered_posts {
         let edit_link = format!(
-            "/n-admin/post.php?post={}&action=edit&post_type={}",
+            "/n-admin/post?post={}&action=edit&post_type={}",
             p.id,
             escape_html(&p.post_type)
         );
@@ -75,23 +105,44 @@ pub fn render_wp_posts_view_for_type(
         };
         let status_badge = match p.status.as_str() {
             "draft" => r#"<span class="badge badge-draft">Draft</span>"#,
-            "trash" => r#"<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Trash</span>"#,
+            "trash" => {
+                r#"<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Trash</span>"#
+            }
             _ => r#"<span class="badge badge-published">Published</span>"#,
         };
 
-        let author_display = if p.author_name.is_empty() || p.author_name == "Neopress Core" || p.author_name == "admin" {
+        let author_display = if p.author_name.is_empty()
+            || p.author_name == "Neopress Core"
+            || p.author_name == "admin"
+        {
             "Editor".to_string()
         } else {
             escape_html(&p.author_name)
         };
-        let categories_display = if !p.category_names.is_empty() {
+        let categories_display = if is_page {
+            if let Some(m) = matrix {
+                if let Some(row) = m.pages.iter().find(|r| r.post_id == p.id) {
+                    format!(
+                        r#"<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">{}{}</div>"#,
+                        format_slot_mini_badge("H", &row.header),
+                        format_slot_mini_badge("F", &row.footer),
+                    )
+                } else {
+                    "Default Template".to_string()
+                }
+            } else if p.template == "page_templates/leeg.php" {
+                r#"<span style="font-size:11.5px;color:#475569;font-family:var(--font-mono);">leeg.php (Custom HTML)</span>"#.to_string()
+            } else if p.content.rendered.contains("<section") {
+                r#"<span style="font-size:11.5px;color:#2563eb;font-weight:600;">ACF + Gutenberg</span>"#.to_string()
+            } else {
+                "Default Template".to_string()
+            }
+        } else if !p.category_names.is_empty() {
             escape_html(&p.category_names.join(", "))
         } else if p.template == "page_templates/leeg.php" {
             r#"<span style="font-size:11.5px;color:#475569;font-family:var(--font-mono);">leeg.php (Custom HTML)</span>"#.to_string()
         } else if p.content.rendered.contains("<section") {
             r#"<span style="font-size:11.5px;color:#2563eb;font-weight:600;">ACF + Gutenberg</span>"#.to_string()
-        } else if is_page {
-            "Default Template".to_string()
         } else {
             "—".to_string()
         };
@@ -133,7 +184,7 @@ pub fn render_wp_posts_view_for_type(
         } else {
             format!(
                 r##"<a href="{edit_link}" style="font-weight: 600;">Edit Blocks &amp; ACF</a>
-                <a href="/n-admin/builder.php?post={id}" style="color: #2563eb; font-weight: 600;">⚡ Edit with NeoStudio</a>
+                <a href="/n-admin/builder?post={id}" style="color: #2563eb; font-weight: 600;">⚡ Edit with NeoStudio</a>
                 <a href="#" onclick="duplicatePostRow({id}); return false;" style="color: #4f46e5; font-weight: 600;">Duplicate</a>
                 <a href="{view_link}" target="_blank">View &nearr;</a>
                 <a href="#" onclick="trashPostRow({id}); return false;" style="color: #d97706;">Trash</a>
@@ -183,6 +234,17 @@ pub fn render_wp_posts_view_for_type(
         );
     }
 
+    let fourth_col_header = if is_page {
+        "Header &amp; Footer"
+    } else {
+        "Category"
+    };
+    let header_footer_btn = if is_page {
+        r#"<a href="/n-admin/headers-footers" class="btn btn-secondary" style="margin-right: 8px;">🧩 Header &amp; Footer Manager</a>"#
+    } else {
+        ""
+    };
+
     let body = format!(
         r##"
         <div class="page-header">
@@ -191,6 +253,7 @@ pub fn render_wp_posts_view_for_type(
                 <p class="page-subtitle">Manage, create, and organize your publication articles</p>
             </div>
             <div>
+                {header_footer_btn}
                 <a href="{add_new_url}" class="btn btn-primary">+ Add New {singular}</a>
             </div>
         </div>
@@ -223,7 +286,7 @@ pub fn render_wp_posts_view_for_type(
                         <th style="width: 32px;"><input type="checkbox" id="selectAllPosts" onchange="toggleSelectAll(this)"></th>
                         <th>Title</th>
                         <th>Author</th>
-                        <th>Category</th>
+                        <th>{fourth_col_header}</th>
                         <th>Status</th>
                         <th>Date</th>
                     </tr>
@@ -387,6 +450,8 @@ pub fn render_wp_posts_view_for_type(
         </script>
         "##,
         post_type_label = post_type_label,
+        header_footer_btn = header_footer_btn,
+        fourth_col_header = fourth_col_header,
         add_new_url = add_new_url,
         singular = singular,
         plural_lower = post_type_label.to_lowercase(),

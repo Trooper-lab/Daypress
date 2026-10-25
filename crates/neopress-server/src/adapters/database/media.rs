@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -148,7 +148,10 @@ impl Database {
 
     pub fn get_media_attachments(&self) -> Result<Vec<WpMediaResponse>> {
         let conn = self.conn.lock().unwrap();
-        let sql = format!("{} ORDER BY p.post_date DESC, p.ID DESC", Self::MEDIA_SELECT_SQL);
+        let sql = format!(
+            "{} ORDER BY p.post_date DESC, p.ID DESC",
+            Self::MEDIA_SELECT_SQL
+        );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map([], Self::map_media_row)?;
 

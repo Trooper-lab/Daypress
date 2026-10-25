@@ -89,7 +89,9 @@ pub enum RuleTarget {
     FrontPage,
     AllPosts,
     AllPages,
+    #[serde(alias = "single_post", alias = "post_id")]
     Post,
+    #[serde(alias = "single_page", alias = "page_id")]
     Page,
     Category,
     Tag,
@@ -122,8 +124,8 @@ impl RuleTarget {
             "front_page" | "front-page" | "home" => Some(Self::FrontPage),
             "all_posts" | "all-posts" | "posts" => Some(Self::AllPosts),
             "all_pages" | "all-pages" | "pages" => Some(Self::AllPages),
-            "post" | "single_post" => Some(Self::Post),
-            "page" | "single_page" => Some(Self::Page),
+            "post" | "single_post" | "post_id" => Some(Self::Post),
+            "page" | "single_page" | "page_id" => Some(Self::Page),
             "category" => Some(Self::Category),
             "tag" => Some(Self::Tag),
             "author" => Some(Self::Author),
@@ -273,7 +275,22 @@ impl RequestContext {
         }
     }
 
-    pub fn for_post(post_id: i64, post_type: &str, is_front: bool, terms: Vec<TaxonomyTermRef>) -> Self {
+    pub fn for_front_page_post(post_id: i64, post_type: &str) -> Self {
+        Self {
+            path: "/".to_string(),
+            post_id: Some(post_id),
+            post_type: Some(post_type.to_string()),
+            is_front_page: true,
+            ..Default::default()
+        }
+    }
+
+    pub fn for_post(
+        post_id: i64,
+        post_type: &str,
+        is_front: bool,
+        terms: Vec<TaxonomyTermRef>,
+    ) -> Self {
         Self {
             post_id: Some(post_id),
             post_type: Some(post_type.to_string()),
@@ -318,7 +335,11 @@ impl RequestContext {
         }
         for term in &self.taxonomy_terms {
             items.push(BreadcrumbItem {
-                title: if term.slug.is_empty() { format!("Term {}", term.term_id) } else { term.slug.clone() },
+                title: if term.slug.is_empty() {
+                    format!("Term {}", term.term_id)
+                } else {
+                    term.slug.clone()
+                },
                 url: format!("/{}/{}", term.taxonomy, term.slug),
                 is_current: false,
             });
@@ -351,7 +372,14 @@ pub struct ResolvedThemePartials {
     pub has_theme_builder_header: bool,
     #[serde(default)]
     pub has_theme_builder_footer: bool,
+    #[serde(default)]
+    pub header_hidden: bool,
+    #[serde(default)]
+    pub footer_hidden: bool,
+    #[serde(default)]
+    pub header_force_fallback: bool,
+    #[serde(default)]
+    pub footer_force_fallback: bool,
 }
 
 pub use super::dto::*;
-

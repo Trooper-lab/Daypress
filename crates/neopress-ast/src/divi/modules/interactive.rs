@@ -122,7 +122,11 @@ pub fn map_interactive_module(
                 .get("author")
                 .cloned()
                 .unwrap_or_else(|| "Client".to_string());
-            let job_title = divi.attributes.get("job_title").cloned().unwrap_or_default();
+            let job_title = divi
+                .attributes
+                .get("job_title")
+                .cloned()
+                .unwrap_or_default();
             let company = divi
                 .attributes
                 .get("company_name")

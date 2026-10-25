@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -198,11 +198,7 @@ impl Database {
         if let Some(display_name) = req.display_name.as_ref().or(req.name.as_ref()) {
             conn.execute(
                 "UPDATE wp_users SET display_name = ?1, user_nicename = ?2 WHERE ID = ?3",
-                params![
-                    display_name,
-                    generated_slugify::slugify(display_name),
-                    id
-                ],
+                params![display_name, generated_slugify::slugify(display_name), id],
             )?;
         }
         if let Some(email) = &req.email {
@@ -311,7 +307,7 @@ impl Database {
             )
             .unwrap_or_else(|_| "administrator".to_string());
 
-        if crate::auth::verify_user_password(password, &stored_pass, &login) {
+        if crate::auth::verify_user_password(password, &stored_pass) {
             return Ok(Some(AuthUser {
                 user_id,
                 username: login,

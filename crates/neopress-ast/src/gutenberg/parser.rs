@@ -99,13 +99,10 @@ fn scan_block_comment(input: &str, start: usize) -> Option<(BlockToken, usize)> 
             i += 1;
         }
 
-        if let Some(j_end) = json_end {
-            let json_str = &input[json_start..j_end];
-            if let Ok(v) = serde_json::from_str::<Value>(json_str) {
-                attrs = v;
-            }
-        } else {
-            return None;
+        let j_end = json_end?;
+        let json_str = &input[json_start..j_end];
+        if let Ok(v) = serde_json::from_str::<Value>(json_str) {
+            attrs = v;
         }
 
         while i < bytes.len() && bytes[i].is_ascii_whitespace() {
@@ -311,7 +308,11 @@ mod tests {
         for t in &tokens {
             if let BlockToken::Html(h) = t {
                 assert!(!h.contains("<!-- wp:"), "Leaked raw wp comment: {}", h);
-                assert!(!h.contains("<!-- /wp:"), "Leaked raw wp close comment: {}", h);
+                assert!(
+                    !h.contains("<!-- /wp:"),
+                    "Leaked raw wp close comment: {}",
+                    h
+                );
             }
         }
     }

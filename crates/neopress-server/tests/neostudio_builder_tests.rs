@@ -224,7 +224,11 @@ fn test_all_builder_rust_files_strictly_under_400_lines() {
         std::path::Path::new("crates/neopress-server/src/templates/admin/builder").to_path_buf()
     };
 
-    assert!(full_path.exists(), "Builder directory must exist at {:?}", full_path);
+    assert!(
+        full_path.exists(),
+        "Builder directory must exist at {:?}",
+        full_path
+    );
 
     let mut visited_count = 0;
     visit_dirs(&full_path, &mut |path| {

@@ -1,12 +1,12 @@
 //! 1-Click Ready-to-Use Starter Theme Templates (Headers & Footers).
 
+#![allow(clippy::field_reassign_with_default)]
 use super::models::{
     ConditionType, CreateConditionDto, CreateTemplateRequest, RuleTarget, StarterTemplateInfo,
     TemplateSettings, TemplateType, ThemeTemplateRecord,
 };
 use super::repository::ThemeTemplateRepository;
 use crate::adapters::database::Database;
-use crate::auth::AuthUser;
 use crate::errors::AppError;
 use axum::{
     body::Bytes,
@@ -14,9 +14,7 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use neopress_ast::{
-    NavMenuItem, NeopressLayout, NeopressNode, NodeKind, Spacing, StyleProperties,
-};
+use neopress_ast::{NavMenuItem, NeopressLayout, NeopressNode, NodeKind, Spacing, StyleProperties};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Default)]
@@ -64,7 +62,12 @@ pub fn get_starter_catalog() -> Vec<StarterTemplateInfo> {
     ]
 }
 
-fn make_node(id: &str, kind: NodeKind, styles: StyleProperties, children: Vec<NeopressNode>) -> NeopressNode {
+fn make_node(
+    id: &str,
+    kind: NodeKind,
+    styles: StyleProperties,
+    children: Vec<NeopressNode>,
+) -> NeopressNode {
     NeopressNode {
         id: id.to_string(),
         kind,
@@ -93,44 +96,87 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
             root_styles.background_color = Some("rgba(13, 15, 18, 0.85)".to_string());
 
             let mut logo_raw = std::collections::HashMap::new();
-            logo_raw.insert("data-dynamic".to_string(), serde_json::Value::String("site_logo".to_string()));
+            logo_raw.insert(
+                "data-dynamic".to_string(),
+                serde_json::Value::String("site_logo".to_string()),
+            );
             let mut logo_styles = StyleProperties::default();
             logo_styles.raw_settings = Some(logo_raw);
-            let logo = make_node("header-site-logo", NodeKind::Image {
-                src: "/static/favicon.svg".to_string(),
-                alt: "Site Logo".to_string(),
-                width: Some(36),
-                height: Some(36),
-                link: Some("/".to_string()),
-            }, logo_styles, vec![]);
+            let logo = make_node(
+                "header-site-logo",
+                NodeKind::Image {
+                    src: "/static/favicon.svg".to_string(),
+                    alt: "Site Logo".to_string(),
+                    width: Some(36),
+                    height: Some(36),
+                    link: Some("/".to_string()),
+                },
+                logo_styles,
+                vec![],
+            );
 
             let mut nav_styles = StyleProperties::default();
             nav_styles.margin = Some(make_spacing("0", "auto", "0", "auto"));
-            let nav = make_node("header-nav-menu", NodeKind::NavMenu {
-                menu_slug: "primary".to_string(),
-                layout: "horizontal".to_string(),
-                align: "center".to_string(),
-                mobile_hamburger: true,
-                items: vec![
-                    NavMenuItem { title: "Home".to_string(), url: "/".to_string(), order: 0, ..Default::default() },
-                    NavMenuItem { title: "About".to_string(), url: "/about".to_string(), order: 1, ..Default::default() },
-                    NavMenuItem { title: "Services".to_string(), url: "/services".to_string(), order: 2, ..Default::default() },
-                    NavMenuItem { title: "Contact".to_string(), url: "/contact".to_string(), order: 3, ..Default::default() },
-                ],
-            }, nav_styles, vec![]);
+            let nav = make_node(
+                "header-nav-menu",
+                NodeKind::NavMenu {
+                    menu_slug: "primary".to_string(),
+                    layout: "horizontal".to_string(),
+                    align: "center".to_string(),
+                    mobile_hamburger: true,
+                    items: vec![
+                        NavMenuItem {
+                            title: "Home".to_string(),
+                            url: "/".to_string(),
+                            order: 0,
+                            ..Default::default()
+                        },
+                        NavMenuItem {
+                            title: "About".to_string(),
+                            url: "/about".to_string(),
+                            order: 1,
+                            ..Default::default()
+                        },
+                        NavMenuItem {
+                            title: "Services".to_string(),
+                            url: "/services".to_string(),
+                            order: 2,
+                            ..Default::default()
+                        },
+                        NavMenuItem {
+                            title: "Contact".to_string(),
+                            url: "/contact".to_string(),
+                            order: 3,
+                            ..Default::default()
+                        },
+                    ],
+                },
+                nav_styles,
+                vec![],
+            );
 
             let mut cta_styles = StyleProperties::default();
             cta_styles.background_color = Some("#2563EB".to_string());
             cta_styles.text_color = Some("#FFFFFF".to_string());
             cta_styles.padding = Some(make_spacing("8px", "16px", "8px", "16px"));
             cta_styles.border_radius = Some("6px".to_string());
-            let cta = make_node("header-cta-btn", NodeKind::Button {
-                text: "Get Started".to_string(),
-                url: "/contact".to_string(),
-                target: "_self".to_string(),
-            }, cta_styles, vec![]);
+            let cta = make_node(
+                "header-cta-btn",
+                NodeKind::Button {
+                    text: "Get Started".to_string(),
+                    url: "/contact".to_string(),
+                    target: "_self".to_string(),
+                },
+                cta_styles,
+                vec![],
+            );
 
-            let root = make_node("agency-header-root", NodeKind::Section, root_styles, vec![logo, nav, cta]);
+            let root = make_node(
+                "agency-header-root",
+                NodeKind::Section,
+                root_styles,
+                vec![logo, nav, cta],
+            );
             let layout = NeopressLayout {
                 version: 1,
                 root,
@@ -174,7 +220,12 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
                 content_html: "<p>© 2026 {{site_title}}. Built with Neopress. Ultra-fast sub-millisecond CMS.</p>".to_string(),
             }, copy_styles, vec![]);
 
-            let root = make_node("dark-footer-root", NodeKind::Section, root_styles, vec![copy]);
+            let root = make_node(
+                "dark-footer-root",
+                NodeKind::Section,
+                root_styles,
+                vec![copy],
+            );
             let layout = NeopressLayout {
                 version: 1,
                 root,
@@ -210,12 +261,22 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
             root_styles.padding = Some(make_spacing("12px", "24px", "12px", "24px"));
             root_styles.background_color = Some("#15181E".to_string());
 
-            let title_node = make_node("saas-title", NodeKind::Heading {
-                text: "{{site_title}}".to_string(),
-                level: 3,
-            }, StyleProperties::default(), vec![]);
+            let title_node = make_node(
+                "saas-title",
+                NodeKind::Heading {
+                    text: "{{site_title}}".to_string(),
+                    level: 3,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
 
-            let root = make_node("saas-header-root", NodeKind::Section, root_styles, vec![title_node]);
+            let root = make_node(
+                "saas-header-root",
+                NodeKind::Section,
+                root_styles,
+                vec![title_node],
+            );
             let layout = NeopressLayout {
                 version: 1,
                 root,
@@ -243,11 +304,22 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
         "clean-footer" => {
             let mut root_styles = StyleProperties::default();
             root_styles.padding = Some(make_spacing("24px", "24px", "24px", "24px"));
-            let text = make_node("clean-copy", NodeKind::Text {
-                content_html: "<p>© {{current_year}} {{site_title}}. All rights reserved.</p>".to_string(),
-            }, StyleProperties::default(), vec![]);
+            let text = make_node(
+                "clean-copy",
+                NodeKind::Text {
+                    content_html: "<p>© {{current_year}} {{site_title}}. All rights reserved.</p>"
+                        .to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
 
-            let root = make_node("clean-footer-root", NodeKind::Section, root_styles, vec![text]);
+            let root = make_node(
+                "clean-footer-root",
+                NodeKind::Section,
+                root_styles,
+                vec![text],
+            );
             let layout = NeopressLayout {
                 version: 1,
                 root,
@@ -281,7 +353,7 @@ pub async fn list_starters_handler() -> Json<Vec<StarterTemplateInfo>> {
 }
 
 pub async fn install_starter_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Query(query): Query<InstallStarterPayload>,
     body: Bytes,

@@ -1,6 +1,7 @@
 //! First-Party Modules (Cookieless Analytics, SEO & Redirects, Forms, Hot Backups, Plugin SDK).
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::OptionalAuthUser;
 use crate::db::Database;
 use crate::models;
@@ -11,7 +12,6 @@ use axum::{
     response::{Html, IntoResponse},
 };
 use serde::Deserialize;
-use super::*;
 
 // =========================================================================
 // NATIVE COOKIELESS ANALYTICS DASHBOARD HANDLER
@@ -200,7 +200,9 @@ pub async fn handle_admin_forms(
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let forms = db.list_forms().unwrap_or_default();
-    let entries = db.list_form_entries(params.form_id, 200).unwrap_or_default();
+    let entries = db
+        .list_form_entries(params.form_id, 200)
+        .unwrap_or_default();
     Html(templates::render_wp_forms_view(
         &settings,
         &forms,
@@ -247,9 +249,7 @@ pub async fn handle_api_forms(
         _ => {
             let req = models::CreateFormRequest {
                 id: payload.id,
-                title: payload
-                    .title
-                    .unwrap_or_else(|| "Contact Form".to_string()),
+                title: payload.title.unwrap_or_else(|| "Contact Form".to_string()),
                 fields: payload.fields.unwrap_or_default(),
                 settings: payload.settings.unwrap_or_default(),
             };
@@ -273,7 +273,9 @@ pub async fn handle_admin_forms_export_csv(
     State(db): State<Database>,
     Query(params): Query<FormsQueryParams>,
 ) -> impl IntoResponse {
-    let entries = db.list_form_entries(params.form_id, 5000).unwrap_or_default();
+    let entries = db
+        .list_form_entries(params.form_id, 5000)
+        .unwrap_or_default();
     let mut csv = String::from("Entry ID,Form ID,Form Title,Created At,IP Hash,Payload JSON\n");
     for e in entries {
         let escaped_json = e.data_json.replace('"', "\"\"");
@@ -389,11 +391,7 @@ pub async fn handle_admin_backup_download(AxPath(filename): AxPath<String>) -> i
             }
             (StatusCode::OK, headers, bytes).into_response()
         }
-        Err(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to read snapshot",
-        )
-            .into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read snapshot").into_response(),
     }
 }
 
@@ -407,9 +405,7 @@ pub async fn handle_admin_plugin_settings(
     Query(params): Query<PluginSettingsQuery>,
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let slug = params
-        .plugin
-        .unwrap_or_else(|| "whatsapp-chat".to_string());
+    let slug = params.plugin.unwrap_or_else(|| "whatsapp-chat".to_string());
     let plugin = db.get_installed_plugin(&slug).ok().flatten();
     Html(templates::render_wp_plugin_settings_view(
         &settings,
@@ -517,10 +513,7 @@ pub async fn handle_api_download_migrator_plugin() -> impl IntoResponse {
         Err(_) => include_bytes!("../../../../neopress-migrator.zip").to_vec(),
     };
     let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        "application/zip".parse().unwrap(),
-    );
+    headers.insert(header::CONTENT_TYPE, "application/zip".parse().unwrap());
     headers.insert(
         header::CONTENT_DISPOSITION,
         "attachment; filename=\"neopress-migrator.zip\""

@@ -29,18 +29,13 @@ pub(crate) fn extract_elementor_background(
                 .and_then(|v| v.as_str())
                 .filter(|s| {
                     !s.is_empty()
-                        && !matches!(
-                            *s,
-                            "classic" | "gradient" | "video" | "slideshow" | "none"
-                        )
+                        && !matches!(*s, "classic" | "gradient" | "video" | "slideshow" | "none")
                 })
                 .map(|s| s.to_string())
         });
 
     if bg_type == "gradient" {
-        let color_a = bg_color
-            .clone()
-            .unwrap_or_else(|| "#0f172a".to_string());
+        let color_a = bg_color.clone().unwrap_or_else(|| "#0f172a".to_string());
         let color_b = settings
             .get("background_color_b")
             .and_then(|v| v.as_str())

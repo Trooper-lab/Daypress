@@ -16,7 +16,7 @@ pub fn format_cpt_title(slug: &str) -> String {
         return "FAQ".to_string();
     }
     clean
-        .split(|c| c == '_' || c == '-')
+        .split(['_', '-'])
         .filter(|part| !part.is_empty())
         .map(|word| {
             let mut chars = word.chars();
@@ -42,7 +42,7 @@ pub fn render_cpt_navigation(current_tab: &str, custom_post_types: &[String]) ->
         cpt_html.push_str(&format!(
             r#"
 			<div class="nav-group">
-				<a href="/n-admin/edit.php?post_type={slug}" class="nav-item {active_cls}">
+				<a href="/n-admin/edit?post_type={slug}" class="nav-item {active_cls}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
 					<span>{label}</span>
 				</a>
@@ -79,6 +79,7 @@ pub struct NavState {
     pub is_appearance: &'static str,
     pub is_app_open: &'static str,
     pub sub_app_themes: &'static str,
+    pub sub_app_hf: &'static str,
     pub sub_app_cust: &'static str,
     pub sub_app_widg: &'static str,
     pub sub_app_menus: &'static str,
@@ -118,10 +119,22 @@ pub struct NavState {
 
 impl NavState {
     pub fn compute(current_tab: &str) -> Self {
-        let is_dash = if current_tab == "dashboard" || current_tab == "updates" { "active" } else { "" };
+        let is_dash = if current_tab == "dashboard" || current_tab == "updates" {
+            "active"
+        } else {
+            ""
+        };
         let is_dash_open = if !is_dash.is_empty() { "open" } else { "" };
-        let sub_dash_home = if current_tab == "dashboard" || current_tab == "home" { "active" } else { "" };
-        let sub_dash_updates = if current_tab == "updates" { "active" } else { "" };
+        let sub_dash_home = if current_tab == "dashboard" || current_tab == "home" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_dash_updates = if current_tab == "updates" {
+            "active"
+        } else {
+            ""
+        };
 
         let is_posts = if current_tab == "posts"
             || current_tab == "post-new"
@@ -134,24 +147,54 @@ impl NavState {
         };
         let is_posts_open = if !is_posts.is_empty() { "open" } else { "" };
         let sub_posts_all = if current_tab == "posts" { "active" } else { "" };
-        let sub_posts_new = if current_tab == "post-new" { "active" } else { "" };
-        let sub_posts_cats = if current_tab == "categories" { "active" } else { "" };
+        let sub_posts_new = if current_tab == "post-new" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_posts_cats = if current_tab == "categories" {
+            "active"
+        } else {
+            ""
+        };
         let sub_posts_tags = if current_tab == "tags" { "active" } else { "" };
 
-        let is_media = if current_tab == "media" || current_tab == "media-new" { "active" } else { "" };
+        let is_media = if current_tab == "media" || current_tab == "media-new" {
+            "active"
+        } else {
+            ""
+        };
         let is_media_open = if !is_media.is_empty() { "open" } else { "" };
         let sub_media_lib = if current_tab == "media" { "active" } else { "" };
-        let sub_media_new = if current_tab == "media-new" { "active" } else { "" };
+        let sub_media_new = if current_tab == "media-new" {
+            "active"
+        } else {
+            ""
+        };
 
-        let is_pages = if current_tab == "pages" || current_tab == "page-new" { "active" } else { "" };
+        let is_pages = if current_tab == "pages" || current_tab == "page-new" {
+            "active"
+        } else {
+            ""
+        };
         let is_pages_open = if !is_pages.is_empty() { "open" } else { "" };
         let sub_pages_all = if current_tab == "pages" { "active" } else { "" };
-        let sub_pages_new = if current_tab == "page-new" { "active" } else { "" };
+        let sub_pages_new = if current_tab == "page-new" {
+            "active"
+        } else {
+            ""
+        };
 
-        let is_comments = if current_tab == "comments" { "active" } else { "" };
+        let is_comments = if current_tab == "comments" {
+            "active"
+        } else {
+            ""
+        };
 
         let is_appearance = if current_tab == "appearance"
             || current_tab == "themes"
+            || current_tab == "headers-footers"
+            || current_tab == "theme-builder"
             || current_tab == "customize"
             || current_tab == "widgets"
             || current_tab == "menus"
@@ -161,12 +204,37 @@ impl NavState {
         } else {
             ""
         };
-        let is_app_open = if !is_appearance.is_empty() { "open" } else { "" };
-        let sub_app_themes = if current_tab == "themes" || current_tab == "appearance" { "active" } else { "" };
-        let sub_app_cust = if current_tab == "customize" { "active" } else { "" };
-        let sub_app_widg = if current_tab == "widgets" { "active" } else { "" };
+        let is_app_open = if !is_appearance.is_empty() {
+            "open"
+        } else {
+            ""
+        };
+        let sub_app_themes = if current_tab == "themes" || current_tab == "appearance" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_app_hf = if current_tab == "headers-footers" || current_tab == "theme-builder" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_app_cust = if current_tab == "customize" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_app_widg = if current_tab == "widgets" {
+            "active"
+        } else {
+            ""
+        };
         let sub_app_menus = if current_tab == "menus" { "active" } else { "" };
-        let sub_app_editor = if current_tab == "theme-editor" { "active" } else { "" };
+        let sub_app_editor = if current_tab == "theme-editor" {
+            "active"
+        } else {
+            ""
+        };
 
         let is_plugins = if current_tab == "plugins"
             || current_tab == "plugin-install"
@@ -178,23 +246,48 @@ impl NavState {
             ""
         };
         let is_plugins_open = if !is_plugins.is_empty() { "open" } else { "" };
-        let sub_plug_list = if current_tab == "plugins" || current_tab == "plugin-settings" { "active" } else { "" };
-        let sub_plug_new = if current_tab == "plugin-install" { "active" } else { "" };
-        let sub_plug_editor = if current_tab == "plugin-editor" { "active" } else { "" };
-
-        let is_seo = if current_tab == "seo" { "active" } else { "" };
-        let is_forms = if current_tab == "forms" { "active" } else { "" };
-        let is_backups = if current_tab == "backups" { "active" } else { "" };
-
-        let is_users = if current_tab == "users" || current_tab == "user-new" || current_tab == "profile" {
+        let sub_plug_list = if current_tab == "plugins" || current_tab == "plugin-settings" {
             "active"
         } else {
             ""
         };
+        let sub_plug_new = if current_tab == "plugin-install" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_plug_editor = if current_tab == "plugin-editor" {
+            "active"
+        } else {
+            ""
+        };
+
+        let is_seo = if current_tab == "seo" { "active" } else { "" };
+        let is_forms = if current_tab == "forms" { "active" } else { "" };
+        let is_backups = if current_tab == "backups" {
+            "active"
+        } else {
+            ""
+        };
+
+        let is_users =
+            if current_tab == "users" || current_tab == "user-new" || current_tab == "profile" {
+                "active"
+            } else {
+                ""
+            };
         let is_users_open = if !is_users.is_empty() { "open" } else { "" };
         let sub_users_all = if current_tab == "users" { "active" } else { "" };
-        let sub_users_new = if current_tab == "user-new" { "active" } else { "" };
-        let sub_users_prof = if current_tab == "profile" { "active" } else { "" };
+        let sub_users_new = if current_tab == "user-new" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_users_prof = if current_tab == "profile" {
+            "active"
+        } else {
+            ""
+        };
 
         let is_tools = if current_tab == "tools"
             || current_tab == "import"
@@ -211,11 +304,31 @@ impl NavState {
         };
         let is_tools_open = if !is_tools.is_empty() { "open" } else { "" };
         let sub_tools_avail = if current_tab == "tools" { "active" } else { "" };
-        let sub_tools_import = if current_tab == "import" { "active" } else { "" };
-        let sub_tools_export = if current_tab == "export" { "active" } else { "" };
-        let sub_tools_health = if current_tab == "site-health" { "active" } else { "" };
-        let sub_tools_exp_data = if current_tab == "export-personal-data" { "active" } else { "" };
-        let sub_tools_era_data = if current_tab == "erase-personal-data" { "active" } else { "" };
+        let sub_tools_import = if current_tab == "import" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_tools_export = if current_tab == "export" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_tools_health = if current_tab == "site-health" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_tools_exp_data = if current_tab == "export-personal-data" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_tools_era_data = if current_tab == "erase-personal-data" {
+            "active"
+        } else {
+            ""
+        };
 
         let is_settings = if current_tab.starts_with("settings")
             || current_tab == "writing"
@@ -230,11 +343,31 @@ impl NavState {
             ""
         };
         let is_settings_open = if !is_settings.is_empty() { "open" } else { "" };
-        let sub_set_gen = if current_tab == "settings" || current_tab == "settings-general" { "active" } else { "" };
-        let sub_set_writ = if current_tab == "writing" || current_tab == "settings-writing" { "active" } else { "" };
-        let sub_set_read = if current_tab == "reading" || current_tab == "settings-reading" { "active" } else { "" };
-        let sub_set_disc = if current_tab == "discussion" || current_tab == "settings-discussion" { "active" } else { "" };
-        let sub_set_media = if current_tab == "options-media" || current_tab == "settings-media" { "active" } else { "" };
+        let sub_set_gen = if current_tab == "settings" || current_tab == "settings-general" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_set_writ = if current_tab == "writing" || current_tab == "settings-writing" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_set_read = if current_tab == "reading" || current_tab == "settings-reading" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_set_disc = if current_tab == "discussion" || current_tab == "settings-discussion" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_set_media = if current_tab == "options-media" || current_tab == "settings-media" {
+            "active"
+        } else {
+            ""
+        };
         let sub_set_perm = if current_tab == "permalinks"
             || current_tab == "settings-permalink"
             || current_tab == "settings-permalinks"
@@ -243,9 +376,17 @@ impl NavState {
         } else {
             ""
         };
-        let sub_set_priv = if current_tab == "privacy" || current_tab == "settings-privacy" { "active" } else { "" };
+        let sub_set_priv = if current_tab == "privacy" || current_tab == "settings-privacy" {
+            "active"
+        } else {
+            ""
+        };
 
-        let is_engine = if current_tab == "engine" { "active" } else { "" };
+        let is_engine = if current_tab == "engine" {
+            "active"
+        } else {
+            ""
+        };
 
         Self {
             is_dash,
@@ -270,6 +411,7 @@ impl NavState {
             is_appearance,
             is_app_open,
             sub_app_themes,
+            sub_app_hf,
             sub_app_cust,
             sub_app_widg,
             sub_app_menus,
@@ -329,14 +471,14 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 	<div class="ab-top-menu-wrap">
 		<ul class="ab-top-menu">
 			<li class="menupop">
-				<a class="ab-item" href="/n-admin/index.php" title="About Neopress" style="padding: 0 12px;">
+				<a class="ab-item" href="/n-admin/" title="About Neopress" style="padding: 0 12px;">
 					<img src="/static/neopress-icon.svg" style="width: 18px; height: 18px; border-radius: 4px;" alt="Neopress" />
 				</a>
 				<div class="ab-sub-wrapper">
 					<ul class="ab-submenu">
-						<li><a class="ab-item" href="/n-admin/index.php">About Neopress</a></li>
-						<li><a class="ab-item" href="/n-admin/site-health.php">Site Health</a></li>
-						<li><a class="ab-item" href="/n-admin/neopress-engine.php">Engine Telemetry</a></li>
+						<li><a class="ab-item" href="/n-admin/">About Neopress</a></li>
+						<li><a class="ab-item" href="/n-admin/site-health">Site Health</a></li>
+						<li><a class="ab-item" href="/n-admin/neopress-engine">Engine Telemetry</a></li>
 					</ul>
 				</div>
 			</li>
@@ -348,42 +490,43 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 				<div class="ab-sub-wrapper">
 					<ul class="ab-submenu">
 						<li><a class="ab-item" href="/" target="_blank">Visit Site &nearr;</a></li>
-						<li><a class="ab-item" href="/n-admin/themes.php">Themes</a></li>
-						<li><a class="ab-item" href="/n-admin/widgets.php">Widgets</a></li>
-						<li><a class="ab-item" href="/n-admin/nav-menus.php">Menus</a></li>
-						<li><a class="ab-item" href="/n-admin/customize.php">Customize</a></li>
+						<li><a class="ab-item" href="/n-admin/themes">Themes</a></li>
+						<li><a class="ab-item" href="/n-admin/headers-footers">Header &amp; Footer</a></li>
+						<li><a class="ab-item" href="/n-admin/widgets">Widgets</a></li>
+						<li><a class="ab-item" href="/n-admin/nav-menus">Menus</a></li>
+						<li><a class="ab-item" href="/n-admin/customize">Customize</a></li>
 					</ul>
 				</div>
 			</li>
 			<li>
-				<a class="ab-item" href="/n-admin/update-core.php" title="Updates">
+				<a class="ab-item" href="/n-admin/update-core" title="Updates">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
 					<span>0</span>
 				</a>
 			</li>
 			<li>
-				<a class="ab-item" href="/n-admin/edit.php" title="Quick Search (Ctrl+K)" onclick="event.preventDefault(); neoOpenQuickSearch();">
+				<a class="ab-item" href="/n-admin/edit" title="Quick Search (Ctrl+K)" onclick="event.preventDefault(); neoOpenQuickSearch();">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 					<span>Ctrl+K</span>
 				</a>
 			</li>
 			<li>
-				<a class="ab-item" href="/n-admin/edit-comments.php" title="Comments">
+				<a class="ab-item" href="/n-admin/edit-comments" title="Comments">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 					<span>{pending_comments}</span>
 				</a>
 			</li>
 			<li class="menupop">
-				<a class="ab-item" href="/n-admin/post-new.php">
+				<a class="ab-item" href="/n-admin/post-new">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 					<span>New</span>
 				</a>
 				<div class="ab-sub-wrapper">
 					<ul class="ab-submenu">
-						<li><a class="ab-item" href="/n-admin/post-new.php">Post</a></li>
-						<li><a class="ab-item" href="/n-admin/media-new.php">Media</a></li>
-						<li><a class="ab-item" href="/n-admin/post-new.php?post_type=page">Page</a></li>
-						<li><a class="ab-item" href="/n-admin/user-new.php">User</a></li>
+						<li><a class="ab-item" href="/n-admin/post-new">Post</a></li>
+						<li><a class="ab-item" href="/n-admin/media-new">Media</a></li>
+						<li><a class="ab-item" href="/n-admin/post-new?post_type=page">Page</a></li>
+						<li><a class="ab-item" href="/n-admin/user-new">User</a></li>
 					</ul>
 				</div>
 			</li>
@@ -395,14 +538,14 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 		</ul>
 		<ul class="ab-top-menu ab-top-secondary">
 			<li class="menupop">
-				<a class="ab-item" href="/n-admin/profile.php">
+				<a class="ab-item" href="/n-admin/profile">
 					<span>Howdy, <strong>{display_name}</strong></span>
 					<span class="ab-avatar">{avatar_initial}</span>
 				</a>
 				<div class="ab-sub-wrapper ab-sub-right">
 					<ul class="ab-submenu">
-						<li><a class="ab-item" href="/n-admin/profile.php">Edit Profile</a></li>
-						<li><a class="ab-item" href="/wp-login.php?action=logout" style="color: #f87171;">Log Out</a></li>
+						<li><a class="ab-item" href="/n-admin/profile">Edit Profile</a></li>
+						<li><a class="ab-item" href="/login?action=logout" style="color: #f87171;">Log Out</a></li>
 					</ul>
 				</div>
 			</li>

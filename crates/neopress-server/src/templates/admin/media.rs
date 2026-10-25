@@ -82,7 +82,8 @@ pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaRespo
             })
         })
         .collect();
-    let media_json_str = serde_json::to_string(&media_json_items).unwrap_or_else(|_| "[]".to_string());
+    let media_json_str =
+        serde_json::to_string(&media_json_items).unwrap_or_else(|_| "[]".to_string());
 
     let body = format!(
         r##"
@@ -313,7 +314,7 @@ pub fn render_wp_media_new_view(settings: &WpSettingsResponse) -> String {
                 <p class="page-subtitle">Add images, audio, video, or documents to your Neopress asset storage</p>
             </div>
             <div>
-                <a href="/n-admin/upload.php" class="btn btn-secondary">&larr; Return to Library</a>
+                <a href="/n-admin/upload" class="btn btn-secondary">&larr; Return to Library</a>
             </div>
         </div>
 

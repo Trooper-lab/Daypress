@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -44,17 +44,77 @@ impl Database {
                 let post_count: i64 = conn
                     .query_row("SELECT COUNT(*) FROM wp_posts;", [], |r| r.get(0))
                     .unwrap_or(0);
-                !is_migrated && (is_new || post_count == 0)
+                let user_count: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM wp_users;", [], |r| r.get(0))
+                    .unwrap_or(0);
+                // Only a brand-new (or completely empty) database gets the starter site.
+                // Deleting every post on a live site must never trigger a reseed.
+                !is_migrated && (is_new || (post_count == 0 && user_count == 0))
             };
 
             if needs_official_seed {
                 db.seed_neopress_official_site()?;
             }
+            db.ensure_admin_credentials()?;
         } else if is_new {
             db.seed_data()?;
         }
 
         Ok(db)
+    }
+
+    /// Guarantees the install has an administrator who can log in, without a shared default.
+    ///
+    /// Accounts still carrying the old seed placeholder (or no hash) get a fresh password:
+    /// `NEOPRESS_ADMIN_PASSWORD` when set, otherwise a random one printed once to stderr.
+    /// An install with no users at all gets an `admin` account the same way.
+    pub fn ensure_admin_credentials(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM wp_users;", [], |r| r.get(0))?;
+        if user_count == 0 {
+            let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            conn.execute(
+                r#"INSERT INTO wp_users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
+                   VALUES (1, 'admin', ?1, 'admin', '', ?2, 'admin');"#,
+                params![crate::auth::LEGACY_SEED_PASSWORD_HASH, now],
+            )?;
+        }
+
+        let pending: Vec<(i64, String)> = {
+            let mut stmt = conn.prepare(
+                "SELECT ID, user_login FROM wp_users WHERE user_pass = ?1 OR TRIM(COALESCE(user_pass, '')) = '' ORDER BY ID;",
+            )?;
+            let rows = stmt.query_map(params![crate::auth::LEGACY_SEED_PASSWORD_HASH], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })?;
+            rows.collect::<Result<Vec<_>>>()?
+        };
+
+        let env_password = std::env::var("NEOPRESS_ADMIN_PASSWORD")
+            .ok()
+            .filter(|p| !p.trim().is_empty());
+        for (index, (user_id, login)) in pending.into_iter().enumerate() {
+            let from_env = index == 0 && env_password.is_some();
+            let password = match (&env_password, from_env) {
+                (Some(p), true) => p.clone(),
+                _ => crate::auth::generate_random_password(),
+            };
+            conn.execute(
+                "UPDATE wp_users SET user_pass = ?1 WHERE ID = ?2;",
+                params![crate::auth::hash_user_password(&password), user_id],
+            )?;
+            // stderr, so `--mcp-stdio` keeps a clean JSON-RPC stdout.
+            eprintln!("============================================================");
+            if from_env {
+                eprintln!("🔐 Admin password for '{login}' set from NEOPRESS_ADMIN_PASSWORD.");
+            } else {
+                eprintln!("🔐 Generated a password for '{login}' (shown only once):");
+                eprintln!("   {password}");
+            }
+            eprintln!("   Log in at /login, then change it under Users → Profile.");
+            eprintln!("============================================================");
+        }
+        Ok(())
     }
 
     /// Seeds the official Neopress marketing website, product pages, and high-converting articles.
@@ -145,7 +205,7 @@ impl Database {
         // 1. Check if schemas/wordpress-core.sqlite exists and attach to import (skipped for in-memory test databases)
         let ref_sqlite = Path::new("schemas/wordpress-core.sqlite");
         if self.db_path != Path::new(":memory:") && ref_sqlite.exists() {
-            println!("📥 Found reference database at schemas/wordpress-core.sqlite, importing core records...");
+            eprintln!("📥 Found reference database at schemas/wordpress-core.sqlite, importing core records...");
             let ref_path_str = ref_sqlite.to_string_lossy().replace('\\', "/");
             let _ = conn.execute(
                 &format!("ATTACH DATABASE 'file:{}?mode=ro' AS ref_db;", ref_path_str),
@@ -200,11 +260,12 @@ impl Database {
             )?;
         }
 
-        // 3. Ensure admin user exists
+        // 3. Ensure admin user exists. In-memory databases are test fixtures, so they use the
+        // well-known admin/admin login; file databases never do (see `ensure_admin_credentials`).
         conn.execute(
             r#"INSERT OR IGNORE INTO wp_users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
-               VALUES (1, 'admin', '$2y$10$abcdefghijklmnopqrstuvwxyz1234567890', 'admin', 'admin@example.com', ?1, 'admin');"#,
-            params![now],
+               VALUES (1, 'admin', ?2, 'admin', 'admin@example.com', ?1, 'admin');"#,
+            params![now, crate::auth::hash_user_password("admin")],
         )?;
 
         // 4. Ensure reference posts exist
@@ -253,7 +314,8 @@ impl Database {
             for field in &manifest.settings_schema {
                 default_cfg.insert(field.key.clone(), field.default_value.clone());
             }
-            let default_active = !matches!(manifest.slug.as_str(), "whatsapp-chat" | "code-snippets");
+            let default_active =
+                !matches!(manifest.slug.as_str(), "whatsapp-chat" | "code-snippets");
             let manifest_json =
                 serde_json::to_string(&manifest).unwrap_or_else(|_| "{}".to_string());
             let config_json =

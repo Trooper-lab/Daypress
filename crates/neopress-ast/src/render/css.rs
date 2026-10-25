@@ -43,7 +43,12 @@ pub fn compile_layout_css(layout: &NeopressLayout) -> String {
     if !fonts.is_empty() {
         let families: Vec<String> = fonts
             .iter()
-            .map(|f| format!("family={}:wght@300;400;500;600;700;800", f.replace(' ', "+")))
+            .map(|f| {
+                format!(
+                    "family={}:wght@300;400;500;600;700;800",
+                    f.replace(' ', "+")
+                )
+            })
             .collect();
         css_out.push_str(&format!(
             "@import url('https://fonts.googleapis.com/css2?{}&display=swap');\n",
@@ -58,7 +63,11 @@ pub fn compile_layout_css(layout: &NeopressLayout) -> String {
 
     push_media(&mut css_out, "(min-width: 1025px)", &buckets.desktop_only);
     push_media(&mut css_out, "(max-width: 1024px)", &buckets.tablet);
-    push_media(&mut css_out, "(min-width: 768px) and (max-width: 1024px)", &buckets.tablet_only);
+    push_media(
+        &mut css_out,
+        "(min-width: 768px) and (max-width: 1024px)",
+        &buckets.tablet_only,
+    );
     push_media(&mut css_out, "(max-width: 767px)", &buckets.mobile);
 
     css_out
@@ -108,7 +117,10 @@ fn collect_fonts(styles: &StyleProperties, fonts: &mut Vec<&'static str>) {
                 .trim()
                 .trim_matches(|c| c == '\'' || c == '"')
                 .trim();
-            if let Some(known) = GOOGLE_FONT_FAMILIES.iter().find(|g| g.eq_ignore_ascii_case(first)) {
+            if let Some(known) = GOOGLE_FONT_FAMILIES
+                .iter()
+                .find(|g| g.eq_ignore_ascii_case(first))
+            {
                 if !fonts.contains(known) {
                     fonts.push(known);
                 }
@@ -151,7 +163,8 @@ fn collect_node_css(node: &NeopressNode, b: &mut CssBuckets, fonts: &mut Vec<&'s
     }
 
     // Breakpoint-scoped visibility (each toggle only affects its own device range)
-    let hide = |bucket: &mut Vec<String>| bucket.push(format!("{} {{ display: none !important; }}", sel));
+    let hide =
+        |bucket: &mut Vec<String>| bucket.push(format!("{} {{ display: none !important; }}", sel));
     if styles.hide_desktop == Some(true) {
         hide(&mut b.desktop_only);
     }

@@ -19,7 +19,8 @@ pub trait PostRepository: Send + Sync {
     fn find_post_by_id(&self, id: i64) -> DomainResult<Option<WpPostResponse>>;
     fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<WpPostResponse>>;
     fn create_post(&self, req: &CreatePostRequest) -> DomainResult<WpPostResponse>;
-    fn update_post(&self, id: i64, req: &UpdatePostRequest) -> DomainResult<Option<WpPostResponse>>;
+    fn update_post(&self, id: i64, req: &UpdatePostRequest)
+        -> DomainResult<Option<WpPostResponse>>;
     fn duplicate_post(&self, source_id: i64) -> DomainResult<Option<WpPostResponse>>;
     fn trash_post(&self, id: i64) -> DomainResult<Option<WpPostResponse>>;
     fn delete_post(&self, id: i64) -> DomainResult<bool>;
@@ -38,7 +39,11 @@ pub trait PostRepository: Send + Sync {
 pub trait TaxonomyRepository: Send + Sync {
     fn list_terms(&self, taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>>;
     fn find_term_by_id(&self, taxonomy: &str, id: i64) -> DomainResult<Option<WpCategoryResponse>>;
-    fn create_term(&self, taxonomy: &str, req: &CreateTermRequest) -> DomainResult<WpCategoryResponse>;
+    fn create_term(
+        &self,
+        taxonomy: &str,
+        req: &CreateTermRequest,
+    ) -> DomainResult<WpCategoryResponse>;
     fn update_term(
         &self,
         taxonomy: &str,

@@ -55,8 +55,10 @@ pub(crate) fn map_elementor_widget(
         .and_then(|v| v.as_str())
         .map(|s| ctx.normalize_html(s))
         .unwrap_or_else(|| {
-            format!("<!-- Elementor widget '{}' imported gracefully -->", widget_type)
+            format!(
+                "<!-- Elementor widget '{}' imported gracefully -->",
+                widget_type
+            )
         });
     Some(NodeKind::CustomHtml { raw })
 }
-

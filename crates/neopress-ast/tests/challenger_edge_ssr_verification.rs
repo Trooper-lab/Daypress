@@ -47,16 +47,35 @@ fn test_divi5_multiline_json_and_nested_inner_blocks() {
     let layout = layout_res.unwrap();
     assert_eq!(layout.root.children.len(), 1, "Expected 1 root section");
     let sec_node = &layout.root.children[0];
-    assert_eq!(sec_node.id, "multiline_sec", "Should extract module_id from multiline JSON");
     assert_eq!(
-        sec_node.styles.padding.as_ref().and_then(|p| p.top.as_deref()),
+        sec_node.id, "multiline_sec",
+        "Should extract module_id from multiline JSON"
+    );
+    assert_eq!(
+        sec_node
+            .styles
+            .padding
+            .as_ref()
+            .and_then(|p| p.top.as_deref()),
         Some("50px")
     );
-    assert_eq!(sec_node.children.len(), 1, "Section should have 1 child (Row)");
+    assert_eq!(
+        sec_node.children.len(),
+        1,
+        "Section should have 1 child (Row)"
+    );
     let row_node = &sec_node.children[0];
-    assert_eq!(row_node.children.len(), 2, "Row should have 2 children (Columns)");
+    assert_eq!(
+        row_node.children.len(),
+        2,
+        "Row should have 2 children (Columns)"
+    );
     let col2 = &row_node.children[1];
-    assert_eq!(col2.children.len(), 2, "Column 2 should have 2 children (Text + Button)");
+    assert_eq!(
+        col2.children.len(),
+        2,
+        "Column 2 should have 2 children (Text + Button)"
+    );
 }
 
 #[test]
@@ -73,7 +92,10 @@ fn test_transpile_content_divi5_routing() {
 
     let empty_meta = HashMap::new();
     let layout_opt = transpile_content(divi5_content, &empty_meta);
-    assert!(layout_opt.is_some(), "transpile_content returned None for Divi 5 content");
+    assert!(
+        layout_opt.is_some(),
+        "transpile_content returned None for Divi 5 content"
+    );
     let layout = layout_opt.unwrap();
     let sec = &layout.root.children[0];
     assert_eq!(
@@ -107,7 +129,11 @@ fn test_divi4_quad_margins_and_paddings_varied_units() {
     let sec = &layout.root.children[0];
 
     // Section padding with flags at end
-    let sec_pad = sec.styles.padding.as_ref().expect("Section padding missing");
+    let sec_pad = sec
+        .styles
+        .padding
+        .as_ref()
+        .expect("Section padding missing");
     assert_eq!(sec_pad.top.as_deref(), Some("50px"));
     assert_eq!(sec_pad.right.as_deref(), Some("30px"));
     assert_eq!(sec_pad.bottom.as_deref(), Some("50px"));
@@ -144,7 +170,10 @@ fn test_divi4_quad_margins_and_paddings_varied_units() {
 
     // Column child 1: Empty quad "|||" should be None
     let text2 = &col.children[1];
-    assert!(text2.styles.padding.is_none(), "Empty quad '|||' should parse as None");
+    assert!(
+        text2.styles.padding.is_none(),
+        "Empty quad '|||' should parse as None"
+    );
 }
 
 // =========================================================================
@@ -208,15 +237,32 @@ fn test_elementor_css_grid_track_templates_and_spans() {
     assert_eq!(grid_node.styles.grid_auto_flow.as_deref(), Some("dense"));
 
     // Responsive overrides
-    let tab = grid_node.styles.tablet.as_ref().expect("Missing tablet styles");
+    let tab = grid_node
+        .styles
+        .tablet
+        .as_ref()
+        .expect("Missing tablet styles");
     assert_eq!(tab.grid_template_columns.as_deref(), Some("repeat(2, 1fr)"));
-    let mob = grid_node.styles.mobile.as_ref().expect("Missing mobile styles");
+    let mob = grid_node
+        .styles
+        .mobile
+        .as_ref()
+        .expect("Missing mobile styles");
     assert_eq!(mob.grid_template_columns.as_deref(), Some("1fr"));
 
     // Children placement
-    assert_eq!(grid_node.children[0].styles.grid_column.as_deref(), Some("span 2"));
-    assert_eq!(grid_node.children[1].styles.grid_column.as_deref(), Some("1 / span 3"));
-    assert_eq!(grid_node.children[1].styles.grid_row.as_deref(), Some("2 / 4"));
+    assert_eq!(
+        grid_node.children[0].styles.grid_column.as_deref(),
+        Some("span 2")
+    );
+    assert_eq!(
+        grid_node.children[1].styles.grid_column.as_deref(),
+        Some("1 / span 3")
+    );
+    assert_eq!(
+        grid_node.children[1].styles.grid_row.as_deref(),
+        Some("2 / 4")
+    );
 }
 
 // =========================================================================
@@ -359,13 +405,11 @@ fn test_challenger_html_attribute_escaping_and_advanced_leak_firewall() {
                     period: Some("month".to_string()),
                     badge: Some("Special \"Offer\"".to_string()),
                     featured: true,
-                    features: vec![
-                        PriceFeatureItem {
-                            text: "Feature with <b>HTML</b> & \"quotes\"".to_string(),
-                            included: true,
-                            icon: Some("fa-solid fa-shield\" onerror=\"alert(1)".to_string()),
-                        },
-                    ],
+                    features: vec![PriceFeatureItem {
+                        text: "Feature with <b>HTML</b> & \"quotes\"".to_string(),
+                        included: true,
+                        icon: Some("fa-solid fa-shield\" onerror=\"alert(1)".to_string()),
+                    }],
                     button_text: "Deploy > Now".to_string(),
                     button_url: "/deploy?plan=pro&ref=hero\" onmouseover=\"evil()".to_string(),
                 },
@@ -417,14 +461,38 @@ fn test_challenger_html_attribute_escaping_and_advanced_leak_firewall() {
     let rendered = render_layout_to_html(&layout);
 
     // Verify attribute quotes are properly escaped so attribute injection is prevented
-    assert!(!rendered.contains("href=\"/deploy?plan=pro&ref=hero\" onmouseover="), "Attribute breakout occurred in button_url");
-    assert!(rendered.contains("href=\"/deploy?plan=pro&amp;ref=hero&quot; onmouseover=&quot;evil()\""), "Expected escaped button_url");
-    assert!(!rendered.contains("src=\"https://example.com/logo.png\" onerror="), "Attribute breakout occurred in img src");
-    assert!(rendered.contains("src=\"https://example.com/logo.png&quot; onerror=&quot;alert('img')\""), "Expected escaped img src");
-    assert!(rendered.contains("alt=\"Company &quot;Logo&quot; &amp; Brand &lt;Icon&gt;\""), "Expected escaped img alt");
-    assert!(rendered.contains("placeholder=\"Search &quot;articles&quot; &amp; docs...\""), "Expected escaped search placeholder");
-    assert!(rendered.contains("action=\"/api/search?lang=en&amp;type=&quot;all&quot;\""), "Expected escaped search endpoint");
-    assert!(rendered.contains("value=\"/admin?user=&quot;root&quot;&amp;status=active\""), "Expected escaped login redirect");
+    assert!(
+        !rendered.contains("href=\"/deploy?plan=pro&ref=hero\" onmouseover="),
+        "Attribute breakout occurred in button_url"
+    );
+    assert!(
+        rendered.contains("href=\"/deploy?plan=pro&amp;ref=hero&quot; onmouseover=&quot;evil()\""),
+        "Expected escaped button_url"
+    );
+    assert!(
+        !rendered.contains("src=\"https://example.com/logo.png\" onerror="),
+        "Attribute breakout occurred in img src"
+    );
+    assert!(
+        rendered.contains("src=\"https://example.com/logo.png&quot; onerror=&quot;alert('img')\""),
+        "Expected escaped img src"
+    );
+    assert!(
+        rendered.contains("alt=\"Company &quot;Logo&quot; &amp; Brand &lt;Icon&gt;\""),
+        "Expected escaped img alt"
+    );
+    assert!(
+        rendered.contains("placeholder=\"Search &quot;articles&quot; &amp; docs...\""),
+        "Expected escaped search placeholder"
+    );
+    assert!(
+        rendered.contains("action=\"/api/search?lang=en&amp;type=&quot;all&quot;\""),
+        "Expected escaped search endpoint"
+    );
+    assert!(
+        rendered.contains("value=\"/admin?user=&quot;root&quot;&amp;status=active\""),
+        "Expected escaped login redirect"
+    );
 
     // 2. Advanced SSR Leak Sanitization Matrix
     let raw_html_with_leaks = r#"<div class="card elementor-grid-handle neostudio-handle visual-builder-active active-element et_pb_element_editing ui-resizable ui-draggable ui-sortable neostudio-canvas"
@@ -451,33 +519,96 @@ fn test_challenger_html_attribute_escaping_and_advanced_leak_firewall() {
     let sanitized = sanitize_ssr_html(raw_html_with_leaks);
 
     // Verify zero contenteditable leaks (case-insensitive, quoted or unquoted)
-    assert!(!sanitized.to_ascii_lowercase().contains("contenteditable"), "Leaked contenteditable in sanitized output");
+    assert!(
+        !sanitized.to_ascii_lowercase().contains("contenteditable"),
+        "Leaked contenteditable in sanitized output"
+    );
     // Verify zero draggable leaks
-    assert!(!sanitized.to_ascii_lowercase().contains("draggable"), "Leaked draggable in sanitized output");
+    assert!(
+        !sanitized.to_ascii_lowercase().contains("draggable"),
+        "Leaked draggable in sanitized output"
+    );
     // Verify editor data attributes stripped
-    assert!(!sanitized.contains("data-elementor-type"), "Leaked data-elementor-type");
-    assert!(!sanitized.contains("data-elementor-id"), "Leaked data-elementor-id");
-    assert!(!sanitized.contains("data-neostudio-block"), "Leaked data-neostudio-block");
-    assert!(!sanitized.contains("data-drag-handle"), "Leaked data-drag-handle");
-    assert!(!sanitized.contains("data-model-cid"), "Leaked data-model-cid");
+    assert!(
+        !sanitized.contains("data-elementor-type"),
+        "Leaked data-elementor-type"
+    );
+    assert!(
+        !sanitized.contains("data-elementor-id"),
+        "Leaked data-elementor-id"
+    );
+    assert!(
+        !sanitized.contains("data-neostudio-block"),
+        "Leaked data-neostudio-block"
+    );
+    assert!(
+        !sanitized.contains("data-drag-handle"),
+        "Leaked data-drag-handle"
+    );
+    assert!(
+        !sanitized.contains("data-model-cid"),
+        "Leaked data-model-cid"
+    );
     // Verify valid data attributes preserved
-    assert!(sanitized.contains("data-valid-custom=\"keep-me\""), "Wrongly stripped valid data attribute");
-    assert!(sanitized.contains("data-track-id=\"987\""), "Wrongly stripped valid data attribute");
+    assert!(
+        sanitized.contains("data-valid-custom=\"keep-me\""),
+        "Wrongly stripped valid data attribute"
+    );
+    assert!(
+        sanitized.contains("data-track-id=\"987\""),
+        "Wrongly stripped valid data attribute"
+    );
 
     // Verify editor classes stripped and legitimate classes preserved
-    assert!(sanitized.contains("class=\"card\""), "Legitimate class 'card' was not preserved cleanly; got: {}", sanitized);
-    assert!(!sanitized.contains("elementor-grid-handle"), "Leaked elementor-grid-handle");
-    assert!(!sanitized.contains("neostudio-handle"), "Leaked neostudio-handle");
-    assert!(!sanitized.contains("neostudio-canvas"), "Leaked neostudio-canvas");
-    assert!(!sanitized.contains("visual-builder-active"), "Leaked visual-builder-active");
-    assert!(!sanitized.contains("active-element"), "Leaked active-element");
-    assert!(!sanitized.contains("et_pb_element_editing"), "Leaked et_pb_element_editing");
+    assert!(
+        sanitized.contains("class=\"card\""),
+        "Legitimate class 'card' was not preserved cleanly; got: {}",
+        sanitized
+    );
+    assert!(
+        !sanitized.contains("elementor-grid-handle"),
+        "Leaked elementor-grid-handle"
+    );
+    assert!(
+        !sanitized.contains("neostudio-handle"),
+        "Leaked neostudio-handle"
+    );
+    assert!(
+        !sanitized.contains("neostudio-canvas"),
+        "Leaked neostudio-canvas"
+    );
+    assert!(
+        !sanitized.contains("visual-builder-active"),
+        "Leaked visual-builder-active"
+    );
+    assert!(
+        !sanitized.contains("active-element"),
+        "Leaked active-element"
+    );
+    assert!(
+        !sanitized.contains("et_pb_element_editing"),
+        "Leaked et_pb_element_editing"
+    );
     assert!(!sanitized.contains("ui-resizable"), "Leaked ui-resizable");
     assert!(!sanitized.contains("ui-draggable"), "Leaked ui-draggable");
-    assert!(!sanitized.contains("elementor-element-edit-mode"), "Leaked elementor-element-edit-mode");
-    assert!(!sanitized.contains("neostudio-resizer"), "Leaked neostudio-resizer");
+    assert!(
+        !sanitized.contains("elementor-element-edit-mode"),
+        "Leaked elementor-element-edit-mode"
+    );
+    assert!(
+        !sanitized.contains("neostudio-resizer"),
+        "Leaked neostudio-resizer"
+    );
 
     // Verify empty class attribute cleanup (div with only editor classes should have NO class attribute)
-    assert!(!sanitized.contains("class=\"\""), "Found empty class=\"\" artifact in output: {}", sanitized);
-    assert!(!sanitized.contains("class=\"   \""), "Found whitespace class artifact in output: {}", sanitized);
+    assert!(
+        !sanitized.contains("class=\"\""),
+        "Found empty class=\"\" artifact in output: {}",
+        sanitized
+    );
+    assert!(
+        !sanitized.contains("class=\"   \""),
+        "Found whitespace class artifact in output: {}",
+        sanitized
+    );
 }

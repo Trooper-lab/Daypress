@@ -79,7 +79,10 @@ impl DiviContext {
                 if let Some(raw_host) = crate::url_utils::extract_url_host(trimmed) {
                     if raw_host.eq_ignore_ascii_case(host) {
                         if let Some(idx) = trimmed.find("/wp-content/uploads/") {
-                            return format!("/uploads/{}", &trimmed[idx + "/wp-content/uploads/".len()..]);
+                            return format!(
+                                "/uploads/{}",
+                                &trimmed[idx + "/wp-content/uploads/".len()..]
+                            );
                         }
                     }
                 }
@@ -108,7 +111,10 @@ impl DiviContext {
                 .replace(&https_base, "/")
                 .replace(&http_base, "/");
             if let Some(host) = crate::url_utils::extract_url_host(clean_base) {
-                s = s.replace(&format!("https://{}/wp-content/uploads/", host), "/uploads/");
+                s = s.replace(
+                    &format!("https://{}/wp-content/uploads/", host),
+                    "/uploads/",
+                );
                 s = s.replace(&format!("http://{}/wp-content/uploads/", host), "/uploads/");
             }
             s
@@ -139,9 +145,7 @@ impl DiviContext {
                             .unwrap_or_default();
                         match content_type {
                             "home_url" => return "/".to_string(),
-                            "post_link_url_page"
-                            | "post_link_url_post"
-                            | "post_link_url"
+                            "post_link_url_page" | "post_link_url_post" | "post_link_url"
                             | "custom_meta_link" => {
                                 if let Some(pid) = val
                                     .get("settings")

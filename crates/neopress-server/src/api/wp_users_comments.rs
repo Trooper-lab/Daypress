@@ -1,6 +1,7 @@
 //! WordPress REST API v2 Users, Comments, Application Passwords, Nonces & JWT Auth.
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::AuthUser;
 use crate::db::Database;
 use crate::errors::AppError;
@@ -18,8 +19,6 @@ use serde_json::Value;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
-use super::*;
-
 
 pub(crate) async fn list_users(
     State(db): State<Database>,
@@ -47,7 +46,7 @@ pub(crate) async fn list_users(
 }
 
 pub(crate) async fn create_user(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<WpUserDetail>), AppError> {
@@ -56,7 +55,7 @@ pub(crate) async fn create_user(
 }
 
 pub(crate) async fn delete_user(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -71,6 +70,7 @@ pub(crate) async fn delete_user(
 }
 
 pub(crate) async fn list_comments(
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Query(params): Query<CommentListQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<WpCommentAdminItem>>), AppError> {
@@ -93,19 +93,35 @@ pub(crate) async fn list_comments(
 }
 
 pub(crate) async fn create_comment_handler(
+    crate::auth::OptionalAuthUser(auth): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
-    Json(payload): Json<CreateCommentRequest>,
+    Json(mut payload): Json<CreateCommentRequest>,
 ) -> Result<(StatusCode, Json<WpCommentResponse>), AppError> {
     if payload.content.trim().is_empty() {
         return Err(AppError::BadRequest(
             "Comment content is required".to_string(),
         ));
     }
+    if !auth.as_ref().is_some_and(|u| u.can_edit_content()) {
+        // Visitors may only comment on published posts with comments open, and their
+        // comments always wait in the moderation queue.
+        let post = db
+            .get_post_by_id(payload.post)?
+            .filter(|p| p.status == "publish")
+            .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+        if post.comment_status != "open" {
+            return Err(AppError::Forbidden(
+                "Comments are closed for this post.".to_string(),
+            ));
+        }
+        payload.status = Some("hold".to_string());
+    }
     let comment = db.create_comment(&payload)?;
     Ok((StatusCode::CREATED, Json(comment)))
 }
 
 pub(crate) async fn get_comment(
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<WpCommentAdminItem>, AppError> {
@@ -117,6 +133,7 @@ pub(crate) async fn get_comment(
 }
 
 pub(crate) async fn update_comment_handler(
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateCommentRequest>,
@@ -134,6 +151,7 @@ pub(crate) async fn update_comment_handler(
 }
 
 pub(crate) async fn delete_comment_handler(
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Query(params): Query<DeleteQueryParams>,
@@ -172,8 +190,12 @@ pub(crate) async fn get_current_user(
 pub(crate) async fn update_current_user(
     auth: AuthUser,
     State(db): State<Database>,
-    Json(payload): Json<UpdateUserRequest>,
+    Json(mut payload): Json<UpdateUserRequest>,
 ) -> Result<Json<WpUserDetail>, AppError> {
+    // Users may edit their own profile, but only administrators may change roles.
+    if !auth.is_admin() {
+        payload.role = None;
+    }
     match db.update_user_detail(auth.user_id, &payload)? {
         Some(u) => Ok(Json(u)),
         None => Err(AppError::NotFound("User not found".to_string())),
@@ -181,6 +203,7 @@ pub(crate) async fn update_current_user(
 }
 
 pub(crate) async fn get_user_by_id(
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<WpUserDetail>, AppError> {
@@ -191,7 +214,7 @@ pub(crate) async fn get_user_by_id(
 }
 
 pub(crate) async fn update_user_by_id(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateUserRequest>,
@@ -209,7 +232,7 @@ pub(crate) async fn list_app_passwords(
     State(db): State<Database>,
     AxPath(user_id): AxPath<i64>,
 ) -> Result<Json<Vec<AppPasswordResponse>>, AppError> {
-    if auth.user_id != user_id && auth.user_id != 1 {
+    if auth.user_id != user_id && !auth.is_admin() {
         return Err(AppError::Forbidden("Permission denied".to_string()));
     }
     let list = db.list_application_passwords(user_id)?;
@@ -222,7 +245,7 @@ pub(crate) async fn create_app_password(
     AxPath(user_id): AxPath<i64>,
     Json(payload): Json<CreateAppPasswordRequest>,
 ) -> Result<(StatusCode, Json<AppPasswordResponse>), AppError> {
-    if auth.user_id != user_id && auth.user_id != 1 {
+    if auth.user_id != user_id && !auth.is_admin() {
         return Err(AppError::Forbidden("Permission denied".to_string()));
     }
     let res = db.create_application_password(user_id, &payload.name, payload.app_id.as_deref())?;
@@ -234,7 +257,7 @@ pub(crate) async fn delete_app_password(
     State(db): State<Database>,
     AxPath((user_id, uuid)): AxPath<(i64, String)>,
 ) -> Result<Json<Value>, AppError> {
-    if auth.user_id != user_id && auth.user_id != 1 {
+    if auth.user_id != user_id && !auth.is_admin() {
         return Err(AppError::Forbidden("Permission denied".to_string()));
     }
     if db.delete_application_password(user_id, &uuid)? {
@@ -249,9 +272,12 @@ pub(crate) async fn delete_app_password(
 
 // --- Nonce & JWT Auth Endpoints ---
 
-pub(crate) async fn get_auth_nonce(State(db): State<Database>) -> Result<Json<NonceResponse>, AppError> {
+pub(crate) async fn get_auth_nonce(
+    auth: AuthUser,
+    State(db): State<Database>,
+) -> Result<Json<NonceResponse>, AppError> {
     let secret = db.get_auth_secret()?;
-    let nonce = crate::auth::create_wp_nonce("wp_rest", 1, &secret);
+    let nonce = crate::auth::create_wp_nonce("wp_rest", auth.user_id, &secret);
     Ok(Json(NonceResponse {
         nonce,
         action: "wp_rest".to_string(),

@@ -1,6 +1,7 @@
 //! WordPress REST API v2 Categories, Tags, Menus, Widgets, Themes, Plugins, Types & Search.
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::AuthUser;
 use crate::db::Database;
 use crate::errors::AppError;
@@ -18,8 +19,6 @@ use serde_json::Value;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
-use super::*;
-
 
 pub(crate) async fn list_categories(
     State(db): State<Database>,
@@ -40,7 +39,7 @@ pub(crate) async fn get_category_handler(
 }
 
 pub(crate) async fn create_category_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTermRequest>,
 ) -> Result<(StatusCode, Json<WpCategoryResponse>), AppError> {
@@ -49,7 +48,7 @@ pub(crate) async fn create_category_handler(
 }
 
 pub(crate) async fn update_category_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTermRequest>,
@@ -61,7 +60,7 @@ pub(crate) async fn update_category_handler(
 }
 
 pub(crate) async fn delete_category_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -104,7 +103,7 @@ pub(crate) async fn get_tag_handler(
 }
 
 pub(crate) async fn create_tag_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTermRequest>,
 ) -> Result<(StatusCode, Json<WpCategoryResponse>), AppError> {
@@ -113,7 +112,7 @@ pub(crate) async fn create_tag_handler(
 }
 
 pub(crate) async fn update_tag_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTermRequest>,
@@ -125,7 +124,7 @@ pub(crate) async fn update_tag_handler(
 }
 
 pub(crate) async fn delete_tag_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -160,7 +159,7 @@ pub(crate) async fn get_menus_handler(State(db): State<Database>) -> Result<Json
 }
 
 pub(crate) async fn save_menus_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
@@ -179,7 +178,9 @@ pub(crate) async fn save_menus_handler(
     })))
 }
 
-pub(crate) async fn get_widgets_handler(State(db): State<Database>) -> Result<Json<Value>, AppError> {
+pub(crate) async fn get_widgets_handler(
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
     let settings = db.get_settings()?;
     let val: Value = serde_json::from_str(&settings.widgets_json).unwrap_or_else(|_| {
         serde_json::json!({
@@ -191,7 +192,7 @@ pub(crate) async fn get_widgets_handler(State(db): State<Database>) -> Result<Js
 }
 
 pub(crate) async fn save_widgets_handler(
-    _auth: AuthUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
@@ -205,7 +206,9 @@ pub(crate) async fn save_widgets_handler(
     })))
 }
 
-pub(crate) async fn get_themes_handler(State(db): State<Database>) -> Result<Json<Value>, AppError> {
+pub(crate) async fn get_themes_handler(
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
     let settings = db.get_settings()?;
     let active = if settings.active_theme.is_empty() {
         "Neopress Modern".to_string()
@@ -237,7 +240,9 @@ pub(crate) async fn get_themes_handler(State(db): State<Database>) -> Result<Jso
     ])))
 }
 
-pub(crate) async fn get_plugins_handler(State(db): State<Database>) -> Result<Json<Value>, AppError> {
+pub(crate) async fn get_plugins_handler(
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
     let settings = db.get_settings()?;
     let is_active = |slug: &str| {
         settings.active_plugins.is_empty()

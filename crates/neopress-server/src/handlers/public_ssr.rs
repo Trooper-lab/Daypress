@@ -1,6 +1,7 @@
 //! Public SSR & SEO Sitemap/Robots Handlers.
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::OptionalAuthUser;
 use crate::db::Database;
 use crate::models;
@@ -13,7 +14,6 @@ use axum::{
     response::{Html, IntoResponse},
 };
 use serde::Deserialize;
-use super::*;
 
 pub async fn handle_home_or_query(
     State(db): State<Database>,
@@ -37,7 +37,8 @@ pub async fn handle_home_or_query(
             ..Default::default()
         };
         let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        let html = templates::render_search_page(q, &results, &settings, user.as_ref(), Some(&partials));
+        let html =
+            templates::render_search_page(q, &results, &settings, user.as_ref(), Some(&partials));
         return Html(crate::plugins::inject_plugin_hooks_into_html(
             &db, &settings, None, html,
         ))
@@ -45,7 +46,12 @@ pub async fn handle_home_or_query(
     }
 
     if let Some(id) = params.p {
-        if let Ok(Some(mut post)) = db.get_post_by_id(id) {
+        if let Some(mut post) = db
+            .get_post_by_id(id)
+            .ok()
+            .flatten()
+            .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+        {
             let layout_json = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
             let expanded = crate::plugins::expand_shortcodes_in_content(
@@ -58,8 +64,18 @@ pub async fn handle_home_or_query(
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
             let terms = hydrate_post_terms(&db, &post);
-            let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
-            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&post));
+            let req_ctx = RequestContext::for_post(
+                post.id,
+                &post.post_type,
+                settings.page_on_front > 0 && post.id == settings.page_on_front,
+                terms,
+            );
+            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&post),
+            );
             let html = templates::render_single_post(
                 &post,
                 &settings,
@@ -79,14 +95,23 @@ pub async fn handle_home_or_query(
             let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
             return (
                 StatusCode::NOT_FOUND,
-                Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
+                Html(templates::render_not_found_page(
+                    &settings,
+                    user.as_ref(),
+                    Some(&partials),
+                )),
             )
                 .into_response();
         }
     }
 
     if let Some(id) = params.page_id {
-        if let Ok(Some(mut page)) = db.get_post_by_id(id) {
+        if let Some(mut page) = db
+            .get_post_by_id(id)
+            .ok()
+            .flatten()
+            .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+        {
             let layout_json = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&page));
             let expanded = crate::plugins::expand_shortcodes_in_content(
@@ -98,8 +123,18 @@ pub async fn handle_home_or_query(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
-            let req_ctx = RequestContext::for_post(page.id, &page.post_type, false, vec![]);
-            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&page));
+            let req_ctx = RequestContext::for_post(
+                page.id,
+                &page.post_type,
+                settings.page_on_front > 0 && page.id == settings.page_on_front,
+                vec![],
+            );
+            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&page),
+            );
             let html = templates::render_single_post(
                 &page,
                 &settings,
@@ -119,14 +154,23 @@ pub async fn handle_home_or_query(
             let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
             return (
                 StatusCode::NOT_FOUND,
-                Html(templates::render_not_found_page(&settings, user.as_ref(), Some(&partials))),
+                Html(templates::render_not_found_page(
+                    &settings,
+                    user.as_ref(),
+                    Some(&partials),
+                )),
             )
                 .into_response();
         }
     }
 
     if settings.show_on_front == "page" && settings.page_on_front > 0 {
-        if let Ok(Some(mut front_page)) = db.get_post_by_id(settings.page_on_front) {
+        if let Some(mut front_page) = db
+            .get_post_by_id(settings.page_on_front)
+            .ok()
+            .flatten()
+            .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+        {
             let layout_json = db.get_post_layout(front_page.id).unwrap_or(None);
             let hooks =
                 crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&front_page));
@@ -139,8 +183,13 @@ pub async fn handle_home_or_query(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
-            let req_ctx = RequestContext::for_front_page();
-            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&front_page));
+            let req_ctx = RequestContext::for_front_page_post(front_page.id, &front_page.post_type);
+            let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&front_page),
+            );
             let html = templates::render_single_post(
                 &front_page,
                 &settings,
@@ -192,9 +241,18 @@ pub async fn handle_single(
 
     let clean_slug = slug.trim_matches('/');
 
-    if let Ok(Some(mut post)) = db.get_post_by_slug(&slug) {
+    if let Some(mut post) = db
+        .get_post_by_slug(&slug)
+        .ok()
+        .flatten()
+        .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+    {
         if post.template == "page_templates/leeg.php"
-            || post.content.rendered.trim_start().starts_with("<!DOCTYPE html")
+            || post
+                .content
+                .rendered
+                .trim_start()
+                .starts_with("<!DOCTYPE html")
         {
             return (StatusCode::OK, Html(post.content.rendered)).into_response();
         }
@@ -239,19 +297,26 @@ pub async fn handle_single(
         }
 
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded = crate::plugins::expand_shortcodes_in_content(
-            &post.content.rendered,
-            &db,
-            &settings,
-        );
+        let expanded =
+            crate::plugins::expand_shortcodes_in_content(&post.content.rendered, &db, &settings);
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html
         );
 
         let terms = hydrate_post_terms(&db, &post);
-        let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
-        let partials = SsrInjector::resolve_and_hydrate_partials_with_post(&db, &req_ctx, &settings, Some(&post));
+        let req_ctx = RequestContext::for_post(
+            post.id,
+            &post.post_type,
+            settings.page_on_front > 0 && post.id == settings.page_on_front,
+            terms,
+        );
+        let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
+            &db,
+            &req_ctx,
+            &settings,
+            Some(&post),
+        );
 
         let html = templates::render_single_post(
             &post,
@@ -307,7 +372,10 @@ pub async fn handle_single(
         .into_response()
 }
 
-pub(crate) fn hydrate_post_terms(db: &Database, post: &models::WpPostResponse) -> Vec<TaxonomyTermRef> {
+pub(crate) fn hydrate_post_terms(
+    db: &Database,
+    post: &models::WpPostResponse,
+) -> Vec<TaxonomyTermRef> {
     let mut terms = Vec::new();
     if let Ok(conn) = db.conn.lock() {
         if let Ok(mut stmt) = conn.prepare_cached(
@@ -362,4 +430,3 @@ pub(crate) fn hydrate_post_terms(db: &Database, post: &models::WpPostResponse) -
     }
     terms
 }
-

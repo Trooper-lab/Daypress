@@ -1,6 +1,7 @@
 //! Core WordPress Admin SSR Screen & Authentication Handlers.
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::OptionalAuthUser;
 use crate::db::Database;
 use crate::models;
@@ -11,7 +12,6 @@ use axum::{
     response::{Html, IntoResponse},
 };
 use serde::Deserialize;
-use super::*;
 
 // Admin Handlers
 pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> {
@@ -23,12 +23,20 @@ pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> 
         .filter(|p| {
             !matches!(
                 p.post_type.as_str(),
-                "attachment" | "nav_menu_item" | "revision" | "elementor_library" | "wpcf7_contact_form" | "acf-field" | "acf-field-group"
+                "attachment"
+                    | "nav_menu_item"
+                    | "revision"
+                    | "elementor_library"
+                    | "wpcf7_contact_form"
+                    | "acf-field"
+                    | "acf-field-group"
             )
         })
         .collect();
     if posts.is_empty() {
-        posts = db.get_posts("post", Some("any"), None, 50).unwrap_or_default();
+        posts = db
+            .get_posts("post", Some("any"), None, 50)
+            .unwrap_or_default();
     }
     let stats = db.get_stats().unwrap_or_default();
 
@@ -45,13 +53,26 @@ pub async fn handle_admin_posts(
     let ptype = params
         .post_type
         .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or("post");
+        .map(sanitize_key)
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "post".to_string());
+    let ptype = ptype.as_str();
     let posts = db
         .get_posts(ptype, Some("any"), None, 200)
         .unwrap_or_default();
 
-    Html(templates::render_wp_posts_view_for_type(&posts, &settings, ptype))
+    let matrix = if ptype == "page" {
+        Some(crate::theme_builder::build_header_footer_matrix(&db))
+    } else {
+        None
+    };
+
+    Html(templates::render_wp_posts_view_with_matrix(
+        &posts,
+        &settings,
+        ptype,
+        matrix.as_ref(),
+    ))
 }
 
 pub async fn handle_admin_post_new(
@@ -69,7 +90,7 @@ pub async fn handle_admin_post_new(
     let ptype: String = existing_post
         .as_ref()
         .map(|p| p.post_type.clone())
-        .or_else(|| params.post_type.clone())
+        .or_else(|| params.post_type.as_deref().map(sanitize_key))
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "post".to_string());
 
@@ -80,7 +101,9 @@ pub async fn handle_admin_post_new(
     let tags = db.get_terms("post_tag").unwrap_or_default();
     let media = db.get_media_attachments().unwrap_or_default();
     let has_visual_layout = existing_post.is_some();
-    let taxonomies = db.get_taxonomies_for_post_type(&ptype, target_id).unwrap_or_default();
+    let taxonomies = db
+        .get_taxonomies_for_post_type(&ptype, target_id)
+        .unwrap_or_default();
 
     Html(templates::render_wp_post_new_view(
         &settings,
@@ -100,6 +123,21 @@ pub async fn handle_admin_builder(
     Query(params): Query<AdminEditQueryParams>,
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
+
+    if let Some(tpl_id) = params.template_id {
+        let repo = crate::theme_builder::ThemeTemplateRepository::from_database(&db);
+        if let Ok(Some(tpl)) = repo.get_by_id(tpl_id) {
+            let layout_str =
+                serde_json::to_string(&tpl.layout).unwrap_or_else(|_| "{}".to_string());
+            let synth_post = super::admin_extra::template_to_builder_post(&tpl);
+            return Html(templates::render_wp_builder_view(
+                &settings,
+                &synth_post,
+                Some(&layout_str),
+            ));
+        }
+    }
+
     let target_id = params.id.or(params.post).or(params.post_id);
     let post = if let Some(id) = target_id {
         db.get_post_by_id(id).unwrap_or(None)
@@ -117,59 +155,7 @@ pub async fn handle_admin_builder(
             .and_then(|v| v.into_iter().next())
     };
 
-    let post = match post {
-        Some(p) => p,
-        None => models::WpPostResponse {
-            id: 1,
-            date: "2026-10-22T00:00:00".to_string(),
-            date_gmt: "2026-10-22T00:00:00".to_string(),
-            guid: models::WpGuid {
-                rendered: "".to_string(),
-            },
-            modified: "2026-10-22T00:00:00".to_string(),
-            modified_gmt: "2026-10-22T00:00:00".to_string(),
-            slug: "sample-page".to_string(),
-            status: "publish".to_string(),
-            post_type: "page".to_string(),
-            link: "/sample-page/".to_string(),
-            title: models::WpRenderedText {
-                rendered: "Sample Page".to_string(),
-                protected: false,
-            },
-            content: models::WpRenderedText {
-                rendered: "".to_string(),
-                protected: false,
-            },
-            excerpt: models::WpRenderedText {
-                rendered: "".to_string(),
-                protected: false,
-            },
-            author: 1,
-            featured_media: 0,
-            comment_status: "open".to_string(),
-            ping_status: "open".to_string(),
-            sticky: false,
-            template: "default".to_string(),
-            format: "standard".to_string(),
-            meta: serde_json::json!({}),
-            categories: vec![1],
-            tags: vec![],
-            parent: 0,
-            menu_order: 0,
-            author_name: "admin".to_string(),
-            category_names: vec![],
-            tag_names: vec![],
-            featured_image_url: None,
-            comments: vec![],
-            seo_title: String::new(),
-            seo_description: String::new(),
-            seo_keyword: String::new(),
-            seo_canonical: String::new(),
-            seo_noindex: false,
-            seo_schema_type: "WebPage".to_string(),
-            seo_og_image: String::new(),
-        },
-    };
+    let post = post.unwrap_or_else(super::admin_extra::placeholder_builder_post);
 
     let layout_opt = db.get_post_layout(post.id).unwrap_or(None);
 
@@ -192,10 +178,14 @@ pub async fn handle_admin_profile(
     OptionalAuthUser(auth_user): OptionalAuthUser,
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let target_id = params
-        .user_id
-        .or_else(|| auth_user.map(|u| u.user_id))
-        .unwrap_or(1);
+    // Only administrators may open another user's profile via `?user_id=`.
+    let is_admin = auth_user.as_ref().is_some_and(|u| u.is_admin());
+    let own_id = auth_user.as_ref().map(|u| u.user_id).unwrap_or(1);
+    let target_id = if is_admin {
+        params.user_id.unwrap_or(own_id)
+    } else {
+        own_id
+    };
     let user = db
         .get_user_detail(target_id)
         .unwrap_or(None)
@@ -242,7 +232,7 @@ pub async fn handle_admin_user_new_submit(
     match db.create_user(&req) {
         Ok(_) => {
             let mut headers = HeaderMap::new();
-            headers.insert(header::LOCATION, "/n-admin/users.php".parse().unwrap());
+            headers.insert(header::LOCATION, "/n-admin/users".parse().unwrap());
             (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
         }
         Err(_) => Html(templates::render_wp_user_new_view(&settings)).into_response(),
@@ -307,7 +297,10 @@ pub async fn handle_login_submit(
             if let Ok(loc) = redirect_to.parse() {
                 headers.insert(header::LOCATION, loc);
             } else {
-                headers.insert(header::LOCATION, header::HeaderValue::from_static("/n-admin/"));
+                headers.insert(
+                    header::LOCATION,
+                    header::HeaderValue::from_static("/n-admin/"),
+                );
             }
             (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
         }
@@ -329,10 +322,7 @@ pub async fn handle_logout() -> impl IntoResponse {
             .parse()
             .unwrap(),
     );
-    headers.insert(
-        header::LOCATION,
-        "/wp-login.php?loggedout=true".parse().unwrap(),
-    );
+    headers.insert(header::LOCATION, "/login?loggedout=true".parse().unwrap());
     (StatusCode::SEE_OTHER, headers, Html(String::new()))
 }
 
@@ -347,7 +337,12 @@ pub async fn handle_admin_tags(
     Query(params): Query<AdminEditQueryParams>,
 ) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let taxonomy = params.taxonomy.unwrap_or_else(|| "category".to_string());
+    let taxonomy = params
+        .taxonomy
+        .as_deref()
+        .map(sanitize_key)
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "category".to_string());
     let terms = db.get_terms(&taxonomy).unwrap_or_default();
     Html(templates::render_wp_tags_view(&settings, &taxonomy, &terms))
 }
@@ -362,4 +357,3 @@ pub async fn handle_admin_engine(State(db): State<Database>) -> Html<String> {
     let stats = db.get_stats().unwrap_or_default();
     Html(templates::render_wp_engine_view(&settings, &stats))
 }
-

@@ -84,7 +84,7 @@ pub fn render_wp_comments_view(
                         </div>
                     </td>
                     <td style="width: 200px; vertical-align: top;">
-                        <a href="/n-admin/post.php?post={post_id}&action=edit" style="font-weight: 500; text-decoration: none; color: #2563eb; font-size: 13px;">{post_title}</a>
+                        <a href="/n-admin/post?post={post_id}&action=edit" style="font-weight: 500; text-decoration: none; color: #2563eb; font-size: 13px;">{post_title}</a>
                         <div style="margin-top: 4px;">
                             <a href="/?p={post_id}" target="_blank" style="font-size: 11.5px; color: #64748b; text-decoration: none;">View Post &nearr;</a>
                         </div>
@@ -123,11 +123,11 @@ pub fn render_wp_comments_view(
                 <p class="page-subtitle">Moderate, approve, and manage reader conversations</p>
             </div>
             <div style="display: flex; gap: 8px;">
-                <a href="/n-admin/edit-comments.php" class="btn {all_cls}" style="padding: 6px 12px; font-size: 12px;">All ({all_count})</a>
-                <a href="/n-admin/edit-comments.php?comment_status=pending" class="btn {pend_cls}" style="padding: 6px 12px; font-size: 12px;">Pending ({pend_count})</a>
-                <a href="/n-admin/edit-comments.php?comment_status=approved" class="btn {app_cls}" style="padding: 6px 12px; font-size: 12px;">Approved ({app_count})</a>
-                <a href="/n-admin/edit-comments.php?comment_status=spam" class="btn {spam_cls}" style="padding: 6px 12px; font-size: 12px;">Spam ({spam_count})</a>
-                <a href="/n-admin/edit-comments.php?comment_status=trash" class="btn {trash_cls}" style="padding: 6px 12px; font-size: 12px;">Trash ({trash_count})</a>
+                <a href="/n-admin/edit-comments" class="btn {all_cls}" style="padding: 6px 12px; font-size: 12px;">All ({all_count})</a>
+                <a href="/n-admin/edit-comments?comment_status=pending" class="btn {pend_cls}" style="padding: 6px 12px; font-size: 12px;">Pending ({pend_count})</a>
+                <a href="/n-admin/edit-comments?comment_status=approved" class="btn {app_cls}" style="padding: 6px 12px; font-size: 12px;">Approved ({app_count})</a>
+                <a href="/n-admin/edit-comments?comment_status=spam" class="btn {spam_cls}" style="padding: 6px 12px; font-size: 12px;">Spam ({spam_count})</a>
+                <a href="/n-admin/edit-comments?comment_status=trash" class="btn {trash_cls}" style="padding: 6px 12px; font-size: 12px;">Trash ({trash_count})</a>
             </div>
         </div>
 

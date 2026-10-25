@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -57,9 +57,7 @@ impl Database {
             email: self
                 .get_option("admin_email")?
                 .unwrap_or_else(|| "admin@example.com".to_string()),
-            timezone: self
-                .get_option("timezone_string")?
-                .unwrap_or_default(),
+            timezone: self.get_option("timezone_string")?.unwrap_or_default(),
             date_format: self
                 .get_option("date_format")?
                 .unwrap_or_else(|| "F j, Y".to_string()),
@@ -118,9 +116,7 @@ impl Database {
                 .get_option("neopress_nav_menu_items")?
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default(),
-            widgets_json: self
-                .get_option("neopress_widgets")?
-                .unwrap_or_default(),
+            widgets_json: self.get_option("neopress_widgets")?.unwrap_or_default(),
             active_plugins: self
                 .get_option("active_plugins")?
                 .and_then(|s| serde_json::from_str(&s).ok())
@@ -146,9 +142,7 @@ impl Database {
             elementor_popups_html: self
                 .get_option("neopress_elementor_popups_html")?
                 .unwrap_or_default(),
-            site_logo_url: self
-                .get_option("neopress_site_logo")?
-                .unwrap_or_default(),
+            site_logo_url: self.get_option("neopress_site_logo")?.unwrap_or_default(),
             site_favicon_url: self
                 .get_option("neopress_site_favicon")?
                 .unwrap_or_default(),
@@ -156,7 +150,9 @@ impl Database {
             theme_assets_html: self
                 .get_option("neopress_theme_assets")?
                 .map(|raw| {
-                    if let Ok(manifest) = serde_json::from_str::<crate::theme::ThemeAssetsManifest>(&raw) {
+                    if let Ok(manifest) =
+                        serde_json::from_str::<crate::theme::ThemeAssetsManifest>(&raw)
+                    {
                         manifest.compile_to_html()
                     } else {
                         raw
@@ -177,10 +173,8 @@ impl Database {
         )?;
         let rows = stmt.query_map([], |r| r.get(0))?;
         let mut types = Vec::new();
-        for r in rows {
-            if let Ok(t) = r {
-                types.push(t);
-            }
+        for t in rows.flatten() {
+            types.push(t);
         }
         Ok(types)
     }

@@ -37,6 +37,7 @@ pub struct AdminEditQueryParams {
     pub id: Option<i64>,
     pub post: Option<i64>,
     pub post_id: Option<i64>,
+    pub template_id: Option<i64>,
     pub action: Option<String>,
     pub taxonomy: Option<String>,
 }
@@ -61,3 +62,13 @@ pub struct ErasePersonalDataPayload {
     pub identifier: String,
 }
 
+/// Reduces a post type or taxonomy query value to a WordPress `sanitize_key` slug
+/// (lowercase ASCII letters, digits, `-`, `_`), so it is safe to echo into admin HTML.
+pub fn sanitize_key(raw: &str) -> String {
+    raw.trim()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .map(|c| c.to_ascii_lowercase())
+        .take(32)
+        .collect()
+}

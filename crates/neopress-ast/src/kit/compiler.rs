@@ -56,7 +56,11 @@ impl ElementorKit {
 
         // 1. Google Fonts @import
         let mut google_fonts = std::collections::BTreeSet::new();
-        for t in self.system_typography.iter().chain(self.custom_typography.iter()) {
+        for t in self
+            .system_typography
+            .iter()
+            .chain(self.custom_typography.iter())
+        {
             if let Some(first_fam) = t.font_family.split(',').next() {
                 let clean = first_fam.trim().trim_matches('\'').trim_matches('"').trim();
                 if !clean.is_empty() && !is_generic_font(clean) {
@@ -76,7 +80,10 @@ impl ElementorKit {
         css.push_str(":root {\n");
         css.push_str(&format!("  --e-content-width: {}px;\n", self.content_width));
         css.push_str(&format!("  --content-width: {}px;\n", self.content_width));
-        css.push_str(&format!("  --container-max-width: {}px;\n", self.content_width));
+        css.push_str(&format!(
+            "  --container-max-width: {}px;\n",
+            self.content_width
+        ));
         css.push_str(&format!("  --e-widgets-space: {}px;\n", self.widgets_space));
 
         // System Colors + Converged Neo (`--np-*`) Aliases
@@ -95,42 +102,74 @@ impl ElementorKit {
 
         // System Typography + Converged Neo (`--np-font-*`) Aliases
         for t in &self.system_typography {
-            css.push_str(&format!("  --e-global-typography-{}-font-family: {};\n", t.id, t.font_family));
+            css.push_str(&format!(
+                "  --e-global-typography-{}-font-family: {};\n",
+                t.id, t.font_family
+            ));
             match t.id.as_str() {
                 "primary" => css.push_str(&format!("  --np-font-heading: {};\n", t.font_family)),
-                "secondary" => css.push_str(&format!("  --np-font-subheading: {};\n", t.font_family)),
+                "secondary" => {
+                    css.push_str(&format!("  --np-font-subheading: {};\n", t.font_family))
+                }
                 "text" => css.push_str(&format!("  --np-font-body: {};\n", t.font_family)),
                 "accent" => css.push_str(&format!("  --np-font-accent: {};\n", t.font_family)),
                 _ => {}
             }
             if let Some(ref sz) = t.font_size {
-                css.push_str(&format!("  --e-global-typography-{}-font-size: {};\n", t.id, sz));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-font-size: {};\n",
+                    t.id, sz
+                ));
             }
             if let Some(ref fw) = t.font_weight {
-                css.push_str(&format!("  --e-global-typography-{}-font-weight: {};\n", t.id, fw));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-font-weight: {};\n",
+                    t.id, fw
+                ));
             }
             if let Some(ref lh) = t.line_height {
-                css.push_str(&format!("  --e-global-typography-{}-line-height: {};\n", t.id, lh));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-line-height: {};\n",
+                    t.id, lh
+                ));
             }
             if let Some(ref ls) = t.letter_spacing {
-                css.push_str(&format!("  --e-global-typography-{}-letter-spacing: {};\n", t.id, ls));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-letter-spacing: {};\n",
+                    t.id, ls
+                ));
             }
         }
 
         // Custom Typography
         for t in &self.custom_typography {
-            css.push_str(&format!("  --e-global-typography-{}-font-family: {};\n", t.id, t.font_family));
+            css.push_str(&format!(
+                "  --e-global-typography-{}-font-family: {};\n",
+                t.id, t.font_family
+            ));
             if let Some(ref sz) = t.font_size {
-                css.push_str(&format!("  --e-global-typography-{}-font-size: {};\n", t.id, sz));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-font-size: {};\n",
+                    t.id, sz
+                ));
             }
             if let Some(ref fw) = t.font_weight {
-                css.push_str(&format!("  --e-global-typography-{}-font-weight: {};\n", t.id, fw));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-font-weight: {};\n",
+                    t.id, fw
+                ));
             }
             if let Some(ref lh) = t.line_height {
-                css.push_str(&format!("  --e-global-typography-{}-line-height: {};\n", t.id, lh));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-line-height: {};\n",
+                    t.id, lh
+                ));
             }
             if let Some(ref ls) = t.letter_spacing {
-                css.push_str(&format!("  --e-global-typography-{}-letter-spacing: {};\n", t.id, ls));
+                css.push_str(&format!(
+                    "  --e-global-typography-{}-letter-spacing: {};\n",
+                    t.id, ls
+                ));
             }
         }
 
@@ -150,22 +189,38 @@ impl ElementorKit {
         css.push_str("}\n\n");
 
         // 3. Utility Classes for Typography
-        for t in self.system_typography.iter().chain(self.custom_typography.iter()) {
+        for t in self
+            .system_typography
+            .iter()
+            .chain(self.custom_typography.iter())
+        {
             css.push_str(&format!(
                 ".elementor-typography-{} {{\n  font-family: var(--e-global-typography-{}-font-family);\n",
                 t.id, t.id
             ));
             if t.font_size.is_some() {
-                css.push_str(&format!("  font-size: var(--e-global-typography-{}-font-size);\n", t.id));
+                css.push_str(&format!(
+                    "  font-size: var(--e-global-typography-{}-font-size);\n",
+                    t.id
+                ));
             }
             if t.font_weight.is_some() {
-                css.push_str(&format!("  font-weight: var(--e-global-typography-{}-font-weight);\n", t.id));
+                css.push_str(&format!(
+                    "  font-weight: var(--e-global-typography-{}-font-weight);\n",
+                    t.id
+                ));
             }
             if t.line_height.is_some() {
-                css.push_str(&format!("  line-height: var(--e-global-typography-{}-line-height);\n", t.id));
+                css.push_str(&format!(
+                    "  line-height: var(--e-global-typography-{}-line-height);\n",
+                    t.id
+                ));
             }
             if t.letter_spacing.is_some() {
-                css.push_str(&format!("  letter-spacing: var(--e-global-typography-{}-letter-spacing);\n", t.id));
+                css.push_str(&format!(
+                    "  letter-spacing: var(--e-global-typography-{}-letter-spacing);\n",
+                    t.id
+                ));
             }
             css.push_str("}\n");
         }
@@ -196,6 +251,7 @@ impl ElementorKit {
 
     /// Synthesizes a converged `ElementorKit` (Neo Styling System) from Divi global colors (`gcid-*`),
     /// enqueued Google Fonts (`et_enqueued_post_fonts`), custom CSS, and detected brand palette.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_divi_theme(
         primary_color: &str,
         secondary_color: &str,

@@ -38,8 +38,16 @@ pub fn get_markup(
 </html>"#
     );
 
+    let rest_nonce: String = crate::auth::current_admin()
+        .map(|a| a.nonce)
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+
     full_html
         .replace("__STYLES__", styles)
+        .replace("__REST_NONCE__", &rest_nonce)
         .replace("__EXTRA_HEAD_CSS__", extra_head_css)
         .replace("__EXTRA_HEAD_ASSETS__", extra_head_assets)
         .replace("__POST_ID__", &post_id.to_string())

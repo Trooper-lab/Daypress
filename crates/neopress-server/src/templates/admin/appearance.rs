@@ -2,7 +2,7 @@ use super::layout::render_wp_admin_shell;
 use crate::models::{WpPostResponse, WpSettingsResponse};
 use crate::templates::utils::escape_html;
 
-// 1. Themes (/n-admin/themes.php)
+// 1. Themes (/n-admin/themes)
 pub fn render_wp_themes_view(settings: &WpSettingsResponse) -> String {
     let active_theme = if settings.active_theme.is_empty() {
         "Neopress Modern"
@@ -57,7 +57,7 @@ pub fn render_wp_themes_view(settings: &WpSettingsResponse) -> String {
             )
         };
         let action_btn = if is_active {
-            r#"<a href="/n-admin/customize.php" class="btn btn-primary" style="font-size: 12px; padding: 5px 12px;">Customize</a>"#.to_string()
+            r#"<a href="/n-admin/customize" class="btn btn-primary" style="font-size: 12px; padding: 5px 12px;">Customize</a>"#.to_string()
         } else {
             format!(
                 r#"<button class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;" onclick="switchTheme('{}')">Activate</button>"#,
@@ -100,7 +100,7 @@ pub fn render_wp_themes_view(settings: &WpSettingsResponse) -> String {
                 <p class="page-subtitle">Manage, customize, and activate visual presentation skins for your publication</p>
             </div>
             <div>
-                <a href="/n-admin/customize.php" class="btn btn-primary">Customize Active Theme</a>
+                <a href="/n-admin/customize" class="btn btn-primary">Customize Active Theme</a>
             </div>
         </div>
 
@@ -134,7 +134,7 @@ pub fn render_wp_themes_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("themes", "Themes", &body, settings)
 }
 
-// 2. Customize (/n-admin/customize.php)
+// 2. Customize (/n-admin/customize)
 pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
     let brand_color = if settings.brand_color.is_empty() {
         "#2563eb"
@@ -273,13 +273,14 @@ pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("customize", "Customize", &body, settings)
 }
 
-// 3. Widgets (/n-admin/widgets.php)
+// 3. Widgets (/n-admin/widgets)
 pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
     let default_val = serde_json::json!({
         "sidebar": ["Search Bar", "Recent Posts"],
         "footer": ["Categories List"]
     });
-    let val: serde_json::Value = serde_json::from_str(&settings.widgets_json).unwrap_or(default_val);
+    let val: serde_json::Value =
+        serde_json::from_str(&settings.widgets_json).unwrap_or(default_val);
     let sidebar_items = val
         .get("sidebar")
         .and_then(|v| v.as_array())
@@ -437,7 +438,7 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("widgets", "Widgets", &body, settings)
 }
 
-// 4. Menus (/n-admin/nav-menus.php)
+// 4. Menus (/n-admin/nav-menus)
 pub fn render_wp_nav_menus_view(settings: &WpSettingsResponse, pages: &[WpPostResponse]) -> String {
     let mut page_items = String::new();
     for p in pages {
@@ -599,7 +600,7 @@ pub fn render_wp_nav_menus_view(settings: &WpSettingsResponse, pages: &[WpPostRe
     render_wp_admin_shell("menus", "Menus", &body, settings)
 }
 
-// 5. Theme File Editor (/n-admin/theme-editor.php)
+// 5. Theme File Editor (/n-admin/theme-editor)
 pub fn render_wp_theme_editor_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">

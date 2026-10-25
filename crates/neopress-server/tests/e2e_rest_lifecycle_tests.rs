@@ -20,7 +20,7 @@ fn auth_req(method: &str, uri: &str, body: Option<Value>) -> Request<Body> {
         .method(method)
         .uri(uri)
         .header("Content-Type", "application/json")
-        .header("X-WP-Nonce", "wp_rest_admin");
+        .header("Authorization", "Basic YWRtaW46YWRtaW4=");
     match body {
         Some(val) => builder.body(Body::from(val.to_string())).unwrap(),
         None => builder.body(Body::empty()).unwrap(),
@@ -44,7 +44,15 @@ async fn test_e2e_hierarchical_pages_lifecycle() {
         "content": "<p>Enterprise Solutions</p>",
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/pages", Some(parent_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/wp/v2/pages",
+            Some(parent_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let parent_json = parse_body(res).await;
     let parent_id = parent_json["id"].as_i64().expect("parent id");
@@ -59,7 +67,15 @@ async fn test_e2e_hierarchical_pages_lifecycle() {
         "menu_order": 1,
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/pages", Some(child1_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/wp/v2/pages",
+            Some(child1_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let child1_json = parse_body(res).await;
     let child1_id = child1_json["id"].as_i64().expect("child1 id");
@@ -74,12 +90,28 @@ async fn test_e2e_hierarchical_pages_lifecycle() {
         "menu_order": 2,
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/pages", Some(child2_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/wp/v2/pages",
+            Some(child2_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let child2_id = parse_body(res).await["id"].as_i64().expect("child2 id");
 
     // 4. Query Child Pages using ?parent=<id>
-    let res = app.clone().oneshot(auth_req("GET", &format!("/wp-json/wp/v2/pages?parent={}", parent_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            &format!("/wp-json/wp/v2/pages?parent={}", parent_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let children_list = parse_body(res).await;
     let children_arr = children_list.as_array().expect("array of children");
@@ -93,26 +125,61 @@ async fn test_e2e_hierarchical_pages_lifecycle() {
         "title": "Global Cloud Architecture",
         "menu_order": 10
     });
-    let res = app.clone().oneshot(auth_req("PUT", &format!("/wp-json/wp/v2/pages/{}", child1_id), Some(update_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "PUT",
+            &format!("/wp-json/wp/v2/pages/{}", child1_id),
+            Some(update_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let updated_child = parse_body(res).await;
-    assert_eq!(updated_child["title"]["rendered"], "Global Cloud Architecture");
+    assert_eq!(
+        updated_child["title"]["rendered"],
+        "Global Cloud Architecture"
+    );
     assert_eq!(updated_child["menu_order"], 10);
 
     // 6. Delete Child Page 2 with ?force=true
-    let res = app.clone().oneshot(auth_req("DELETE", &format!("/wp-json/wp/v2/pages/{}?force=true", child2_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "DELETE",
+            &format!("/wp-json/wp/v2/pages/{}?force=true", child2_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let del_json = parse_body(res).await;
     assert_eq!(del_json["deleted"], true);
 
     // 7. Verify Child Page 2 deleted from parent listing
-    let res = app.clone().oneshot(auth_req("GET", &format!("/wp-json/wp/v2/pages?parent={}", parent_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            &format!("/wp-json/wp/v2/pages?parent={}", parent_id),
+            None,
+        ))
+        .await
+        .unwrap();
     let children_arr = parse_body(res).await.as_array().unwrap().clone();
     assert_eq!(children_arr.len(), 1);
     assert_eq!(children_arr[0]["id"], child1_id);
 
     // 8. Delete Parent Page
-    let res = app.clone().oneshot(auth_req("DELETE", &format!("/wp-json/wp/v2/pages/{}?force=true", parent_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "DELETE",
+            &format!("/wp-json/wp/v2/pages/{}?force=true", parent_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
 
@@ -127,7 +194,15 @@ async fn test_e2e_taxonomy_terms_and_post_association_lifecycle() {
         "slug": "cloud-native",
         "description": "Kubernetes and Rust microservices"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/categories", Some(cat_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/wp/v2/categories",
+            Some(cat_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let cat_json = parse_body(res).await;
     let cat_id = cat_json["id"].as_i64().expect("category id");
@@ -139,7 +214,11 @@ async fn test_e2e_taxonomy_terms_and_post_association_lifecycle() {
         "slug": "axum-web",
         "description": "Ergonomic Rust web framework"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/tags", Some(tag_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/wp/v2/tags", Some(tag_payload)))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let tag_json = parse_body(res).await;
     let tag_id = tag_json["id"].as_i64().expect("tag id");
@@ -153,31 +232,75 @@ async fn test_e2e_taxonomy_terms_and_post_association_lifecycle() {
         "categories": [cat_id],
         "tags": [tag_id]
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload)))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let post_json = parse_body(res).await;
     let post_id = post_json["id"].as_i64().expect("post id");
-    assert!(post_json["categories"].as_array().unwrap().iter().any(|c| c == cat_id));
-    assert!(post_json["tags"].as_array().unwrap().iter().any(|t| t == tag_id));
+    assert!(post_json["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c == cat_id));
+    assert!(post_json["tags"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|t| t == tag_id));
 
     // 4. Filter Posts by Category
-    let res = app.clone().oneshot(auth_req("GET", &format!("/wp-json/wp/v2/posts?categories={}", cat_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            &format!("/wp-json/wp/v2/posts?categories={}", cat_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let posts = parse_body(res).await;
     assert!(posts.as_array().unwrap().iter().any(|p| p["id"] == post_id));
 
     // 5. Filter Posts by Tag
-    let res = app.clone().oneshot(auth_req("GET", &format!("/wp-json/wp/v2/posts?tags={}", tag_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            &format!("/wp-json/wp/v2/posts?tags={}", tag_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let posts = parse_body(res).await;
     assert!(posts.as_array().unwrap().iter().any(|p| p["id"] == post_id));
 
     // 6. Delete Category
-    let res = app.clone().oneshot(auth_req("DELETE", &format!("/wp-json/wp/v2/categories/{}?force=true", cat_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "DELETE",
+            &format!("/wp-json/wp/v2/categories/{}?force=true", cat_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
     // 7. Verify Post remains valid after term deletion
-    let res = app.clone().oneshot(auth_req("GET", &format!("/wp-json/wp/v2/posts/{}", post_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            &format!("/wp-json/wp/v2/posts/{}", post_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let post_json = parse_body(res).await;
     assert_eq!(post_json["id"], post_id);
@@ -195,7 +318,11 @@ async fn test_e2e_comments_moderation_tree_lifecycle() {
         "content": "<p>Please leave feedback below.</p>",
         "status": "publish"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/wp/v2/posts", Some(post_payload)))
+        .await
+        .unwrap();
     let post_id = parse_body(res).await["id"].as_i64().expect("post id");
 
     // 2. Submit Comment as Visitor
@@ -206,7 +333,15 @@ async fn test_e2e_comments_moderation_tree_lifecycle() {
         "author_email": "auditor@rust.org",
         "status": "hold"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/comments", Some(comment_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/wp/v2/comments",
+            Some(comment_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let comment_json = parse_body(res).await;
     let comment_id = comment_json["id"].as_i64().expect("comment id");
@@ -216,7 +351,15 @@ async fn test_e2e_comments_moderation_tree_lifecycle() {
     let approve_payload = json!({
         "status": "approved"
     });
-    let res = app.clone().oneshot(auth_req("PUT", &format!("/wp-json/wp/v2/comments/{}", comment_id), Some(approve_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "PUT",
+            &format!("/wp-json/wp/v2/comments/{}", comment_id),
+            Some(approve_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let updated = parse_body(res).await;
     assert!(updated["status"] == "1" || updated["status"] == "approved");
@@ -230,24 +373,55 @@ async fn test_e2e_comments_moderation_tree_lifecycle() {
         "parent": comment_id,
         "status": "approved"
     });
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/wp/v2/comments", Some(reply_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "POST",
+            "/wp-json/wp/v2/comments",
+            Some(reply_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let reply_id = parse_body(res).await["id"].as_i64().expect("reply id");
 
     // 5. Query Comments Tree for Post
-    let res = app.clone().oneshot(auth_req("GET", &format!("/wp-json/wp/v2/comments?post={}", post_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            &format!("/wp-json/wp/v2/comments?post={}", post_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let comments = parse_body(res).await;
     let comments_arr = comments.as_array().expect("comments array");
     assert_eq!(comments_arr.len(), 2);
-    let reply_node = comments_arr.iter().find(|c| c["id"] == reply_id).expect("reply comment");
+    let reply_node = comments_arr
+        .iter()
+        .find(|c| c["id"] == reply_id)
+        .expect("reply comment");
     assert_eq!(reply_node["post_id"], post_id);
     let post = db.get_post_by_id(post_id).unwrap().expect("post exists");
-    let reply = post.comments.iter().find(|c| c.id == reply_id).expect("reply comment");
+    let reply = post
+        .comments
+        .iter()
+        .find(|c| c.id == reply_id)
+        .expect("reply comment");
     assert_eq!(reply.parent, comment_id);
 
     // 6. Delete Reply
-    let res = app.clone().oneshot(auth_req("DELETE", &format!("/wp-json/wp/v2/comments/{}?force=true", reply_id), None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "DELETE",
+            &format!("/wp-json/wp/v2/comments/{}?force=true", reply_id),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
 
@@ -257,7 +431,11 @@ async fn test_e2e_site_settings_live_propagation_to_ssr() {
     let app = create_app(db.clone());
 
     // 1. Read Current Settings
-    let res = app.clone().oneshot(auth_req("GET", "/wp-json/wp/v2/settings", None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("GET", "/wp-json/wp/v2/settings", None))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
     // 2. Update Site Title & Description
@@ -267,13 +445,25 @@ async fn test_e2e_site_settings_live_propagation_to_ssr() {
         "title": new_title,
         "description": new_desc
     });
-    let res = app.clone().oneshot(auth_req("PUT", "/wp-json/wp/v2/settings", Some(settings_payload))).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "PUT",
+            "/wp-json/wp/v2/settings",
+            Some(settings_payload),
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let updated_settings = parse_body(res).await;
     assert_eq!(updated_settings["title"], new_title);
 
     // 3. Immediately Query Public SSR Root (GET /)
-    let ssr_req = Request::builder().method("GET").uri("/").body(Body::empty()).unwrap();
+    let ssr_req = Request::builder()
+        .method("GET")
+        .uri("/")
+        .body(Body::empty())
+        .unwrap();
     let res = app.clone().oneshot(ssr_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let html_bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -293,7 +483,11 @@ async fn test_e2e_diagnostics_and_maintenance_endpoints() {
     let app = create_app(db.clone());
 
     // 1. Test /wp-json/neopress/v1/stats
-    let res = app.clone().oneshot(auth_req("GET", "/wp-json/neopress/v1/stats", None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("GET", "/wp-json/neopress/v1/stats", None))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let stats = parse_body(res).await;
     assert!(stats["total_posts"].as_i64().is_some());
@@ -301,13 +495,25 @@ async fn test_e2e_diagnostics_and_maintenance_endpoints() {
     assert!(stats["file_size_bytes"].as_i64().is_some());
 
     // 2. Test /wp-json/neopress/v1/integrity-check
-    let res = app.clone().oneshot(auth_req("GET", "/wp-json/neopress/v1/integrity-check", None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req(
+            "GET",
+            "/wp-json/neopress/v1/integrity-check",
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let integrity = parse_body(res).await;
     assert_eq!(integrity["status"], "success");
 
     // 3. Test /wp-json/neopress/v1/vacuum
-    let res = app.clone().oneshot(auth_req("POST", "/wp-json/neopress/v1/vacuum", None)).await.unwrap();
+    let res = app
+        .clone()
+        .oneshot(auth_req("POST", "/wp-json/neopress/v1/vacuum", None))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let vacuum = parse_body(res).await;
     assert_eq!(vacuum["status"], "success");

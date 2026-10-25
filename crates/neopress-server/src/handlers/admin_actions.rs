@@ -1,6 +1,7 @@
 //! Admin Settings, Appearance, Export/Import, and Action API Handlers.
 
 #![allow(unused_imports)]
+use super::*;
 use crate::auth::OptionalAuthUser;
 use crate::db::Database;
 use crate::models;
@@ -11,7 +12,6 @@ use axum::{
     response::{Html, IntoResponse},
 };
 use serde::Deserialize;
-use super::*;
 
 pub async fn handle_api_update_comment(
     State(db): State<Database>,

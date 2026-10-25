@@ -8,8 +8,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use neopress_ast::{
-    render_layout_to_html,
-    NeopressLayout, NeopressNode, NodeKind, StyleProperties,
+    render_layout_to_html, NeopressLayout, NeopressNode, NodeKind, StyleProperties,
 };
 use neopress_server::theme_builder::models::*;
 use neopress_server::theme_builder::ssr_injector::{HydrationContext, SsrInjector};
@@ -42,7 +41,10 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
             children: vec![
                 NeopressNode {
                     id: "dynamic-post-title".to_string(),
-                    kind: NodeKind::Heading { level: 1, text: "Fallback Title".to_string() },
+                    kind: NodeKind::Heading {
+                        level: 1,
+                        text: "Fallback Title".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
@@ -60,19 +62,25 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
                 },
                 NeopressNode {
                     id: "dynamic-post-content".to_string(),
-                    kind: NodeKind::CustomHtml { raw: "orig content".to_string() },
+                    kind: NodeKind::CustomHtml {
+                        raw: "orig content".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
                 NeopressNode {
                     id: "dynamic-post-date".to_string(),
-                    kind: NodeKind::Text { content_html: "orig date".to_string() },
+                    kind: NodeKind::Text {
+                        content_html: "orig date".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
                 NeopressNode {
                     id: "dynamic-author-box".to_string(),
-                    kind: NodeKind::CustomHtml { raw: "orig author".to_string() },
+                    kind: NodeKind::CustomHtml {
+                        raw: "orig author".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
@@ -90,7 +98,10 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
                 },
                 NeopressNode {
                     id: "dynamic-site-title".to_string(),
-                    kind: NodeKind::Heading { level: 2, text: "orig site title".to_string() },
+                    kind: NodeKind::Heading {
+                        level: 2,
+                        text: "orig site title".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
@@ -124,14 +135,23 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
     let rendered = render_layout_to_html(&layout);
 
     // Verify fallback placeholder when featured image is missing
-    assert!(rendered.contains("/static/placeholder.jpg"), "Must fallback to placeholder image");
+    assert!(
+        rendered.contains("/static/placeholder.jpg"),
+        "Must fallback to placeholder image"
+    );
 
     // Verify unicode astral plane characters survived without byte index corruptions
     assert!(rendered.contains("🦀"), "Must preserve emoji characters");
-    assert!(rendered.contains("𠜎"), "Must preserve astral plane unicode");
+    assert!(
+        rendered.contains("𠜎"),
+        "Must preserve astral plane unicode"
+    );
 
     // Verify author box properly escaped O'Reilly & Sons
-    assert!(rendered.contains("O&#x27;Reilly &amp; Sons &lt;Developer&gt;"), "Author name must be safely escaped");
+    assert!(
+        rendered.contains("O&#x27;Reilly &amp; Sons &lt;Developer&gt;"),
+        "Author name must be safely escaped"
+    );
 
     // Verify site logo used settings site_logo_url
     assert!(rendered.contains("https://example.com/logo.svg?v=1&amp;k=2"));
@@ -164,19 +184,26 @@ fn test_adversarial_placeholder_hydration_with_none_post_and_empty_title() {
             children: vec![
                 NeopressNode {
                     id: "post_title_node".to_string(),
-                    kind: NodeKind::Heading { level: 1, text: "Fallback".to_string() },
+                    kind: NodeKind::Heading {
+                        level: 1,
+                        text: "Fallback".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
                 NeopressNode {
                     id: "post_date_node".to_string(),
-                    kind: NodeKind::Text { content_html: "Date".to_string() },
+                    kind: NodeKind::Text {
+                        content_html: "Date".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
                 NeopressNode {
                     id: "author_box_node".to_string(),
-                    kind: NodeKind::CustomHtml { raw: "Author".to_string() },
+                    kind: NodeKind::CustomHtml {
+                        raw: "Author".to_string(),
+                    },
                     styles: StyleProperties::default(),
                     children: vec![],
                 },
@@ -208,9 +235,15 @@ fn test_adversarial_placeholder_hydration_with_none_post_and_empty_title() {
     let html = render_layout_to_html(&layout);
 
     // Empty author should fallback to "admin"
-    assert!(html.contains("admin"), "Empty author must fallback to admin");
+    assert!(
+        html.contains("admin"),
+        "Empty author must fallback to admin"
+    );
     // Empty site_logo should fallback to "/static/favicon.svg"
-    assert!(html.contains("/static/favicon.svg"), "Empty site logo must fallback to favicon.svg");
+    assert!(
+        html.contains("/static/favicon.svg"),
+        "Empty site logo must fallback to favicon.svg"
+    );
 
     // Test with post: None
     let hyd_ctx_none = HydrationContext {
@@ -258,7 +291,10 @@ fn test_adversarial_dynamic_tokens_replacement() {
     assert!(!interpolated.contains("{{current_year}}"));
 
     // Note: Standard author token is {{post_author}}
-    assert_eq!(SsrInjector::interpolate_tokens("By {{post_author}}", &hyd_ctx), "By Ferris Crab");
+    assert_eq!(
+        SsrInjector::interpolate_tokens("By {{post_author}}", &hyd_ctx),
+        "By Ferris Crab"
+    );
 }
 
 #[tokio::test]
@@ -289,55 +325,137 @@ async fn test_adversarial_leak_firewall_strips_100_percent_editor_chrome() {
         children: Vec::new(),
     });
 
-    let _hdr = repo.create(&CreateTemplateRequest {
-        title: "Infested Theme Header".to_string(),
-        template_type: TemplateType::Header,
-        status: Some("publish".to_string()),
-        layout: Some(header_layout),
-        layout_json: None,
-        settings: Some(TemplateSettings { sticky: true, ..Default::default() }),
-        priority: Some(10),
-        is_active: Some(true),
-        conditions: Some(vec![CreateConditionDto {
-            id: None, condition_type: ConditionType::Include, rule_target: RuleTarget::EntireSite, target_id: String::new(), priority: 10,
-        }]),
-    }).unwrap();
+    let _hdr = repo
+        .create(&CreateTemplateRequest {
+            title: "Infested Theme Header".to_string(),
+            template_type: TemplateType::Header,
+            status: Some("publish".to_string()),
+            layout: Some(header_layout),
+            layout_json: None,
+            settings: Some(TemplateSettings {
+                sticky: true,
+                ..Default::default()
+            }),
+            priority: Some(10),
+            is_active: Some(true),
+            conditions: Some(vec![CreateConditionDto {
+                id: None,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::EntireSite,
+                target_id: String::new(),
+                priority: 10,
+            }]),
+        })
+        .unwrap();
 
     let app = create_app(db.clone());
-    let resp = app.clone().oneshot(Request::builder().uri("/").body(Body::empty()).unwrap()).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
     let body_bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8(body_bytes.to_vec()).unwrap();
 
     // 1. Content Verification: legitimate content must be present
-    assert!(html.contains("Clean Brand Name"), "Legitimate content must be preserved");
-    assert!(html.contains("Click Me"), "Legitimate button text must be preserved");
-    assert!(html.contains("my-preserved-class"), "Legitimate classes must be preserved");
+    assert!(
+        html.contains("Clean Brand Name"),
+        "Legitimate content must be preserved"
+    );
+    assert!(
+        html.contains("Click Me"),
+        "Legitimate button text must be preserved"
+    );
+    assert!(
+        html.contains("my-preserved-class"),
+        "Legitimate classes must be preserved"
+    );
 
     // 2. Strict 100% Editor Chrome Stripping Checks:
-    assert!(!html.contains("contenteditable"), "Must NOT contain contenteditable (lowercase)");
-    assert!(!html.contains("CONTENTEDITABLE"), "Must NOT contain CONTENTEDITABLE (uppercase)");
-    assert!(!html.contains("draggable"), "Must NOT contain draggable (lowercase)");
-    assert!(!html.contains("DRAGGABLE"), "Must NOT contain DRAGGABLE (uppercase)");
-    assert!(!html.contains("elementor-grid-handle"), "Must NOT contain elementor-grid-handle");
-    assert!(!html.contains("neostudio-drag-handle"), "Must NOT contain neostudio-drag-handle");
-    assert!(!html.contains("neostudio-handle"), "Must NOT contain neostudio-handle");
-    assert!(!html.contains("neostudio-btn-handle"), "Must NOT contain neostudio-btn-handle");
-    assert!(!html.contains("ui-resizable"), "Must NOT contain ui-resizable");
-    assert!(!html.contains("ui-draggable"), "Must NOT contain ui-draggable");
-    assert!(!html.contains("ui-sortable"), "Must NOT contain ui-sortable");
-    assert!(!html.contains("active-element"), "Must NOT contain active-element");
-    assert!(!html.contains("et_pb_element_editing"), "Must NOT contain et_pb_element_editing");
-    assert!(!html.contains("visual-builder-active"), "Must NOT contain visual-builder-active");
-    assert!(!html.contains("data-neostudio"), "Must NOT contain data-neostudio attributes");
-    assert!(!html.contains("data-drag-handle"), "Must NOT contain data-drag-handle attributes");
-    assert!(!html.contains("data-model-cid"), "Must NOT contain data-model-cid attributes");
-    assert!(!html.contains("data-elementor"), "Must NOT contain data-elementor attributes");
+    assert!(
+        !html.contains("contenteditable"),
+        "Must NOT contain contenteditable (lowercase)"
+    );
+    assert!(
+        !html.contains("CONTENTEDITABLE"),
+        "Must NOT contain CONTENTEDITABLE (uppercase)"
+    );
+    assert!(
+        !html.contains("draggable"),
+        "Must NOT contain draggable (lowercase)"
+    );
+    assert!(
+        !html.contains("DRAGGABLE"),
+        "Must NOT contain DRAGGABLE (uppercase)"
+    );
+    assert!(
+        !html.contains("elementor-grid-handle"),
+        "Must NOT contain elementor-grid-handle"
+    );
+    assert!(
+        !html.contains("neostudio-drag-handle"),
+        "Must NOT contain neostudio-drag-handle"
+    );
+    assert!(
+        !html.contains("neostudio-handle"),
+        "Must NOT contain neostudio-handle"
+    );
+    assert!(
+        !html.contains("neostudio-btn-handle"),
+        "Must NOT contain neostudio-btn-handle"
+    );
+    assert!(
+        !html.contains("ui-resizable"),
+        "Must NOT contain ui-resizable"
+    );
+    assert!(
+        !html.contains("ui-draggable"),
+        "Must NOT contain ui-draggable"
+    );
+    assert!(
+        !html.contains("ui-sortable"),
+        "Must NOT contain ui-sortable"
+    );
+    assert!(
+        !html.contains("active-element"),
+        "Must NOT contain active-element"
+    );
+    assert!(
+        !html.contains("et_pb_element_editing"),
+        "Must NOT contain et_pb_element_editing"
+    );
+    assert!(
+        !html.contains("visual-builder-active"),
+        "Must NOT contain visual-builder-active"
+    );
+    assert!(
+        !html.contains("data-neostudio"),
+        "Must NOT contain data-neostudio attributes"
+    );
+    assert!(
+        !html.contains("data-drag-handle"),
+        "Must NOT contain data-drag-handle attributes"
+    );
+    assert!(
+        !html.contains("data-model-cid"),
+        "Must NOT contain data-model-cid attributes"
+    );
+    assert!(
+        !html.contains("data-elementor"),
+        "Must NOT contain data-elementor attributes"
+    );
 
     // 3. Artifact cleanup verification: ensure empty class="" was removed
-    assert!(!html.contains(r#"class="""#), "Must NOT contain empty class attributes");
-    assert!(!html.contains(r#"class="   ""#), "Must NOT contain whitespace class attributes");
+    assert!(
+        !html.contains(r#"class="""#),
+        "Must NOT contain empty class attributes"
+    );
+    assert!(
+        !html.contains(r#"class="   ""#),
+        "Must NOT contain whitespace class attributes"
+    );
 }
 
 #[test]
@@ -360,8 +478,20 @@ fn test_adversarial_breadcrumbs_and_nav_menu_html_escaping() {
     // Verify all special characters in breadcrumbs are escaped
     assert!(markup.contains("&lt;Home&gt;"), "Home text must be escaped");
     assert!(markup.contains("&amp;gt;"), "Separator must be escaped");
-    assert!(markup.contains("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"), "XSS script in title must be escaped");
-    assert!(markup.contains("/path/?q=1&amp;b=2&quot;foo"), "URL must be escaped");
-    assert!(markup.contains("Current &amp; Active &#x27;Page&#x27;"), "Active page title must be escaped");
-    assert!(markup.contains(r#"aria-current="page""#), "Active breadcrumb must have aria-current");
+    assert!(
+        markup.contains("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"),
+        "XSS script in title must be escaped"
+    );
+    assert!(
+        markup.contains("/path/?q=1&amp;b=2&quot;foo"),
+        "URL must be escaped"
+    );
+    assert!(
+        markup.contains("Current &amp; Active &#x27;Page&#x27;"),
+        "Active page title must be escaped"
+    );
+    assert!(
+        markup.contains(r#"aria-current="page""#),
+        "Active breadcrumb must have aria-current"
+    );
 }

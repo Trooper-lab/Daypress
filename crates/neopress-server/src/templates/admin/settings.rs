@@ -87,7 +87,7 @@ pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("settings", "General Settings", &body, settings)
 }
 
-// 2. Writing Settings (/n-admin/options-writing.php)
+// 2. Writing Settings (/n-admin/options-writing)
 pub fn render_wp_settings_writing_view(
     settings: &WpSettingsResponse,
     writing: &WritingSettings,
@@ -255,7 +255,7 @@ pub fn render_wp_settings_writing_view(
     render_wp_admin_shell("writing", "Writing Settings", &body, settings)
 }
 
-// 3. Reading Settings (/n-admin/options-reading.php)
+// 3. Reading Settings (/n-admin/options-reading)
 pub fn render_wp_settings_reading_view(
     settings: &WpSettingsResponse,
     reading: &ReadingSettings,
@@ -409,7 +409,7 @@ pub fn render_wp_settings_reading_view(
     render_wp_admin_shell("reading", "Reading Settings", &body, settings)
 }
 
-// 4. Discussion Settings (/n-admin/options-discussion.php)
+// 4. Discussion Settings (/n-admin/options-discussion)
 pub fn render_wp_settings_discussion_view(
     settings: &WpSettingsResponse,
     discussion: &DiscussionSettings,
@@ -543,7 +543,7 @@ pub fn render_wp_settings_discussion_view(
     render_wp_admin_shell("discussion", "Discussion Settings", &body, settings)
 }
 
-// 5. Media Settings (/n-admin/options-media.php)
+// 5. Media Settings (/n-admin/options-media)
 pub fn render_wp_settings_media_view(
     settings: &WpSettingsResponse,
     media: &MediaSettings,
@@ -651,7 +651,7 @@ pub fn render_wp_settings_media_view(
     render_wp_admin_shell("options-media", "Media Settings", &body, settings)
 }
 
-// 6. Permalinks Settings (/n-admin/options-permalink.php)
+// 6. Permalinks Settings (/n-admin/options-permalink)
 pub fn render_wp_settings_permalink_view(
     settings: &WpSettingsResponse,
     permalinks: &PermalinkSettings,
@@ -784,7 +784,7 @@ pub fn render_wp_settings_permalink_view(
     render_wp_admin_shell("permalinks", "Permalink Settings", &body, settings)
 }
 
-// 7. Privacy Settings (/n-admin/options-privacy.php)
+// 7. Privacy Settings (/n-admin/options-privacy)
 pub fn render_wp_settings_privacy_view(
     settings: &WpSettingsResponse,
     privacy: &PrivacySettings,

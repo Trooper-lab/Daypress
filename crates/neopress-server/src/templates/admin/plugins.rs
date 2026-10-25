@@ -5,7 +5,7 @@ use crate::models::{
 };
 use crate::templates::utils::escape_html;
 
-// 1. Installed Plugins (/n-admin/plugins.php)
+// 1. Installed Plugins (/n-admin/plugins)
 pub fn render_wp_plugins_view(
     settings: &WpSettingsResponse,
     installed: &[InstalledPluginRecord],
@@ -64,30 +64,36 @@ pub fn render_wp_plugins_view(
         };
 
         let (settings_url, settings_label) = match record.manifest.slug.as_str() {
-            "neopress-seo" => ("/n-admin/seo.php", "SEO Studio & Redirects"),
-            "neopress-forms" => ("/n-admin/forms.php", "Forms Studio & Inbox"),
-            "neopress-backups" => ("/n-admin/backups.php", "Snapshots & Backups"),
-            "neopress-wal-optimizer" => ("/n-admin/neopress-engine.php", "Engine Telemetry"),
-            "webp-image-engine" => ("/n-admin/options-media.php", "Media Settings"),
-            "wxr-streaming-xml-importer" => ("/n-admin/import.php", "Import Tool"),
-            "whatsapp-chat" => ("/n-admin/plugin-settings.php?plugin=whatsapp-chat", "Configure Chat"),
-            "code-snippets" => ("/n-admin/plugin-settings.php?plugin=code-snippets", "Configure Snippets"),
+            "neopress-seo" => ("/n-admin/seo", "SEO Studio & Redirects"),
+            "neopress-forms" => ("/n-admin/forms", "Forms Studio & Inbox"),
+            "neopress-backups" => ("/n-admin/backups", "Snapshots & Backups"),
+            "neopress-wal-optimizer" => ("/n-admin/neopress-engine", "Engine Telemetry"),
+            "webp-image-engine" => ("/n-admin/options-media", "Media Settings"),
+            "wxr-streaming-xml-importer" => ("/n-admin/import", "Import Tool"),
+            "whatsapp-chat" => (
+                "/n-admin/plugin-settings?plugin=whatsapp-chat",
+                "Configure Chat",
+            ),
+            "code-snippets" => (
+                "/n-admin/plugin-settings?plugin=code-snippets",
+                "Configure Snippets",
+            ),
             _ => {
                 if let Some(ref custom_url) = record.manifest.settings_url {
                     if !custom_url.is_empty() {
                         (custom_url.as_str(), "Settings")
                     } else {
-                        ("/n-admin/plugins.php", "Settings")
+                        ("/n-admin/plugins", "Settings")
                     }
                 } else {
-                    ("/n-admin/plugins.php", "Settings")
+                    ("/n-admin/plugins", "Settings")
                 }
             }
         };
 
         let custom_actions = if !record.manifest.is_builtin {
             format!(
-                r#"<span>&bull;</span><a href="/n-admin/plugin-editor.php?plugin={slug}" style="color:#4f46e5; font-weight:500;">Edit Code</a>
+                r#"<span>&bull;</span><a href="/n-admin/plugin-editor?plugin={slug}" style="color:#4f46e5; font-weight:500;">Edit Code</a>
                    <span>&bull;</span><a href="javascript:void(0)" onclick="uninstallCustomPlugin('{slug}')" class="trash-action">Uninstall</a>"#,
                 slug = slug
             )
@@ -105,8 +111,16 @@ pub fn render_wp_plugins_view(
         };
 
         let row_status = if is_active { "active" } else { "inactive" };
-        let row_kind = if record.manifest.is_builtin { "builtin" } else { "community" };
-        let row_bg = if !is_active { "background: #fafafa;" } else { "" };
+        let row_kind = if record.manifest.is_builtin {
+            "builtin"
+        } else {
+            "community"
+        };
+        let row_bg = if !is_active {
+            "background: #fafafa;"
+        } else {
+            ""
+        };
 
         rows_html.push_str(&format!(
             r##"
@@ -165,7 +179,7 @@ pub fn render_wp_plugins_view(
             </div>
             <div style="display: flex; gap: 10px;">
                 <a href="/n-admin/api/plugin-sdk-template" class="btn btn-secondary">⬇ Download Starter SDK (.json)</a>
-                <a href="/n-admin/plugin-install.php" class="btn btn-primary">+ Add New / Install Extension</a>
+                <a href="/n-admin/plugin-install" class="btn btn-primary">+ Add New / Install Extension</a>
             </div>
         </div>
 
@@ -334,7 +348,7 @@ pub fn render_wp_plugins_view(
     render_wp_admin_shell("plugins", "Plugins", &body, settings)
 }
 
-// 2. Add New Plugin & Community SDK Installer (/n-admin/plugin-install.php)
+// 2. Add New Plugin & Community SDK Installer (/n-admin/plugin-install)
 pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
     let sdk_json = serde_json::to_string_pretty(&crate::plugins::starter_plugin_sdk_template())
         .unwrap_or_else(|_| "{}".to_string());
@@ -423,7 +437,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
             <textarea id="manifestJsonInput" rows="10" class="neo-html-textarea" style="min-height: 200px; font-size: 12.5px; margin-bottom: 14px;">{sdk_sample}</textarea>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <button type="button" class="btn btn-primary" onclick="installManifestFromTextarea()">Validate &amp; Install Plugin &rarr;</button>
-                <a href="/n-admin/plugins.php" style="font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600;">&larr; Return to Installed Plugins</a>
+                <a href="/n-admin/plugins" style="font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600;">&larr; Return to Installed Plugins</a>
             </div>
         </div>
 
@@ -435,7 +449,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
                     "version": "1.0.0",
                     "author": "Community Developer",
                     "description": "Displays a customizable sticky announcement banner at the top of every public page and provides a [promo_cta] shortcode.",
-                    "settings_url": "/n-admin/plugin-settings.php?plugin=promo-announcement-bar",
+                    "settings_url": "/n-admin/plugin-settings?plugin=promo-announcement-bar",
                     "is_builtin": false,
                     "settings_schema": [
                         {{ "key": "banner_text", "label": "Announcement Text", "field_type": "text", "default_value": "⚡ Fast 1-Click Migrations with Neopress CMS!", "description": "Banner message displayed across the top.", "options": [] }},
@@ -457,7 +471,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
                     "version": "1.1.0",
                     "author": "Privacy First",
                     "description": "Zero-dependency GDPR & ePrivacy compliant cookie notification bar with customizable notice and accept button.",
-                    "settings_url": "/n-admin/plugin-settings.php?plugin=cookie-consent",
+                    "settings_url": "/n-admin/plugin-settings?plugin=cookie-consent",
                     "is_builtin": false,
                     "settings_schema": [
                         {{ "key": "notice_text", "label": "Notice Text", "field_type": "text", "default_value": "We use essential cookies to ensure high-performance browsing.", "description": "Cookie disclosure text.", "options": [] }},
@@ -473,7 +487,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
                     "version": "1.0.0",
                     "author": "Editorial Studio",
                     "description": "Renders a smooth progress bar at the very top of articles that fills as the reader scrolls down.",
-                    "settings_url": "/n-admin/plugin-settings.php?plugin=reading-progress-bar",
+                    "settings_url": "/n-admin/plugin-settings?plugin=reading-progress-bar",
                     "is_builtin": false,
                     "settings_schema": [
                         {{ "key": "bar_color", "label": "Progress Bar Color", "field_type": "color", "default_value": "#2563eb", "description": "Color of the reading bar.", "options": [] }},
@@ -499,7 +513,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
                     if (res.ok && data.success) {{
                         showToast('✓ ' + manifest.name + ' installed & activated!');
                         setTimeout(() => {{
-                            window.location.href = '/n-admin/plugin-settings.php?plugin=' + encodeURIComponent(manifest.slug);
+                            window.location.href = '/n-admin/plugin-settings?plugin=' + encodeURIComponent(manifest.slug);
                         }}, 600);
                     }} else {{
                         showToast('Install error: ' + (data.error || 'Unknown error'), true);
@@ -543,7 +557,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
                     if (res.ok && data.success) {{
                         showToast('✓ Plugin "' + manifest.name + '" installed & activated!');
                         setTimeout(() => {{
-                            window.location.href = '/n-admin/plugin-settings.php?plugin=' + encodeURIComponent(manifest.slug);
+                            window.location.href = '/n-admin/plugin-settings?plugin=' + encodeURIComponent(manifest.slug);
                         }}, 600);
                     }} else {{
                         showToast('Install error: ' + (data.error || 'Unknown error'), true);
@@ -560,7 +574,7 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
     render_wp_admin_shell("plugin-install", "Add Plugins", &body, settings)
 }
 
-// 3. Plugin File Editor (/n-admin/plugin-editor.php)
+// 3. Plugin File Editor (/n-admin/plugin-editor)
 pub fn render_wp_plugin_editor_view(settings: &WpSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
@@ -656,7 +670,7 @@ impl WalOptimizer {
     render_wp_admin_shell("plugin-editor", "Plugin File Editor", body, settings)
 }
 
-// 4. Dynamic Plugin Settings Page (/n-admin/plugin-settings.php?plugin=<slug>)
+// 4. Dynamic Plugin Settings Page (/n-admin/plugin-settings?plugin=<slug>)
 pub fn render_wp_plugin_settings_view(
     settings: &WpSettingsResponse,
     plugin: Option<&InstalledPluginRecord>,
@@ -665,7 +679,7 @@ pub fn render_wp_plugin_settings_view(
         let not_found = r#"<div class="neo-card" style="padding: 32px; text-align: center;">
             <h2>Plugin Not Found</h2>
             <p style="color:#64748b;margin:8px 0 16px 0;">The requested plugin is not installed in SQLite.</p>
-            <a href="/n-admin/plugins.php" class="btn btn-primary">&larr; Back to Plugins</a>
+            <a href="/n-admin/plugins" class="btn btn-primary">&larr; Back to Plugins</a>
         </div>"#;
         return render_wp_admin_shell("plugin-settings", "Plugin Settings", not_found, settings);
     };
@@ -762,7 +776,7 @@ pub fn render_wp_plugin_settings_view(
                 <p class="page-subtitle">{desc}</p>
             </div>
             <div style="display:flex;gap:10px;">
-                <a href="/n-admin/plugins.php" class="btn btn-secondary">&larr; All Plugins</a>
+                <a href="/n-admin/plugins" class="btn btn-secondary">&larr; All Plugins</a>
                 <button type="button" class="btn btn-primary" onclick="savePluginSettings('{slug}')">Save Settings to SQLite</button>
             </div>
         </div>
@@ -816,14 +830,18 @@ pub fn render_wp_plugin_settings_view(
     render_wp_admin_shell("plugin-settings", &name, &body, settings)
 }
 
-// 5. Full SEO Toolkit & Redirection Suite (/n-admin/seo.php)
+// 5. Full SEO Toolkit & Redirection Suite (/n-admin/seo)
 pub fn render_wp_seo_view(
     settings: &WpSettingsResponse,
     seo: &GlobalSeoSettings,
     redirects: &[RedirectRule],
     logs_404: &[NotFoundLogEntry],
 ) -> String {
-    let breadcrumbs_checked = if seo.enable_breadcrumbs { "checked" } else { "" };
+    let breadcrumbs_checked = if seo.enable_breadcrumbs {
+        "checked"
+    } else {
+        ""
+    };
     let auto_redir_checked = if seo.auto_redirect_slug_changes {
         "checked"
     } else {
@@ -1099,7 +1117,7 @@ pub fn render_wp_seo_view(
     render_wp_admin_shell("seo", "SEO & Redirects", &body, settings)
 }
 
-// 6. Neopress Forms Studio & Submissions Inbox (/n-admin/forms.php)
+// 6. Neopress Forms Studio & Submissions Inbox (/n-admin/forms)
 pub fn render_wp_forms_view(
     settings: &WpSettingsResponse,
     forms: &[(NeopressForm, i64)],
@@ -1119,14 +1137,14 @@ pub fn render_wp_forms_view(
         forms_list_html.push_str(&format!(
             r#"<tr style="{row_bg}">
                 <td>
-                    <strong><a href="/n-admin/forms.php?form_id={id}" style="color:#0f172a;text-decoration:none;">{title}</a></strong>
+                    <strong><a href="/n-admin/forms?form_id={id}" style="color:#0f172a;text-decoration:none;">{title}</a></strong>
                 </td>
                 <td>
                     <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:var(--font-mono);font-size:12px;">[neopress_form id="{id}"]</code>
                 </td>
                 <td>{field_count} fields &bull; {entry_count} entries</td>
                 <td>
-                    <a href="/n-admin/forms.php?form_id={id}" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;">Edit</a>
+                    <a href="/n-admin/forms?form_id={id}" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;">Edit</a>
                 </td>
             </tr>"#,
             row_bg = row_bg,
@@ -1379,7 +1397,7 @@ pub fn render_wp_forms_view(
     render_wp_admin_shell("forms", "Forms Studio", &body, settings)
 }
 
-// 7. Snapshot & Hot Backup Manager (/n-admin/backups.php)
+// 7. Snapshot & Hot Backup Manager (/n-admin/backups)
 pub fn render_wp_backups_view(
     settings: &WpSettingsResponse,
     snapshots: &[BackupSnapshotItem],

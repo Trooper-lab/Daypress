@@ -1,9 +1,7 @@
 use crate::elementor::context::{resolve_setting_link, ElementorContext};
 use crate::elementor::normalize_video_embed_url;
 use crate::elementor::resolve_dynamic_tag;
-use crate::schema::{
-    AccordionItem, IconListItem, NodeKind, StyleProperties, TabItem, ToggleItem,
-};
+use crate::schema::{AccordionItem, IconListItem, NodeKind, StyleProperties, TabItem, ToggleItem};
 use serde_json::Value;
 
 pub(crate) fn map_basic_media_widget(
@@ -232,14 +230,8 @@ pub(crate) fn map_basic_media_widget(
             let mut items = Vec::new();
             if let Some(list) = settings.get("price_list").and_then(|v| v.as_array()) {
                 for it in list {
-                    let title = it
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default();
-                    let price = it
-                        .get("price")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default();
+                    let title = it.get("title").and_then(|v| v.as_str()).unwrap_or_default();
+                    let price = it.get("price").and_then(|v| v.as_str()).unwrap_or_default();
                     let text = if price.is_empty() {
                         title.to_string()
                     } else {

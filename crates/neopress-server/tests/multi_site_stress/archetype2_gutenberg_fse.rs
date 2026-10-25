@@ -1,11 +1,15 @@
 //! Archetype 2: Gutenberg FSE / Block Theme Ingestion & SSR Parity.
 
-use super::common::{assert_zero_comment_leaks, body_to_string, load_fixture_or_fallback, setup_test_db};
+use super::common::{
+    assert_zero_comment_leaks, body_to_string, load_fixture_or_fallback, setup_test_db,
+};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use neopress_ast::{compile_theme_json_to_css, parse_theme_json, render_layout_to_html, transpile_gutenberg_content};
-use neopress_server::domain::models::CreatePostRequest;
+use neopress_ast::{
+    compile_theme_json_to_css, parse_theme_json, render_layout_to_html, transpile_gutenberg_content,
+};
 use neopress_server::create_app;
+use neopress_server::domain::models::CreatePostRequest;
 use tower::ServiceExt;
 
 const FALLBACK_THEME_JSON: &str = r##"{
@@ -52,7 +56,9 @@ pub async fn run_test() {
     assert!(css.contains("--wp--preset--color--primary: #1d4ed8;"));
     assert!(css.contains("--wp--preset--color--accent:"));
     assert!(css.contains("--wp--style--global--content-size: 800px;"));
-    assert!(css.contains(".has-primary-color { color: var(--wp--preset--color--primary) !important; }"));
+    assert!(
+        css.contains(".has-primary-color { color: var(--wp--preset--color--primary) !important; }")
+    );
 
     // 2. FSE Block Template with Template Part Transpilation
     let fse_template = r#"
@@ -70,7 +76,8 @@ pub async fn run_test() {
 <!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
 "#;
 
-    let layout = transpile_gutenberg_content(fse_template).expect("FSE content transpilation succeeds");
+    let layout =
+        transpile_gutenberg_content(fse_template).expect("FSE content transpilation succeeds");
     let html = render_layout_to_html(&layout);
     assert_zero_comment_leaks(&html, "Archetype 2 FSE Layout");
     assert!(html.contains("Twenty Twenty-Four FSE"));
@@ -80,17 +87,22 @@ pub async fn run_test() {
     let db = setup_test_db();
     let _ = db.set_option("neopress_fse_theme_json_css", &css);
 
-    let _ = db.create_post(&CreatePostRequest {
-        title: "FSE Page".to_string(),
-        content: html.clone(),
-        status: "publish".to_string(),
-        slug: Some("fse-page".to_string()),
-        post_type: "page".to_string(),
-        ..Default::default()
-    }).expect("Failed to create FSE post");
+    let _ = db
+        .create_post(&CreatePostRequest {
+            title: "FSE Page".to_string(),
+            content: html.clone(),
+            status: "publish".to_string(),
+            slug: Some("fse-page".to_string()),
+            post_type: "page".to_string(),
+            ..Default::default()
+        })
+        .expect("Failed to create FSE post");
 
     let app = create_app(db.clone());
-    let req = Request::builder().uri("/fse-page/").body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/fse-page/")
+        .body(Body::empty())
+        .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let ssr_html = body_to_string(resp).await;

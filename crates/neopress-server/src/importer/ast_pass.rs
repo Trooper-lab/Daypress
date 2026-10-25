@@ -69,7 +69,7 @@ pub fn execute_ast_pass2(
             meta.insert("_elementor_kit_settings".to_string(), kit_str.to_string());
         }
 
-        if let Some(transpiled_layout) = neopress_ast::transpile_content(&raw_content, &meta) {
+        if let Some(transpiled_layout) = neopress_ast::transpile_content(&raw_content, meta) {
             let rendered_html = neopress_ast::render_layout_to_html(&transpiled_layout);
             let final_content = if !rendered_html.trim().is_empty()
                 || raw_content.trim().is_empty()
@@ -132,7 +132,8 @@ pub fn execute_ast_pass2(
                         .map(|s| s.as_str())
                         .or(lib_type_opt.as_deref())
                         .unwrap_or("header");
-                    let norm_type = crate::importer::templates::normalize_template_type(raw_tpl_type);
+                    let norm_type =
+                        crate::importer::templates::normalize_template_type(raw_tpl_type);
                     let body_without_kit_style =
                         neopress_ast::render_node_to_html(&transpiled_layout.root);
 

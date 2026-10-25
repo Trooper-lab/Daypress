@@ -41,7 +41,10 @@ fn test_divi_transpilation_and_leaf_shortcodes() {
     // Verify unclosed [et_pb_divider] did NOT swallow [et_pb_text] or [et_pb_counter]
     let left_col = &row.children[0];
     assert_eq!(left_col.children.len(), 3);
-    assert!(matches!(left_col.children[0].kind, NodeKind::Divider { .. }));
+    assert!(matches!(
+        left_col.children[0].kind,
+        NodeKind::Divider { .. }
+    ));
     assert!(matches!(left_col.children[1].kind, NodeKind::Text { .. }));
     match &left_col.children[2].kind {
         NodeKind::ProgressBar { title, percent, .. } => {
@@ -92,8 +95,14 @@ fn test_divi5_gutenberg_block_comments() {
     assert_eq!(layout.version, 1);
     let sec = &layout.root.children[0];
     assert_eq!(sec.id, "hero-sec");
-    assert_eq!(sec.styles.padding.as_ref().and_then(|p| p.top.as_deref()), Some("40px"));
-    assert_eq!(sec.styles.padding.as_ref().and_then(|p| p.right.as_deref()), Some("20px"));
+    assert_eq!(
+        sec.styles.padding.as_ref().and_then(|p| p.top.as_deref()),
+        Some("40px")
+    );
+    assert_eq!(
+        sec.styles.padding.as_ref().and_then(|p| p.right.as_deref()),
+        Some("20px")
+    );
 
     let row = &sec.children[0];
     let col = &row.children[0];
@@ -128,19 +137,30 @@ fn test_divi_font_composite_and_countdown() {
 [/et_pb_section]
 "#;
 
-    let layout = transpile_divi_content(divi_shortcode).expect("Divi shortcode transpilation failed");
+    let layout =
+        transpile_divi_content(divi_shortcode).expect("Divi shortcode transpilation failed");
     let sec = &layout.root.children[0];
     let row = &sec.children[0];
     let col = &row.children[0];
 
     let text_node = &col.children[0];
-    assert_eq!(text_node.styles.font_family.as_deref(), Some("'Montserrat', sans-serif"));
+    assert_eq!(
+        text_node.styles.font_family.as_deref(),
+        Some("'Montserrat', sans-serif")
+    );
     assert_eq!(text_node.styles.font_weight.as_deref(), Some("700"));
-    assert_eq!(text_node.styles.text_transform.as_deref(), Some("uppercase"));
+    assert_eq!(
+        text_node.styles.text_transform.as_deref(),
+        Some("uppercase")
+    );
 
     let timer_node = &col.children[1];
     match &timer_node.kind {
-        NodeKind::Countdown { target_date, show_days, .. } => {
+        NodeKind::Countdown {
+            target_date,
+            show_days,
+            ..
+        } => {
             assert_eq!(target_date, "2026-12-31 23:59:59");
             assert!(*show_days);
         }
@@ -165,7 +185,8 @@ fn test_divi_slider_slide_and_signup() {
 [/et_pb_section]
 "#;
 
-    let layout = transpile_divi_content(divi_markup).expect("Divi slider/signup transpilation failed");
+    let layout =
+        transpile_divi_content(divi_markup).expect("Divi slider/signup transpilation failed");
     let sec = &layout.root.children[0];
     let row = &sec.children[0];
     let col = &row.children[0];

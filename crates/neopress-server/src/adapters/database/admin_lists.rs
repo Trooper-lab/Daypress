@@ -1,4 +1,4 @@
-//! Admin list-screen queries (`/n-admin/edit.php` and `/n-admin/edit-tags.php`).
+//! Admin list-screen queries (`/n-admin/edit` and `/n-admin/edit-tags`).
 //!
 //! These power the WordPress-style list tables: server-side status tabs with real
 //! per-status counts, search, taxonomy / month filters, column sorting and pagination.
@@ -9,7 +9,7 @@ use crate::models::*;
 use rusqlite::{params, Result};
 use std::collections::HashMap;
 
-/// Statuses that WordPress hides from the "All" tab of `edit.php`.
+/// Statuses that WordPress hides from the "All" tab of `/n-admin/edit`.
 pub const ADMIN_HIDDEN_STATUSES: [&str; 3] = ["trash", "auto-draft", "inherit"];
 
 #[derive(Debug, Default, Clone)]
@@ -39,17 +39,19 @@ pub struct AdminPostListQuery {
 impl Database {
     /// Paged, filtered and sorted admin listing for a single post type.
     /// Returns the hydrated rows of the requested page plus the total matching row count.
-    pub fn admin_list_posts(
-        &self,
-        q: &AdminPostListQuery,
-    ) -> Result<(Vec<WpPostResponse>, usize)> {
+    pub fn admin_list_posts(&self, q: &AdminPostListQuery) -> Result<(Vec<WpPostResponse>, usize)> {
         let conn = self.conn.lock().unwrap();
         let base_url = Self::get_base_url_with_conn(&conn);
 
         let mut where_sql: Vec<String> = vec!["p.post_type = ?".to_string()];
         let mut args: Vec<rusqlite::types::Value> = vec![q.post_type.clone().into()];
 
-        match q.status.as_deref().map(str::trim).filter(|s| !s.is_empty() && *s != "all") {
+        match q
+            .status
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && *s != "all")
+        {
             Some(st) => {
                 where_sql.push("p.post_status = ?".to_string());
                 args.push(st.to_string().into());
@@ -77,8 +79,14 @@ impl Database {
             }
         }
 
-        if let Some(m) = q.month.as_deref().map(str::trim).filter(|m| m.len() == 6 && m.chars().all(|c| c.is_ascii_digit())) {
-            where_sql.push("(substr(p.post_date, 1, 4) || substr(p.post_date, 6, 2)) = ?".to_string());
+        if let Some(m) = q
+            .month
+            .as_deref()
+            .map(str::trim)
+            .filter(|m| m.len() == 6 && m.chars().all(|c| c.is_ascii_digit()))
+        {
+            where_sql
+                .push("(substr(p.post_date, 1, 4) || substr(p.post_date, 6, 2)) = ?".to_string());
             args.push(m.to_string().into());
         }
 
@@ -162,7 +170,10 @@ impl Database {
         all_args.push((q.offset as i64).into());
 
         let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(rusqlite::params_from_iter(all_args.iter()), Self::map_post_row)?;
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(all_args.iter()),
+            Self::map_post_row,
+        )?;
         let mut posts = Vec::new();
         for r in rows {
             let mut post = r?;
@@ -172,7 +183,7 @@ impl Database {
         Ok((posts, total.max(0) as usize))
     }
 
-    /// Per-status row counts for one post type (drives the status tabs of `edit.php`).
+    /// Per-status row counts for one post type (drives the status tabs of `/n-admin/edit`).
     pub fn admin_post_status_counts(&self, post_type: &str) -> Result<HashMap<String, i64>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

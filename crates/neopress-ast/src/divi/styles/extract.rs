@@ -61,7 +61,7 @@ pub(crate) fn extract_divi_styles(
             let stops: Vec<String> = stops_raw
                 .split('|')
                 .map(|part| {
-                    let tokens: Vec<&str> = part.trim().split_whitespace().collect();
+                    let tokens: Vec<&str> = part.split_whitespace().collect();
                     if let Some(first) = tokens.first() {
                         let col = resolve_divi_color(first);
                         if tokens.len() > 1 {
@@ -101,10 +101,26 @@ pub(crate) fn extract_divi_styles(
     if let Some(radii) = attrs.get("border_radii") {
         let parts: Vec<&str> = radii.split('|').collect();
         if parts.len() >= 5 {
-            let t = if parts[1].trim().is_empty() { "0px" } else { parts[1].trim() };
-            let r = if parts[2].trim().is_empty() { "0px" } else { parts[2].trim() };
-            let b = if parts[3].trim().is_empty() { "0px" } else { parts[3].trim() };
-            let l = if parts[4].trim().is_empty() { "0px" } else { parts[4].trim() };
+            let t = if parts[1].trim().is_empty() {
+                "0px"
+            } else {
+                parts[1].trim()
+            };
+            let r = if parts[2].trim().is_empty() {
+                "0px"
+            } else {
+                parts[2].trim()
+            };
+            let b = if parts[3].trim().is_empty() {
+                "0px"
+            } else {
+                parts[3].trim()
+            };
+            let l = if parts[4].trim().is_empty() {
+                "0px"
+            } else {
+                parts[4].trim()
+            };
             if t != "0px" || r != "0px" || b != "0px" || l != "0px" {
                 let rad = if t == r && r == b && b == l {
                     t.to_string()

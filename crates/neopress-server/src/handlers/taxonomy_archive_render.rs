@@ -37,21 +37,11 @@ pub fn try_handle_taxonomy_archive(
     let req_ctx = RequestContext::for_archive(taxonomy, term.id, &term.slug);
     let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, settings);
 
-    let archive_html = templates::render_archive_page(
-        &title,
-        &subtitle,
-        &posts,
-        settings,
-        user,
-        Some(&partials),
-    );
+    let archive_html =
+        templates::render_archive_page(&title, &subtitle, &posts, settings, user, Some(&partials));
 
-    let final_html = crate::plugins::inject_plugin_hooks_into_html(
-        db,
-        settings,
-        None,
-        archive_html,
-    );
+    let final_html =
+        crate::plugins::inject_plugin_hooks_into_html(db, settings, None, archive_html);
 
     Some((StatusCode::OK, Html(final_html)).into_response())
 }

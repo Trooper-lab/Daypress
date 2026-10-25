@@ -300,12 +300,23 @@ pub async fn handle_serve_media(AxPath(path_str): AxPath<String>) -> Result<Resp
                 if let Ok(reader) = ImageReader::open(&src_path) {
                     if let Ok(img) = reader.decode() {
                         let resized = if let (Some(w), Some(h)) = (target_w, target_h) {
+                            // Variants are only ever downscaled from the original.
+                            if w == 0 || h == 0 || w > img.width() || h > img.height() {
+                                return Err(StatusCode::NOT_FOUND);
+                            }
                             img.thumbnail(w, h)
                         } else {
                             img
                         };
 
                         let out_target = base_uploads.join(candidate_rel);
+                        let persist = match (target_w, target_h) {
+                            (Some(w), Some(h)) => is_cacheable_variant_size(w, h),
+                            _ => true,
+                        };
+                        if !persist {
+                            return serve_image_in_memory(&resized, &out_target);
+                        }
                         if let Some(p) = out_target.parent() {
                             let _ = fs::create_dir_all(p);
                         }
@@ -323,6 +334,36 @@ pub async fn handle_serve_media(AxPath(path_str): AxPath<String>) -> Result<Resp
     Err(StatusCode::NOT_FOUND)
 }
 
+/// Widths/heights WordPress and Neopress generate (thumbnail, medium, medium_large, large,
+/// 1536, 2048). Only variants on one of these edges are written to disk, so arbitrary
+/// `name-WxH.ext` requests cannot fill the uploads directory.
+const CACHEABLE_VARIANT_EDGES: [u32; 6] = [150, 300, 768, 1024, 1536, 2048];
+
+fn is_cacheable_variant_size(w: u32, h: u32) -> bool {
+    CACHEABLE_VARIANT_EDGES.contains(&w) || CACHEABLE_VARIANT_EDGES.contains(&h)
+}
+
+/// Encodes a generated variant and serves it without writing it to disk.
+fn serve_image_in_memory(img: &image::DynamicImage, target: &Path) -> Result<Response, StatusCode> {
+    let ext = target
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let format = image::ImageFormat::from_extension(&ext).ok_or(StatusCode::NOT_FOUND)?;
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut bytes, format)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut headers = HeaderMap::new();
+    if let Ok(ct) = content_type_for_ext(&ext).parse() {
+        headers.insert(header::CONTENT_TYPE, ct);
+    }
+    if let Ok(cc) = "public, max-age=86400".parse() {
+        headers.insert(header::CACHE_CONTROL, cc);
+    }
+    Ok((StatusCode::OK, headers, Body::from(bytes.into_inner())).into_response())
+}
+
 fn serve_file_response(path: &Path) -> Result<Response, StatusCode> {
     let bytes = fs::read(path).map_err(|_| StatusCode::NOT_FOUND)?;
     let ext = path
@@ -330,8 +371,20 @@ fn serve_file_response(path: &Path) -> Result<Response, StatusCode> {
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_lowercase();
+    let content_type = content_type_for_ext(&ext);
 
-    let content_type = match ext.as_str() {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
+    headers.insert(
+        header::CACHE_CONTROL,
+        "public, max-age=31536000, immutable".parse().unwrap(),
+    );
+
+    Ok((StatusCode::OK, headers, Body::from(bytes)).into_response())
+}
+
+fn content_type_for_ext(ext: &str) -> &'static str {
+    match ext {
         "jpg" | "jpeg" => "image/jpeg",
         "png" => "image/png",
         "webp" => "image/webp",
@@ -350,16 +403,7 @@ fn serve_file_response(path: &Path) -> Result<Response, StatusCode> {
         "woff2" => "font/woff2",
         "ttf" => "font/ttf",
         _ => "application/octet-stream",
-    };
-
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
-    headers.insert(
-        header::CACHE_CONTROL,
-        "public, max-age=31536000, immutable".parse().unwrap(),
-    );
-
-    Ok((StatusCode::OK, headers, Body::from(bytes)).into_response())
+    }
 }
 
 /// Dissects a requested variant URL into source file name and requested dimensions/format.
@@ -386,7 +430,11 @@ pub fn parse_dynamic_media_request(
                 let candidate_rel = if parent.as_os_str().is_empty() {
                     candidate_name.clone()
                 } else {
-                    format!("{}/{}", parent.to_string_lossy().replace('\\', "/"), candidate_name)
+                    format!(
+                        "{}/{}",
+                        parent.to_string_lossy().replace('\\', "/"),
+                        candidate_name
+                    )
                 };
                 if uploads_dir.join(&candidate_rel).exists() {
                     return Some((candidate_rel, Some(w), Some(h), ext.to_string()));
@@ -406,7 +454,11 @@ pub fn parse_dynamic_media_request(
             let candidate_rel = if parent.as_os_str().is_empty() {
                 candidate_name
             } else {
-                format!("{}/{}", parent.to_string_lossy().replace('\\', "/"), candidate_name)
+                format!(
+                    "{}/{}",
+                    parent.to_string_lossy().replace('\\', "/"),
+                    candidate_name
+                )
             };
             if uploads_dir.join(&candidate_rel).exists() {
                 return Some((candidate_rel, None, None, "webp".to_string()));

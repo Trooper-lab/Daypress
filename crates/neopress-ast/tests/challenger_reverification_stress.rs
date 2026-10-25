@@ -1,7 +1,6 @@
+#![allow(clippy::field_reassign_with_default)]
 use neopress_ast::render::{compile_layout_css, render_layout_to_html, render_node_to_html};
-use neopress_ast::schema::{
-    NeopressLayout, NeopressNode, NodeKind, Spacing, StyleProperties,
-};
+use neopress_ast::schema::{NeopressLayout, NeopressNode, NodeKind, Spacing, StyleProperties};
 use neopress_ast::transpile_content;
 use std::collections::HashMap;
 
@@ -89,7 +88,14 @@ fn test_pro_blocks_boundary_and_extreme_values() {
     assert!(html_many.contains("Speed-49"));
 
     // 4. FlipBox all 6 directions
-    for dir in ["flip_left", "flip_right", "flip_up", "flip_down", "push", "slide"] {
+    for dir in [
+        "flip_left",
+        "flip_right",
+        "flip_up",
+        "flip_down",
+        "push",
+        "slide",
+    ] {
         let fb_node = NeopressNode {
             id: format!("fb_{}", dir),
             kind: NodeKind::FlipBox {
@@ -145,7 +151,12 @@ fn test_flat_visual_builder_extended_blocks() {
     }"#;
     let node_al: NeopressNode = serde_json::from_str(flat_alert).expect("Notice alias failed");
     match &node_al.kind {
-        NodeKind::Alert { alert_type, title, dismissible, .. } => {
+        NodeKind::Alert {
+            alert_type,
+            title,
+            dismissible,
+            ..
+        } => {
             assert_eq!(alert_type, "danger");
             assert_eq!(title, "System Alert");
             assert!(!dismissible);
@@ -164,7 +175,13 @@ fn test_flat_visual_builder_extended_blocks() {
     }"#;
     let node_gr: NeopressNode = serde_json::from_str(flat_grid).expect("PostGrid alias failed");
     match &node_gr.kind {
-        NodeKind::LoopGrid { post_type, posts_per_page, columns, taxonomy, .. } => {
+        NodeKind::LoopGrid {
+            post_type,
+            posts_per_page,
+            columns,
+            taxonomy,
+            ..
+        } => {
             assert_eq!(post_type, "portfolio");
             assert_eq!(*posts_per_page, 12);
             assert_eq!(*columns, 4);
@@ -236,7 +253,8 @@ fn test_deep_unicode_and_multi_script_resilience() {
 
         // Roundtrip JSON
         let json_str = serde_json::to_string(&layout).expect("Serialization failed");
-        let deserialized: NeopressLayout = serde_json::from_str(&json_str).expect("Deserialization failed");
+        let deserialized: NeopressLayout =
+            serde_json::from_str(&json_str).expect("Deserialization failed");
         assert_eq!(layout, deserialized);
 
         // SSR HTML rendering
@@ -286,19 +304,28 @@ fn test_nested_responsive_styles_and_breakpoint_visibility() {
         children: vec![
             NeopressNode {
                 id: "child_desktop_only".to_string(),
-                kind: NodeKind::Heading { text: "Desktop Only".to_string(), level: 2 },
+                kind: NodeKind::Heading {
+                    text: "Desktop Only".to_string(),
+                    level: 2,
+                },
                 styles: desktop_hidden,
                 children: Vec::new(),
             },
             NeopressNode {
                 id: "child_tablet_hidden".to_string(),
-                kind: NodeKind::Text { content_html: "<p>Hidden on Tablet</p>".to_string() },
+                kind: NodeKind::Text {
+                    content_html: "<p>Hidden on Tablet</p>".to_string(),
+                },
                 styles: tablet_hidden,
                 children: Vec::new(),
             },
             NeopressNode {
                 id: "child_mobile_hidden".to_string(),
-                kind: NodeKind::Button { text: "No Mobile".to_string(), url: "/desktop".to_string(), target: "_self".to_string() },
+                kind: NodeKind::Button {
+                    text: "No Mobile".to_string(),
+                    url: "/desktop".to_string(),
+                    target: "_self".to_string(),
+                },
                 styles: mobile_hidden,
                 children: Vec::new(),
             },
@@ -319,7 +346,9 @@ fn test_nested_responsive_styles_and_breakpoint_visibility() {
 
     // Tablet media query (overrides are !important so they beat inline base styles)
     assert!(compiled_css.contains("@media (max-width: 1024px)"));
-    assert!(compiled_css.contains("[id=\"multi_level_tree\"] { flex-direction: column !important; gap: 16px !important; }"));
+    assert!(compiled_css.contains(
+        "[id=\"multi_level_tree\"] { flex-direction: column !important; gap: 16px !important; }"
+    ));
     assert!(compiled_css.contains("[id=\"child_tablet_hidden\"] { display: none !important; }"));
 
     // Mobile media query
@@ -346,7 +375,8 @@ fn test_divi5_whitespace_and_mixed_routing_robustness() {
         + "<!-- /wp:divi/section -->\n   ";
 
     let empty_meta = HashMap::new();
-    let layout = transpile_content(&divi5_content, &empty_meta).expect("Divi 5 transpilation with leading whitespace failed");
+    let layout = transpile_content(&divi5_content, &empty_meta)
+        .expect("Divi 5 transpilation with leading whitespace failed");
     assert_eq!(layout.root.children.len(), 1);
     let sec = &layout.root.children[0];
     assert_eq!(sec.id, "adv_divi5");
@@ -364,8 +394,12 @@ fn test_divi5_whitespace_and_mixed_routing_robustness() {
 
     // 2. Priority check: When Elementor _elementor_data is present in meta, Elementor takes precedence
     let mut elem_meta = HashMap::new();
-    elem_meta.insert("_elementor_data".to_string(), r#"[{"id":"elem_prio","elType":"section","elements":[]}]"#.to_string());
-    let prio_layout = transpile_content(&divi5_content, &elem_meta).expect("Priority transpilation failed");
+    elem_meta.insert(
+        "_elementor_data".to_string(),
+        r#"[{"id":"elem_prio","elType":"section","elements":[]}]"#.to_string(),
+    );
+    let prio_layout =
+        transpile_content(&divi5_content, &elem_meta).expect("Priority transpilation failed");
     assert_eq!(prio_layout.root.children[0].id, "elem_prio");
 }
 
@@ -387,13 +421,19 @@ fn test_style_properties_sync_flat_and_nested_bidirectional() {
     };
     flat_style.sync_flat_and_nested();
 
-    let pad = flat_style.padding.as_ref().expect("padding should be populated from flat");
+    let pad = flat_style
+        .padding
+        .as_ref()
+        .expect("padding should be populated from flat");
     assert_eq!(pad.top.as_deref(), Some("20px"));
     assert_eq!(pad.right.as_deref(), Some("30px"));
     assert_eq!(pad.bottom.as_deref(), Some("40px"));
     assert_eq!(pad.left.as_deref(), Some("50px"));
 
-    let mar = flat_style.margin.as_ref().expect("margin should be populated from flat");
+    let mar = flat_style
+        .margin
+        .as_ref()
+        .expect("margin should be populated from flat");
     assert_eq!(mar.top.as_deref(), Some("10px"));
     assert_eq!(mar.bottom.as_deref(), Some("15px"));
 

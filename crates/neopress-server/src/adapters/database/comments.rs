@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
+use super::Database;
 use crate::auth::AuthUser;
 use crate::domain::errors::{DomainError, DomainResult};
 use crate::errors::AppError;
 use crate::models::*;
-use super::Database;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -62,11 +62,16 @@ impl Database {
                 rendered: req.content.clone(),
                 protected: false,
             },
-            link: format!("{}/?p={}#comment-{}", base_url.trim_end_matches('/'), req.post, cid),
-            status: if approved == "1" {
-                "approved".to_string()
-            } else {
-                approved.to_string()
+            link: format!(
+                "{}/?p={}#comment-{}",
+                base_url.trim_end_matches('/'),
+                req.post,
+                cid
+            ),
+            status: match approved {
+                "1" => "approved".to_string(),
+                "0" => "hold".to_string(),
+                other => other.to_string(),
             },
             comment_type: "comment".to_string(),
         })
