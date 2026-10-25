@@ -13,6 +13,28 @@ pub fn render_archive_page(
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
+    render_archive_page_paginated(
+        archive_title,
+        archive_subtitle,
+        posts,
+        settings,
+        current_user,
+        partials,
+        "",
+    )
+}
+
+/// [`render_archive_page`] with a pagination nav (see `pagination::render_pagination`)
+/// rendered below the cards.
+pub fn render_archive_page_paginated(
+    archive_title: &str,
+    archive_subtitle: &str,
+    posts: &[WpPostResponse],
+    settings: &WpSettingsResponse,
+    current_user: Option<&AuthUser>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
+    pagination_html: &str,
+) -> String {
     let mut cards_html = String::new();
     if posts.is_empty() {
         cards_html.push_str(
@@ -73,12 +95,14 @@ pub fn render_archive_page(
                 <div class="np-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
                     {cards_html}
                 </div>
+                {pagination_html}
             </div>
         </section>
         "##,
         subtitle = escape_html(archive_subtitle),
         title = escape_html(archive_title),
         cards_html = cards_html,
+        pagination_html = pagination_html,
     );
 
     render_base_layout(archive_title, settings, &body, current_user, None, partials)

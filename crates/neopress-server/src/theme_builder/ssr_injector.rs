@@ -234,7 +234,7 @@ impl SsrInjector {
                     .and_then(|p| p.featured_image_url.as_ref())
                     .filter(|u| !u.is_empty())
                     .cloned()
-                    .unwrap_or_else(|| "/static/placeholder.jpg".to_string());
+                    .unwrap_or_else(|| "/static/placeholder.svg".to_string());
                 let alt = ctx
                     .post
                     .map(|p| p.title.rendered.clone())

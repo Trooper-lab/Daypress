@@ -12,6 +12,35 @@ pub fn get_meta_value(existing: Option<&WpPostResponse>, key: &str) -> String {
         .unwrap_or_default()
 }
 
+/// Meta keys edited by the ACF fields card below.
+const ACF_CARD_META_KEYS: [&str; 7] = [
+    "header_height",
+    "header_hoogte",
+    "header_title",
+    "show_title",
+    "header_shape",
+    "show_icon",
+    "header_left",
+];
+
+/// Whether a post carries ACF data: ACF blocks in its content, ACF field references
+/// (`_field` meta values like `field_6123abc`), or the meta keys this card edits.
+/// New posts and plain sites never show the ACF tooling.
+pub fn post_uses_acf(existing: Option<&WpPostResponse>) -> bool {
+    let Some(post) = existing else {
+        return false;
+    };
+    if post.content.rendered.contains("<!-- wp:acf/") {
+        return true;
+    }
+    post.meta.as_object().is_some_and(|m| {
+        m.iter().any(|(k, v)| {
+            ACF_CARD_META_KEYS.contains(&k.as_str())
+                || v.as_str().is_some_and(|s| s.starts_with("field_"))
+        })
+    })
+}
+
 pub fn render_acf_fields_card(existing: Option<&WpPostResponse>, post_type: &str) -> String {
     let get_meta = |key: &str| get_meta_value(existing, key);
 
@@ -193,24 +222,24 @@ pub fn render_acf_fields_card(existing: Option<&WpPostResponse>, post_type: &str
 
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">Header Banner Hoogte (<code>header_height</code>)</label>
+                    <label class="form-label">Header banner height (<code>header_height</code>)</label>
                     <select class="form-select acf-meta-input" data-acf-key="header_height" onchange="onAcfFieldChange()">
                         <option value="auto" {hh_auto_sel}>Compact (Auto Height)</option>
                         <option value="full" {hh_full_sel}>Full Height Hero Banner</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">Toon Pagina Titel in Header (<code>show_title</code>)</label>
+                    <label class="form-label">Show page title in header (<code>show_title</code>)</label>
                     <select class="form-select acf-meta-input" data-acf-key="show_title" onchange="onAcfFieldChange()">
-                        <option value="show" {st_show_sel}>Toon Titel</option>
-                        <option value="hide" {st_hide_sel}>Verberg Titel</option>
+                        <option value="show" {st_show_sel}>Show title</option>
+                        <option value="hide" {st_hide_sel}>Hide title</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">Header Decoratie Vorm (<code>show_icon</code>)</label>
+                    <label class="form-label">Header decoration shape (<code>show_icon</code>)</label>
                     <select class="form-select acf-meta-input" data-acf-key="show_icon" onchange="onAcfFieldChange()">
-                        <option value="show" {si_show_sel}>Toon Splash Vorm</option>
-                        <option value="hide" {si_hide_sel}>Verberg Splash Vorm</option>
+                        <option value="show" {si_show_sel}>Show splash shape</option>
+                        <option value="hide" {si_hide_sel}>Hide splash shape</option>
                     </select>
                 </div>
             </div>

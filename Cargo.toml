@@ -35,9 +35,14 @@ quick-xml = "0.37"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
 # Cryptography & Authentication
+argon2 = "0.5"
+getrandom = "0.2"
 sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
+
+# Email (SMTP over rustls; no OpenSSL dependency)
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "hostname", "tokio1-rustls", "webpki-roots", "ring"] }
 
 # CLI & Utilities
 clap = { version = "4", features = ["derive", "env"] }
@@ -50,3 +55,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # AI / Transpiler Pipeline
 rig-core = { version = "0.45.0", features = ["rustls"] }
+
+# Password hashing (argon2id) is deliberately expensive; optimize it even in dev/test builds
+# so logins and Basic-auth requests stay fast while developing and in CI.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

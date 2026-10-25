@@ -2,7 +2,7 @@ use crate::elementor::NavMenuItem;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// A service item from the `spb_service` custom post type used by the service price calculator.
+/// A service item from the `spb_service` custom post type used by the migrated service price calculator.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SpbServiceItem {
     pub id: i64,

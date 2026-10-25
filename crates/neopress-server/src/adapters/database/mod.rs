@@ -28,6 +28,8 @@ use std::sync::{Arc, Mutex};
 pub struct Database {
     pub(crate) conn: Arc<Mutex<Connection>>,
     pub(crate) db_path: PathBuf,
+    /// Failed-login counter shared by every clone of this database handle.
+    pub(crate) login_throttle: crate::auth::LoginThrottle,
 }
 
 impl Database {

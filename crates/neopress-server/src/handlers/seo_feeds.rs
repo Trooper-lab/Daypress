@@ -53,7 +53,10 @@ pub async fn handle_robots_txt(State(db): State<Database>) -> impl IntoResponse 
     let settings = db.get_settings().unwrap_or_default();
     let seo_global = db.get_global_seo_settings().unwrap_or_default();
     let base_url = settings.url.trim_end_matches('/');
-    let robots = if !seo_global.custom_robots_txt.trim().is_empty() {
+    let robots = if !settings.blog_public {
+        // Settings → Reading → "Discourage search engines from indexing this site".
+        "User-agent: *\nDisallow: /\n".to_string()
+    } else if !seo_global.custom_robots_txt.trim().is_empty() {
         seo_global.custom_robots_txt
     } else {
         format!(

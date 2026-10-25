@@ -107,7 +107,12 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!("[SERVER] TcpListener bound to {addr}");
 
-    let res = axum::serve(listener, app).await;
+    // Connect info gives handlers the client socket address (used by the login throttle).
+    let res = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await;
 
     match res {
         Ok(()) => {

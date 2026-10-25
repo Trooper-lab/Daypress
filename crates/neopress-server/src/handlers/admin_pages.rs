@@ -264,6 +264,7 @@ pub async fn handle_login_page(
 
 pub async fn handle_login_submit(
     State(db): State<Database>,
+    crate::auth::ClientIp(client): crate::auth::ClientIp,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();
@@ -282,8 +283,21 @@ pub async fn handle_login_submit(
         .into_response();
     }
 
-    match db.authenticate_credentials(username, password) {
-        Ok(Some(user)) => {
+    match db.attempt_login(username, password, client.as_deref()) {
+        Ok(crate::auth::LoginAttempt::Throttled { retry_after_secs }) => (
+            StatusCode::TOO_MANY_REQUESTS,
+            Html(templates::render_wp_login_view(
+                &settings,
+                Some(&format!(
+                    "Too many failed login attempts. Please try again in {} minutes.",
+                    (retry_after_secs + 59) / 60
+                )),
+                false,
+                Some(redirect_to),
+            )),
+        )
+            .into_response(),
+        Ok(crate::auth::LoginAttempt::Success(user)) => {
             let mut headers = HeaderMap::new();
             let secret = db.get_auth_secret().unwrap_or_default();
             let cookie_val = crate::auth::session_cookie_header(

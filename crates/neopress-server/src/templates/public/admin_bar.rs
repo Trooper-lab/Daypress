@@ -192,8 +192,6 @@ pub fn render_admin_bar(
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
                                     <li><a class="ab-item" href="/n-admin/">Dashboard</a></li>
-                                    <li><a class="ab-item" href="/n-admin/themes">Themes</a></li>
-                                    <li><a class="ab-item" href="/n-admin/widgets">Widgets</a></li>
                                     <li><a class="ab-item" href="/n-admin/nav-menus">Menus</a></li>
                                     <li><a class="ab-item" href="/n-admin/customize">Customize</a></li>
                                 </ul>

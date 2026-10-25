@@ -23,6 +23,9 @@ pub enum AppError {
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -48,6 +51,7 @@ impl From<AppError> for DomainError {
             AppError::BadRequest(msg) => DomainError::Validation(msg),
             AppError::Unauthorized(msg) => DomainError::Unauthorized(msg),
             AppError::Forbidden(msg) => DomainError::Forbidden(msg),
+            AppError::TooManyRequests(msg) => DomainError::Forbidden(msg),
             AppError::Database(e) => DomainError::Storage(e.to_string()),
             AppError::Io(e) => DomainError::Io(e.to_string()),
             AppError::Internal(msg) => DomainError::Internal(msg),

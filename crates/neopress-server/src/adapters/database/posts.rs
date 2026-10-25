@@ -538,7 +538,7 @@ impl Database {
                 None,
                 None,
                 0,
-                100,
+                10_000,
             )?;
             Ok((cat_opt, posts))
         } else {
@@ -565,7 +565,7 @@ impl Database {
                 None,
                 None,
                 0,
-                100,
+                10_000,
             )?;
             Ok((tag_opt, posts))
         } else {
@@ -596,7 +596,7 @@ impl Database {
                 None,
                 None,
                 0,
-                100,
+                10_000,
             )?;
             Ok((detail, posts))
         } else {
@@ -741,6 +741,25 @@ impl Database {
             params![guid, id],
         )?;
 
+        // Settings → Discussion "Allow people to submit comments on new posts" and
+        // Settings → Writing "Default Post Category" apply to new blog posts.
+        let read_option = |name: &str| -> Option<String> {
+            conn.query_row(
+                "SELECT option_value FROM wp_options WHERE option_name = ?1",
+                params![name],
+                |r| r.get(0),
+            )
+            .ok()
+        };
+        if req.post_type == "post"
+            && read_option("default_comment_status").as_deref() == Some("closed")
+        {
+            conn.execute(
+                "UPDATE wp_posts SET comment_status = 'closed' WHERE ID = ?1",
+                params![id],
+            )?;
+        }
+
         if let Some(fm) = req.featured_media {
             if fm > 0 {
                 let _ = conn.execute(
@@ -763,6 +782,17 @@ impl Database {
             req.taxonomies.clone().unwrap_or_default();
         if !req.categories.is_empty() && !all_taxonomies.contains_key("category") {
             all_taxonomies.insert("category".to_string(), req.categories.clone());
+        }
+        if req.post_type == "post"
+            && all_taxonomies
+                .get("category")
+                .is_none_or(|ids| ids.is_empty())
+        {
+            let default_category = read_option("default_category")
+                .and_then(|v| v.trim().parse::<i64>().ok())
+                .filter(|id| *id > 0)
+                .unwrap_or(1);
+            all_taxonomies.insert("category".to_string(), vec![default_category]);
         }
         if !req.tags.is_empty() && !all_taxonomies.contains_key("post_tag") {
             all_taxonomies.insert("post_tag".to_string(), req.tags.clone());

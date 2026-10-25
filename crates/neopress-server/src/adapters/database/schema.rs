@@ -27,6 +27,7 @@ impl Database {
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_path_buf(),
+            login_throttle: Default::default(),
         };
 
         db.init_schema()?;
@@ -132,6 +133,7 @@ impl Database {
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: PathBuf::from(":memory:"),
+            login_throttle: Default::default(),
         };
 
         db.init_schema()?;

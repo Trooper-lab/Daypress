@@ -136,7 +136,7 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
 
     // Verify fallback placeholder when featured image is missing
     assert!(
-        rendered.contains("/static/placeholder.jpg"),
+        rendered.contains("/static/placeholder.svg"),
         "Must fallback to placeholder image"
     );
 

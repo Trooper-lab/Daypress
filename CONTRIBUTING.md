@@ -17,8 +17,8 @@ Thank you for your interest in contributing to Neopress! We welcome contribution
 
 ### 2. Fork & Clone
 ```bash
-git clone https://github.com/<your-username>/Neopress.git
-cd Neopress
+git clone https://github.com/<your-username>/neopress.git
+cd neopress
 cargo build
 ```
 

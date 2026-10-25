@@ -63,13 +63,34 @@ pub fn sha256_hex(data: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Hashes a user password with salted SHA-256 in `$neopress$sha256$<salt>$<hash>` format.
+/// Hashes a user password with argon2id (PHC string `$argon2id$v=19$...`, OWASP-recommended
+/// default parameters) and a random 16-byte salt.
 pub fn hash_user_password(password: &str) -> String {
-    let raw = uuid_like_random_string();
-    let salt: String = raw.chars().take(16).collect();
-    let salted = format!("{}:{}", salt, password);
-    let hash = sha256_hex(salted.as_bytes());
+    use argon2::password_hash::{PasswordHasher, SaltString};
+
+    let mut salt_bytes = [0u8; 16];
+    fill_random(&mut salt_bytes);
+    SaltString::encode_b64(&salt_bytes)
+        .and_then(|salt| {
+            argon2::Argon2::default()
+                .hash_password(password.as_bytes(), &salt)
+                .map(|hash| hash.to_string())
+        })
+        // Only reachable with invalid argon2 parameters; keep a salted hash rather than panic.
+        .unwrap_or_else(|_| legacy_sha256_password_hash(password))
+}
+
+/// Pre-argon2 Neopress format (`$neopress$sha256$<salt>$<hash>`); still verified so existing
+/// accounts keep working, and upgraded to argon2id on their next successful login.
+fn legacy_sha256_password_hash(password: &str) -> String {
+    let salt: String = random_hex_64().chars().take(16).collect();
+    let hash = sha256_hex(format!("{}:{}", salt, password).as_bytes());
     format!("$neopress$sha256${}${}", salt, hash)
+}
+
+/// Whether a stored hash predates argon2id and should be re-hashed after a successful login.
+pub fn password_needs_rehash(stored_pass: &str) -> bool {
+    !stored_pass.starts_with("$argon2")
 }
 
 /// Placeholder hash written by older seeds for the initial `admin` account.
@@ -82,6 +103,14 @@ pub const LEGACY_SEED_PASSWORD_HASH: &str = "$2y$10$abcdefghijklmnopqrstuvwxyz12
 pub fn verify_user_password(password: &str, stored_pass: &str) -> bool {
     if password.is_empty() {
         return false;
+    }
+    if stored_pass.starts_with("$argon2") {
+        use argon2::password_hash::{PasswordHash, PasswordVerifier};
+        return PasswordHash::new(stored_pass).is_ok_and(|hash| {
+            argon2::Argon2::default()
+                .verify_password(password.as_bytes(), &hash)
+                .is_ok()
+        });
     }
     if let Some(rest) = stored_pass.strip_prefix("$neopress$sha256$") {
         if let Some((salt, expected_hash)) = rest.split_once('$') {
@@ -124,32 +153,119 @@ pub fn generate_application_password() -> String {
     chunks.join(" ")
 }
 
-/// Generates pseudo-random alphanumeric string from time & entropy.
-///
-/// Mixes the wall clock with the OS-seeded SipHash keys of `RandomState`
-/// (128 bits of process randomness) so values are not predictable from a timestamp alone.
 fn uuid_like_random_string() -> String {
     random_hex_64().chars().take(24).collect()
 }
 
-/// Returns 64 hex characters of OS-seeded randomness (no extra crate dependency).
+/// Returns 64 hex characters (32 bytes) from the operating system CSPRNG.
 pub fn random_hex_64() -> String {
+    let mut bytes = [0u8; 32];
+    fill_random(&mut bytes);
+    hex::encode(bytes)
+}
+
+/// Fills `buf` from the OS CSPRNG. If the OS generator is unavailable (practically never),
+/// falls back to process-seeded SipHash keys mixed with the clock instead of panicking.
+fn fill_random(buf: &mut [u8]) {
+    if getrandom::getrandom(buf).is_ok() {
+        return;
+    }
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
-
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or_default();
-    let mut material = String::with_capacity(96);
-    for i in 0..4u64 {
+    for (i, chunk) in buf.chunks_mut(8).enumerate() {
         let mut h = RandomState::new().build_hasher();
         h.write_u128(nanos);
-        h.write_u64(i);
-        h.write_usize(&material as *const String as usize);
-        material.push_str(&format!("{:016x}", h.finish()));
+        h.write_usize(i);
+        let word = h.finish().to_le_bytes();
+        chunk.copy_from_slice(&word[..chunk.len()]);
     }
-    sha256_hex(material.as_bytes())
+}
+
+/// Failed logins allowed per client + username within [`LOGIN_WINDOW_SECS`].
+pub const MAX_FAILED_LOGINS: u32 = 5;
+/// Length of the failed-login window, and of the lockout once it is exceeded.
+pub const LOGIN_WINDOW_SECS: i64 = 15 * 60;
+
+/// Outcome of a throttled credential check (login form, Basic auth, JWT token endpoint).
+#[derive(Debug, Clone)]
+pub enum LoginAttempt {
+    Success(AuthUser),
+    Invalid,
+    /// Too many recent failures for this client + username; retry after the given seconds.
+    Throttled {
+        retry_after_secs: i64,
+    },
+}
+
+/// In-memory failed-login counter keyed by client address + username, so a brute-force run
+/// against one account from one address is slowed to [`MAX_FAILED_LOGINS`] per window
+/// without letting a third party lock that account out for everyone else.
+#[derive(Debug, Clone, Default)]
+pub struct LoginThrottle(
+    std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (u32, i64)>>>,
+);
+
+impl LoginThrottle {
+    pub fn key(client: Option<&str>, username: &str) -> String {
+        format!(
+            "{}|{}",
+            client.unwrap_or("-"),
+            username.trim().to_lowercase()
+        )
+    }
+
+    /// Seconds until `key` may try again, or `None` when it is not throttled.
+    pub fn retry_after(&self, key: &str) -> Option<i64> {
+        let now = Utc::now().timestamp();
+        let map = self.0.lock().ok()?;
+        let (failures, window_start) = *map.get(key)?;
+        let remaining = window_start + LOGIN_WINDOW_SECS - now;
+        (failures >= MAX_FAILED_LOGINS && remaining > 0).then_some(remaining)
+    }
+
+    pub fn record_failure(&self, key: &str) {
+        let now = Utc::now().timestamp();
+        if let Ok(mut map) = self.0.lock() {
+            if map.len() > 10_000 {
+                map.retain(|_, (_, start)| now - *start < LOGIN_WINDOW_SECS);
+            }
+            let entry = map.entry(key.to_string()).or_insert((0, now));
+            if now - entry.1 >= LOGIN_WINDOW_SECS {
+                *entry = (0, now);
+            }
+            entry.0 += 1;
+        }
+    }
+
+    pub fn record_success(&self, key: &str) {
+        if let Ok(mut map) = self.0.lock() {
+            map.remove(key);
+        }
+    }
+}
+
+/// The connecting socket's IP, when the server runs with connect info (see `main.rs`).
+pub fn client_ip(parts: &Parts) -> Option<String> {
+    parts
+        .extensions
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|info| info.0.ip().to_string())
+}
+
+/// Extractor for [`client_ip`]; never rejects.
+#[derive(Debug, Clone)]
+pub struct ClientIp(pub Option<String>);
+
+impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(ClientIp(client_ip(parts)))
+    }
 }
 
 /// Name of the signed admin session cookie.
@@ -434,10 +550,16 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
                 {
                     if let Ok(cred_str) = String::from_utf8(decoded) {
                         if let Some((user, pass)) = cred_str.split_once(':') {
-                            if let Some(auth_user) =
-                                db.authenticate_credentials(user.trim(), pass.trim())?
-                            {
-                                return Ok(auth_user);
+                            let client = client_ip(parts);
+                            match db.attempt_login(user.trim(), pass.trim(), client.as_deref())? {
+                                LoginAttempt::Success(auth_user) => return Ok(auth_user),
+                                LoginAttempt::Throttled { retry_after_secs } => {
+                                    return Err(AppError::TooManyRequests(format!(
+                                        "Too many failed login attempts. Try again in {} minutes.",
+                                        (retry_after_secs + 59) / 60
+                                    )))
+                                }
+                                LoginAttempt::Invalid => {}
                             }
                         }
                     }
@@ -704,6 +826,37 @@ mod tests {
         assert!(!verify_wp_nonce("invalid-nonce", "wp_rest", 1, secret));
         assert!(!verify_wp_nonce(&nonce, "other_action", 1, secret));
         assert!(!verify_wp_nonce(&nonce, "wp_rest", 2, secret));
+    }
+
+    #[test]
+    fn test_argon2_hashing_and_legacy_hash_compatibility() {
+        let hash = hash_user_password("CorrectHorseBatteryStaple!");
+        assert!(hash.starts_with("$argon2id$"));
+        assert!(verify_user_password("CorrectHorseBatteryStaple!", &hash));
+        assert!(!verify_user_password("wrong", &hash));
+        assert!(!password_needs_rehash(&hash));
+
+        let legacy = legacy_sha256_password_hash("old-password");
+        assert!(verify_user_password("old-password", &legacy));
+        assert!(password_needs_rehash(&legacy));
+        assert!(!verify_user_password("admin", LEGACY_SEED_PASSWORD_HASH));
+    }
+
+    #[test]
+    fn test_login_throttle_locks_after_repeated_failures() {
+        let throttle = LoginThrottle::default();
+        let key = LoginThrottle::key(Some("203.0.113.7"), "Admin");
+        for _ in 0..MAX_FAILED_LOGINS {
+            assert!(throttle.retry_after(&key).is_none());
+            throttle.record_failure(&key);
+        }
+        assert!(throttle.retry_after(&key).is_some_and(|s| s > 0));
+        // Other clients are unaffected, and a success clears the counter.
+        assert!(throttle
+            .retry_after(&LoginThrottle::key(Some("198.51.100.1"), "admin"))
+            .is_none());
+        throttle.record_success(&key);
+        assert!(throttle.retry_after(&key).is_none());
     }
 
     #[test]

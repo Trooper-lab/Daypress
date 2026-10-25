@@ -34,6 +34,9 @@ impl IntoResponse for AppError {
                 (StatusCode::UNAUTHORIZED, code, msg)
             }
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "rest_forbidden", msg),
+            AppError::TooManyRequests(msg) => {
+                (StatusCode::TOO_MANY_REQUESTS, "rest_too_many_requests", msg)
+            }
             AppError::Database(err) => {
                 tracing::error!("Database error encountered: {:?}", err);
                 (

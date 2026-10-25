@@ -859,15 +859,11 @@ async fn test_all_wp_admin_menu_routes_rendering() {
         // 5. Comments
         ("/n-admin/edit-comments", "Comments"),
         // 6. Appearance
-        ("/n-admin/themes", "Themes"),
         ("/n-admin/customize", "Customizer"),
-        ("/n-admin/widgets", "Widgets"),
         ("/n-admin/nav-menus", "Menus"),
-        ("/n-admin/theme-editor", "Theme File Editor"),
         // 7. Plugins
         ("/n-admin/plugins", "Plugins"),
         ("/n-admin/plugin-install", "Add Plugins"),
-        ("/n-admin/plugin-editor", "Plugin File Editor"),
         // 8. Users
         ("/n-admin/users", "Users"),
         ("/n-admin/user-new", "Add New User"),
@@ -923,6 +919,28 @@ async fn test_all_wp_admin_menu_routes_rendering() {
             "Sidebar missing in {}",
             url
         );
+    }
+
+    // Legacy screens that are not part of v0.1 redirect to the tools that replace them.
+    for (url, target) in [
+        ("/n-admin/themes", "/n-admin/headers-footers"),
+        ("/n-admin/widgets", "/n-admin/headers-footers"),
+        ("/n-admin/theme-editor", "/n-admin/customize"),
+        ("/n-admin/plugin-editor", "/n-admin/plugins"),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(url)
+                    .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::SEE_OTHER, "{url} should redirect");
+        assert_eq!(res.headers().get("location").unwrap(), target);
     }
 }
 
@@ -1742,14 +1760,16 @@ async fn test_native_subsystems_seo_sitemap_and_email_api() {
         )
         .await
         .unwrap();
-    assert_eq!(email_res.status(), StatusCode::OK);
-
-    // Verify email was committed to SQLite audit log
+    // Verify the attempt was committed to the SQLite audit log. Without SMTP settings nothing is
+    // sent: the API reports the problem and the log says `not_sent` (never a fake "delivered").
     let email_logs = db.get_email_logs(10).unwrap();
     assert_eq!(email_logs.len(), 1);
     assert_eq!(email_logs[0].recipient, "client@enterprise.com");
     assert_eq!(email_logs[0].subject, "New Agency Inquiry Received");
-    assert_eq!(email_logs[0].status, "delivered");
+    if std::env::var("NEOPRESS_SMTP_HOST").is_err() {
+        assert_eq!(email_res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(email_logs[0].status, "not_sent");
+    }
 }
 
 #[tokio::test]

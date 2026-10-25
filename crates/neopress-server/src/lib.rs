@@ -21,6 +21,7 @@ pub mod media;
 pub mod models;
 pub mod plugins;
 pub mod seed;
+pub mod static_assets;
 pub mod templates;
 pub mod theme;
 pub mod theme_builder;
@@ -84,13 +85,15 @@ pub fn create_app(database: Database) -> Router {
         .route("/wp-json", get(api::wp_json_root))
         .route("/wp-json/", get(api::wp_json_root))
         .nest("/wp-json", api::api_routes())
-        .nest_service("/wp-includes/css", ServeDir::new(static_dir))
-        .nest_service("/wp-admin/css", ServeDir::new(static_dir))
+        // Bundled assets are compiled into the binary; imported theme files stay on disk.
+        .route("/static/{*path}", get(static_assets::serve_static))
+        .route("/wp-includes/css/{*path}", get(static_assets::serve_static))
+        .route("/wp-admin/css/{*path}", get(static_assets::serve_static))
+        .route("/wp-includes/fonts/{*path}", get(static_assets::serve_font))
         .nest_service(
             "/wp-content/themes",
             ServeDir::new(format!("{}/themes", static_dir)),
         )
-        .nest_service("/static", ServeDir::new(static_dir))
         .route("/uploads/{*path}", get(media::handle_serve_media))
         .route(
             "/wp-content/uploads/{*path}",
@@ -125,16 +128,27 @@ pub fn create_app(database: Database) -> Router {
         // 4. Comments
         .route("/n-admin/edit-comments", get(handle_admin_comments))
         // 5. Appearance
-        .route("/n-admin/themes", get(handle_admin_themes))
+        // Theme switching, widgets and the file editors are not part of v0.1: send visitors of
+        // those legacy screens to the tools that do the job.
+        .route(
+            "/n-admin/themes",
+            get(|| async { Redirect::to("/n-admin/headers-footers") }),
+        )
         .route(
             "/n-admin/headers-footers",
             get(handle_admin_headers_footers),
         )
         .route("/n-admin/theme-builder", get(handle_admin_headers_footers))
         .route("/n-admin/customize", get(handle_admin_customize))
-        .route("/n-admin/widgets", get(handle_admin_widgets))
+        .route(
+            "/n-admin/widgets",
+            get(|| async { Redirect::to("/n-admin/headers-footers") }),
+        )
         .route("/n-admin/nav-menus", get(handle_admin_nav_menus))
-        .route("/n-admin/theme-editor", get(handle_admin_theme_editor))
+        .route(
+            "/n-admin/theme-editor",
+            get(|| async { Redirect::to("/n-admin/customize") }),
+        )
         .route("/n-admin/api/theme", post(handle_api_theme_save))
         .route("/n-admin/api/customizer", post(handle_api_customizer_save))
         .route("/n-admin/api/widgets", post(handle_api_widgets_save))
@@ -146,7 +160,10 @@ pub fn create_app(database: Database) -> Router {
         // 6. Plugins
         .route("/n-admin/plugins", get(handle_admin_plugins))
         .route("/n-admin/plugin-install", get(handle_admin_plugin_install))
-        .route("/n-admin/plugin-editor", get(handle_admin_plugin_editor))
+        .route(
+            "/n-admin/plugin-editor",
+            get(|| async { Redirect::to("/n-admin/plugins") }),
+        )
         .route(
             "/n-admin/plugin-settings",
             get(handle_admin_plugin_settings),
@@ -304,6 +321,28 @@ pub fn create_app(database: Database) -> Router {
         .route("/", get(handle_home_or_query))
         .route("/search", get(handle_search_page))
         .route("/search/", get(handle_search_page))
+        .route("/page/{page}", get(handle_home_paged))
+        .route("/page/{page}/", get(handle_home_paged))
+        .route(
+            "/category/{slug}/page/{page}",
+            get(handle_category_archive_paged),
+        )
+        .route(
+            "/category/{slug}/page/{page}/",
+            get(handle_category_archive_paged),
+        )
+        .route("/tag/{slug}/page/{page}", get(handle_tag_archive_paged))
+        .route("/tag/{slug}/page/{page}/", get(handle_tag_archive_paged))
+        .route(
+            "/author/{slug}/page/{page}",
+            get(handle_author_archive_paged),
+        )
+        .route(
+            "/author/{slug}/page/{page}/",
+            get(handle_author_archive_paged),
+        )
+        .route("/{slug}/page/{page}", get(handle_single_paged))
+        .route("/{slug}/page/{page}/", get(handle_single_paged))
         .route("/category/{slug}", get(handle_category_archive))
         .route("/category/{slug}/", get(handle_category_archive))
         .route("/tag/{slug}", get(handle_tag_archive))

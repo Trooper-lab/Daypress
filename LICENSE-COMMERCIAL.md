@@ -6,4 +6,4 @@ While Neopress is freely available for self-hosting and open-source use under th
 2. **OEM / Embedded Distribution**: Bundling Neopress inside closed-source commercial appliances or enterprise platforms.
 3. **Enterprise SLA & Migration Guarantees**: Dedicated support for high-volume 1-Click WordPress fleet migrations.
 
-For commercial licensing inquiries, contact the Neopress Core Team via https://github.com/neopress/neopress.
+For commercial licensing inquiries, contact the Neopress Core Team via https://github.com/Trooper-lab/neopress.

@@ -1,6 +1,11 @@
 //! Core editor state, events, and mode switching (`scripts/core.rs`).
 
-pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout: bool) -> String {
+pub fn render_core_script(
+    site_title: &str,
+    initial_id: &str,
+    has_visual_layout: bool,
+    initial_mode: &str,
+) -> String {
     format!(
         r#"
             let currentMode = 'blocks'; // 'blocks' (default), 'visual', or 'html'
@@ -31,7 +36,8 @@ pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout:
                 markDirty();
             }});
 
-            // Initialize editor on DOM load: Gutenberg + ACF Blocks mode is active by default
+            // Initialize editor on DOM load: Gutenberg/ACF content opens in the block inspector,
+            // everything else in the visual editor.
             document.addEventListener('DOMContentLoaded', () => {{
                 const raw = contentArea.value || '';
                 visualEditor.innerHTML = cleanWpContent(raw);
@@ -40,6 +46,9 @@ pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout:
                 }}
 
                 parseAndRenderAcfBlocks();
+                if ('{initial_mode}' !== 'blocks') {{
+                    switchEditorMode('{initial_mode}', true);
+                }}
                 updateWordCount();
                 updateSerpPreview();
                 checkLocalDraftRecovery();
@@ -306,7 +315,7 @@ pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout:
                 }}
             }}
 
-            function switchEditorMode(mode) {{
+            function switchEditorMode(mode, silent) {{
                 if (mode === currentMode) return;
                 if (currentMode === 'visual') {{
                     syncVisualToTextarea();
@@ -338,7 +347,7 @@ pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout:
                         btnBlocks.style.color = '#0f172a';
                         btnBlocks.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
                     }}
-                    showToast('Switched to Gutenberg + ACF Blocks View');
+                    if (!silent) showToast('Switched to Blocks View');
                 }} else if (mode === 'visual') {{
                     visualEditor.innerHTML = cleanWpContent(contentArea.value);
                     if (!visualEditor.innerHTML || visualEditor.innerHTML.trim() === '') {{
@@ -351,7 +360,7 @@ pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout:
                     btnVisual.style.background = '#ffffff';
                     btnVisual.style.color = '#0f172a';
                     btnVisual.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    showToast('Switched to Live Theme Preview');
+                    if (!silent) showToast('Switched to Visual Editor');
                 }} else if (mode === 'html') {{
                     if (acfContainer) acfContainer.style.display = 'none';
                     visualEditor.style.display = 'none';
@@ -360,7 +369,7 @@ pub fn render_core_script(site_title: &str, initial_id: &str, has_visual_layout:
                     btnHtml.style.background = '#ffffff';
                     btnHtml.style.color = '#0f172a';
                     btnHtml.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    showToast('Switched to HTML Source View');
+                    if (!silent) showToast('Switched to HTML Source View');
                 }}
                 updateWordCount();
             }}

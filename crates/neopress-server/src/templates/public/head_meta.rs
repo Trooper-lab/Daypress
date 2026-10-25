@@ -75,11 +75,12 @@ pub fn render_head_meta(
         site_desc.to_string()
     };
 
-    let robots_meta = if current_post.map(|p| p.seo_noindex).unwrap_or(false) {
-        r#"<meta name="robots" content="noindex, follow" />"#
-    } else {
-        r#"<meta name="robots" content="index, follow" />"#
-    };
+    let robots_meta =
+        if !settings.blog_public || current_post.map(|p| p.seo_noindex).unwrap_or(false) {
+            r#"<meta name="robots" content="noindex, follow" />"#
+        } else {
+            r#"<meta name="robots" content="index, follow" />"#
+        };
 
     let canonical_tag = if let Some(post) = current_post {
         let can_url = if !post.seo_canonical.trim().is_empty() {

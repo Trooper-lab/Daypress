@@ -12,13 +12,14 @@ pub fn render_editor_scripts(
     site_title: &str,
     initial_id: &str,
     has_visual_layout: bool,
+    initial_mode: &str,
     type_singular: &str,
     post_type: &str,
     known_tags_json: &str,
 ) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}",
-        core::render_core_script(site_title, initial_id, has_visual_layout),
+        core::render_core_script(site_title, initial_id, has_visual_layout, initial_mode),
         acf_render::JS_ACF_RENDER,
         acf_blocks::JS_ACF_BLOCKS,
         toolbar::JS_TOOLBAR,

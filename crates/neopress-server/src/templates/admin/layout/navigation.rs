@@ -490,9 +490,7 @@ pub fn render_wp_admin_bar(site_name: &str, pending_comments: i64) -> String {
 				<div class="ab-sub-wrapper">
 					<ul class="ab-submenu">
 						<li><a class="ab-item" href="/" target="_blank">Visit Site &nearr;</a></li>
-						<li><a class="ab-item" href="/n-admin/themes">Themes</a></li>
 						<li><a class="ab-item" href="/n-admin/headers-footers">Header &amp; Footer</a></li>
-						<li><a class="ab-item" href="/n-admin/widgets">Widgets</a></li>
 						<li><a class="ab-item" href="/n-admin/nav-menus">Menus</a></li>
 						<li><a class="ab-item" href="/n-admin/customize">Customize</a></li>
 					</ul>

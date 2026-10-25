@@ -7,6 +7,8 @@ pub struct EditorCardParams<'a> {
     pub initial_content: &'a str,
     pub locked_banner_html: &'a str,
     pub standard_editor_display: &'a str,
+    /// `flex` for posts that use ACF, `none` otherwise.
+    pub acf_inserter_display: &'a str,
 }
 
 pub fn render_editor_card(p: &EditorCardParams) -> String {
@@ -39,11 +41,11 @@ pub fn render_editor_card(p: &EditorCardParams) -> String {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;">
                     <div style="display: inline-flex; background: #f1f5f9; padding: 3px; border-radius: 8px; border: 1px solid #e2e8f0; gap: 2px;">
                         <button type="button" id="btnModeBlocks" onmousedown="event.preventDefault()" onclick="switchEditorMode('blocks')" style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; background: #ffffff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: all 0.15s ease;">
-                            <span>🧩 Gutenberg + ACF Blocks</span>
+                            <span>🧩 Blocks</span>
                         </button>
                         <button type="button" id="btnModeVisual" onmousedown="event.preventDefault()" onclick="switchEditorMode('visual')" style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; background: transparent; color: #64748b; transition: all 0.15s ease;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                            <span>Theme Preview (Live)</span>
+                            <span>Visual</span>
                         </button>
                         <button type="button" id="btnModeHtml" onmousedown="event.preventDefault()" onclick="switchEditorMode('html')" style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; background: transparent; color: #64748b; transition: all 0.15s ease;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
@@ -99,10 +101,10 @@ pub fn render_editor_card(p: &EditorCardParams) -> String {
                     <div id="acfBlocksContainer" style="display: block;">
                         <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 12px; font-weight: 700; color: #0f172a;">ACF Section &amp; Gutenberg Block Stack</span>
+                                <span style="font-size: 12px; font-weight: 700; color: #0f172a;">Block Stack</span>
                                 <span id="acfBlockCountBadge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600;">0 sections</span>
                             </div>
-                            <div style="display: flex; gap: 6px; align-items: center;">
+                            <div id="acfBlockInserter" style="display: {acf_inserter_display}; gap: 6px; align-items: center;">
                                 <select id="newAcfBlockSelect" class="form-select" style="height: 28px; padding: 2px 8px; font-size: 11.5px; width: auto;">
                                     <option value="section_white">+ ACF Section (White + Content)</option>
                                     <option value="section_black">+ ACF Section (Black + Diagonal Angle)</option>
@@ -133,6 +135,7 @@ pub fn render_editor_card(p: &EditorCardParams) -> String {
         initial_content = p.initial_content,
         locked_banner_html = p.locked_banner_html,
         standard_editor_display = p.standard_editor_display,
+        acf_inserter_display = p.acf_inserter_display,
     )
 }
 

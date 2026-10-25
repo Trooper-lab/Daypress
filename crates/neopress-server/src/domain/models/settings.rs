@@ -39,6 +39,12 @@ pub struct WpSettingsResponse {
     pub active_plugins: Vec<String>,
     #[serde(default)]
     pub pending_comments_count: i64,
+    /// Settings → Reading "Search engine visibility" (`blog_public`); false adds noindex sitewide.
+    #[serde(default = "default_blog_public")]
+    pub blog_public: bool,
+    /// Page chosen under Settings → Privacy (`wp_page_for_privacy_policy`); 0 when unset.
+    #[serde(default)]
+    pub privacy_policy_page_id: i64,
     #[serde(default)]
     pub elementor_kit_css: String,
     #[serde(default)]
@@ -67,6 +73,10 @@ pub fn default_active_theme() -> String {
 
 pub fn default_brand_color() -> String {
     "#2271b1".to_string()
+}
+
+pub fn default_blog_public() -> bool {
+    true
 }
 
 pub fn default_typography_scale() -> String {
@@ -107,6 +117,8 @@ impl Default for WpSettingsResponse {
                 "wxr-streaming-xml-importer".to_string(),
             ],
             pending_comments_count: 0,
+            blog_public: true,
+            privacy_policy_page_id: 0,
             elementor_kit_css: String::new(),
             elementor_header_html: String::new(),
             elementor_footer_html: String::new(),

@@ -138,6 +138,20 @@ impl Database {
         Ok(res)
     }
 
+    /// Whether `email` already has an approved comment (WordPress "previously approved" rule).
+    pub fn has_approved_comment_from(&self, email: &str) -> Result<bool> {
+        if email.trim().is_empty() {
+            return Ok(false);
+        }
+        let conn = self.conn.lock().unwrap();
+        let n: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM wp_comments WHERE LOWER(comment_author_email) = LOWER(?1) AND comment_approved = '1'",
+            params![email.trim()],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
     pub fn get_comment_by_id(&self, id: i64) -> Result<Option<WpCommentAdminItem>> {
         let comments = self.get_comments(None, 5000)?;
         Ok(comments.into_iter().find(|c| c.id == id))

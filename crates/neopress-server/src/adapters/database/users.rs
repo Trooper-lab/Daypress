@@ -285,29 +285,42 @@ impl Database {
         username: &str,
         password: &str,
     ) -> Result<Option<AuthUser>> {
-        let conn = self.conn.lock().unwrap();
-        let user_row: Option<(i64, String, String)> = conn
-            .query_row(
-                "SELECT ID, user_login, user_pass FROM wp_users WHERE user_login = ?1 OR user_email = ?1",
-                params![username],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .ok();
-
-        let (user_id, login, stored_pass) = match user_row {
-            Some(u) => u,
-            None => return Ok(None),
+        // Look the account up, then release the connection: argon2 verification is
+        // deliberately slow and must not hold the global SQLite lock.
+        let account: Option<(i64, String, String, String)> = {
+            let conn = self.conn.lock().unwrap();
+            let user_row: Option<(i64, String, String)> = conn
+                .query_row(
+                    "SELECT ID, user_login, user_pass FROM wp_users WHERE user_login = ?1 OR user_email = ?1",
+                    params![username],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .ok();
+            user_row.map(|(user_id, login, stored_pass)| {
+                let role: String = conn
+                    .query_row(
+                        "SELECT meta_value FROM wp_usermeta WHERE user_id = ?1 AND meta_key = 'role'",
+                        params![user_id],
+                        |r| r.get(0),
+                    )
+                    .unwrap_or_else(|_| "administrator".to_string());
+                (user_id, login, stored_pass, role)
+            })
+        };
+        let Some((user_id, login, stored_pass, role)) = account else {
+            return Ok(None);
         };
 
-        let role: String = conn
-            .query_row(
-                "SELECT meta_value FROM wp_usermeta WHERE user_id = ?1 AND meta_key = 'role'",
-                params![user_id],
-                |r| r.get(0),
-            )
-            .unwrap_or_else(|_| "administrator".to_string());
-
         if crate::auth::verify_user_password(password, &stored_pass) {
+            // Transparently upgrade pre-argon2 hashes now that the plaintext is known.
+            if crate::auth::password_needs_rehash(&stored_pass) {
+                let upgraded = crate::auth::hash_user_password(password);
+                let conn = self.conn.lock().unwrap();
+                let _ = conn.execute(
+                    "UPDATE wp_users SET user_pass = ?1 WHERE ID = ?2",
+                    params![upgraded, user_id],
+                );
+            }
             return Ok(Some(AuthUser {
                 user_id,
                 username: login,
@@ -315,8 +328,10 @@ impl Database {
             }));
         }
 
-        // Check application passwords for this user
+        // Check application passwords for this user (random 16-char tokens, stored as SHA-256)
+        let conn = self.conn.lock().unwrap();
         let norm_input = crate::auth::normalize_app_password(password);
+        let input_hash = crate::auth::sha256_hex(norm_input.as_bytes());
         let mut stmt = conn.prepare(
             "SELECT uuid, password_hash FROM wp_application_passwords WHERE user_id = ?1",
         )?;
@@ -325,7 +340,7 @@ impl Database {
         })?;
         for r in rows {
             let (uuid, hash) = r?;
-            if crate::auth::sha256_hex(norm_input.as_bytes()) == hash {
+            if input_hash == hash {
                 let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
                 let _ = conn.execute(
                     "UPDATE wp_application_passwords SET last_used = ?1 WHERE uuid = ?2",
@@ -340,6 +355,32 @@ impl Database {
         }
 
         Ok(None)
+    }
+
+    /// [`Self::authenticate_credentials`] behind the failed-login throttle: after
+    /// [`crate::auth::MAX_FAILED_LOGINS`] failures for `client` + `username` within the window,
+    /// attempts are refused (even with the right password) until the window passes.
+    pub fn attempt_login(
+        &self,
+        username: &str,
+        password: &str,
+        client: Option<&str>,
+    ) -> Result<crate::auth::LoginAttempt> {
+        use crate::auth::{LoginAttempt, LoginThrottle};
+        let key = LoginThrottle::key(client, username);
+        if let Some(retry_after_secs) = self.login_throttle.retry_after(&key) {
+            return Ok(LoginAttempt::Throttled { retry_after_secs });
+        }
+        match self.authenticate_credentials(username, password)? {
+            Some(user) => {
+                self.login_throttle.record_success(&key);
+                Ok(LoginAttempt::Success(user))
+            }
+            None => {
+                self.login_throttle.record_failure(&key);
+                Ok(LoginAttempt::Invalid)
+            }
+        }
     }
 
     pub fn create_application_password(

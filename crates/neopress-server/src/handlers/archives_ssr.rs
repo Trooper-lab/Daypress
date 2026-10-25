@@ -2,7 +2,7 @@
 
 use super::cpt_archive_render::render_cpt_archive;
 use super::public_ssr::hydrate_post_terms;
-use super::QueryPostParams;
+use super::{PagedQuery, QueryPostParams};
 use crate::auth::OptionalAuthUser;
 use crate::db::Database;
 use crate::models;
@@ -15,113 +15,161 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 
+/// Which term archive a request is for.
+#[derive(Clone, Copy)]
+enum TermArchive {
+    Category,
+    Tag,
+    Author,
+}
+
+/// Renders one page of a category, tag, or author archive (`/category/x/page/2/` or
+/// `?paged=2`). Out-of-range pages and unknown terms are 404s.
+fn term_archive_response(
+    db: &Database,
+    kind: TermArchive,
+    slug: &str,
+    page: usize,
+    user: Option<&crate::auth::AuthUser>,
+) -> Response {
+    let settings = db.get_settings().unwrap_or_default();
+    let (base, found) = match kind {
+        TermArchive::Category => {
+            let (cat, posts) = db.get_posts_by_category_slug(slug).unwrap_or_default();
+            (
+                "category",
+                cat.map(|c| {
+                    let ctx = RequestContext::for_archive("category", c.id, &c.slug);
+                    (
+                        format!("Category: {}", c.name),
+                        "Category Archive",
+                        ctx,
+                        posts,
+                    )
+                }),
+            )
+        }
+        TermArchive::Tag => {
+            let (tag, posts) = db.get_posts_by_tag_slug(slug).unwrap_or_default();
+            (
+                "tag",
+                tag.map(|t| {
+                    let ctx = RequestContext::for_archive("post_tag", t.id, &t.slug);
+                    (format!("Tag: {}", t.name), "Tag Archive", ctx, posts)
+                }),
+            )
+        }
+        TermArchive::Author => {
+            let (author, posts) = db.get_posts_by_author_slug(slug).unwrap_or_default();
+            (
+                "author",
+                author.map(|a| {
+                    let ctx = RequestContext {
+                        is_archive: true,
+                        author_id: Some(a.id),
+                        ..Default::default()
+                    };
+                    (
+                        format!("Author: {}", a.display_name),
+                        "Author Archive",
+                        ctx,
+                        posts,
+                    )
+                }),
+            )
+        }
+    };
+    let base_path = format!("/{}/{}/", base, slug.trim_matches('/'));
+
+    let per_page = settings.posts_per_page.clamp(1, 100) as usize;
+    if let Some((title, subtitle, req_ctx, posts)) = found {
+        let (page_posts, total_pages) = templates::pagination::paginate(&posts, page, per_page);
+        if (1..=total_pages).contains(&page) {
+            let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, &settings);
+            let nav = templates::pagination::render_pagination(&base_path, page, total_pages);
+            return (
+                StatusCode::OK,
+                Html(templates::render_archive_page_paginated(
+                    &title,
+                    subtitle,
+                    page_posts,
+                    &settings,
+                    user,
+                    Some(&partials),
+                    &nav,
+                )),
+            )
+                .into_response();
+        }
+    }
+    let req_ctx = RequestContext::for_404(&base_path);
+    let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, &settings);
+    (
+        StatusCode::NOT_FOUND,
+        Html(templates::render_not_found_page(
+            &settings,
+            user,
+            Some(&partials),
+        )),
+    )
+        .into_response()
+}
+
 pub async fn handle_category_archive(
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
+    Query(q): Query<PagedQuery>,
     OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let (cat_opt, posts) = db.get_posts_by_category_slug(&slug).unwrap_or_default();
-    if let Some(cat) = cat_opt {
-        let req_ctx = RequestContext::for_archive("category", cat.id, &cat.slug);
-        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        (
-            StatusCode::OK,
-            Html(templates::render_archive_page(
-                &format!("Category: {}", cat.name),
-                "Category Archive",
-                &posts,
-                &settings,
-                user.as_ref(),
-                Some(&partials),
-            )),
-        )
-    } else {
-        let req_ctx = RequestContext::for_404(&format!("/category/{}/", slug));
-        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        (
-            StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(
-                &settings,
-                user.as_ref(),
-                Some(&partials),
-            )),
-        )
-    }
+) -> Response {
+    term_archive_response(&db, TermArchive::Category, &slug, q.page(), user.as_ref())
+}
+
+pub async fn handle_category_archive_paged(
+    State(db): State<Database>,
+    AxPath((slug, raw_page)): AxPath<(String, String)>,
+    OptionalAuthUser(user): OptionalAuthUser,
+) -> Response {
+    // Non-numeric pages fall through to page 0, which renders the 404.
+    let page = super::parse_page_segment(&raw_page).unwrap_or(0);
+    term_archive_response(&db, TermArchive::Category, &slug, page, user.as_ref())
 }
 
 pub async fn handle_tag_archive(
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
+    Query(q): Query<PagedQuery>,
     OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let (tag_opt, posts) = db.get_posts_by_tag_slug(&slug).unwrap_or_default();
-    if let Some(tag) = tag_opt {
-        let req_ctx = RequestContext::for_archive("post_tag", tag.id, &tag.slug);
-        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        (
-            StatusCode::OK,
-            Html(templates::render_archive_page(
-                &format!("Tag: {}", tag.name),
-                "Tag Archive",
-                &posts,
-                &settings,
-                user.as_ref(),
-                Some(&partials),
-            )),
-        )
-    } else {
-        let req_ctx = RequestContext::for_404(&format!("/tag/{}/", slug));
-        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        (
-            StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(
-                &settings,
-                user.as_ref(),
-                Some(&partials),
-            )),
-        )
-    }
+) -> Response {
+    term_archive_response(&db, TermArchive::Tag, &slug, q.page(), user.as_ref())
+}
+
+pub async fn handle_tag_archive_paged(
+    State(db): State<Database>,
+    AxPath((slug, raw_page)): AxPath<(String, String)>,
+    OptionalAuthUser(user): OptionalAuthUser,
+) -> Response {
+    // Non-numeric pages fall through to page 0, which renders the 404.
+    let page = super::parse_page_segment(&raw_page).unwrap_or(0);
+    term_archive_response(&db, TermArchive::Tag, &slug, page, user.as_ref())
 }
 
 pub async fn handle_author_archive(
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
+    Query(q): Query<PagedQuery>,
     OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let (author_opt, posts) = db.get_posts_by_author_slug(&slug).unwrap_or_default();
-    if let Some(author) = author_opt {
-        let req_ctx = RequestContext {
-            is_archive: true,
-            author_id: Some(author.id),
-            ..Default::default()
-        };
-        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        (
-            StatusCode::OK,
-            Html(templates::render_archive_page(
-                &format!("Author: {}", author.display_name),
-                "Author Archive",
-                &posts,
-                &settings,
-                user.as_ref(),
-                Some(&partials),
-            )),
-        )
-    } else {
-        let req_ctx = RequestContext::for_404(&format!("/author/{}/", slug));
-        let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-        (
-            StatusCode::NOT_FOUND,
-            Html(templates::render_not_found_page(
-                &settings,
-                user.as_ref(),
-                Some(&partials),
-            )),
-        )
-    }
+) -> Response {
+    term_archive_response(&db, TermArchive::Author, &slug, q.page(), user.as_ref())
+}
+
+pub async fn handle_author_archive_paged(
+    State(db): State<Database>,
+    AxPath((slug, raw_page)): AxPath<(String, String)>,
+    OptionalAuthUser(user): OptionalAuthUser,
+) -> Response {
+    // Non-numeric pages fall through to page 0, which renders the 404.
+    let page = super::parse_page_segment(&raw_page).unwrap_or(0);
+    term_archive_response(&db, TermArchive::Author, &slug, page, user.as_ref())
 }
 
 pub async fn handle_search_page(

@@ -8,6 +8,29 @@ pub struct QueryPostParams {
     pub page_id: Option<i64>,
     pub s: Option<String>,
     pub q: Option<String>,
+    /// WordPress `?paged=N` listing page (same as `/page/N/`).
+    pub paged: Option<usize>,
+}
+
+/// `?paged=N` on archive and posts-page listings.
+#[derive(Debug, Deserialize, Default)]
+pub struct PagedQuery {
+    pub paged: Option<usize>,
+}
+
+/// Parses the `N` of a `/page/N/` URL; anything but a positive number is `None` (a 404).
+pub fn parse_page_segment(raw: &str) -> Option<usize> {
+    raw.trim_matches('/')
+        .parse::<usize>()
+        .ok()
+        .filter(|n| *n >= 1)
+}
+
+impl PagedQuery {
+    /// The requested 1-based page (defaults to 1).
+    pub fn page(&self) -> usize {
+        self.paged.unwrap_or(1).max(1)
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]

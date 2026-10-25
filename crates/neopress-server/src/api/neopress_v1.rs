@@ -383,10 +383,13 @@ pub(crate) async fn submit_form_handler(
             if let Some(obj) = payload.data.as_object() {
                 for (k, v) in obj {
                     if k != "_np_hp" {
+                        // Visitor input: escape before it goes into the notification HTML.
                         summary_lines.push(format!(
                             "<li><strong>{}</strong>: {}</li>",
-                            k,
-                            v.as_str().unwrap_or(&v.to_string())
+                            crate::templates::utils::escape_html(k),
+                            crate::templates::utils::escape_html(
+                                v.as_str().unwrap_or(&v.to_string())
+                            )
                         ));
                     }
                 }
@@ -396,7 +399,7 @@ pub(crate) async fn submit_form_handler(
                 subject: format!("[Neopress Form] New submission: {}", form_rec.title),
                 body_html: format!(
                     "<h3>New submission for {}</h3><ul>{}</ul>",
-                    form_rec.title,
+                    crate::templates::utils::escape_html(&form_rec.title),
                     summary_lines.join("")
                 ),
                 body_text: format!("New submission for {}: {}", form_rec.title, data_str),

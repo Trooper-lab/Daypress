@@ -14,6 +14,17 @@ pub fn render_home_page(
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
+    render_home_page_paginated(posts, settings, current_user, partials, "")
+}
+
+/// [`render_home_page`] with a pagination nav below "Latest Articles".
+pub fn render_home_page_paginated(
+    posts: &[WpPostResponse],
+    settings: &WpSettingsResponse,
+    current_user: Option<&AuthUser>,
+    partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
+    pagination_html: &str,
+) -> String {
     let site_title = if settings.title.trim().is_empty() {
         "Neopress"
     } else {
@@ -255,12 +266,14 @@ pub fn render_home_page(
                 <div class="np-grid" style="grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));">
                     {post_cards_html}
                 </div>
+                {pagination_html}
             </div>
         </section>
         {pages_section_html}
         "##,
         hero_html = hero_html,
         post_cards_html = post_cards_html,
+        pagination_html = pagination_html,
         pages_section_html = pages_section_html,
     );
 

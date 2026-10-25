@@ -31,19 +31,14 @@ pub fn render_wp_post_new_view(
     taxonomies: &[TaxonomyInfo],
 ) -> String {
     let is_page = post_type == "page";
+    let formatted_cpt = crate::templates::admin::layout::format_cpt_title(post_type);
     let type_singular = match post_type {
         "page" => "Page",
         "post" => "Post",
-        "trainingen" => "Training",
-        "vacatures" => "Vacature",
-        "cases" => "Case",
-        "kandidaten" => "Kandidaat",
-        "faq" => "FAQ",
-        "quotes" => "Quote",
-        "logo" => "Logo",
-        "reviews" => "Review",
-        other => other,
+        _ => formatted_cpt.as_str(),
     };
+    // ACF tooling only appears for posts that actually carry ACF data (migrated ACF sites).
+    let uses_acf = meta::post_uses_acf(existing);
 
     let (
         initial_seo_title,
@@ -202,9 +197,20 @@ pub fn render_wp_post_new_view(
         initial_content: &initial_content,
         locked_banner_html: &theme_preview_css,
         standard_editor_display: "display: block;",
+        acf_inserter_display: if uses_acf { "flex" } else { "none" },
     });
 
-    let acf_card = render_acf_fields_card(existing, post_type);
+    let acf_card = if uses_acf {
+        render_acf_fields_card(existing, post_type)
+    } else {
+        String::new()
+    };
+    // Gutenberg/ACF content opens in the block inspector; everything else in the visual editor.
+    let initial_mode = if uses_acf || initial_content.contains("&lt;!-- wp:") {
+        "blocks"
+    } else {
+        "visual"
+    };
 
     let seo_card = render_seo_card(&SeoCardParams {
         type_singular,
@@ -313,6 +319,7 @@ pub fn render_wp_post_new_view(
         &settings.title,
         &initial_id,
         has_visual_layout,
+        initial_mode,
         type_singular,
         post_type,
         &known_tags_json,

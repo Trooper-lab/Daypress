@@ -90,9 +90,9 @@ pub fn render_wp_dashboard_view(
                 <div class="kpi-subtext">{page_count} Pages &bull; {journal_mode} mode</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Query Latency</div>
-                <div class="kpi-value">&lt; 0.15 <span style="font-size: 14px; font-weight: 500;">ms</span></div>
-                <div class="kpi-subtext">⚡ 0 Network Sockets</div>
+                <div class="kpi-label">Pending Comments</div>
+                <div class="kpi-value">{pending_comments}</div>
+                <div class="kpi-subtext"><a href="/n-admin/edit-comments?comment_status=pending" style="color: inherit;">Review moderation queue &rarr;</a></div>
             </div>
         </div>
 
@@ -165,22 +165,6 @@ pub fn render_wp_dashboard_view(
                     </div>
                 </div>
 
-                <div class="neo-card">
-                    <div class="neo-card-header">
-                        <h2 class="neo-card-title">Transpiler Proof Status</h2>
-                        <span style="font-size: 11.5px; color: #10b981; font-weight: 600;">100% Passed</span>
-                    </div>
-                    <div class="neo-card-body">
-                        <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">
-                            Continuous mathematical verification loop ensures generated Rust matches reference PHP logic.
-                        </p>
-                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 12.5px; line-height: 1.8;">
-                            <li><span style="color: #10b981;">&#10003;</span> PHP Golden Master (PHP 8.3 container)</li>
-                            <li><span style="color: #10b981;">&#10003;</span> Rig LLM Self-Healing Prompt</li>
-                            <li><span style="color: #10b981;">&#10003;</span> Automated <code>cargo test</code> Verification</li>
-                        </ul>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -226,6 +210,7 @@ pub fn render_wp_dashboard_view(
         db_size_kb = stats.file_size_bytes / 1024,
         journal_mode = stats.journal_mode,
         recent_posts_html = recent_posts_html,
+        pending_comments = settings.pending_comments_count,
         db_path = stats.db_path,
         page_count = stats.page_count,
         page_size = stats.page_size
@@ -270,10 +255,10 @@ pub fn render_wp_updates_view(settings: &WpSettingsResponse, stats: &DbStats) ->
                 </div>
             </div>
             <div class="neo-card" style="padding: 20px;">
-                <h4 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Themes</h4>
-                <p style="font-size: 13px; color: #64748b;">Your themes are up to date with 2026 design system standards.</p>
+                <h4 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Site Design</h4>
+                <p style="font-size: 13px; color: #64748b;">Design headers and footers in NeoStudio, and set colors, fonts and custom CSS in the Customizer.</p>
                 <div style="margin-top: 14px;">
-                    <a href="/n-admin/themes" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Themes</a>
+                    <a href="/n-admin/headers-footers" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Header &amp; Footer</a>
                 </div>
             </div>
             <div class="neo-card" style="padding: 20px;">

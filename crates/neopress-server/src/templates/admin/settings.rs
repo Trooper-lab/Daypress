@@ -44,7 +44,7 @@ pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
                 </div>
                 <div class="neo-card-body">
                     <div class="form-group">
-                        <label class="form-label" for="siteurl">WordPress Address (URL)</label>
+                        <label class="form-label" for="siteurl">Site Address (URL)</label>
                         <input name="siteurl" type="text" id="siteurl" value="{url}" class="form-input" style="max-width: 480px; font-family: var(--font-mono);">
                     </div>
                     <div class="form-group">
@@ -56,7 +56,42 @@ pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
             </div>
         </form>
 
+        <div class="neo-card" style="margin-top: 20px;">
+            <div class="neo-card-header">
+                <h2 class="neo-card-title">Email Delivery</h2>
+            </div>
+            <div class="neo-card-body">
+                <p style="font-size: 13.5px; color: #475569; line-height: 1.6; margin-bottom: 14px;">
+                    Form notifications are sent over SMTP. Configure the server with the
+                    <code>NEOPRESS_SMTP_HOST</code>, <code>NEOPRESS_SMTP_PORT</code>, <code>NEOPRESS_SMTP_SECURITY</code>,
+                    <code>NEOPRESS_SMTP_USER</code>, <code>NEOPRESS_SMTP_PASSWORD</code> and <code>NEOPRESS_SMTP_FROM</code>
+                    environment variables, then restart Neopress.
+                </p>
+                <button type="button" class="btn btn-secondary" id="sendTestEmailBtn" onclick="sendTestEmail()">Send test email to the administration address</button>
+                <p id="testEmailResult" style="font-size: 13px; margin-top: 10px;"></p>
+            </div>
+        </div>
+
         <script>
+            async function sendTestEmail() {{
+                const out = document.getElementById('testEmailResult');
+                const to = document.getElementById('admin_email').value;
+                out.style.color = '#64748b';
+                out.textContent = 'Sending to ' + to + '...';
+                const res = await fetch('/wp-json/neopress/v1/email/send', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || '' }},
+                    body: JSON.stringify({{
+                        to,
+                        subject: 'Neopress test email',
+                        body_html: '<p>Your Neopress site can send email.</p>'
+                    }})
+                }});
+                const data = await res.json().catch(() => ({{}}));
+                out.style.color = res.ok ? '#059669' : '#dc2626';
+                out.textContent = res.ok ? '✓ Test email sent to ' + to + '.' : (data.message || 'Sending failed.');
+            }}
+
             async function saveSettings(e) {{
                 e.preventDefault();
                 const title = document.getElementById('blogname').value;
@@ -165,6 +200,8 @@ pub fn render_wp_settings_writing_view(
                             {category_options}
                         </select>
                     </div>
+                    <!-- Post formats, smilies and pingbacks are not implemented in v0.1; kept hidden so saved values round-trip. -->
+                    <div hidden>
                     <div class="form-group">
                         <label class="form-label" for="default_post_format">Default Post Format</label>
                         <select name="default_post_format" id="default_post_format" class="form-select" style="max-width: 380px;">
@@ -183,10 +220,12 @@ pub fn render_wp_settings_writing_view(
                             <span>Attempt to notify any blogs linked to from the post</span>
                         </label>
                     </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="neo-card">
+            <!-- Post via Email is not implemented in v0.1. -->
+            <div class="neo-card" hidden>
                 <div class="neo-card-header"><h2 class="neo-card-title">Post via Email</h2></div>
                 <div class="neo-card-body">
                     <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">To post to WordPress by email, set up a secret email account with POP3 access.</p>
@@ -207,7 +246,7 @@ pub fn render_wp_settings_writing_view(
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="mailserver_pass">Password</label>
-                            <input type="password" id="mailserver_pass" value="{mailserver_pass}" class="form-input">
+                            <input type="password" id="mailserver_pass" value="" class="form-input">
                         </div>
                     </div>
                 </div>
@@ -249,7 +288,6 @@ pub fn render_wp_settings_writing_view(
         mailserver_url = escape_html(&writing.mailserver_url),
         mailserver_port = writing.mailserver_port,
         mailserver_login = escape_html(&writing.mailserver_login),
-        mailserver_pass = escape_html(&writing.mailserver_pass)
     );
 
     render_wp_admin_shell("writing", "Writing Settings", &body, settings)
@@ -434,7 +472,7 @@ pub fn render_wp_settings_discussion_view(
             <div class="neo-card" style="margin-bottom: 20px;">
                 <div class="neo-card-header"><h2 class="neo-card-title">Default Article Settings</h2></div>
                 <div class="neo-card-body" style="display: flex; flex-direction: column; gap: 10px;">
-                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+                    <label hidden style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
                         <input type="checkbox" id="default_ping_status" {ping_open}>
                         <span>Allow link notifications from other blogs (pingbacks and trackbacks) on new articles</span>
                     </label>
@@ -462,7 +500,7 @@ pub fn render_wp_settings_discussion_view(
                         <input type="number" id="close_days" value="{close_days}" style="width: 60px; padding: 4px;" class="form-input">
                         <span>days</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+                    <label hidden style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
                         <input type="checkbox" id="thread_comments" {thread_comm}>
                         <span>Enable threaded (nested) comments</span>
                         <input type="number" id="thread_depth" value="{thread_depth}" style="width: 60px; padding: 4px;" class="form-input">
@@ -485,7 +523,7 @@ pub fn render_wp_settings_discussion_view(
                 </div>
             </div>
 
-            <div class="neo-card">
+            <div class="neo-card" hidden>
                 <div class="neo-card-header"><h2 class="neo-card-title">Avatars</h2></div>
                 <div class="neo-card-body">
                     <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
@@ -563,11 +601,23 @@ pub fn render_wp_settings_media_view(
                 <p class="page-subtitle">Configure image dimension thresholds, thumbnail crops, and folder hierarchy</p>
             </div>
             <div>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaFormSubmit').click()">Save Changes</button>
+
             </div>
         </div>
 
-        <form id="mediaForm" onsubmit="saveMediaSettings(event)">
+        <div class="neo-card" style="margin-bottom: 20px;">
+            <div class="neo-card-header"><h2 class="neo-card-title">Image Sizes</h2></div>
+            <div class="neo-card-body">
+                <p style="font-size: 13.5px; color: #475569; line-height: 1.6;">
+                    Neopress generates image variants automatically: a 150&nbsp;px thumbnail, a 300&nbsp;px medium and a
+                    1024&nbsp;px large size, plus a WebP copy. Other WordPress sizes (768, 1536 and 2048&nbsp;px) are created on demand.
+                    Custom size settings are planned for a later release.
+                </p>
+            </div>
+        </div>
+
+        <!-- Custom image sizes and dated upload folders are not implemented in v0.1. -->
+        <form id="mediaForm" onsubmit="saveMediaSettings(event)" hidden>
             <button type="submit" id="mediaFormSubmit" style="display: none;"></button>
 
             <div class="neo-card" style="margin-bottom: 20px;">
@@ -684,11 +734,24 @@ pub fn render_wp_settings_permalink_view(
                 <p class="page-subtitle">Choose the URL structure for your permanent links and article archives</p>
             </div>
             <div>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('permalinkFormSubmit').click()">Save Changes</button>
+
             </div>
         </div>
 
-        <form id="permalinkForm" onsubmit="savePermalinkSettings(event)">
+        <div class="neo-card" style="margin-bottom: 20px;">
+            <div class="neo-card-header"><h2 class="neo-card-title">Permalink Structure</h2></div>
+            <div class="neo-card-body">
+                <p style="font-size: 13.5px; color: #475569; line-height: 1.6;">
+                    Neopress uses <code>/%postname%/</code> for every post, page and custom post type
+                    (child pages also resolve at <code>/parent/child/</code>). Categories, tags and authors live at
+                    <code>/category/…</code>, <code>/tag/…</code> and <code>/author/…</code>.
+                    Custom structures are planned for a later release; changed slugs get an automatic 301 redirect.
+                </p>
+            </div>
+        </div>
+
+        <!-- Custom permalink structures and term bases are not implemented in v0.1. -->
+        <form id="permalinkForm" onsubmit="savePermalinkSettings(event)" hidden>
             <button type="submit" id="permalinkFormSubmit" style="display: none;"></button>
 
             <div class="neo-card" style="margin-bottom: 20px;">

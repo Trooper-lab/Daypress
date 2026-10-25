@@ -312,6 +312,7 @@ fn test_feature19_lossless_gutenberg_block_comments_preservation() {
         "Neopress",
         &post.id.to_string(),
         true,
+        "blocks",
         "Post",
         "post",
         "[]",

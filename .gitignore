@@ -56,3 +56,7 @@ backups/
 err.txt
 out.txt
 test.png
+
+# Private client migration reports and tests against private exports (kept locally, never published)
+docs/migrations/
+crates/neopress-server/tests/empirical_challenger_m1_r2_test.rs

@@ -142,6 +142,14 @@ impl Database {
             elementor_popups_html: self
                 .get_option("neopress_elementor_popups_html")?
                 .unwrap_or_default(),
+            blog_public: self
+                .get_option("blog_public")?
+                .map(|v| !matches!(v.trim(), "0" | "false"))
+                .unwrap_or(true),
+            privacy_policy_page_id: self
+                .get_option("wp_page_for_privacy_policy")?
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0),
             site_logo_url: self.get_option("neopress_site_logo")?.unwrap_or_default(),
             site_favicon_url: self
                 .get_option("neopress_site_favicon")?
@@ -211,7 +219,10 @@ impl Database {
         let page_count: i64 = conn.query_row("PRAGMA page_count;", [], |r| r.get(0))?;
         let journal_mode: String = conn.query_row("PRAGMA journal_mode;", [], |r| r.get(0))?;
 
-        let file_size_bytes = fs::metadata(&self.db_path).map(|m| m.len()).unwrap_or(0);
+        // WAL mode keeps recent writes in `<db>-wal` until a checkpoint, so count both files.
+        let wal_path = format!("{}-wal", self.db_path.to_string_lossy());
+        let file_size_bytes = fs::metadata(&self.db_path).map(|m| m.len()).unwrap_or(0)
+            + fs::metadata(&wal_path).map(|m| m.len()).unwrap_or(0);
 
         Ok(DbStats {
             db_path: self.db_path.to_string_lossy().to_string(),

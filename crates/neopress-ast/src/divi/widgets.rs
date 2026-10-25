@@ -59,7 +59,7 @@ pub(crate) fn render_fallback_cf7_form(form_id: &str) -> String {
     )
 }
 
-/// Renders the complete interactive 2-step Service Price Calculator (`[spb_kw_calculator_module]` & `[spb_kitwerk_calculator]`)
+/// Renders the complete interactive 2-step service price calculator (`[spb_kw_calculator_module]` & `[spb_kitwerk_calculator]`)
 /// populated with the `spb_service` items imported from WXR.
 pub fn render_spb_calculator_widget(services: &[SpbServiceItem]) -> String {
     let default_services = vec![

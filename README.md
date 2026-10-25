@@ -1,6 +1,6 @@
 # Neopress ⚡
 
-[![Neopress CI](https://github.com/neopress/neopress/actions/workflows/ci.yml/badge.svg)](https://github.com/neopress/neopress/actions/workflows/ci.yml)
+[![Neopress CI](https://github.com/Trooper-lab/neopress/actions/workflows/ci.yml/badge.svg)](https://github.com/Trooper-lab/neopress/actions/workflows/ci.yml)
 [![License: AGPLv3 + Commercial](https://img.shields.io/badge/license-AGPLv3%20%7C%20Commercial-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
 
@@ -74,7 +74,7 @@ src/
 │   ├── database/            # Focused, AI-friendly SQLite repository modules:
 │   │   ├── mod.rs           # SqliteDatabase / Database struct definition
 │   │   ├── schema.rs        # WAL schema initialization & seeding
-│   │   ├── posts.rs         # Posts, pages, revisions, layouts + impl PostRepository
+│   │   ├── posts.rs         # Posts, pages, layouts + impl PostRepository
 │   │   ├── taxonomies.rs    # Categories, tags, menus + impl TaxonomyRepository
 │   │   ├── comments.rs      # Comments CRUD & moderation + impl CommentRepository
 │   │   ├── options.rs       # wp_options & settings sections + impl OptionRepository
@@ -94,8 +94,8 @@ src/
 ### 1. Clone & Build
 
 ```bash
-git clone https://github.com/neopress/neopress.git
-cd Neopress
+git clone https://github.com/Trooper-lab/neopress.git
+cd neopress
 
 # Build and run the server (defaults to port 8090 and data/neopress.sqlite)
 cargo run -p neopress-server --bin neopress
@@ -121,6 +121,23 @@ generated password **once** to the console (stderr):
 
 Log in at [http://localhost:8090/login](http://localhost:8090/login) and change it under **Users → Profile**.
 To choose the initial password yourself (e.g. in Docker or CI), set `NEOPRESS_ADMIN_PASSWORD` before the first start.
+
+Passwords are stored with argon2id, and repeated failed logins from the same address are throttled
+(5 attempts per 15 minutes per account).
+
+### 4. Email (SMTP)
+
+Form notifications are sent over SMTP. Configure it with environment variables and restart; use
+**Settings → General → Send test email** to check the setup. Without `NEOPRESS_SMTP_HOST` nothing
+is sent and the email log records `not_sent`.
+
+| Variable | Meaning |
+| :--- | :--- |
+| `NEOPRESS_SMTP_HOST` | SMTP server (required to send) |
+| `NEOPRESS_SMTP_PORT` | Port (default 587; 465 for `tls`, 25 for `none`) |
+| `NEOPRESS_SMTP_SECURITY` | `starttls` (default), `tls`, or `none` |
+| `NEOPRESS_SMTP_USER` / `NEOPRESS_SMTP_PASSWORD` | Credentials, if your server needs them |
+| `NEOPRESS_SMTP_FROM` / `NEOPRESS_SMTP_FROM_NAME` | Sender (defaults: admin email and site title) |
 
 ---
 

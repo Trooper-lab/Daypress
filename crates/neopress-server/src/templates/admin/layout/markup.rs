@@ -124,17 +124,14 @@ pub fn render_wp_admin_shell(
 
 			<!-- 7. APPEARANCE -->
 			<div class="nav-group {is_app_open}">
-				<a href="/n-admin/themes" class="nav-item {is_appearance}">
+				<a href="/n-admin/headers-footers" class="nav-item {is_appearance}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
 					<span>Appearance</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/n-admin/themes" class="nav-subitem {sub_app_themes}">Themes</a>
 					<a href="/n-admin/headers-footers" class="nav-subitem {sub_app_hf}">Header &amp; Footer</a>
 					<a href="/n-admin/customize" class="nav-subitem {sub_app_cust}">Customize</a>
-					<a href="/n-admin/widgets" class="nav-subitem {sub_app_widg}">Widgets</a>
 					<a href="/n-admin/nav-menus" class="nav-subitem {sub_app_menus}">Menus</a>
-					<a href="/n-admin/theme-editor" class="nav-subitem {sub_app_editor}">Theme File Editor</a>
 				</div>
 			</div>
 
@@ -147,7 +144,6 @@ pub fn render_wp_admin_shell(
 				<div class="nav-submenu">
 					<a href="/n-admin/plugins" class="nav-subitem {sub_plug_list}">Installed Plugins</a>
 					<a href="/n-admin/plugin-install" class="nav-subitem {sub_plug_new}">Add New &amp; SDK</a>
-					<a href="/n-admin/plugin-editor" class="nav-subitem {sub_plug_editor}">Plugin File Editor</a>
 				</div>
 			</div>
 
@@ -429,17 +425,13 @@ pub fn render_wp_admin_shell(
         is_comments = nav.is_comments,
         is_appearance = nav.is_appearance,
         is_app_open = nav.is_app_open,
-        sub_app_themes = nav.sub_app_themes,
         sub_app_hf = nav.sub_app_hf,
         sub_app_cust = nav.sub_app_cust,
-        sub_app_widg = nav.sub_app_widg,
         sub_app_menus = nav.sub_app_menus,
-        sub_app_editor = nav.sub_app_editor,
         is_plugins = nav.is_plugins,
         is_plugins_open = nav.is_plugins_open,
         sub_plug_list = nav.sub_plug_list,
         sub_plug_new = nav.sub_plug_new,
-        sub_plug_editor = nav.sub_plug_editor,
         is_seo = nav.is_seo,
         is_forms = nav.is_forms,
         is_backups = nav.is_backups,

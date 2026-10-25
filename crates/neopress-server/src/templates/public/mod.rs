@@ -12,12 +12,15 @@ pub mod archives;
 pub mod head_meta;
 pub mod home;
 pub mod menus;
+pub mod pagination;
 pub mod shell;
 pub mod single;
 pub(crate) mod styles;
 
-pub use archives::{render_archive_page, render_not_found_page, render_search_page};
-pub use home::render_home_page;
+pub use archives::{
+    render_archive_page, render_archive_page_paginated, render_not_found_page, render_search_page,
+};
+pub use home::{render_home_page, render_home_page_paginated};
 pub use menus::*;
 pub use shell::render_base_layout;
 pub use single::render_single_post;

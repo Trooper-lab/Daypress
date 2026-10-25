@@ -67,7 +67,7 @@ pub async fn preview_template_handler(
         author_name: "Lead Architect".to_string(),
         category_names: vec!["Architecture".to_string()],
         tag_names: vec!["2026".to_string()],
-        featured_image_url: Some("/static/placeholder.jpg".to_string()),
+        featured_image_url: Some("/static/placeholder.svg".to_string()),
         comments: vec![],
         seo_title: String::new(),
         seo_description: String::new(),

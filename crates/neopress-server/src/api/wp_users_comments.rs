@@ -103,18 +103,42 @@ pub(crate) async fn create_comment_handler(
         ));
     }
     if !auth.as_ref().is_some_and(|u| u.can_edit_content()) {
-        // Visitors may only comment on published posts with comments open, and their
-        // comments always wait in the moderation queue.
+        // Visitors may only comment on published posts with comments open; Settings →
+        // Discussion decides who may comment and which comments wait for moderation.
         let post = db
             .get_post_by_id(payload.post)?
             .filter(|p| p.status == "publish")
             .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+        let closed = || AppError::Forbidden("Comments are closed for this post.".to_string());
         if post.comment_status != "open" {
+            return Err(closed());
+        }
+        let rules = db.get_discussion_settings()?;
+        if rules.comment_registration && auth.is_none() {
             return Err(AppError::Forbidden(
-                "Comments are closed for this post.".to_string(),
+                "You must be logged in to post a comment.".to_string(),
             ));
         }
-        payload.status = Some("hold".to_string());
+        if rules.close_comments_for_old_posts && rules.close_comments_days_old > 0 {
+            let published =
+                chrono::NaiveDateTime::parse_from_str(&post.date, "%Y-%m-%dT%H:%M:%S").ok();
+            if published.is_some_and(|d| {
+                (chrono::Utc::now().naive_utc() - d).num_days() > rules.close_comments_days_old
+            }) {
+                return Err(closed());
+            }
+        }
+        let author_name = payload.author_name.as_deref().unwrap_or("").trim();
+        let author_email = payload.author_email.as_deref().unwrap_or("").trim();
+        if rules.require_name_email && (author_name.is_empty() || !author_email.contains('@')) {
+            return Err(AppError::BadRequest(
+                "Please provide your name and a valid email address.".to_string(),
+            ));
+        }
+        let approve = !rules.comment_moderation
+            && (!rules.comment_previously_approved
+                || db.has_approved_comment_from(author_email)?);
+        payload.status = Some(if approve { "approved" } else { "hold" }.to_string());
     }
     let comment = db.create_comment(&payload)?;
     Ok((StatusCode::CREATED, Json(comment)))
@@ -285,12 +309,20 @@ pub(crate) async fn get_auth_nonce(
 }
 
 pub(crate) async fn generate_jwt_token(
+    crate::auth::ClientIp(client): crate::auth::ClientIp,
     State(db): State<Database>,
     Json(payload): Json<JwtTokenRequest>,
 ) -> Result<Json<JwtTokenResponse>, AppError> {
-    let user = match db.authenticate_credentials(&payload.username, &payload.password)? {
-        Some(u) => u,
-        None => {
+    use crate::auth::LoginAttempt;
+    let user = match db.attempt_login(&payload.username, &payload.password, client.as_deref())? {
+        LoginAttempt::Success(u) => u,
+        LoginAttempt::Throttled { retry_after_secs } => {
+            return Err(AppError::TooManyRequests(format!(
+                "Too many failed login attempts. Try again in {} minutes.",
+                (retry_after_secs + 59) / 60
+            )))
+        }
+        LoginAttempt::Invalid => {
             return Err(AppError::Unauthorized(
                 "Invalid username or password".to_string(),
             ))

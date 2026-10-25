@@ -60,13 +60,19 @@ pub fn render_base_layout(
 
     let brand_display = escape_html(site_name);
 
+    // Customizer → Typography: swap the site font stack (custom CSS below can still override it).
+    let typography_block = match settings.typography_scale.as_str() {
+        "serif" => "\n\t<style id=\"neopress-typography\">:root { --font-sans: \"Newsreader\", Georgia, \"Times New Roman\", serif; }</style>",
+        "mono" => "\n\t<style id=\"neopress-typography\">:root { --font-sans: \"JetBrains Mono\", ui-monospace, SFMono-Regular, Menlo, monospace; }</style>",
+        _ => "",
+    };
     let custom_css_block = if !settings.custom_css.trim().is_empty() {
         format!(
-            "\n\t<style id=\"neopress-custom-css\">\n{}\n\t</style>",
-            settings.custom_css
+            "{}\n\t<style id=\"neopress-custom-css\">\n{}\n\t</style>",
+            typography_block, settings.custom_css
         )
     } else {
-        String::new()
+        typography_block.to_string()
     };
 
     let is_blank_template = current_post
@@ -102,6 +108,15 @@ pub fn render_base_layout(
         "elementor-theme-active"
     } else {
         "dark"
+    };
+
+    let privacy_link_html = if settings.privacy_policy_page_id > 0 {
+        format!(
+            r#" &bull; <a href="/?page_id={}">Privacy Policy</a>"#,
+            settings.privacy_policy_page_id
+        )
+    } else {
+        String::new()
     };
 
     let (nav_links_html, footer_nav_html) = if !settings.nav_menu_items.is_empty() {
@@ -226,7 +241,7 @@ pub fn render_base_layout(
 		</div>
 		<div class="footer-bottom">
 			<div>
-				&copy; 2026 {brand_display}. Powered by Neopress Native Rust CMS.
+				&copy; 2026 {brand_display}. Powered by Neopress Native Rust CMS.{privacy_link_html}
 			</div>
 			<div class="engine-chip">
 				<span>⚡</span> Neopress AST &bull; Embedded SQLite WAL
@@ -234,6 +249,7 @@ pub fn render_base_layout(
 		</div>
 	</footer>"##,
             brand_display = brand_display,
+            privacy_link_html = privacy_link_html,
             site_desc = escape_html(site_desc),
             footer_nav_html = footer_nav_html
         )
