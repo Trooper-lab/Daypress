@@ -1,12 +1,13 @@
 <?php
 /**
  * Plugin Name: Neopress 1-Click Migrator
- * Plugin URI: https://neopress.io
+ * Plugin URI: https://github.com/Trooper-lab/neopress
  * Description: 1-Click Migration Engine moving all posts, pages, Elementor/Divi/Gutenberg layouts, menus, widgets, comments, users, terms, media, settings, and theme styles from WordPress to high-performance Neopress Rust CMS.
  * Version: 2.0.0
  * Author: Neopress Core Team
- * Author URI: https://neopress.io
- * License: GPL-2.0+
+ * Author URI: https://github.com/Trooper-lab/neopress
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  */
 
 if (!defined('ABSPATH')) {

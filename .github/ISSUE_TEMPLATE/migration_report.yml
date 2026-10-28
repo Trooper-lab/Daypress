@@ -1,0 +1,68 @@
+name: Migration report
+description: A WordPress site did not migrate or render correctly in Neopress.
+labels: ["migration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Migration reports are how Neopress learns to convert more WordPress sites. The more detail, the better.
+
+        **Privacy:** do not attach exports that contain real personal data (users, comments, email addresses, form entries). Share screenshots or a cut-down example instead.
+  - type: dropdown
+    id: method
+    attributes:
+      label: How did you migrate?
+      options:
+        - 1-Click migrator plugin
+        - JSON bundle import
+        - WXR (WordPress export) import
+    validations:
+      required: true
+  - type: dropdown
+    id: builder
+    attributes:
+      label: Page builder or editor used on the WordPress site
+      multiple: true
+      options:
+        - Gutenberg (block editor)
+        - Elementor
+        - Elementor Pro
+        - Divi
+        - Classic editor / classic theme
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: wp-version
+    attributes:
+      label: WordPress version
+      placeholder: "6.6.2"
+  - type: input
+    id: theme
+    attributes:
+      label: Theme (and version)
+      placeholder: "Hello Elementor 3.1"
+  - type: textarea
+    id: plugins
+    attributes:
+      label: Relevant plugins
+      description: Plugins that shape the content or layout (forms, sliders, custom fields, SEO, and so on).
+  - type: textarea
+    id: what-broke
+    attributes:
+      label: What is wrong after the migration?
+      description: Which page or element, and how it differs from the original.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Before (WordPress) and after (Neopress), if you can.
+  - type: input
+    id: version
+    attributes:
+      label: Neopress version or commit
+      placeholder: "v0.1.0, or a commit hash"
+    validations:
+      required: true

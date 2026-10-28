@@ -211,3 +211,14 @@ Neopress is distributed under a **Dual-License** model:
    - Free to install, self-host, modify, and redistribute under the terms of the AGPLv3.
 2. **Commercial License ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md))**:
    - Available for organizations embedding Neopress into proprietary software or operating closed-source managed SaaS offerings without AGPLv3 network disclosure obligations.
+
+Neopress also includes material from WordPress (ported core functions, admin stylesheets, and the Dashicons font) that remains under the GNU GPL; see [NOTICE](NOTICE). The WordPress migrator plugin (`neopress-migrator.php`) is licensed under GPL-2.0-or-later.
+
+---
+
+## 🤝 Contributing & Community
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and pull request process. Contributors sign a one-time [CLA](CLA.md).
+- Ask questions in [GitHub Discussions](https://github.com/Trooper-lab/neopress/discussions), and report bugs or migration problems as [issues](https://github.com/Trooper-lab/neopress/issues/new/choose).
+- Report security vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
+- Everyone in the project follows our [Code of Conduct](CODE_OF_CONDUCT.md).

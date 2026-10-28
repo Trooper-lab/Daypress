@@ -6,4 +6,12 @@ While Neopress is freely available for self-hosting and open-source use under th
 2. **OEM / Embedded Distribution**: Bundling Neopress inside closed-source commercial appliances or enterprise platforms.
 3. **Enterprise SLA & Migration Guarantees**: Dedicated support for high-volume 1-Click WordPress fleet migrations.
 
-For commercial licensing inquiries, contact the Neopress Core Team via https://github.com/Trooper-lab/neopress.
+## Scope
+
+The Commercial License covers the parts of Neopress whose copyright is held by the Neopress maintainers, including contributions received under the [Contributor License Agreement](CLA.md).
+
+It does **not** cover the third-party material listed in [`NOTICE`](NOTICE), such as the Rust ports of WordPress core functions, the WordPress admin stylesheets, and the Dashicons font. That material stays under the GNU GPL in every distribution, and its terms continue to apply to commercial licensees.
+
+## Contact
+
+For commercial licensing inquiries, email [billy@trooper.es](mailto:billy@trooper.es).
