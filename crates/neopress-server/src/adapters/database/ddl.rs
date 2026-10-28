@@ -248,3 +248,17 @@ CREATE TABLE IF NOT EXISTS wp_neopress_plugins (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 "#;
+
+/// Single-use "Lost your password?" links. Only the SHA-256 of each token is stored, so a
+/// copy of the database cannot be turned into working reset links. Times are Unix seconds.
+pub const PASSWORD_RESETS_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS wp_neopress_password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES wp_users(ID) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER DEFAULT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON wp_neopress_password_resets(user_id, created_at);
+"#;

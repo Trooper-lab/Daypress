@@ -5,6 +5,7 @@ pub mod dashboard;
 pub mod editor;
 pub mod headers_footers;
 pub mod layout;
+pub mod login_screens;
 pub mod media;
 pub mod plugins;
 pub mod posts;
@@ -20,6 +21,7 @@ pub use editor::*;
 pub use headers_footers::*;
 #[allow(unused_imports)]
 pub use layout::*;
+pub use login_screens::*;
 pub use media::*;
 pub use plugins::*;
 pub use posts::*;

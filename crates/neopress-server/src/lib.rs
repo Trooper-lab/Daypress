@@ -19,6 +19,7 @@ pub mod handlers;
 pub mod importer;
 pub mod media;
 pub mod models;
+pub mod password_reset;
 pub mod plugins;
 pub mod seed;
 pub mod static_assets;
@@ -100,6 +101,14 @@ pub fn create_app(database: Database) -> Router {
             get(media::handle_serve_media),
         )
         .route("/login", get(handle_login_page).post(handle_login_submit))
+        .route(
+            "/login/lost-password",
+            get(handle_lost_password_page).post(handle_lost_password_submit),
+        )
+        .route(
+            "/login/reset-password",
+            get(handle_reset_password_page).post(handle_reset_password_submit),
+        )
         .route("/logout", get(handle_logout))
         .route(
             "/n-admin/login",

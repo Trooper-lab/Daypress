@@ -252,6 +252,12 @@ pub async fn handle_login_page(
         params.loggedout.as_deref() == Some("true") || params.loggedout.as_deref() == Some("1");
     let error_msg = params.error.as_deref();
     let redirect_to = params.redirect_to.as_deref();
+    if params.action.as_deref() == Some("resetpass") && error_msg.is_none() {
+        let notice =
+            templates::LoginNotice::Info("Your password has been reset. You can now log in.");
+        let html = templates::render_wp_login_view_with_notice(&settings, notice, redirect_to);
+        return Html(html).into_response();
+    }
 
     Html(templates::render_wp_login_view(
         &settings,

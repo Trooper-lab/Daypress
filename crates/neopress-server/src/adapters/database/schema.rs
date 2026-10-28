@@ -28,6 +28,7 @@ impl Database {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_path_buf(),
             login_throttle: Default::default(),
+            password_reset_throttle: Default::default(),
         };
 
         db.init_schema()?;
@@ -134,6 +135,7 @@ impl Database {
             conn: Arc::new(Mutex::new(conn)),
             db_path: PathBuf::from(":memory:"),
             login_throttle: Default::default(),
+            password_reset_throttle: Default::default(),
         };
 
         db.init_schema()?;
@@ -167,6 +169,7 @@ impl Database {
         }
 
         conn.execute_batch(super::ddl::SUBSYSTEMS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::PASSWORD_RESETS_SCHEMA_SQL)?;
         crate::theme_builder::schema::init_theme_builder_schema(&conn)?;
         let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
 

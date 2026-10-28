@@ -7,9 +7,11 @@
 pub mod admin_lists;
 pub mod comments;
 pub mod ddl;
+pub mod maintenance;
 pub mod media;
 pub mod migration;
 pub mod options;
+pub mod password_resets;
 pub mod plugins_seo;
 pub mod post_ast;
 pub mod posts;
@@ -30,6 +32,8 @@ pub struct Database {
     pub(crate) db_path: PathBuf,
     /// Failed-login counter shared by every clone of this database handle.
     pub(crate) login_throttle: crate::auth::LoginThrottle,
+    /// "Lost your password?" request counter, kept apart so reset requests never lock out logins.
+    pub(crate) password_reset_throttle: crate::auth::LoginThrottle,
 }
 
 impl Database {
