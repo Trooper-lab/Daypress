@@ -132,17 +132,14 @@ pub fn persist_theme_assets_manifest(
     Ok(())
 }
 
-/// Resolves the static themes base directory checking both workspace and crate relative paths.
+/// Resolves the static themes base directory: the same one `create_app` serves
+/// `/wp-content/themes` from (the crate's `static/` in a source checkout, `./static` otherwise).
 pub fn resolve_themes_base_dir() -> std::path::PathBuf {
-    let p1 = std::path::Path::new("crates/neopress-server/static/themes");
-    if p1.exists() {
-        return p1.to_path_buf();
+    if std::path::Path::new("crates/neopress-server/static").exists() {
+        std::path::PathBuf::from("crates/neopress-server/static/themes")
+    } else {
+        std::path::PathBuf::from("static/themes")
     }
-    let p2 = std::path::Path::new("static/themes");
-    if p2.exists() {
-        return p2.to_path_buf();
-    }
-    p1.to_path_buf()
 }
 
 /// Discovers the active theme on disk, registers options, and persists the ThemeAssetsManifest.
