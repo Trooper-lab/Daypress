@@ -224,24 +224,24 @@ pub fn render_wp_updates_view(settings: &WpSettingsResponse, stats: &DbStats) ->
         r##"
         <div class="page-header">
             <div>
-                <h1 class="page-title">WordPress Updates</h1>
-                <p class="page-subtitle">Check and manage core engine binaries, database migrations, and extension updates</p>
+                <h1 class="page-title">Updates</h1>
+                <p class="page-subtitle">Your Neopress version and database maintenance</p>
             </div>
             <div>
-                <button type="button" class="btn btn-primary" onclick="checkUpdates()">Check Again</button>
+                <a href="https://github.com/Trooper-lab/neopress/releases" target="_blank" rel="noopener" class="btn btn-primary">View Releases on GitHub</a>
             </div>
         </div>
 
         <div class="neo-card" style="padding: 24px; margin-bottom: 24px;">
             <div style="display: flex; align-items: center; gap: 14px;">
-                <div style="width: 44px; height: 44px; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; display: flex; align-items: center; justify-content: center; color: #059669; font-size: 20px;">✓</div>
+                <div style="width: 44px; height: 44px; border-radius: 10px; background: #f1f5f9; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 20px;">ℹ</div>
                 <div>
-                    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Current version: Neopress 0.1.0 (Drop-in WordPress 6.7 Compatibility)</h3>
-                    <p style="font-size: 13px; color: #64748b; margin-top: 2px;">Last checked: Just now. You are running the latest compiled release with in-process SQLite WAL mode.</p>
+                    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Current version: Neopress {version}</h3>
+                    <p style="font-size: 13px; color: #64748b; margin-top: 2px;">Neopress does not check for updates automatically yet. To update, download or build a newer release and restart the server; your database is kept.</p>
                 </div>
             </div>
             <div style="margin-top: 20px; display: flex; gap: 10px;">
-                <button type="button" class="btn btn-secondary" onclick="syncSchema()">Re-sync Schema &amp; Indexes</button>
+                <button type="button" class="btn btn-secondary" onclick="syncSchema()">Check Database Integrity</button>
                 <button type="button" class="btn btn-secondary" onclick="runVacuum()">VACUUM Storage</button>
             </div>
         </div>
@@ -249,7 +249,7 @@ pub fn render_wp_updates_view(settings: &WpSettingsResponse, stats: &DbStats) ->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
             <div class="neo-card" style="padding: 20px;">
                 <h4 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Plugins</h4>
-                <p style="font-size: 13px; color: #64748b;">All installed Neopress and WordPress plugins are up to date.</p>
+                <p style="font-size: 13px; color: #64748b;">Built-in modules (forms, SEO, backups) update together with Neopress. WordPress plugins do not run in Neopress.</p>
                 <div style="margin-top: 14px;">
                     <a href="/n-admin/plugins" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Plugins</a>
                 </div>
@@ -271,9 +271,6 @@ pub fn render_wp_updates_view(settings: &WpSettingsResponse, stats: &DbStats) ->
         </div>
 
         <script>
-            function checkUpdates() {{
-                showToast('Checking official repository... All systems are up to date!');
-            }}
             async function syncSchema() {{
                 try {{
                     const res = await fetch('/wp-json/neopress/v1/integrity-check');
@@ -300,7 +297,8 @@ pub fn render_wp_updates_view(settings: &WpSettingsResponse, stats: &DbStats) ->
             }}
         </script>
         "##,
-        db_size_kb = stats.file_size_bytes / 1024
+        db_size_kb = stats.file_size_bytes / 1024,
+        version = env!("CARGO_PKG_VERSION")
     );
 
     render_wp_admin_shell("updates", "Updates", &body, settings)

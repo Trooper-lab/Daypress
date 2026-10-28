@@ -104,12 +104,13 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
                 <div style="max-width: 680px;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">Recommended for 1:1 Parity</span>
+                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">Recommended</span>
                         <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">1-Click WordPress Companion Plugin</h3>
                     </div>
                     <p style="font-size: 13.5px; color: #475569; margin: 0 0 10px 0; line-height: 1.5;">
                         Standard WordPress XML exports only export raw text and miss compiled theme CSS, Divi/Elementor global style kits, Theme Customizer CSS, and media binaries.
-                        Installing <strong>neopress-migrator.zip</strong> on your original WordPress site extracts the entire design with exact visual fidelity in 1 click.
+                        Installing <strong>neopress-migrator.zip</strong> on your original WordPress site exports those too, which gives the closest copy of the design.
+                        Migration is still experimental: expect to fix some pages by hand.
                     </p>
                     <div style="font-size: 12.5px; color: #64748b; line-height: 1.6;">
                         <strong>Quick Workflow:</strong>
@@ -131,7 +132,7 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
             <div style="width: 56px; height: 56px; border-radius: 50%; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 24px;">📥</div>
             <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">WordPress WXR Stream Importer (.xml)</h2>
             <p style="font-size: 13.5px; color: #64748b; max-width: 600px; margin: 0 auto 20px auto; line-height: 1.5;">
-                Drag-and-drop standard WordPress export files (WordPress eXtended RSS 1.2). Our streaming <code>quick-xml</code> engine processes multi-gigabyte archives in atomic SQLite batches.
+                Drag-and-drop standard WordPress export files (WordPress eXtended RSS 1.2). The file is parsed as a stream with <code>quick-xml</code> and imported in SQLite transactions. Uploads are limited to 500 MB.
             </p>
             <input type="file" id="wxrFileInput" accept=".xml" style="display: none;" onchange="handleWxrSelect(this)">
             <button type="button" class="btn btn-primary" onclick="document.getElementById('wxrFileInput').click()" style="padding: 10px 22px; font-size: 14px;">Choose WordPress XML File</button>

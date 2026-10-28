@@ -20,13 +20,10 @@ pub fn seed_neopress_official_site(conn: &Connection) -> Result<()> {
     // 2. Set official site options
     let options = [
         ("blogname", "Neopress"),
-        (
-            "blogdescription",
-            "The Better WordPress We Deserve. A blazing-fast, un-hackable, edge-deployed CMS in Rust.",
-        ),
+        ("blogdescription", "A self-hosted CMS written in Rust."),
         ("siteurl", "http://localhost:8090"),
         ("home", "http://localhost:8090"),
-        ("admin_email", "hello@neopress.online"),
+        ("admin_email", "admin@example.com"),
         ("posts_per_page", "10"),
         ("date_format", "F j, Y"),
         ("time_format", "g:i a"),
@@ -43,7 +40,7 @@ pub fn seed_neopress_official_site(conn: &Connection) -> Result<()> {
     // replaces it with a generated one on startup.
     conn.execute(
         r#"INSERT OR IGNORE INTO wp_users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
-           VALUES (1, 'admin', ?2, 'admin', 'hello@neopress.online', ?1, 'Neopress Core');"#,
+           VALUES (1, 'admin', ?2, 'admin', 'admin@example.com', ?1, 'Neopress Core');"#,
         params![now, crate::auth::LEGACY_SEED_PASSWORD_HASH],
     )?;
 
@@ -297,7 +294,7 @@ let post = db.get_post_by_slug("fast-reads")?;
 
 <blockquote>"A 25-page agency client website with 400 blog posts imports, transpiles, and renders live in Neopress in under 4 seconds flat."</blockquote>
 
-<p>Your clients keep the familiar visual layout they approved. Your designers keep the intuitive drag-and-drop editing canvas. And your agency gains a 100/100 Lighthouse score, un-hackable security, and zero plugin maintenance forever.</p>
+<p>Your clients keep the familiar visual layout they approved. Your designers keep the intuitive drag-and-drop editing canvas. And your agency gets fast server-rendered pages, a smaller attack surface, and far less plugin maintenance.</p>
 "##;
 
     conn.execute(

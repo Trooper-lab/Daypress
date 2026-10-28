@@ -719,7 +719,7 @@ fn legacy_tools(settings: &WpSettingsResponse, stats: &DbStats) -> String {
                             <span style="font-size: 18px;">⚡</span> WordPress WXR Stream Importer (.xml)
                         </h2>
                         <p style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;">
-                            Drag-and-drop standard WordPress export files (Tools &rarr; Export &rarr; All content). Low-memory streaming parser ingests multi-gigabyte dumps in atomic SQLite transactions.
+                            Drag-and-drop standard WordPress export files (Tools &rarr; Export &rarr; All content). The file is parsed as a stream and imported in SQLite transactions. Uploads are limited to 500 MB.
                         </p>
                     </div>
                     <span class="badge badge-published">Streaming quick-xml Engine</span>
@@ -735,7 +735,7 @@ fn legacy_tools(settings: &WpSettingsResponse, stats: &DbStats) -> String {
                             Drop WordPress export .xml file here, or click to browse
                         </div>
                         <div style="font-size: 12px; color: var(--text-muted);" id="dropZoneSubtitle">
-                            Supports standard WordPress eXtended RSS (.xml / WXR 1.2) dumps up to multi-gigabytes
+                            Supports standard WordPress eXtended RSS (.xml / WXR 1.2) files up to 500 MB
                         </div>
                         <input type="file" id="wxrFileInput" accept=".xml" style="display: none;" onchange="handleWxrSelect(this)" />
                     </div>

@@ -844,7 +844,7 @@ async fn test_all_wp_admin_menu_routes_rendering() {
     let menu_routes = vec![
         // 1. Dashboard
         ("/n-admin/index", "Dashboard"),
-        ("/n-admin/update-core", "WordPress Updates"),
+        ("/n-admin/update-core", "Current version: Neopress"),
         // 2. Posts
         ("/n-admin/edit", "Posts"),
         ("/n-admin/post-new", "Add New"),
