@@ -302,9 +302,6 @@ pub fn ingest_forms_and_spb(
     if !form_id_map.is_empty() || has_elementor_forms || has_spb_calculator {
         let _ = crate::convergence::activate_builtin_plugin_tx(tx, "neopress-forms", None);
     }
-    if has_spb_calculator {
-        let _ = crate::convergence::activate_builtin_plugin_tx(tx, "service-calculator", None);
-    }
 
     Ok((
         form_id_map,
