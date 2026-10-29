@@ -13,7 +13,6 @@ pub const JS_DRAWERS: &str = r###"
                 const state = window.NeoStudioState;
 
                 if (state.activeDrawer === target && state.drawerOpen) {
-                    // Toggle close
                     state.drawerOpen = false;
                     drawer.classList.add("drawer-closed");
                     btn.classList.remove("active");
@@ -28,13 +27,11 @@ pub const JS_DRAWERS: &str = r###"
             });
         });
 
-        // Pinned Bottom buttons
         const btnSettings = document.getElementById("rail-btn-settings");
         if (btnSettings) btnSettings.onclick = () => document.getElementById("settings-modal")?.classList.add("open");
         const btnHelp = document.getElementById("rail-btn-help");
         if (btnHelp) btnHelp.onclick = () => document.getElementById("modal-shortcuts")?.classList.add("open");
 
-        // Render default Elements drawer
         renderActiveDrawer("elements", panelContainer);
     }
 
@@ -43,28 +40,12 @@ pub const JS_DRAWERS: &str = r###"
         if (drawerId === "elements") renderElementsDrawer(container);
         else if (drawerId === "navigator") window.renderNavigatorDrawer && window.renderNavigatorDrawer(container);
         else if (drawerId === "templates") window.renderThemeDrawer && window.renderThemeDrawer(container);
-        else if (drawerId === "tokens") renderTokensDrawer(container);
+        else if (drawerId === "tokens") window.renderTokensDrawer && window.renderTokensDrawer(container);
         else if (drawerId === "history") renderHistoryDrawer(container);
     }
     window.renderActiveDrawer = renderActiveDrawer;
 
-    // -------------------------------------------------------------
-    // ADD ELEMENTS DRAWER: 35+ PRO BLOCKS
-    // -------------------------------------------------------------
     const BLOCK_CATALOG = [
-        {
-            category: "ACF & Theme Blocks",
-            items: [
-                { type: "ACF_WhiteSection", title: "ACF White Sec", icon: "fa-solid fa-layer-group" },
-                { type: "ACF_BlackAngle", title: "ACF Black Angle", icon: "fa-solid fa-shapes" },
-                { type: "ACF_BlueCTA", title: "ACF Blue CTA", icon: "fa-solid fa-bullhorn" },
-                { type: "ACF_ThreeCol", title: "ACF 3-Col Cards", icon: "fa-solid fa-table-columns" },
-                { type: "ACF_Logos", title: "ACF Logos", icon: "fa-solid fa-Handshake" },
-                { type: "ACF_Trainingen", title: "Showcase Grid", icon: "fa-solid fa-graduation-cap" },
-                { type: "ACF_Faq", title: "ACF FAQ", icon: "fa-solid fa-circle-question" },
-                { type: "ACF_Quotes", title: "ACF Quotes", icon: "fa-solid fa-quote-left" }
-            ]
-        },
         {
             category: "Layout",
             items: [
@@ -123,7 +104,7 @@ pub const JS_DRAWERS: &str = r###"
                 <span class="drawer-title">Add Elements</span>
             </div>
             <div class="drawer-search-well">
-                <input type="search" class="drawer-search-input" id="elem-search-input" placeholder="Search 35+ Pro blocks (Q or /)...">
+                <input type="search" class="drawer-search-input" id="elem-search-input" placeholder="Search native blocks (Q or /)...">
             </div>
             <div class="drawer-scroll-body" id="elem-catalog-body"></div>
         `;
@@ -183,54 +164,7 @@ pub const JS_DRAWERS: &str = r###"
         });
     }
 
-    const ACF_SNIPPETS = {
-        ACF_WhiteSection: {
-            name: "ACF Section: White Content",
-            raw: `<section class="section white"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>CONTENT SECTION</h2><p>Add your rich text and block components here.</p><div class="wp-block-buttons"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/contact/">Get in touch</a></div></div></div></div></div></section>`
-        },
-        ACF_BlackAngle: {
-            name: "ACF Section: Black Angle",
-            raw: `<section class="section black angle"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>HIGH-CONTRAST SECTION</h2><p>High-contrast section with modern accent background.</p><a href="/about/" class="btn btn-primary">Learn more</a></div></div></div></section>`
-        },
-        ACF_BlueCTA: {
-            name: "ACF Section: Blue CTA",
-            raw: `<section class="section blue angle"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>PRIMARY CALL TO ACTION</h2><p>Featured call-to-action section in theme primary color.</p><a href="/contact/" class="btn btn-primary">Schedule a consultation</a></div></div></div></section>`
-        },
-        ACF_ThreeCol: {
-            name: "ACF Block: 3-Col Swiper",
-            raw: `<section class="section white"><div class="container"><h2>THREE-COLUMN FEATURES</h2><div class="row"><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature One</h3><p>Fast, modular architecture designed for performance.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature Two</h3><p>Native Rust execution with zero PHP latency.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature Three</h3><p>1-Click seamless migration from legacy WordPress.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div></div></div></section>`
-        },
-        ACF_Logos: {
-            name: "ACF Block: Client Logos",
-            raw: `<section class="section logo white"><div class="container"><h2 class="text-center">TRUSTED PARTNERS</h2><div class="logo-grid" style="display: flex; justify-content: space-around; align-items: center; gap: 24px; flex-wrap: wrap;"><div class="logo-item" style="font-weight: 700; font-size: 18px; color: #64748b;">PARTNER 1</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: #64748b;">PARTNER 2</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: #64748b;">PARTNER 3</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: #64748b;">PARTNER 4</div></div></div></section>`
-        },
-        ACF_Trainingen: {
-            name: "ACF Block: Showcase Carousel",
-            raw: `<section class="section black angle"><div class="container"><h2>FEATURE SHOWCASE</h2><div class="row"><div class="col-md-4"><div class="card"><div class="card-body"><h3>Showcase Item</h3><p>Detailed overview of key deliverables and outcomes.</p><a href="/showcase/" class="btn btn-primary">View details</a></div></div></div></div></div></section>`
-        },
-        ACF_Faq: {
-            name: "ACF Block: FAQ Accordion",
-            raw: `<section class="section white"><div class="container"><h2>FREQUENTLY ASKED QUESTIONS</h2><div class="accordion"><div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button" type="button">What features are supported?</button></h3><div class="accordion-collapse collapse show"><div class="accordion-body"><p>Neopress natively supports Elementor, Divi, Gutenberg block themes, and ACF fields with sub-millisecond SSR latency.</p></div></div></div></div></div></section>`
-        },
-        ACF_Quotes: {
-            name: "ACF Block: Quotes Slider",
-            raw: `<section class="section blue angle"><div class="container"><h2>CLIENT TESTIMONIALS</h2><div class="swiper quoteSwiper"><div class="swiper-wrapper"><div class="swiper-slide"><blockquote><p>"Neopress delivered instant acceleration and rock-solid stability."</p><footer>— Technology Director</footer></blockquote></div></div></div></div></section>`
-        }
-    };
-
     function createNodeFromPaletteType(type) {
-        if (ACF_SNIPPETS[type]) {
-            return {
-                id: window.generateId("acf_sec"),
-                type: "CustomHtml",
-                data: {
-                    _name: ACF_SNIPPETS[type].name,
-                    raw: ACF_SNIPPETS[type].raw
-                },
-                styles: {},
-                children: []
-            };
-        }
         const starterData = window.getWidgetStarterDefaults ? window.getWidgetStarterDefaults(type) : {};
         return {
             id: window.generateId(type.toLowerCase()),
@@ -244,41 +178,34 @@ pub const JS_DRAWERS: &str = r###"
     function insertWidgetFromPalette(type) {
         const state = window.NeoStudioState;
         const newNode = createNodeFromPaletteType(type);
+        const currentId = state.activeElementId;
+        const current = currentId ? window.findNodeById(currentId) : null;
 
-        if (ACF_SNIPPETS[type]) {
-            state.pageAst.root.children = state.pageAst.root.children || [];
-            state.pageAst.root.children.push(newNode);
-        } else {
-            const currentId = state.activeElementId;
-            const current = currentId ? window.findNodeById(currentId) : null;
-
-            if (current && (current.type === "Container" || current.type === "Section" || current.type === "Column")) {
-                current.children = current.children || [];
-                current.children.push(newNode);
-            } else if (current) {
-                const parent = window.findParentNode(currentId);
-                if (parent && parent.children) {
-                    const idx = parent.children.findIndex(c => c.id === currentId);
-                    parent.children.splice(idx + 1, 0, newNode);
-                }
-            } else {
-                // Append to root inside new Section + Container
-                const newSec = {
-                    id: window.generateId("sec"),
-                    type: "Section",
-                    styles: { padding_top: "60px", padding_bottom: "60px" },
-                    children: [
-                        {
-                            id: window.generateId("cont"),
-                            type: "Container",
-                            styles: {},
-                            children: [ newNode ]
-                        }
-                    ]
-                };
-                state.pageAst.root.children = state.pageAst.root.children || [];
-                state.pageAst.root.children.push(newSec);
+        if (current && ["Container", "Section", "Column", "Grid", "Flex"].includes(current.type)) {
+            current.children = current.children || [];
+            current.children.push(newNode);
+        } else if (current) {
+            const parent = window.findParentNode(currentId);
+            if (parent && parent.children) {
+                const idx = parent.children.findIndex(c => c.id === currentId);
+                parent.children.splice(idx + 1, 0, newNode);
             }
+        } else {
+            const newSec = {
+                id: window.generateId("sec"),
+                type: "Section",
+                styles: { padding_top: "60px", padding_bottom: "60px" },
+                children: [
+                    {
+                        id: window.generateId("cont"),
+                        type: "Container",
+                        styles: {},
+                        children: [ newNode ]
+                    }
+                ]
+            };
+            state.pageAst.root.children = state.pageAst.root.children || [];
+            state.pageAst.root.children.push(newSec);
         }
 
         window.markDirty(true);
@@ -286,12 +213,11 @@ pub const JS_DRAWERS: &str = r###"
         window.renderCanvas();
         if (window.updateNavigator) window.updateNavigator();
         if (window.selectElement) window.selectElement(newNode.id);
-        if (window.showToast) window.showToast(`Added ${newNode.data && newNode.data._name ? newNode.data._name : type}`);
+        if (window.showToast) window.showToast(`Added ${type}`);
     }
     window.insertWidgetFromPalette = insertWidgetFromPalette;
 
     function insertWidgetRelativeTo(type, targetId, position) {
-        const state = window.NeoStudioState;
         const newNode = createNodeFromPaletteType(type);
 
         if (!targetId || targetId === "root") {
@@ -305,7 +231,7 @@ pub const JS_DRAWERS: &str = r###"
             return;
         }
 
-        if (position === "inside" || ["Section", "Container", "Column", "Grid", "Flex"].includes(targetNode.type) && position !== "before" && position !== "after") {
+        if (position === "inside" || (["Section", "Container", "Column", "Grid", "Flex"].includes(targetNode.type) && position !== "before" && position !== "after")) {
             targetNode.children = targetNode.children || [];
             targetNode.children.push(newNode);
         } else {
@@ -320,6 +246,7 @@ pub const JS_DRAWERS: &str = r###"
             }
         }
 
+        window.markDirty(true);
         window.pushHistorySnapshot();
         window.renderCanvas();
         if (window.updateNavigator) window.updateNavigator();
@@ -334,22 +261,6 @@ pub const JS_DRAWERS: &str = r###"
             const match = !query || title.includes(query);
             card.style.display = match ? "flex" : "none";
         });
-    }
-
-    function renderTokensDrawer(container) {
-        container.innerHTML = `
-            <div class="drawer-header"><span class="drawer-title">Design Tokens</span></div>
-            <div class="drawer-scroll-body" style="padding: 16px;">
-                <h4 style="font-size: 11px; text-transform: uppercase; color: var(--neo-muted); margin-bottom: 10px;">5 Named Hex Palette</h4>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display:flex; align-items:center; gap:8px;"><div style="width:18px;height:18px;background:#0D0F12;border:1px solid #242933;border-radius:2px;"></div><span style="font-size:12px;">Obsidian Chassis (#0D0F12)</span></div>
-                    <div style="display:flex; align-items:center; gap:8px;"><div style="width:18px;height:18px;background:#15181E;border:1px solid #242933;border-radius:2px;"></div><span style="font-size:12px;">Graphite Surface (#15181E)</span></div>
-                    <div style="display:flex; align-items:center; gap:8px;"><div style="width:18px;height:18px;background:#242933;border:1px solid #3B4455;border-radius:2px;"></div><span style="font-size:12px;">Hairline Rule (#242933)</span></div>
-                    <div style="display:flex; align-items:center; gap:8px;"><div style="width:18px;height:18px;background:#F2F4F8;border:1px solid #242933;border-radius:2px;"></div><span style="font-size:12px;">Alabaster Ink (#F2F4F8)</span></div>
-                    <div style="display:flex; align-items:center; gap:8px;"><div style="width:18px;height:18px;background:#8A93A6;border:1px solid #242933;border-radius:2px;"></div><span style="font-size:12px;">Slate Muted (#8A93A6)</span></div>
-                </div>
-            </div>
-        `;
     }
 
     function renderHistoryDrawer(container) {

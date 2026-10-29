@@ -216,6 +216,8 @@ pub struct StyleProperties {
     // Utility & Classes
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_url: Option<String>,
+    #[serde(default, alias = "tag", skip_serializing_if = "Option::is_none")]
+    pub html_tag: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub css_classes: Option<String>,
     /// Legacy NeoStudio class list key (pre-`css_classes`); merged into `css_classes` at render time.

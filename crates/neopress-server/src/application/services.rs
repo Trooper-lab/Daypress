@@ -150,6 +150,12 @@ impl ContentUseCase for CmsService {
             serde_json::from_str(layout_json).map_err(|e| {
                 DomainError::Validation(format!("Invalid NeopressLayout AST JSON: {e}"))
             })?;
+        if let Some(ref gs_val) = layout.global_styles {
+            if let Ok(kit) = serde_json::from_value::<neopress_ast::ElementorKit>(gs_val.clone()) {
+                let kit_css = kit.compile_to_css();
+                let _ = self.options.set_option("elementor_kit_css", &kit_css);
+            }
+        }
         let compiled_html = neopress_ast::render_layout_to_html(&layout);
         let canonical_json = serde_json::to_string(&layout)
             .map_err(|e| DomainError::Internal(format!("Failed to serialize AST layout: {e}")))?;

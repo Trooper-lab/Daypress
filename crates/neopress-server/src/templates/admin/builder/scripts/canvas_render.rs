@@ -2,6 +2,61 @@
 
 pub const JS_CANVAS_RENDER: &str = r###"
 (function() {
+    const ALLOWED_SEMANTIC_TAGS = new Set([
+        "div", "section", "article", "aside", "nav", "header", "footer", "main",
+        "figure", "figcaption", "blockquote", "dl", "dt", "dd", "ol", "ul", "li",
+        "p", "span", "cite", "code", "pre", "details", "summary", "address", "time",
+        "mark", "small", "strong", "em", "b", "i", "kbd", "sub", "sup",
+        "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "hgroup",
+        "label", "fieldset", "legend", "button"
+    ]);
+
+    function resolveSemanticTag(node, defaultTag) {
+        const raw = (
+            (node.data && (node.data.html_tag || node.data.tag)) ||
+            (node.styles && (node.styles.html_tag || node.styles.tag)) ||
+            ""
+        ).trim().toLowerCase();
+        return ALLOWED_SEMANTIC_TAGS.has(raw) ? raw : defaultTag;
+    }
+
+    const ALLOWED_INLINE_TAGS = new Set([
+        "em", "strong", "b", "i", "span", "code", "small", "mark", "sub", "sup", "kbd", "br", "cite", "time",
+        "svg", "path", "circle", "rect", "line", "polyline", "polygon", "g", "defs", "lineargradient", "stop"
+    ]);
+
+    function sanitizeInlineHtml(raw) {
+        if (!raw) return "";
+        const str = String(raw);
+        if (!str.includes("<")) return str;
+        const tpl = document.createElement("template");
+        tpl.innerHTML = str;
+        const cleanTree = (root) => {
+            for (const child of Array.from(root.childNodes)) {
+                if (child.nodeType === Node.ELEMENT_NODE) {
+                    const tag = child.tagName.toLowerCase();
+                    if (!ALLOWED_INLINE_TAGS.has(tag)) {
+                        const frag = document.createDocumentFragment();
+                        while (child.firstChild) frag.appendChild(child.firstChild);
+                        cleanTree(frag);
+                        child.replaceWith(frag);
+                        continue;
+                    }
+                    for (const attr of Array.from(child.attributes)) {
+                        const n = attr.name.toLowerCase();
+                        if (n.startsWith("on") || n === "contenteditable" || n === "draggable" || n.startsWith("data-neostudio") || n.startsWith("data-elementor")) {
+                            child.removeAttribute(attr.name);
+                        }
+                    }
+                    cleanTree(child);
+                }
+            }
+        };
+        cleanTree(tpl.content);
+        return tpl.innerHTML;
+    }
+    window.sanitizeInlineHtml = sanitizeInlineHtml;
+
     function renderCanvas() {
         const canvas = document.getElementById("neostudio-canvas");
         if (!canvas) return;
@@ -11,17 +66,13 @@ pub const JS_CANVAS_RENDER: &str = r###"
         const state = window.NeoStudioState;
         if (!state.pageAst || !state.pageAst.root) return;
 
-        // Render recursive tree
         for (const child of (state.pageAst.root.children || [])) {
             const childEl = buildDomNode(child);
             if (childEl) canvas.appendChild(childEl);
         }
 
-        // Re-synchronize on-canvas selection chrome and forced pseudo-state preview
         if (window.applyForcedState) window.applyForcedState();
-        if (window.updateSelectionChrome) {
-            window.updateSelectionChrome();
-        }
+        if (window.updateSelectionChrome) window.updateSelectionChrome();
     }
     window.renderCanvas = renderCanvas;
 
@@ -29,7 +80,6 @@ pub const JS_CANVAS_RENDER: &str = r###"
         if (!node) return null;
         let el = null;
 
-        // Delegate to Pro Block builder if applicable
         if (window.isProWidget && window.isProWidget(node.type)) {
             el = window.renderProWidget(node);
         } else {
@@ -41,10 +91,8 @@ pub const JS_CANVAS_RENDER: &str = r###"
         el.dataset.nodeId = node.id;
         el.classList.add("neostudio-node", "node-" + (node.type || "unknown").toLowerCase());
 
-        // Apply styles (base + responsive overrides + pseudo-state rules) via the Style Engine
         if (window.applyNodeStyles) window.applyNodeStyles(el, node);
 
-        // Make canvas node draggable & drop target
         const isLocked = node.data && node.data._locked;
         if (node.id !== "root" && !isLocked) {
             el.draggable = true;
@@ -126,7 +174,6 @@ pub const JS_CANVAS_RENDER: &str = r###"
             }
         });
 
-        // Click-to-select (and prevent anchor navigation inside canvas)
         el.addEventListener("click", (e) => {
             if (el.tagName === "A" || e.target.closest("a")) {
                 e.preventDefault();
@@ -135,7 +182,6 @@ pub const JS_CANVAS_RENDER: &str = r###"
             if (window.selectElement) window.selectElement(node.id);
         });
 
-        // Double-click inline text editing for Heading, Text, Button, and CustomHtml inner elements
         if (["Heading", "Text", "Button"].includes(node.type) && !isLocked) {
             el.addEventListener("dblclick", (e) => {
                 e.stopPropagation();
@@ -148,8 +194,9 @@ pub const JS_CANVAS_RENDER: &str = r###"
                     if (node.type === "Text") {
                         node.data.content_html = el.innerHTML;
                     } else {
-                        node.data.text = el.innerText.trim();
+                        node.data.text = sanitizeInlineHtml(el.innerHTML.trim());
                     }
+                    window.markDirty(true);
                     window.pushHistorySnapshot();
                     if (window.renderInspector) window.renderInspector();
                 };
@@ -171,7 +218,6 @@ pub const JS_CANVAS_RENDER: &str = r###"
                     const clone = el.cloneNode(true);
                     clone.classList.remove("neostudio-node", "node-customhtml", "is-selected", "is-hovered", "is-dragging",
                         "neostudio-hidden-bp", "neostudio-force-hover", "neostudio-force-focus", "neostudio-force-active");
-                    // Strip builder-applied classes & inline styles: they live in node.styles, not in the raw markup
                     (el.dataset.neostudioClasses || "").split(/\s+/).filter(Boolean).forEach(c => clone.classList.remove(c));
                     const baseStyle = el.dataset.neostudioBaseStyle || "";
                     if (baseStyle) clone.setAttribute("style", baseStyle); else clone.removeAttribute("style");
@@ -190,7 +236,6 @@ pub const JS_CANVAS_RENDER: &str = r###"
             });
         }
 
-        // Hover overlay feedback
         el.addEventListener("mouseenter", (e) => {
             e.stopPropagation();
             if (window.onNodeHover) window.onNodeHover(node.id);
@@ -206,33 +251,31 @@ pub const JS_CANVAS_RENDER: &str = r###"
 
         switch(type) {
             case "Section": {
-                el = document.createElement("section");
+                el = document.createElement(resolveSemanticTag(node, "section"));
                 el.className = "np-section";
                 renderChildren(el, node);
                 break;
             }
             case "Container": {
-                el = document.createElement("div");
+                el = document.createElement(resolveSemanticTag(node, "div"));
                 el.className = "np-container";
                 renderChildren(el, node);
                 break;
             }
-            // Same classes as public SSR; the Style Engine adds the grid/flex track styles
-            // (NeoStyle.layoutDeclarations) exactly like neopress-ast's layout renderer does.
             case "Column": {
-                el = document.createElement("div");
+                el = document.createElement(resolveSemanticTag(node, "div"));
                 el.className = "np-column";
                 renderChildren(el, node);
                 break;
             }
             case "Grid": {
-                el = document.createElement("div");
+                el = document.createElement(resolveSemanticTag(node, "div"));
                 el.className = "np-grid";
                 renderChildren(el, node);
                 break;
             }
             case "Flex": {
-                el = document.createElement("div");
+                el = document.createElement(resolveSemanticTag(node, "div"));
                 el.className = "np-flex";
                 renderChildren(el, node);
                 break;
@@ -241,25 +284,26 @@ pub const JS_CANVAS_RENDER: &str = r###"
                 const level = (node.data && node.data.level) || 2;
                 el = document.createElement("h" + level);
                 el.className = "np-heading";
-                el.textContent = (node.data && node.data.text) || "Heading Text";
+                el.innerHTML = sanitizeInlineHtml((node.data && node.data.text) || "Heading Text");
                 break;
             }
             case "Text": {
-                el = document.createElement("div");
+                el = document.createElement(resolveSemanticTag(node, "div"));
                 el.className = "np-text";
                 el.innerHTML = (node.data && node.data.content_html) || "<p>Text content block...</p>";
                 break;
             }
             case "Button": {
-                el = document.createElement("a");
+                const isBtnTag = resolveSemanticTag(node, "a") === "button" && !(node.data && node.data.url);
+                el = document.createElement(isBtnTag ? "button" : "a");
                 el.className = "np-button";
-                el.href = (node.data && node.data.url) || "#";
+                if (!isBtnTag) el.href = (node.data && node.data.url) || "#";
                 const icon = node.data && node.data.icon ? `<i class="${node.data.icon}"></i> ` : "";
-                el.innerHTML = `${icon}<span>${(node.data && node.data.text) || "Button Action"}</span>`;
+                const labelHtml = sanitizeInlineHtml((node.data && node.data.text) || "Button Action");
+                el.innerHTML = icon ? `${icon}<span>${labelHtml}</span>` : labelHtml;
                 break;
             }
             case "Image": {
-                // Rendered as a bare <img> exactly like public SSR, so size/radius/object-fit match 1:1
                 el = document.createElement("img");
                 el.className = "np-image";
                 el.src = (node.data && node.data.src) || "/static/neopress-icon.svg";
@@ -281,14 +325,14 @@ pub const JS_CANVAS_RENDER: &str = r###"
                 break;
             }
             case "Divider": {
-                el = document.createElement("div");
+                el = document.createElement("hr");
                 el.className = "np-divider";
                 el.style.borderTop = "1px solid #e2e8f0";
                 el.style.margin = "20px 0";
                 break;
             }
             case "Icon": {
-                el = document.createElement("div");
+                el = document.createElement("span");
                 el.className = "np-icon";
                 const iconClass = (node.data && node.data.name) || "fa-solid fa-star";
                 el.innerHTML = `<i class="${iconClass}"></i>`;

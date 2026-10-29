@@ -1,5 +1,7 @@
 use super::RenderArgs;
-use crate::render::sanitizer::{escape_attr, sanitize_editor_html, with_extra_classes};
+use crate::render::sanitizer::{
+    escape_attr, resolve_semantic_tag, sanitize_editor_html, with_extra_classes,
+};
 use crate::schema::NodeKind;
 
 pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
@@ -30,9 +32,10 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             ))
         }
         NodeKind::Text { content_html } => {
+            let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "div");
             let cls = with_extra_classes("np-text", extra_cls);
             Some(format!(
-                "<div id=\"{}\" class=\"{}\"{}>{}</div>",
+                "<{tag} id=\"{}\" class=\"{}\"{}>{}</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&cls),
                 style_attr,
@@ -76,15 +79,25 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
         }
         NodeKind::Button { text, url, target } => {
             let cls = with_extra_classes("np-button", extra_cls);
-            Some(format!(
-                "<a href=\"{}\" target=\"{}\" class=\"{}\" id=\"{}\"{}>{}</a>",
-                escape_attr(url),
-                escape_attr(target),
-                escape_attr(&cls),
-                escape_attr(&node.id),
-                style_attr,
-                sanitize_editor_html(text)
-            ))
+            if node.styles.html_tag.as_deref() == Some("button") && url.is_empty() {
+                Some(format!(
+                    "<button type=\"button\" class=\"{}\" id=\"{}\"{}>{}</button>",
+                    escape_attr(&cls),
+                    escape_attr(&node.id),
+                    style_attr,
+                    sanitize_editor_html(text)
+                ))
+            } else {
+                Some(format!(
+                    "<a href=\"{}\" target=\"{}\" class=\"{}\" id=\"{}\"{}>{}</a>",
+                    escape_attr(url),
+                    escape_attr(target),
+                    escape_attr(&cls),
+                    escape_attr(&node.id),
+                    style_attr,
+                    sanitize_editor_html(text)
+                ))
+            }
         }
         NodeKind::Spacer { height } => Some(format!(
             "<div id=\"{}\" class=\"{}\" style=\"height: {}px; {}\"></div>",
@@ -94,8 +107,9 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             css
         )),
         NodeKind::Divider { style } => Some(format!(
-            "<hr id=\"{}\" class=\"np-divider\" style=\"border-top-style: {}; {}\" />",
+            "<hr id=\"{}\" class=\"{}\" style=\"border-top-style: {}; {}\" />",
             escape_attr(&node.id),
+            escape_attr(&with_extra_classes("np-divider", extra_cls)),
             escape_attr(style),
             css
         )),

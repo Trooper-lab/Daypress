@@ -84,6 +84,10 @@ impl ElementorKit {
             "  --container-max-width: {}px;\n",
             self.content_width
         ));
+        css.push_str(&format!(
+            "  --np-container-max-width: {}px;\n",
+            self.content_width
+        ));
         css.push_str(&format!("  --e-widgets-space: {}px;\n", self.widgets_space));
 
         // System Colors + Converged Neo (`--np-*`) Aliases
@@ -177,12 +181,15 @@ impl ElementorKit {
         if let Some(ref btn) = self.button_style {
             if let Some(ref bg) = btn.background_color {
                 css.push_str(&format!("  --e-button-bg: {};\n", bg));
+                css.push_str(&format!("  --np-button-bg: {};\n", bg));
             }
             if let Some(ref tc) = btn.text_color {
                 css.push_str(&format!("  --e-button-color: {};\n", tc));
+                css.push_str(&format!("  --np-button-color: {};\n", tc));
             }
             if let Some(ref br) = btn.border_radius {
                 css.push_str(&format!("  --e-button-border-radius: {};\n", br));
+                css.push_str(&format!("  --np-button-radius: {};\n", br));
             }
         }
 
@@ -233,10 +240,10 @@ impl ElementorKit {
             ));
         }
 
-        // 5. Base Element Styles
-        css.push_str("\nbody.elementor-theme-active, .elementor-kit {\n  font-family: var(--e-global-typography-text-font-family, inherit);\n  color: var(--e-global-color-text, inherit);\n}\n");
-        css.push_str("h1, h2, h3, h4, h5, h6 {\n  font-family: var(--e-global-typography-primary-font-family, inherit);\n  color: var(--e-global-color-secondary, var(--e-global-color-primary, inherit));\n}\n");
-        css.push_str(".elementor-button, .np-button {\n  background-color: var(--e-button-bg, var(--e-global-color-accent, #3b82f6));\n  color: var(--e-button-color, #ffffff);\n  border-radius: var(--e-button-border-radius, 4px);\n}\n");
+        // 5. Zero-Specificity Base Element Styles (:where(...))
+        css.push_str("\n:where(body.elementor-theme-active, .elementor-kit) {\n  font-family: var(--e-global-typography-text-font-family, inherit);\n  color: var(--e-global-color-text, inherit);\n}\n");
+        css.push_str(":where(h1, h2, h3, h4, h5, h6) {\n  font-family: var(--e-global-typography-primary-font-family, inherit);\n  color: var(--e-global-color-secondary, var(--e-global-color-primary, inherit));\n}\n");
+        css.push_str(":where(.elementor-button, .np-button) {\n  background-color: var(--e-button-bg, var(--e-global-color-accent, #3b82f6));\n  color: var(--e-button-color, #ffffff);\n  border-radius: var(--e-button-border-radius, 4px);\n}\n");
 
         if let Some(ref custom_css) = self.custom_css {
             if !custom_css.trim().is_empty() {

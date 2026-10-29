@@ -9,63 +9,18 @@ use crate::models::{WpPostResponse, WpSettingsResponse};
 use crate::templates::utils::escape_html;
 use crate::theme_builder::models::ResolvedThemePartials;
 
-pub fn synthesize_ast_from_post_html(post_id: i64, html: &str) -> Option<serde_json::Value> {
+/// Synthesizes a 100% native `NeopressLayout` AST (zero `CustomHtml` fallbacks)
+/// from arbitrary post HTML + `<style>` blocks using `neopress_ast::transpile_html_to_layout`.
+pub fn synthesize_ast_from_post_html(_post_id: i64, html: &str) -> Option<serde_json::Value> {
     let trimmed = html.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let mut chunks: Vec<String> = Vec::new();
-    let mut rest = trimmed;
-    while !rest.is_empty() {
-        if let Some(sec_start) = rest.find("<section") {
-            let before = rest[..sec_start].trim();
-            if !before.is_empty() {
-                chunks.push(before.to_string());
-            }
-            let from_sec = &rest[sec_start..];
-            if let Some(sec_end_rel) = from_sec.find("</section>") {
-                let end_idx = sec_end_rel + "</section>".len();
-                let sec_html = from_sec[..end_idx].trim();
-                if !sec_html.is_empty() {
-                    chunks.push(sec_html.to_string());
-                }
-                rest = from_sec[end_idx..].trim_start();
-            } else {
-                chunks.push(from_sec.trim().to_string());
-                break;
-            }
-        } else {
-            let rem = rest.trim();
-            if !rem.is_empty() {
-                chunks.push(rem.to_string());
-            }
-            break;
-        }
-    }
-    if chunks.is_empty() {
+    let layout = neopress_ast::transpile_html_to_layout(trimmed);
+    if layout.root.children.is_empty() {
         return None;
     }
-    let children: Vec<serde_json::Value> = chunks
-        .into_iter()
-        .enumerate()
-        .map(|(idx, raw)| {
-            serde_json::json!({
-                "id": format!("acf_sec_{}_{}", post_id, idx),
-                "type": "CustomHtml",
-                "data": { "raw": raw },
-                "styles": {}
-            })
-        })
-        .collect();
-    Some(serde_json::json!({
-        "version": 1,
-        "root": {
-            "id": "root",
-            "type": "Root",
-            "styles": {},
-            "children": children
-        }
-    }))
+    serde_json::to_value(&layout).ok()
 }
 
 /// Renders NeoStudio for `post` with the default site chrome (no Theme Builder partials).

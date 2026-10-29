@@ -1,113 +1,128 @@
 //! Canonical Neopress AST Elements Stylesheet (`templates/public/styles/elements.rs`).
 //!
-//! Provides styles for AST sections, containers, flex, grid, columns,
-//! typography headings, body text, buttons, imageboxes, iconboxes, counters,
-//! accordions, and post/page cards.
+//! Provides zero-specificity (`:where(...)`) base styles for AST sections, containers,
+//! flex, grid, columns, typography headings, body text, buttons, images, and cards
+//! driven by `--np-*` / `--e-*` CSS custom properties so imported light-mode or custom
+//! design systems never get overridden by default dark-mode rules.
 
 pub const CSS_ELEMENTS: &str = r#"
 		/* ==========================================================================
-		   Canonical Neopress AST Element System (.np-*)
+		   Canonical Neopress AST Element System (:where(.np-*))
+		   Zero-specificity rules parameterized via --np-* custom properties
 		   ========================================================================== */
-		.np-section {
+		:where(.np-section) {
 			width: 100%;
-			padding: 64px 24px;
+			padding: var(--np-section-padding, 64px 24px);
 			position: relative;
-			border-bottom: 1px solid var(--border-subtle);
+			border-bottom: var(--np-section-border, 1px solid var(--border-subtle, transparent));
 		}
 
-		.np-container {
-			max-width: 1200px;
-			margin: 0 auto;
-			width: 100%;
+		:where(.np-container) {
+			max-width: var(--np-container-max-width, 1200px);
+			margin: var(--np-container-margin, 0 auto);
+			width: var(--np-container-width, 100%);
 		}
 
-		.np-grid {
+		:where(.np-container .np-container),
+		:where(.np-grid > .np-container),
+		:where(.np-flex > .np-container),
+		:where(.np-column > .np-container) {
+			max-width: var(--np-nested-container-max-width, none);
+			margin: var(--np-nested-container-margin, 0);
+			width: var(--np-nested-container-width, auto);
+		}
+
+		:where(.np-grid) {
 			display: grid;
-			gap: 24px;
+			gap: var(--np-grid-gap, 24px);
 			width: 100%;
 		}
 
-		.np-flex {
+		:where(.np-flex) {
 			display: flex;
-			gap: 20px;
+			gap: var(--np-flex-gap, 20px);
 		}
 
-		.np-section:has(> .np-flex + .np-flex),
-		.np-container:has(> .np-flex + .np-flex) {
+		:where(.np-section:has(> .np-flex + .np-flex)),
+		:where(.np-container:has(> .np-flex + .np-flex)) {
 			display: flex;
 			flex-direction: row;
 			gap: 28px;
 			align-items: flex-start;
 		}
 
-		.np-section > .np-flex + .np-flex,
-		.np-section > .np-flex:has(+ .np-flex),
-		.np-container > .np-flex + .np-flex,
-		.np-container > .np-flex:has(+ .np-flex) {
+		:where(.np-section > .np-flex + .np-flex),
+		:where(.np-section > .np-flex:has(+ .np-flex)),
+		:where(.np-container > .np-flex + .np-flex),
+		:where(.np-container > .np-flex:has(+ .np-flex)) {
 			flex: 1 1 0%;
 			min-width: 0;
 		}
 
-		.np-column {
+		:where(.np-column) {
 			display: flex;
 			flex-direction: column;
-			gap: 16px;
+			gap: var(--np-column-gap, 16px);
 			min-width: 0;
 		}
 
-		.np-heading {
-			color: #ffffff;
-			font-weight: 800;
-			letter-spacing: -0.025em;
-			line-height: 1.2;
-			margin-bottom: 12px;
+		:where(.np-heading) {
+			color: var(--np-color-heading, var(--e-global-color-secondary, var(--text-main, inherit)));
+			font-family: var(--np-font-heading, var(--e-global-typography-primary-font-family, inherit));
+			font-weight: var(--np-heading-weight, 800);
+			letter-spacing: var(--np-heading-tracking, -0.025em);
+			line-height: var(--np-heading-line-height, 1.2);
+			margin-bottom: var(--np-heading-margin-bottom, 12px);
 		}
 
-		h1.np-heading { font-size: 44px; }
-		h2.np-heading { font-size: 32px; }
-		h3.np-heading { font-size: 22px; }
-		h4.np-heading { font-size: 18px; }
+		:where(h1.np-heading) { font-size: var(--np-h1-size, 44px); }
+		:where(h2.np-heading) { font-size: var(--np-h2-size, 32px); }
+		:where(h3.np-heading) { font-size: var(--np-h3-size, 22px); }
+		:where(h4.np-heading) { font-size: var(--np-h4-size, 18px); }
 
-		.np-text {
-			color: #cbd5e1;
-			font-size: 16px;
-			line-height: 1.75;
+		:where(.np-text) {
+			color: var(--np-color-text, var(--e-global-color-text, var(--text-muted, inherit)));
+			font-family: var(--np-font-body, var(--e-global-typography-text-font-family, inherit));
+			font-size: var(--np-text-size, 16px);
+			line-height: var(--np-text-line-height, 1.75);
 		}
 
-		.np-text p {
-			margin-bottom: 16px;
+		:where(.np-text p) {
+			margin-bottom: var(--np-paragraph-gap, 16px);
 		}
 
-		.np-text p:last-child {
+		:where(.np-text p:last-child) {
 			margin-bottom: 0;
 		}
 
-		.np-image {
+		:where(.np-image) {
 			max-width: 100%;
 			height: auto;
-			border-radius: 10px;
+			border-radius: var(--np-image-radius, 10px);
 			display: block;
 		}
 
-		.np-button, .btn-primary-neon {
+		:where(.np-button), .btn-primary-neon {
 			display: inline-flex;
 			align-items: center;
 			justify-content: center;
 			gap: 8px;
-			background: #2563eb;
-			color: #ffffff;
-			font-size: 14px;
-			font-weight: 600;
-			padding: 11px 22px;
-			border-radius: 8px;
-			border: 1px solid rgba(255,255,255,0.1);
+			background: var(--np-button-bg, var(--e-button-bg, #2563eb));
+			color: var(--np-button-color, var(--e-button-color, #ffffff));
+			font-family: var(--np-font-accent, var(--e-global-typography-accent-font-family, inherit));
+			font-size: var(--np-button-font-size, 14px);
+			font-weight: var(--np-button-font-weight, 600);
+			padding: var(--np-button-padding, 11px 22px);
+			border-radius: var(--np-button-radius, var(--e-button-border-radius, 8px));
+			border: var(--np-button-border, 1px solid rgba(255,255,255,0.1));
 			cursor: pointer;
 			transition: all 0.15s ease;
 			width: fit-content;
+			text-decoration: none;
 		}
 
-		.np-button:hover, .btn-primary-neon:hover {
-			background: #1d4ed8;
+		:where(.np-button:hover), .btn-primary-neon:hover {
+			background: var(--np-button-hover-bg, #1d4ed8);
 			transform: translateY(-1px);
 		}
 
@@ -130,10 +145,10 @@ pub const CSS_ELEMENTS: &str = r#"
 			border: 1px solid var(--border);
 		}
 
-		.np-divider {
+		:where(.np-divider) {
 			border: none;
-			border-top: 1px solid var(--border);
-			margin: 24px 0;
+			border-top: 1px solid var(--np-divider-color, var(--border, #e2e8f0));
+			margin: var(--np-divider-margin, 24px 0);
 			width: 100%;
 		}
 

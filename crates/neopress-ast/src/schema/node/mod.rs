@@ -33,7 +33,29 @@ impl Serialize for NeopressNode {
         let kind_val = serde_json::to_value(&self.kind).map_err(serde::ser::Error::custom)?;
         let kind_obj = kind_val.as_object();
 
-        let has_data = kind_obj.and_then(|o| o.get("data")).is_some();
+        let tag_override = self
+            .styles
+            .html_tag
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+
+        let mut data_val = kind_obj.and_then(|o| o.get("data")).cloned();
+        if let Some(tag) = tag_override {
+            match &mut data_val {
+                Some(Value::Object(m)) => {
+                    m.entry("html_tag".to_string())
+                        .or_insert_with(|| Value::String(tag.to_string()));
+                }
+                _ => {
+                    let mut m = serde_json::Map::new();
+                    m.insert("html_tag".to_string(), Value::String(tag.to_string()));
+                    data_val = Some(Value::Object(m));
+                }
+            }
+        }
+
+        let has_data = data_val.is_some();
         let has_children = !self.children.is_empty();
 
         let mut field_count = 3; // id, type, styles
@@ -50,9 +72,9 @@ impl Serialize for NeopressNode {
             if let Some(t) = obj.get("type") {
                 map.serialize_entry("type", t)?;
             }
-            if let Some(d) = obj.get("data") {
-                map.serialize_entry("data", d)?;
-            }
+        }
+        if let Some(ref d) = data_val {
+            map.serialize_entry("data", d)?;
         }
         map.serialize_entry("styles", &self.styles)?;
         if has_children {
@@ -84,6 +106,24 @@ impl<'de> Deserialize<'de> for NeopressNode {
             }
             _ => StyleProperties::default(),
         };
+
+        // Also accept `html_tag` or `tag` placed directly on `node` or inside `node.data`
+        if styles.html_tag.as_deref().map(str::trim).unwrap_or("").is_empty() {
+            let fallback_tag = obj
+                .get("html_tag")
+                .or_else(|| obj.get("tag"))
+                .or_else(|| {
+                    obj.get("data")
+                        .and_then(|d| d.get("html_tag").or_else(|| d.get("tag")))
+                })
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            if let Some(t) = fallback_tag {
+                styles.html_tag = Some(t.to_ascii_lowercase());
+            }
+        }
+
         styles.sync_flat_and_nested();
 
         let children: Vec<NeopressNode> = match obj.get("children") {

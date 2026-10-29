@@ -1,6 +1,7 @@
 pub mod divi;
 pub mod elementor;
 pub mod gutenberg;
+pub mod html_transpiler;
 pub mod kit;
 pub mod render;
 pub mod schema;
@@ -18,10 +19,14 @@ pub use elementor::{
 };
 pub use gutenberg::theme_json::{self, compile_theme_json_to_css, parse_theme_json, ThemeJson};
 pub use gutenberg::{transpile_gutenberg_content, transpile_gutenberg_content_with_context};
-pub use kit::{parse_php_serialized_to_json, ElementorKit, GlobalColor, GlobalTypography};
+pub use html_transpiler::{
+    transpile_html_document, transpile_html_to_layout, HtmlDesignImportOptions,
+    HtmlDesignImportResult,
+};
+pub use kit::{parse_php_serialized_to_json, ButtonStyle, ElementorKit, GlobalColor, GlobalTypography};
 pub use render::{
-    compile_layout_css, render_layout_to_html, render_node_to_html, sanitize_editor_html,
-    sanitize_ssr_html, strip_editor_classes,
+    compile_layout_css, render_layout_to_html, render_node_to_html, resolve_semantic_tag,
+    sanitize_editor_html, sanitize_ssr_html, strip_editor_classes,
 };
 pub use schema::{
     AccordionItem, BackgroundConfig, BorderConfig, Breakpoint, ConditionScope, ConditionType,

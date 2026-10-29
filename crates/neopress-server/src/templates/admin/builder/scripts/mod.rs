@@ -27,6 +27,7 @@ pub mod navigator;
 pub mod palette_defaults;
 pub mod style_engine;
 pub mod theme_drawer;
+pub mod tokens_drawer;
 pub mod topbar;
 pub mod topbar_switcher;
 
@@ -52,6 +53,7 @@ pub fn get_scripts() -> &'static str {
             canvas_drag::JS_CANVAS_DRAG,
             navigator::JS_NAVIGATOR,
             palette_defaults::JS_PALETTE_DEFAULTS,
+            tokens_drawer::JS_TOKENS_DRAWER,
             drawers::JS_DRAWERS,
             theme_drawer::JS_THEME_DRAWER,
             command_palette::JS_COMMAND_PALETTE,

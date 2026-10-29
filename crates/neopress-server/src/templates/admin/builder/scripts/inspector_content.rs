@@ -2,9 +2,15 @@
 
 pub const JS_INSPECTOR_CONTENT: &str = r###"
 (function() {
+    const SEMANTIC_TAGS = [
+        "div", "section", "article", "figure", "figcaption", "blockquote",
+        "dl", "dt", "dd", "ol", "ul", "li", "p", "span", "cite", "code", "pre",
+        "header", "footer", "nav", "aside", "main"
+    ];
+
     function renderContentSettings(container, node) {
         const type = node.type;
-        const data = node.data || {};
+        const currentTag = ((node.data && node.data.html_tag) || (node.styles && node.styles.html_tag) || (type === "Section" ? "section" : "div")).toLowerCase();
 
         if (node.data && node.data._locked) {
             const notice = document.createElement("div");
@@ -14,7 +20,6 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
             container.appendChild(notice);
         }
 
-        // 1. Block-Specific Settings Panel
         const contentPanel = document.createElement("div");
         contentPanel.className = "cad-panel open";
         contentPanel.innerHTML = `
@@ -29,7 +34,7 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
         attachToggle(contentPanel);
         container.appendChild(contentPanel);
 
-        // 2. Universal Element Settings Panel
+        const tagOptions = SEMANTIC_TAGS.map(t => `<option value="${t}" ${currentTag === t ? 'selected' : ''}>${t}</option>`).join("");
         const universalPanel = document.createElement("div");
         universalPanel.className = "cad-panel open";
         universalPanel.innerHTML = `
@@ -44,14 +49,7 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
                 </div>
                 <div class="cad-row">
                     <span class="cad-label">HTML Tag</span>
-                    <select class="cad-select" style="width: 100px;" id="univ-html-tag">
-                        <option value="div" ${(!node.data || node.data.html_tag === 'div') ? 'selected' : ''}>div</option>
-                        <option value="section" ${node.data && node.data.html_tag === 'section' ? 'selected' : ''}>section</option>
-                        <option value="article" ${node.data && node.data.html_tag === 'article' ? 'selected' : ''}>article</option>
-                        <option value="header" ${node.data && node.data.html_tag === 'header' ? 'selected' : ''}>header</option>
-                        <option value="footer" ${node.data && node.data.html_tag === 'footer' ? 'selected' : ''}>footer</option>
-                        <option value="nav" ${node.data && node.data.html_tag === 'nav' ? 'selected' : ''}>nav</option>
-                    </select>
+                    <select class="cad-select" style="width: 110px;" id="univ-html-tag">${tagOptions}</select>
                 </div>
                 <div class="cad-row"><span class="cad-label">Hide Desktop</span><input type="checkbox" id="univ-hide-desktop" ${(node.styles && node.styles.hide_desktop) ? 'checked' : ''}></div>
                 <div class="cad-row"><span class="cad-label">Hide Tablet</span><input type="checkbox" id="univ-hide-tablet" ${(node.styles && node.styles.hide_tablet) ? 'checked' : ''}></div>
@@ -76,17 +74,33 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
 
         switch(type) {
             case "Heading": {
+                const safeTxt = String(data.text || "").replace(/"/g, "&quot;");
                 container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Text</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${data.text || ''}"></div>
-                    <div class="cad-row"><span class="cad-label">Level</span><select class="cad-select" data-key="level"><option value="1" ${data.level === 1 ? 'selected' : ''}>H1</option><option value="2" ${(!data.level || data.level === 2) ? 'selected' : ''}>H2</option><option value="3" ${data.level === 3 ? 'selected' : ''}>H3</option></select></div>
+                    <div class="cad-row"><span class="cad-label">Text (HTML)</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${safeTxt}"></div>
+                    <div class="cad-row"><span class="cad-label">Level</span><select class="cad-select" data-key="level"><option value="1" ${data.level == 1 ? 'selected' : ''}>H1</option><option value="2" ${(!data.level || data.level == 2) ? 'selected' : ''}>H2</option><option value="3" ${data.level == 3 ? 'selected' : ''}>H3</option><option value="4" ${data.level == 4 ? 'selected' : ''}>H4</option><option value="5" ${data.level == 5 ? 'selected' : ''}>H5</option><option value="6" ${data.level == 6 ? 'selected' : ''}>H6</option></select></div>
+                `;
+                break;
+            }
+            case "Text": {
+                const safeHtml = String(data.content_html || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                container.innerHTML = `
+                    <div class="cad-row" style="flex-direction:column;align-items:stretch;gap:4px;"><span class="cad-label">Rich Text / HTML</span><textarea class="cad-textarea font-mono" rows="4" style="width:100%;font-size:11px;" data-key="content_html">${safeHtml}</textarea></div>
                 `;
                 break;
             }
             case "Button": {
+                const safeTxt = String(data.text || "Action").replace(/"/g, "&quot;");
                 container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Label</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${data.text || 'Action'}"></div>
+                    <div class="cad-row"><span class="cad-label">Label</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${safeTxt}"></div>
                     <div class="cad-row"><span class="cad-label">URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${data.url || '#'}"></div>
                     <div class="cad-row"><span class="cad-label">Icon</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="icon" value="${data.icon || ''}" placeholder="fa-solid fa-arrow-right"></div>
+                `;
+                break;
+            }
+            case "Image": {
+                container.innerHTML = `
+                    <div class="cad-row"><span class="cad-label">Source URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="src" value="${data.src || ''}"></div>
+                    <div class="cad-row"><span class="cad-label">Alt Text</span><input type="text" class="cad-input" style="flex:1;" data-key="alt" value="${data.alt || ''}"></div>
                 `;
                 break;
             }
@@ -184,163 +198,18 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
                 `;
                 break;
             }
-            case "CustomHtml": {
-                const raw = data.raw || "";
-                const parser = new DOMParser();
-                const doc = parser.parseFromString("<div id='insp-root'>" + raw + "</div>", "text/html");
-                const secEl = doc.getElementById("insp-root").firstElementChild;
-                const cls = secEl ? (secEl.className || "") : "";
-                const isPageheader = cls.includes("pageheader");
-                const isSection = cls.includes("section");
-                let bg = "white";
-                if (cls.includes("dblue") || cls.includes("black")) bg = "dblue";
-                else if (cls.includes("lblue") || cls.includes("blue")) bg = "lblue";
-                else if (cls.includes("green")) bg = "green";
-                const hasAngle = cls.includes("angle");
-                const heroFull = cls.includes("full");
-
-                const headings = secEl ? Array.from(secEl.querySelectorAll("h1, h2, h3, h4")) : [];
-                const buttons = secEl ? Array.from(secEl.querySelectorAll("a.btn, a.wp-block-button__link")) : [];
-
-                let html = "";
-                if (isSection) {
-                    html += `
-                        <div class="cad-row">
-                            <span class="cad-label">ACF Theme</span>
-                            <select class="cad-select" style="flex:1;" id="acf-insp-bg">
-                                <option value="dblue" ${bg === 'dblue' ? 'selected' : ''}>Dark Navy (.section.dblue)</option>
-                                <option value="lblue" ${bg === 'lblue' ? 'selected' : ''}>Primary Blue (.section.lblue)</option>
-                                <option value="white" ${bg === 'white' ? 'selected' : ''}>White (.section.white)</option>
-                                <option value="green" ${bg === 'green' ? 'selected' : ''}>Neon Green (.section.green)</option>
-                            </select>
-                        </div>
-                        <div class="cad-row"><span class="cad-label">Diagonal Angle</span><input type="checkbox" id="acf-insp-angle" ${hasAngle ? 'checked' : ''}></div>
-                    `;
-                } else if (isPageheader) {
-                    html += `
-                        <div class="cad-row"><span class="cad-label">Hero Height</span><select class="cad-select" style="flex:1;" id="acf-insp-hero"><option value="full" ${heroFull ? 'selected' : ''}>Full Height (.pageheader.full)</option><option value="compact" ${!heroFull ? 'selected' : ''}>Compact (.pageheader)</option></select></div>
-                    `;
-                }
-
-                headings.slice(0, 3).forEach((h, idx) => {
-                    const safeVal = (h.textContent || "").trim().replace(/"/g, "&quot;");
-                    html += `
-                        <div class="cad-row">
-                            <span class="cad-label">${h.tagName} #${idx + 1}</span>
-                            <input type="text" class="cad-input acf-insp-heading" data-h-idx="${idx}" style="flex:1;" value="${safeVal}">
-                        </div>
-                    `;
-                });
-
-                buttons.slice(0, 3).forEach((b, idx) => {
-                    const safeTxt = (b.textContent || "").trim().replace(/"/g, "&quot;");
-                    const safeHref = (b.getAttribute("href") || "#").replace(/"/g, "&quot;");
-                    html += `
-                        <div class="cad-row">
-                            <span class="cad-label">CTA #${idx + 1}</span>
-                            <input type="text" class="cad-input acf-insp-btn-txt" data-b-idx="${idx}" style="flex:1;" value="${safeTxt}">
-                        </div>
-                        <div class="cad-row">
-                            <span class="cad-label">CTA #${idx + 1} URL</span>
-                            <input type="text" class="cad-input font-mono acf-insp-btn-url" data-b-idx="${idx}" style="flex:1;" value="${safeHref}">
-                        </div>
-                    `;
-                });
-
-                const safeRaw = raw.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                html += `
-                    <div class="cad-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px;">
-                        <span class="cad-label">ACF Section HTML Source</span>
-                        <textarea class="cad-textarea font-mono" rows="6" style="width:100%;font-size:11px;" id="acf-insp-raw">${safeRaw}</textarea>
-                    </div>
-                `;
-                container.innerHTML = html;
-
-                function mutateSec(fn) {
-                    const p = new DOMParser();
-                    const d = p.parseFromString("<div id='m-root'>" + (node.data.raw || "") + "</div>", "text/html");
-                    const el = d.getElementById("m-root").firstElementChild;
-                    if (!el) return;
-                    fn(el);
-                    node.data.raw = el.outerHTML;
-                    const rawArea = container.querySelector("#acf-insp-raw");
-                    if (rawArea) rawArea.value = node.data.raw;
-                    window.markDirty(true);
-                    window.renderCanvas();
-                    if (window.updateNavigator) window.updateNavigator();
-                }
-
-                const bgSel = container.querySelector("#acf-insp-bg");
-                if (bgSel) {
-                    bgSel.onchange = () => mutateSec(el => {
-                        el.classList.remove("white", "black", "blue", "lblue", "dblue", "green");
-                        el.classList.add(bgSel.value);
-                    });
-                }
-                const angleChk = container.querySelector("#acf-insp-angle");
-                if (angleChk) {
-                    angleChk.onchange = () => mutateSec(el => {
-                        if (angleChk.checked) el.classList.add("angle");
-                        else el.classList.remove("angle");
-                    });
-                }
-                const heroSel = container.querySelector("#acf-insp-hero");
-                if (heroSel) {
-                    heroSel.onchange = () => mutateSec(el => {
-                        if (heroSel.value === "full") el.classList.add("full");
-                        else el.classList.remove("full");
-                    });
-                }
-                container.querySelectorAll(".acf-insp-heading").forEach(inp => {
-                    inp.oninput = () => {
-                        const i = parseInt(inp.dataset.hIdx, 10);
-                        mutateSec(el => {
-                            const hs = el.querySelectorAll("h1, h2, h3, h4");
-                            if (hs[i]) hs[i].textContent = inp.value;
-                        });
-                    };
-                });
-                container.querySelectorAll(".acf-insp-btn-txt").forEach(inp => {
-                    inp.oninput = () => {
-                        const i = parseInt(inp.dataset.bIdx, 10);
-                        mutateSec(el => {
-                            const bs = el.querySelectorAll("a.btn, a.wp-block-button__link");
-                            if (bs[i]) bs[i].textContent = inp.value;
-                        });
-                    };
-                });
-                container.querySelectorAll(".acf-insp-btn-url").forEach(inp => {
-                    inp.oninput = () => {
-                        const i = parseInt(inp.dataset.bIdx, 10);
-                        mutateSec(el => {
-                            const bs = el.querySelectorAll("a.btn, a.wp-block-button__link");
-                            if (bs[i]) bs[i].setAttribute("href", inp.value);
-                        });
-                    };
-                });
-                const rawArea = container.querySelector("#acf-insp-raw");
-                if (rawArea) {
-                    rawArea.oninput = () => {
-                        node.data.raw = rawArea.value;
-                        window.markDirty(true);
-                        window.renderCanvas();
-                    };
-                }
-                break;
-            }
             default: {
                 container.innerHTML = `
-                    <p style="font-size: 11.5px; color: var(--neo-muted);">No specialized settings for this block type.</p>
+                    <p style="font-size: 11.5px; color: var(--neo-muted);">Select child blocks or use Style tab to customize this ${type}.</p>
                 `;
             }
         }
 
-        // Attach listeners for data keys
         container.querySelectorAll("input[data-key], textarea[data-key], select[data-key]").forEach(ctrl => {
             const k = ctrl.dataset.key;
             ctrl.oninput = () => {
                 if (!node.data) node.data = {};
-                node.data[k] = ctrl.value;
+                node.data[k] = k === "level" ? parseInt(ctrl.value, 10) : ctrl.value;
                 window.markDirty(true);
                 window.renderCanvas();
             };
@@ -365,7 +234,9 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
         if (selectTag) {
             selectTag.onchange = () => {
                 if (!node.data) node.data = {};
+                if (!node.styles) node.styles = {};
                 node.data.html_tag = selectTag.value;
+                node.styles.html_tag = selectTag.value;
                 window.markDirty(true);
                 window.renderCanvas();
             };

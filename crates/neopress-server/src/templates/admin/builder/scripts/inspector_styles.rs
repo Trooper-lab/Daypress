@@ -17,8 +17,36 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
                 if (fam && !/font awesome|fontawesome/i.test(fam)) theme.add(fam);
             });
         } catch (e) {}
+        const gs = window.NeoStudioState && window.NeoStudioState.pageAst && window.NeoStudioState.pageAst.global_styles;
+        if (gs) {
+            [...(gs.system_typography || []), ...(gs.custom_typography || [])].forEach(t => {
+                if (t && t.font_family) theme.add(t.font_family);
+            });
+        }
         const all = new Set([...(window.NeoStyle.GOOGLE_FONTS || []), ...theme, ...SYSTEM_FONTS]);
         return Array.from(all).map(f => `<option value="${window.NSInspector.esc(f)}"></option>`).join("");
+    }
+
+    function renderTokenColorChips(propName) {
+        const gs = window.NeoStudioState && window.NeoStudioState.pageAst && window.NeoStudioState.pageAst.global_styles;
+        if (!gs) return "";
+        const tokens = [...(gs.system_colors || []), ...(gs.custom_colors || [])].slice(0, 8);
+        if (!tokens.length) return "";
+        return `<div class="cad-row ns-presets" style="gap:4px;flex-wrap:wrap;">` +
+            tokens.map(c => {
+                const cssVar = `var(--${c.id}, ${c.color})`;
+                return `<button type="button" class="ns-chip" data-token-prop="${propName}" data-token-val="${window.NSInspector.esc(cssVar)}" title="${window.NSInspector.esc(c.title || c.id)}: ${window.NSInspector.esc(c.color)}" style="width:18px;height:18px;padding:0;background:${window.NSInspector.esc(c.color)};border:1px solid var(--neo-border);"></button>`;
+            }).join("") +
+            `</div>`;
+    }
+
+    function bindTokenChips(panel, node) {
+        panel.querySelectorAll("[data-token-prop]").forEach(btn => {
+            btn.onclick = () => {
+                window.setLocalStyle(btn.dataset.tokenProp, btn.dataset.tokenVal, { commit: true });
+                window.NSInspector.refresh(panel, node);
+            };
+        });
     }
 
     function renderVisualPanels(container, node) {
@@ -36,6 +64,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
             ]))}
             ${N.pair("Height", "line_height", N.input("line_height", "1.5"), "Spacing", "letter_spacing", N.input("letter_spacing", "0px"))}
             ${N.row("Color", "text_color", N.color("text_color"))}
+            ${renderTokenColorChips("text_color")}
             ${N.row("Align", "text_align", N.seg("text_align", [
                 ["left", '<i class="fa-solid fa-align-left"></i>'], ["center", '<i class="fa-solid fa-align-center"></i>'],
                 ["right", '<i class="fa-solid fa-align-right"></i>'], ["justify", '<i class="fa-solid fa-align-justify"></i>']
@@ -50,6 +79,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
             ${N.row("Shadow", "text_shadow", N.input("text_shadow", "0 1px 2px rgba(0,0,0,.3)"))}
         `;
         const typoPanel = N.panel(container, "typography", "fa-font", "Typography", typoBody);
+        bindTokenChips(typoPanel, node);
         N.bind(typoPanel, node);
 
         // ---------------------------------------------------------
@@ -58,6 +88,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
         const IMG = 'data-show-if="background_image!=none|"';
         const bgBody = `
             ${N.row("Color", "background_color", N.color("background_color"))}
+            ${renderTokenColorChips("background_color")}
             ${N.row("Image", "background_image", N.input("background_image", "https://… or /uploads/…"))}
             ${N.pair("Size", "background_size", N.select("background_size", [["cover", "Cover"], ["contain", "Contain"], ["auto", "Auto"], ["100% 100%", "Stretch"]]),
                      "Repeat", "background_repeat", N.select("background_repeat", [["no-repeat", "None"], ["repeat", "Tile"], ["repeat-x", "X"], ["repeat-y", "Y"]]), IMG)}
@@ -80,6 +111,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
                 N.refresh(bgPanel, node);
             };
         });
+        bindTokenChips(bgPanel, node);
         N.bind(bgPanel, node);
 
         // ---------------------------------------------------------
@@ -91,6 +123,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
                 ["none", '<i class="fa-solid fa-ban"></i>', "none"], ["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["double", "Double"]
             ]))}
             ${N.row("Color", "border_color", N.color("border_color"))}
+            ${renderTokenColorChips("border_color")}
             <div class="cad-row ns-presets">
                 ${["0px", "4px", "8px", "16px", "9999px"].map(r => `<button type="button" class="ns-chip" data-radius="${r}" title="border-radius: ${r}">${r === "9999px" ? "Pill" : r}</button>`).join("")}
             </div>
@@ -102,6 +135,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
                 N.refresh(borderPanel, node);
             };
         });
+        bindTokenChips(borderPanel, node);
         N.bind(borderPanel, node);
     }
     window.renderVisualPanels = renderVisualPanels;

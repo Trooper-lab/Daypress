@@ -8,6 +8,64 @@ static DATA_ATTRS_RE: OnceLock<Regex> = OnceLock::new();
 static EDITOR_CLASS_RE: OnceLock<Regex> = OnceLock::new();
 static CLASS_ATTR_RE: OnceLock<Regex> = OnceLock::new();
 
+/// Allowed semantic HTML5 tags for `Container`, `Text`, and layout AST nodes.
+pub fn resolve_semantic_tag<'a>(requested: Option<&'a str>, default_tag: &'a str) -> &'a str {
+    let Some(raw) = requested.map(str::trim).filter(|s| !s.is_empty()) else {
+        return default_tag;
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "div" => "div",
+        "section" => "section",
+        "article" => "article",
+        "aside" => "aside",
+        "nav" => "nav",
+        "header" => "header",
+        "footer" => "footer",
+        "main" => "main",
+        "figure" => "figure",
+        "figcaption" => "figcaption",
+        "blockquote" => "blockquote",
+        "dl" => "dl",
+        "dt" => "dt",
+        "dd" => "dd",
+        "ol" => "ol",
+        "ul" => "ul",
+        "li" => "li",
+        "p" => "p",
+        "span" => "span",
+        "cite" => "cite",
+        "code" => "code",
+        "pre" => "pre",
+        "details" => "details",
+        "summary" => "summary",
+        "address" => "address",
+        "time" => "time",
+        "mark" => "mark",
+        "small" => "small",
+        "strong" => "strong",
+        "em" => "em",
+        "b" => "b",
+        "i" => "i",
+        "kbd" => "kbd",
+        "sub" => "sub",
+        "sup" => "sup",
+        "table" => "table",
+        "thead" => "thead",
+        "tbody" => "tbody",
+        "tfoot" => "tfoot",
+        "tr" => "tr",
+        "th" => "th",
+        "td" => "td",
+        "caption" => "caption",
+        "hgroup" => "hgroup",
+        "label" => "label",
+        "fieldset" => "fieldset",
+        "legend" => "legend",
+        "button" => "button",
+        _ => default_tag,
+    }
+}
+
 /// True for class names that only the Elementor, Divi, jQuery UI or NeoStudio editors add.
 fn is_editor_class(token: &str) -> bool {
     EDITOR_CLASS_RE

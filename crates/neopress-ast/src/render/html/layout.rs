@@ -1,5 +1,5 @@
 use super::RenderArgs;
-use crate::render::sanitizer::{escape_attr, with_extra_classes};
+use crate::render::sanitizer::{escape_attr, resolve_semantic_tag, with_extra_classes};
 use crate::schema::NodeKind;
 
 pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
@@ -16,12 +16,13 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
     match &node.kind {
         NodeKind::Root => Some(inner_html.to_string()),
         NodeKind::Section => {
-            if is_synthetic_root && effective_style_attr.is_empty() {
+            if is_synthetic_root && effective_style_attr.is_empty() && extra_cls.is_none() {
                 return Some(inner_html.to_string());
             }
+            let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "section");
             let cls = with_extra_classes("np-section", extra_cls);
             Some(format!(
-                "<section id=\"{}\" class=\"{}\"{}>\n{}\n</section>",
+                "<{tag} id=\"{}\" class=\"{}\"{}>\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&cls),
                 effective_style_attr,
@@ -29,7 +30,11 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
             ))
         }
         NodeKind::Container => {
-            if is_synthetic_root && effective_style_attr.is_empty() {
+            if is_synthetic_root
+                && effective_style_attr.is_empty()
+                && extra_cls.is_none()
+                && node.styles.html_tag.is_none()
+            {
                 return Some(inner_html.to_string());
             }
             let is_boxed = extra_cls
@@ -62,9 +67,10 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                     body_html
                 ))
             } else {
+                let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "div");
                 let cls = with_extra_classes("np-container", extra_cls);
                 Some(format!(
-                    "<div id=\"{}\" class=\"{}\"{}>\n{}\n</div>",
+                    "<{tag} id=\"{}\" class=\"{}\"{}>\n{}\n</{tag}>",
                     escape_attr(&node.id),
                     escape_attr(&cls),
                     effective_style_attr,
@@ -73,6 +79,7 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
             }
         }
         NodeKind::Column => {
+            let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "div");
             let col_style = if css.contains("flex:") || css.contains("flex-basis:") {
                 css.to_string()
             } else if css.is_empty() {
@@ -81,7 +88,7 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 format!("flex: 1; {}", css)
             };
             Some(format!(
-                "<div id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</div>",
+                "<{tag} id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&with_extra_classes("np-column", extra_cls)),
                 col_style.trim(),
@@ -89,12 +96,20 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
             ))
         }
         NodeKind::Grid { columns, gap } => {
-            let grid_style = format!(
-                "display: grid; grid-template-columns: repeat({}, minmax(0, 1fr)); gap: {}px; {}",
-                columns, gap, css
-            );
+            let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "div");
+            let cols_decl = if *columns > 0 && !css.contains("grid-template-columns:") {
+                format!("grid-template-columns: repeat({}, minmax(0, 1fr)); ", columns)
+            } else {
+                String::new()
+            };
+            let gap_decl = if !css.contains("gap:") {
+                format!("gap: {}px; ", gap)
+            } else {
+                String::new()
+            };
+            let grid_style = format!("display: grid; {}{}{}", cols_decl, gap_decl, css);
             Some(format!(
-                "<div id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</div>",
+                "<{tag} id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&with_extra_classes("np-grid", extra_cls)),
                 grid_style.trim(),
@@ -108,6 +123,7 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
             wrap,
             basis,
         } => {
+            let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "div");
             let wrap_str = if *wrap { "wrap" } else { "nowrap" };
             let basis_str = basis
                 .as_ref()
@@ -123,7 +139,7 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 css
             );
             Some(format!(
-                "<div id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</div>",
+                "<{tag} id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&with_extra_classes("np-flex", extra_cls)),
                 flex_style.trim(),

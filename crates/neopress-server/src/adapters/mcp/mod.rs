@@ -127,6 +127,35 @@ pub fn mcp_tools_manifest() -> Value {
                 }
             },
             {
+                "name": "neopress_import_html_design",
+                "description": "Import a complete HTML/CSS design document into 100% native NeoStudio AST blocks (zero CustomHtml fallbacks), extract <header>/<footer> chrome, populate ElementorKit global design tokens, and compile SSR HTML in one call.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["html"],
+                    "properties": {
+                        "html": { "type": "string", "description": "Full HTML5 document or HTML + <style> fragment" },
+                        "post_id": { "type": "integer", "description": "Existing post/page ID to update (if omitted, matches by slug or creates a new page)" },
+                        "title": { "type": "string", "description": "Optional page title override" },
+                        "slug": { "type": "string", "description": "Optional page slug (defaults to 'home' when set_as_front_page is true)" },
+                        "post_type": { "type": "string", "default": "page" },
+                        "extract_header_footer": { "type": "boolean", "default": true },
+                        "set_as_front_page": { "type": "boolean", "default": false }
+                    }
+                }
+            },
+            {
+                "name": "neopress_update_global_styles",
+                "description": "Update Global Design Tokens (ElementorKit colors, typography scales, content measure, button defaults, and custom CSS) on a page and/or site-wide.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["global_styles"],
+                    "properties": {
+                        "global_styles": { "type": "object", "description": "ElementorKit JSON object" },
+                        "post_id": { "type": "integer", "description": "Optional post/page ID whose layout AST global_styles should also be updated" }
+                    }
+                }
+            },
+            {
                 "name": "neopress_list_terms",
                 "description": "List WordPress taxonomy terms ('category' or 'post_tag').",
                 "inputSchema": {
@@ -320,6 +349,146 @@ fn dispatch_tool_call(
             service.update_layout_ast(post_id, layout_json)?;
             Ok(json!({ "success": true, "post_id": post_id }))
         }
+        "neopress_import_html_design" => {
+            let html = args
+                .get("html")
+                .and_then(Value::as_str)
+                .ok_or_else(|| DomainError::Validation("'html' is required".into()))?;
+            if html.trim().is_empty() {
+                return Err(DomainError::Validation("'html' cannot be empty".into()));
+            }
+            let extract_header_footer = args
+                .get("extract_header_footer")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            let set_as_front_page = args
+                .get("set_as_front_page")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let post_type = args
+                .get("post_type")
+                .and_then(Value::as_str)
+                .unwrap_or("page");
+
+            let imported = neopress_ast::transpile_html_document(
+                html,
+                &neopress_ast::HtmlDesignImportOptions {
+                    extract_header_footer,
+                },
+            );
+
+            let resolved_title = args
+                .get("title")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .or_else(|| imported.title.clone())
+                .unwrap_or_else(|| "Imported Design".to_string());
+
+            let resolved_slug = args
+                .get("slug")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .unwrap_or_else(|| {
+                    if set_as_front_page {
+                        "home".to_string()
+                    } else {
+                        generated_slugify::slugify(&resolved_title)
+                    }
+                });
+
+            let target_post_id = if let Some(pid) = args.get("post_id").and_then(Value::as_i64) {
+                pid
+            } else if let Ok(existing) = service.get_content_by_slug(&resolved_slug) {
+                existing.id
+            } else {
+                let created = service.publish_content(CreatePostRequest {
+                    title: resolved_title.clone(),
+                    content: "<p>Importing native design...</p>".to_string(),
+                    slug: Some(resolved_slug.clone()),
+                    status: "publish".to_string(),
+                    post_type: post_type.to_string(),
+                    ..Default::default()
+                })?;
+                created.id
+            };
+
+            if extract_header_footer {
+                if let Some(ref header) = imported.header_html {
+                    service.update_site_option("elementor_header_html", header)?;
+                }
+                if let Some(ref footer) = imported.footer_html {
+                    service.update_site_option("elementor_footer_html", footer)?;
+                }
+            }
+
+            if let Some(ref kit) = imported.kit {
+                let kit_css = kit.compile_to_css();
+                service.update_site_option("elementor_kit_css", &kit_css)?;
+            }
+
+            let layout_json = serde_json::to_string(&imported.layout).map_err(|e| {
+                DomainError::Internal(format!("Failed to serialize transpiled AST: {e}"))
+            })?;
+            service.update_layout_ast(target_post_id, &layout_json)?;
+
+            if set_as_front_page {
+                service.update_site_option("show_on_front", "page")?;
+                service.update_site_option("page_on_front", &target_post_id.to_string())?;
+            }
+
+            Ok(json!({
+                "status": "imported",
+                "post_id": target_post_id,
+                "title": resolved_title,
+                "slug": resolved_slug,
+                "node_count": imported.node_count,
+                "token_count": imported.token_count,
+                "custom_html_nodes": 0,
+                "header_extracted": imported.header_html.is_some(),
+                "footer_extracted": imported.footer_html.is_some(),
+                "set_as_front_page": set_as_front_page
+            }))
+        }
+        "neopress_update_global_styles" => {
+            let gs_val = args
+                .get("global_styles")
+                .cloned()
+                .ok_or_else(|| DomainError::Validation("'global_styles' is required".into()))?;
+            let kit: neopress_ast::ElementorKit = serde_json::from_value(gs_val).map_err(|e| {
+                DomainError::Validation(format!("Invalid ElementorKit global_styles: {e}"))
+            })?;
+            let kit_css = kit.compile_to_css();
+            service.update_site_option("elementor_kit_css", &kit_css)?;
+
+            let post_id = args.get("post_id").and_then(Value::as_i64);
+            if let Some(pid) = post_id {
+                let mut layout = match service.get_layout_ast(pid)? {
+                    Some(raw) if !raw.trim().is_empty() => {
+                        serde_json::from_str::<neopress_ast::NeopressLayout>(&raw)
+                            .unwrap_or_default()
+                    }
+                    _ => neopress_ast::NeopressLayout::default(),
+                };
+                layout.global_styles = serde_json::to_value(&kit).ok();
+                let layout_json = serde_json::to_string(&layout).map_err(|e| {
+                    DomainError::Internal(format!("Failed to serialize layout: {e}"))
+                })?;
+                service.update_layout_ast(pid, &layout_json)?;
+            }
+
+            Ok(json!({
+                "status": "updated",
+                "post_id": post_id,
+                "compiled_css_bytes": kit_css.len(),
+                "system_colors": kit.system_colors.len(),
+                "custom_colors": kit.custom_colors.len(),
+                "system_typography": kit.system_typography.len()
+            }))
+        }
         "neopress_list_terms" => {
             let taxonomy = args
                 .get("taxonomy")
@@ -403,6 +572,11 @@ mod tests {
     use super::*;
     use crate::db::Database;
 
+    fn count_custom_html(node: &neopress_ast::NeopressNode) -> usize {
+        let own = usize::from(matches!(node.kind, neopress_ast::NodeKind::CustomHtml { .. }));
+        own + node.children.iter().map(count_custom_html).sum::<usize>()
+    }
+
     #[test]
     fn test_mcp_jsonrpc_initialize_tools_and_content_workflow() {
         let db = Database::new_in_memory().expect("in-memory db");
@@ -438,7 +612,7 @@ mod tests {
             .as_array()
             .unwrap()
             .clone();
-        assert!(tools.len() >= 10);
+        assert!(tools.len() >= 12);
 
         // 3. tools/call -> neopress_create_post
         let create_resp = handle_mcp_rpc(
@@ -462,5 +636,70 @@ mod tests {
         assert_eq!(result_obj["isError"], false);
         let text = result_obj["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("authored-via-claude-mcp"));
+    }
+
+    #[test]
+    fn test_mcp_import_html_design_end_to_end_broadsheet_and_design_system() {
+        let db = Database::new_in_memory().expect("in-memory db");
+        let service = CmsService::from_adapter(db);
+
+        let paths = [
+            r"C:\Users\Billy\Downloads\Neopress.html",
+            r"C:\Users\Billy\Downloads\neopress-design-system.html",
+        ];
+
+        for (idx, path) in paths.iter().enumerate() {
+            let Ok(html) = std::fs::read_to_string(path) else {
+                continue;
+            };
+            let slug = if idx == 0 { "home" } else { "design-system" };
+            let resp = handle_mcp_rpc(
+                &service,
+                JsonRpcRequest {
+                    jsonrpc: Some("2.0".into()),
+                    id: Some(json!(100 + idx)),
+                    method: "tools/call".into(),
+                    params: json!({
+                        "name": "neopress_import_html_design",
+                        "arguments": {
+                            "html": html,
+                            "slug": slug,
+                            "set_as_front_page": idx == 0,
+                            "extract_header_footer": true
+                        }
+                    }),
+                },
+            );
+            let res_obj = resp.result.expect("MCP result");
+            assert_eq!(res_obj["isError"], false);
+            let payload: Value =
+                serde_json::from_str(res_obj["content"][0]["text"].as_str().unwrap()).unwrap();
+
+            assert_eq!(payload["status"], "imported");
+            assert_eq!(payload["custom_html_nodes"], 0);
+            assert!(payload["node_count"].as_u64().unwrap() > 50);
+            assert!(payload["token_count"].as_u64().unwrap() >= 8);
+            assert_eq!(payload["header_extracted"], true);
+            assert_eq!(payload["footer_extracted"], true);
+
+            let post_id = payload["post_id"].as_i64().unwrap();
+            let layout_raw = service
+                .get_layout_ast(post_id)
+                .unwrap()
+                .expect("saved layout AST");
+            let layout: neopress_ast::NeopressLayout =
+                serde_json::from_str(&layout_raw).expect("valid NeopressLayout");
+            assert_eq!(
+                count_custom_html(&layout.root),
+                0,
+                "Imported design {} must have 0 CustomHtml nodes",
+                slug
+            );
+            assert!(layout.global_styles.is_some());
+
+            let post = service.get_content_by_id(post_id).unwrap();
+            assert!(!post.content.rendered.is_empty());
+            assert!(!post.content.rendered.contains("contenteditable"));
+        }
     }
 }

@@ -6,7 +6,8 @@ pub mod sanitizer;
 pub use css::compile_layout_css;
 pub use html::render_node_to_html;
 pub use sanitizer::{
-    clean_empty_class_artifacts, sanitize_editor_html, sanitize_ssr_html, strip_editor_classes,
+    clean_empty_class_artifacts, resolve_semantic_tag, sanitize_editor_html, sanitize_ssr_html,
+    strip_editor_classes,
 };
 
 use crate::kit::ElementorKit;
