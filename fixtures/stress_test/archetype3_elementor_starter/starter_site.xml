@@ -34,7 +34,7 @@
 		<wp:post_type>elementor_library</wp:post_type>
 		<wp:status>publish</wp:status>
 		<category domain="elementor_library_type" nicename="header"><![CDATA[header]]></category>
-		<content:encoded><![CDATA[<header class="np-elementor-header"><div class="header-inner"><h2>BrandStore</h2><nav><a href="/">Home</a><a href="/about/">About</a><a href="/contact/">Contact</a></nav></div></header>]]></content:encoded>
+		<content:encoded><![CDATA[<header class="dp-elementor-header"><div class="header-inner"><h2>BrandStore</h2><nav><a href="/">Home</a><a href="/about/">About</a><a href="/contact/">Contact</a></nav></div></header>]]></content:encoded>
 		<wp:postmeta><wp:meta_key>_elementor_template_type</wp:meta_key><wp:meta_value><![CDATA[header]]></wp:meta_value></wp:postmeta>
 		<wp:postmeta><wp:meta_key>_elementor_conditions</wp:meta_key><wp:meta_value><![CDATA[["include/general"]]]></wp:meta_value></wp:postmeta>
 	</item>
@@ -47,7 +47,7 @@
 		<wp:post_type>elementor_library</wp:post_type>
 		<wp:status>publish</wp:status>
 		<category domain="elementor_library_type" nicename="footer"><![CDATA[footer]]></category>
-		<content:encoded><![CDATA[<footer class="np-elementor-footer"><p>&copy; 2026 BrandStore. All rights reserved.</p></footer>]]></content:encoded>
+		<content:encoded><![CDATA[<footer class="dp-elementor-footer"><p>&copy; 2026 BrandStore. All rights reserved.</p></footer>]]></content:encoded>
 		<wp:postmeta><wp:meta_key>_elementor_template_type</wp:meta_key><wp:meta_value><![CDATA[footer]]></wp:meta_value></wp:postmeta>
 		<wp:postmeta><wp:meta_key>_elementor_conditions</wp:meta_key><wp:meta_value><![CDATA[["include/general"]]]></wp:meta_value></wp:postmeta>
 	</item>
@@ -63,8 +63,8 @@
 <section class="elementor-section">
 	<div class="elementor-container">
 		<h1>Precision Engineering for the Modern Web</h1>
-		<p>BrandStore starter site transpiled by Neopress.</p>
-		<div class="np-pro-blocks-showcase">
+		<p>BrandStore starter site transpiled by Daypress.</p>
+		<div class="dp-pro-blocks-showcase">
 			<div class="price-card" data-widget-type="PriceCard">
 				<h3>Pro Tier</h3>
 				<span class="price">$79</span>

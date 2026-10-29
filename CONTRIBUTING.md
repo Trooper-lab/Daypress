@@ -1,14 +1,14 @@
-# Contributing to Neopress
+# Contributing to Daypress
 
-Thank you for your interest in contributing to Neopress! We welcome contributions to make Neopress the fastest, most reliable, and memory-safe modern CMS available.
+Thank you for your interest in contributing to Daypress! We welcome contributions to make Daypress the fastest, most reliable, and memory-safe modern CMS available.
 
 ---
 
 ## 🤝 Before You Start
 
 - **Code of Conduct**: Everyone taking part in the project follows our [Code of Conduct](CODE_OF_CONDUCT.md).
-- **Questions & ideas**: Ask in [GitHub Discussions](https://github.com/Trooper-lab/neopress/discussions). Issues are for bugs and concrete feature requests.
-- **Bugs & migration problems**: Open an [issue](https://github.com/Trooper-lab/neopress/issues/new/choose) using one of the templates. The **Migration report** template helps us improve WordPress conversion (Elementor, Divi, Gutenberg, Classic themes).
+- **Questions & ideas**: Ask in [GitHub Discussions](https://github.com/Trooper-lab/daypress/discussions). Issues are for bugs and concrete feature requests.
+- **Bugs & migration problems**: Open an [issue](https://github.com/Trooper-lab/daypress/issues/new/choose) using one of the templates. The **Migration report** template helps us improve WordPress conversion (Elementor, Divi, Gutenberg, Classic themes).
 - **Security issues**: Never report these publicly. Follow [SECURITY.md](SECURITY.md).
 - **Larger changes**: Open an issue or Discussion first, so we can agree on the approach before you invest time in a pull request.
 
@@ -28,9 +28,9 @@ Thank you for your interest in contributing to Neopress! We welcome contribution
 ### 2. Fork & Clone
 Fork the repository on GitHub, then clone your fork:
 ```bash
-git clone https://github.com/<your-username>/neopress.git
-cd neopress
-git remote add upstream https://github.com/Trooper-lab/neopress.git
+git clone https://github.com/<your-username>/daypress.git
+cd daypress
+git remote add upstream https://github.com/Trooper-lab/daypress.git
 cargo build
 ```
 
@@ -38,10 +38,10 @@ cargo build
 
 ## 📐 Architecture & Workspace Guidelines
 
-Neopress is structured as a **Virtual Cargo Workspace**:
-- **`crates/neopress-server`**: Main HTTP application, Axum routing, Rusqlite persistence, SSR templates, and WordPress REST API v2 endpoints.
-- **`crates/neopress-ast`**: Unified layout AST and the Elementor, Divi, and Gutenberg transpilers.
-- **`crates/neopress-transpiler`**: AI verification agent and Golden Master differential tester.
+Daypress is structured as a **Virtual Cargo Workspace**:
+- **`crates/daypress-server`**: Main HTTP application, Axum routing, Rusqlite persistence, SSR templates, and WordPress REST API v2 endpoints.
+- **`crates/daypress-ast`**: Unified layout AST and the Elementor, Divi, and Gutenberg transpilers.
+- **`crates/daypress-transpiler`**: AI verification agent and Golden Master differential tester.
 - **`crates/generated_slugify`**: Rust ports of WordPress core functions, verified against Golden Master fixtures generated from the original PHP.
 
 ### ⚠️ Code Quality Rules
@@ -76,16 +76,16 @@ cargo fmt --check
 
 ### Adding New Endpoints
 When introducing a new REST endpoint:
-1. Add the handler under `crates/neopress-server/src/api/` and register the route in `crates/neopress-server/src/lib.rs`.
+1. Add the handler under `crates/daypress-server/src/api/` and register the route in `crates/daypress-server/src/lib.rs`.
 2. Return standard `Result<..., AppError>` for automatic WordPress error serialization.
-3. Add corresponding integration tests in `crates/neopress-server/tests/api_tests.rs`.
+3. Add corresponding integration tests in `crates/daypress-server/tests/api_tests.rs`.
 4. Update `API.md` with request/response documentation.
 
 ---
 
 ## 📜 Contributor License Agreement (CLA)
 
-Neopress is available under the AGPLv3 and under a [commercial license](LICENSE-COMMERCIAL.md). To keep both possible, every contributor accepts our [Contributor License Agreement](CLA.md) once. You keep the copyright to your work, and everything we merge stays available under the AGPLv3.
+Daypress is available under the AGPLv3 and under a [commercial license](LICENSE-COMMERCIAL.md). To keep both possible, every contributor accepts our [Contributor License Agreement](CLA.md) once. You keep the copyright to your work, and everything we merge stays available under the AGPLv3.
 
 On your first pull request, the CLA bot posts a comment with a link to the agreement. To sign, reply with exactly:
 

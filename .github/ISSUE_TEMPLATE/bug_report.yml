@@ -1,11 +1,11 @@
 name: Bug report
-description: Something in Neopress does not work as expected.
+description: Something in Daypress does not work as expected.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug! For security problems, follow [SECURITY.md](https://github.com/Trooper-lab/neopress/blob/main/SECURITY.md) instead.
+        Thanks for reporting a bug! For security problems, follow [SECURITY.md](https://github.com/Trooper-lab/daypress/blob/main/SECURITY.md) instead.
         If a migrated WordPress site looks or behaves wrong, use the **Migration report** template.
   - type: textarea
     id: what-happened
@@ -19,7 +19,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Go to /n-admin/...
+        1. Go to /d-admin/...
         2. Click ...
         3. See ...
     validations:
@@ -33,14 +33,14 @@ body:
   - type: input
     id: version
     attributes:
-      label: Neopress version or commit
+      label: Daypress version or commit
       placeholder: "v0.1.0, or a commit hash"
     validations:
       required: true
   - type: dropdown
     id: platform
     attributes:
-      label: Where are you running Neopress?
+      label: Where are you running Daypress?
       options:
         - Linux
         - Windows

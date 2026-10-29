@@ -1,18 +1,18 @@
-Neopress
-Copyright (C) 2026 The Neopress contributors
+Daypress
+Copyright (C) 2026 The Daypress contributors
 
-Neopress is free software: you can redistribute it and/or modify it under the
+Daypress is free software: you can redistribute it and/or modify it under the
 terms of the GNU Affero General Public License as published by the Free
 Software Foundation, either version 3 of the License, or (at your option) any
 later version. See LICENSE. Commercial licensing terms for the parts the
-Neopress maintainers hold the copyright to are described in
+Daypress maintainers hold the copyright to are described in
 LICENSE-COMMERCIAL.md.
 
 
 Third-party material
 ====================
 
-Neopress includes the following material from WordPress
+Daypress includes the following material from WordPress
 (https://wordpress.org), Copyright 2011-2026 by the WordPress contributors,
 licensed under the GNU General Public License, version 2 or (at your option)
 any later version (https://wordpress.org/about/license/). It is distributed
@@ -25,27 +25,27 @@ under the GNU AGPL version 3 (GPLv3 section 13).
       sanitize_title() / remove_accents() and related slug helpers (slug.rs),
       and font helpers (fonts.rs).
 
-  * crates/neopress-server/static/admin-menu.min.css
-    crates/neopress-server/static/common.min.css
-    crates/neopress-server/static/dashboard.min.css
-    crates/neopress-server/static/edit.min.css
-    crates/neopress-server/static/forms.min.css
-    crates/neopress-server/static/list-tables.min.css
-      WordPress admin stylesheets (wp-admin/css), unmodified.
+Daypress also includes these typefaces for its admin desk, each licensed under
+the SIL Open Font License, Version 1.1 (crates/daypress-server/static/fonts/OFL.txt):
 
-  * crates/neopress-server/static/dashicons.min.css
-    crates/neopress-server/static/fonts/dashicons.*
-      The Dashicons icon font and stylesheet (wp-includes/css,
-      wp-includes/fonts).
+  * crates/daypress-server/static/fonts/Newsreader-*.woff2
+      Newsreader, Copyright 2020 The Newsreader Project Authors.
 
-The Neopress maintainers do not hold the copyright to this material, so the
-commercial license in LICENSE-COMMERCIAL.md does not cover it. It remains under
-the GPL in every distribution of Neopress.
+  * crates/daypress-server/static/fonts/SchibstedGrotesk-Variable.woff2
+      Schibsted Grotesk, Copyright 2023 The Schibsted-Grotesk Project Authors.
 
-The WordPress migrator plugin (neopress-migrator.php, neopress-migrator.zip)
+  * crates/daypress-server/static/fonts/IBMPlexMono-*.woff2
+      IBM Plex Mono, Copyright 2017 IBM Corp., with Reserved Font Name "Plex".
+
+The Daypress maintainers do not hold the copyright to this material, so the
+commercial license in LICENSE-COMMERCIAL.md does not cover it. Each part stays
+under its own license (the GPL or the SIL Open Font License) in every
+distribution of Daypress.
+
+The WordPress migrator plugin (daypress-migrator.php, daypress-migrator.zip)
 runs inside WordPress and is licensed under the GNU General Public License,
 version 2 or (at your option) any later version.
 
-"WordPress" is a registered trademark of the WordPress Foundation. Neopress is
+"WordPress" is a registered trademark of the WordPress Foundation. Daypress is
 an independent project and is not affiliated with or endorsed by the WordPress
 Foundation, Automattic, Elementor, or Elegant Themes (Divi).

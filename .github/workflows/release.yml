@@ -1,6 +1,6 @@
 name: Release
 
-# Builds `neopress` in release mode for each platform and attaches the archives, plus a
+# Builds `daypress` in release mode for each platform and attaches the archives, plus a
 # SHA256SUMS file, to the GitHub Release for the tag. Runs when a `v*` tag is pushed, or by
 # hand for a tag that already exists (Actions → Release → Run workflow).
 
@@ -59,20 +59,20 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --locked -p neopress-server --bin neopress --target ${{ matrix.target }}
+        run: cargo build --release --locked -p daypress-server --bin daypress --target ${{ matrix.target }}
 
       - name: Smoke test
         if: matrix.target != 'x86_64-apple-darwin'
         shell: bash
-        run: target/${{ matrix.target }}/release/neopress --help
+        run: target/${{ matrix.target }}/release/daypress --help
 
       - name: Package (Linux and macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          name="neopress-${TAG}-${{ matrix.target }}"
+          name="daypress-${TAG}-${{ matrix.target }}"
           mkdir -p "dist/$name"
-          cp "target/${{ matrix.target }}/release/neopress" "dist/$name/"
+          cp "target/${{ matrix.target }}/release/daypress" "dist/$name/"
           cp README.md LICENSE LICENSE-COMMERCIAL.md NOTICE "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
 
@@ -80,16 +80,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $name = "neopress-$env:TAG-${{ matrix.target }}"
+          $name = "daypress-$env:TAG-${{ matrix.target }}"
           New-Item -ItemType Directory -Force "dist/$name" | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/neopress.exe" "dist/$name/"
+          Copy-Item "target/${{ matrix.target }}/release/daypress.exe" "dist/$name/"
           Copy-Item README.md, LICENSE, LICENSE-COMMERCIAL.md, NOTICE "dist/$name/"
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
 
       - name: Upload archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: neopress-${{ matrix.target }}
+          name: daypress-${{ matrix.target }}
           path: |
             dist/*.tar.gz
             dist/*.zip
@@ -105,14 +105,14 @@ jobs:
       - name: Download archives
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: neopress-*
+          pattern: daypress-*
           path: dist
           merge-multiple: true
 
       - name: Write checksums
         working-directory: dist
         run: |
-          sha256sum neopress-* > SHA256SUMS
+          sha256sum daypress-* > SHA256SUMS
           cat SHA256SUMS
 
       - name: Create the release or add the assets to it
@@ -125,5 +125,5 @@ jobs:
           else
             prerelease=""
             case "$TAG" in *-*) prerelease="--prerelease" ;; esac
-            gh release create "$TAG" dist/* --verify-tag --title "Neopress $TAG" --generate-notes $prerelease
+            gh release create "$TAG" dist/* --verify-tag --title "Daypress $TAG" --generate-notes $prerelease
           fi

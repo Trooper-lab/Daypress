@@ -46,7 +46,7 @@ echo "=== Seeding WordPress with comprehensive migration test suite ===\n";
 
 // 1. Update Site Settings & Identity
 update_option('blogname', 'WordPress Production Reference');
-update_option('blogdescription', 'Enterprise WordPress Instance Ready for Neopress 1-Click Migration');
+update_option('blogdescription', 'Enterprise WordPress Instance Ready for Daypress 1-Click Migration');
 update_option('posts_per_page', 10);
 update_option('date_format', 'F j, Y');
 update_option('time_format', 'g:i a');
@@ -58,8 +58,8 @@ $editor_user_id = username_exists('alex_chen');
 if (!$editor_user_id) {
     $editor_user_id = wp_insert_user([
         'user_login' => 'alex_chen',
-        'user_pass' => 'NeopressTestPass2026!',
-        'user_email' => 'alex.chen@neopress.io',
+        'user_pass' => 'DaypressTestPass2026!',
+        'user_email' => 'alex.chen@daypress.io',
         'display_name' => 'Alex Chen (Systems Lead)',
         'user_nicename' => 'alex-chen',
         'role' => 'editor',
@@ -111,11 +111,11 @@ function create_test_media_attachment($filename, $mime_type, $title, $alt_text, 
 
 // 1) Real JPEG #1: Cloud Datacenter Photo (1200x800)
 list($jpg1_id, $jpg1_url) = create_test_media_attachment(
-    'neopress-cloud-datacenter.jpg',
+    'daypress-cloud-datacenter.jpg',
     'image/jpeg',
-    'Neopress Global Edge Datacenter',
-    'High-density server racks running Neopress Rust edge nodes',
-    'https://picsum.photos/seed/neopress-datacenter/1200/800.jpg',
+    'Daypress Global Edge Datacenter',
+    'High-density server racks running Daypress Rust edge nodes',
+    'https://picsum.photos/seed/daypress-datacenter/1200/800.jpg',
     function($filepath) {
         $im = imagecreatetruecolor(1200, 800);
         for ($y = 0; $y < 800; $y++) {
@@ -126,7 +126,7 @@ list($jpg1_id, $jpg1_url) = create_test_media_attachment(
         $white = imagecolorallocate($im, 255, 255, 255);
         imagefilledrectangle($im, 80, 80, 1120, 720, imagecolorallocatealpha($im, 15, 23, 42, 40));
         imagerectangle($im, 80, 80, 1120, 720, $accent);
-        imagestring($im, 5, 120, 140, 'NEOPRESS CLOUD DATACENTER // 1200x800 JPEG', $white);
+        imagestring($im, 5, 120, 140, 'DAYPRESS CLOUD DATACENTER // 1200x800 JPEG', $white);
         imagejpeg($im, $filepath, 90);
         imagedestroy($im);
     }
@@ -134,11 +134,11 @@ list($jpg1_id, $jpg1_url) = create_test_media_attachment(
 
 // 2) Real JPEG #2: Edge Network Topology Photo (1200x800)
 list($jpg2_id, $jpg2_url) = create_test_media_attachment(
-    'neopress-edge-network.jpg',
+    'daypress-edge-network.jpg',
     'image/jpeg',
-    'Neopress Global Edge Network',
+    'Daypress Global Edge Network',
     'Global low-latency routing across Munich, Tokyo, and Sao Paulo',
-    'https://picsum.photos/seed/neopress-edge/1200/800.jpg',
+    'https://picsum.photos/seed/daypress-edge/1200/800.jpg',
     function($filepath) {
         $im = imagecreatetruecolor(1200, 800);
         $bg = imagecolorallocate($im, 9, 13, 22);
@@ -154,11 +154,11 @@ list($jpg2_id, $jpg2_url) = create_test_media_attachment(
 
 // 3) Real PNG: Editorial Dashboard UI Snapshot (1200x800)
 list($png_id, $png_url) = create_test_media_attachment(
-    'neopress-editorial-dashboard.png',
+    'daypress-editorial-dashboard.png',
     'image/png',
-    'Neopress Obsidian Editorial UI',
-    'Distraction-free Neopress Visual Builder and Admin Portal in Rust',
-    'https://picsum.photos/seed/neopress-ui/1200/800.jpg',
+    'Daypress Obsidian Editorial UI',
+    'Distraction-free Daypress Visual Builder and Admin Portal in Rust',
+    'https://picsum.photos/seed/daypress-ui/1200/800.jpg',
     function($filepath) {
         $im = imagecreatetruecolor(1200, 800);
         $bg = imagecolorallocate($im, 15, 23, 42);
@@ -168,13 +168,13 @@ list($png_id, $png_url) = create_test_media_attachment(
         $white = imagecolorallocate($im, 255, 255, 255);
         imagefilledrectangle($im, 60, 60, 1140, 740, $card);
         imagefilledrectangle($im, 60, 60, 1140, 120, $accent);
-        imagestring($im, 5, 90, 82, 'NEOPRESS VISUAL BUILDER // 1200x800 LOSSLESS PNG', $white);
+        imagestring($im, 5, 90, 82, 'DAYPRESS VISUAL BUILDER // 1200x800 LOSSLESS PNG', $white);
         imagepng($im, $filepath, 6);
         imagedestroy($im);
     }
 );
 // Ensure the PNG file is true PNG format even if downloaded from Picsum JPEG endpoint
-$png_filepath = $upload_dir['path'] . '/neopress-editorial-dashboard.png';
+$png_filepath = $upload_dir['path'] . '/daypress-editorial-dashboard.png';
 $im_loaded = @imagecreatefromjpeg($png_filepath);
 if ($im_loaded) {
     imagepng($im_loaded, $png_filepath, 6);
@@ -185,10 +185,10 @@ if ($im_loaded) {
 
 // 4) Vector SVG: Architecture Diagram (1200x630)
 list($attachment_id, $svg_url) = create_test_media_attachment(
-    'neopress-hero-architecture.svg',
+    'daypress-hero-architecture.svg',
     'image/svg+xml',
-    'Neopress Hero Architecture Diagram',
-    'Neopress Sub-Millisecond Rust CMS Architecture Diagram',
+    'Daypress Hero Architecture Diagram',
+    'Daypress Sub-Millisecond Rust CMS Architecture Diagram',
     null,
     function($filepath) {
         $svg_content = <<<SVG
@@ -202,7 +202,7 @@ list($attachment_id, $svg_url) = create_test_media_attachment(
   <rect width="1200" height="630" fill="url(#bg)"/>
   <circle cx="950" cy="200" r="220" fill="#ff4f00" opacity="0.15"/>
   <rect x="80" y="120" width="140" height="40" rx="6" fill="#ff4f00"/>
-  <text x="150" y="146" fill="#ffffff" font-family="sans-serif" font-size="18" font-weight="bold" text-anchor="middle">NEOPRESS</text>
+  <text x="150" y="146" fill="#ffffff" font-family="sans-serif" font-size="18" font-weight="bold" text-anchor="middle">DAYPRESS</text>
   <text x="80" y="250" fill="#ffffff" font-family="sans-serif" font-size="54" font-weight="bold">Sub-Millisecond Rust CMS</text>
   <text x="80" y="320" fill="#94a3b8" font-family="sans-serif" font-size="28">1-Click WordPress Migration • Axum • Embedded SQLite WAL</text>
 </svg>
@@ -259,7 +259,7 @@ $posts_data = [
 <!-- /wp:paragraph -->
 
 <!-- wp:image -->
-<figure class="wp-block-image"><img src="{$svg_url}" alt="Neopress Architecture"/></figure>
+<figure class="wp-block-image"><img src="{$svg_url}" alt="Daypress Architecture"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":2} -->
@@ -271,7 +271,7 @@ $posts_data = [
 <!-- /wp:paragraph -->
 
 <!-- wp:quote -->
-<blockquote class="wp-block-quote"><p>By replacing external database daemons with embedded SQLite memory-mapped engines in WAL mode, median query latency plummets from <strong>4.2ms to 0.08ms</strong> — a 50x throughput amplification.</p><cite>Neopress Systems Benchmark, 2026</cite></blockquote>
+<blockquote class="wp-block-quote"><p>By replacing external database daemons with embedded SQLite memory-mapped engines in WAL mode, median query latency plummets from <strong>4.2ms to 0.08ms</strong> — a 50x throughput amplification.</p><cite>Daypress Systems Benchmark, 2026</cite></blockquote>
 <!-- /wp:quote -->
 
 <!-- wp:heading {"level":2} -->
@@ -309,7 +309,7 @@ HTML
 <!-- /wp:paragraph -->
 
 <!-- wp:image -->
-<figure class="wp-block-image"><img src="{$jpg1_url}" alt="Neopress Global Edge Datacenter"/></figure>
+<figure class="wp-block-image"><img src="{$jpg1_url}" alt="Daypress Global Edge Datacenter"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":2} -->
@@ -341,7 +341,7 @@ HTML
 <!-- /wp:paragraph -->
 
 <!-- wp:image -->
-<figure class="wp-block-image"><img src="{$png_url}" alt="Neopress Obsidian Editorial UI"/></figure>
+<figure class="wp-block-image"><img src="{$png_url}" alt="Daypress Obsidian Editorial UI"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":2} -->
@@ -359,13 +359,13 @@ HTML
 HTML
     ],
     [
-        'title' => 'Step-by-Step Guide: 1-Click Migration from WordPress to Neopress',
-        'slug' => 'guide-1-click-migration-wordpress-to-neopress',
+        'title' => 'Step-by-Step Guide: 1-Click Migration from WordPress to Daypress',
+        'slug' => 'guide-1-click-migration-wordpress-to-daypress',
         'category' => 'Tutorials',
         'tags' => ['rust', 'cms', 'zero-sql', 'sqlite'],
         'content' => <<<HTML
 <!-- wp:paragraph -->
-<p>Transitioning from an existing WordPress website to Neopress requires zero manual database export commands or complex SQL conversion scripts. With the <strong>Neopress Migrator</strong> plugin, the entire schema, media assets, terms, and posts are transferred in a single atomic transaction.</p>
+<p>Transitioning from an existing WordPress website to Daypress requires zero manual database export commands or complex SQL conversion scripts. With the <strong>Daypress Migrator</strong> plugin, the entire schema, media assets, terms, and posts are transferred in a single atomic transaction.</p>
 <!-- /wp:paragraph -->
 HTML
     ],
@@ -420,16 +420,16 @@ if ($first_post_id > 0) {
         'comment_post_ID' => $first_post_id,
         'comment_author' => 'Sarah Jenkins (Principal Systems Architect)',
         'comment_author_email' => 'sarah@systems.example.com',
-        'comment_author_url' => 'https://neopress.io',
-        'comment_content' => 'Migrating our 400-page Elementor & Gutenberg publication to Neopress dropped our P99 TTFB from 420ms to 0.3ms.',
+        'comment_author_url' => 'https://daypress.io',
+        'comment_content' => 'Migrating our 400-page Elementor & Gutenberg publication to Daypress dropped our P99 TTFB from 420ms to 0.3ms.',
         'comment_approved' => 1,
     ]);
     wp_insert_comment([
         'comment_post_ID' => $first_post_id,
         'comment_parent' => $parent_comment_id,
         'comment_author' => 'Alex Chen (Systems Lead)',
-        'comment_author_email' => 'alex.chen@neopress.io',
-        'comment_author_url' => 'https://neopress.io',
+        'comment_author_email' => 'alex.chen@daypress.io',
+        'comment_author_url' => 'https://daypress.io',
         'comment_content' => 'Confirmed! And the zero-allocation SQLite WAL queries eliminated our Redis cache cluster entirely.',
         'comment_approved' => 1,
         'user_id' => $editor_user_id,
@@ -489,7 +489,7 @@ $elementor_json = wp_json_encode([
                 'elType' => 'widget',
                 'widgetType' => 'text-editor',
                 'settings' => [
-                    'editor' => '<p>This page was built in Elementor using Flexbox Containers, Icon Boxes, Counters, Pricing Tables, and Accordions, and automatically transpiled to Neopress AST.</p>',
+                    'editor' => '<p>This page was built in Elementor using Flexbox Containers, Icon Boxes, Counters, Pricing Tables, and Accordions, and automatically transpiled to Daypress AST.</p>',
                     'text_color' => '#cbd5e1',
                     'align' => 'center'
                 ],
@@ -589,7 +589,7 @@ $elementor_json = wp_json_encode([
 ]);
 
 $divi_content = <<<DIVI
-[et_pb_section fb_built="1" background_color="#0f172a" custom_padding="60px|24px|60px|24px"][et_pb_row][et_pb_column type="1_2"][et_pb_text]<h2>Divi Visual Builder Page in Native Rust</h2><p>Deeply nested Divi shortcodes are tokenized and transpiled into canonical Neopress Layout AST nodes during 1-Click Migration.</p>[/et_pb_text][et_pb_divider color="#334155"][et_pb_button button_text="Read Benchmarks" button_url="/architecture-and-benchmarks/"][/et_pb_column][et_pb_column type="1_2"][et_pb_blurb title="Zero Shortcode Runtime Overhead" use_icon="on" font_icon="fa-solid fa-bolt"]Divi shortcodes are pre-compiled into semantic HTML & CSS Grid at import time.[/et_pb_blurb][et_pb_counters][et_pb_counter percent="99"]Visual Parity Score[/et_pb_counter][/et_pb_counters][et_pb_accordion][et_pb_accordion_item title="Divi Shortcode Parser"]Handles unclosed leaf tags like et_pb_divider and et_pb_button without stack corruption.[/et_pb_accordion_item][/et_pb_accordion][/et_pb_column][/et_pb_row][/et_pb_section]
+[et_pb_section fb_built="1" background_color="#0f172a" custom_padding="60px|24px|60px|24px"][et_pb_row][et_pb_column type="1_2"][et_pb_text]<h2>Divi Visual Builder Page in Native Rust</h2><p>Deeply nested Divi shortcodes are tokenized and transpiled into canonical Daypress Layout AST nodes during 1-Click Migration.</p>[/et_pb_text][et_pb_divider color="#334155"][et_pb_button button_text="Read Benchmarks" button_url="/architecture-and-benchmarks/"][/et_pb_column][et_pb_column type="1_2"][et_pb_blurb title="Zero Shortcode Runtime Overhead" use_icon="on" font_icon="fa-solid fa-bolt"]Divi shortcodes are pre-compiled into semantic HTML & CSS Grid at import time.[/et_pb_blurb][et_pb_counters][et_pb_counter percent="99"]Visual Parity Score[/et_pb_counter][/et_pb_counters][et_pb_accordion][et_pb_accordion_item title="Divi Shortcode Parser"]Handles unclosed leaf tags like et_pb_divider and et_pb_button without stack corruption.[/et_pb_accordion_item][/et_pb_accordion][/et_pb_column][/et_pb_row][/et_pb_section]
 DIVI;
 
 $gutenberg_showcase_content = <<<HTML
@@ -598,7 +598,7 @@ $gutenberg_showcase_content = <<<HTML
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>This page verifies that structured Gutenberg block comments (columns, buttons, quotes, code blocks, and separators) are cleanly parsed into the unified Neopress AST and rendered with full semantic fidelity.</p>
+<p>This page verifies that structured Gutenberg block comments (columns, buttons, quotes, code blocks, and separators) are cleanly parsed into the unified Daypress AST and rendered with full semantic fidelity.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:columns -->
@@ -609,7 +609,7 @@ $gutenberg_showcase_content = <<<HTML
 <h3>Column One: Block Grammar Parser</h3>
 <!-- /wp:heading -->
 <!-- wp:paragraph -->
-<p>Parses nested <code>wp:columns</code> and <code>wp:group</code> containers into <code>NeopressNode</code> trees.</p>
+<p>Parses nested <code>wp:columns</code> and <code>wp:group</code> containers into <code>DaypressNode</code> trees.</p>
 <!-- /wp:paragraph -->
 </div>
 <!-- /wp:column -->
@@ -642,12 +642,12 @@ HTML;
 
 $pages_data = [
     [
-        'title' => 'About Neopress Foundation',
+        'title' => 'About Daypress Foundation',
         'slug' => 'about-us',
         'menu_order' => 1,
         'content' => <<<HTML
 <!-- wp:paragraph -->
-<p>The Neopress Project was created to liberate web publishing from the twin burdens of legacy PHP execution overhead and complex distributed database management. By compiling the entire content management lifecycle into a single native binary, we provide developers and content creators with unprecedented speed, stability, and peace of mind.</p>
+<p>The Daypress Project was created to liberate web publishing from the twin burdens of legacy PHP execution overhead and complex distributed database management. By compiling the entire content management lifecycle into a single native binary, we provide developers and content creators with unprecedented speed, stability, and peace of mind.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -665,7 +665,7 @@ HTML
         'menu_order' => 2,
         'content' => <<<HTML
 <!-- wp:paragraph -->
-<p>In independent load tests conducted on 4-vCPU 8GB RAM instances, Neopress demonstrated a <strong>14x reduction in P99 response time</strong> and served <strong>82,000 requests per second</strong> with 0 dropped frames compared to standard WordPress + Apache + MariaDB configurations.</p>
+<p>In independent load tests conducted on 4-vCPU 8GB RAM instances, Daypress demonstrated a <strong>14x reduction in P99 response time</strong> and served <strong>82,000 requests per second</strong> with 0 dropped frames compared to standard WordPress + Apache + MariaDB configurations.</p>
 <!-- /wp:paragraph -->
 HTML
     ],
@@ -675,7 +675,7 @@ HTML
         'menu_order' => 3,
         'content' => <<<HTML
 <!-- wp:paragraph -->
-<p>We provide full-lifecycle migration assistance, custom Rust module engineering, high-availability replication topology design, and 24/7 mission-critical production support for enterprises adopting Neopress.</p>
+<p>We provide full-lifecycle migration assistance, custom Rust module engineering, high-availability replication topology design, and 24/7 mission-critical production support for enterprises adopting Daypress.</p>
 <!-- /wp:paragraph -->
 HTML
     ],
@@ -707,7 +707,7 @@ HTML
         'menu_order' => 7,
         'content' => <<<HTML
 <!-- wp:paragraph -->
-<p>Have questions about migrating your WordPress publication or implementing headless integrations with Neopress? Reach out to our core architecture group at <a href="mailto:hello@neopress.io">hello@neopress.io</a>.</p>
+<p>Have questions about migrating your WordPress publication or implementing headless integrations with Daypress? Reach out to our core architecture group at <a href="mailto:hello@daypress.io">hello@daypress.io</a>.</p>
 <!-- /wp:paragraph -->
 HTML
     ]
@@ -782,13 +782,13 @@ echo "Primary Navigation Menu created and assigned (Menu ID: $menu_id).\n";
 // 7. Theme Customizations & Custom CSS
 set_theme_mod('custom_logo', $attachment_id);
 set_theme_mod('site_title', 'WordPress Production Reference');
-set_theme_mod('site_tagline', 'Enterprise WordPress Instance Ready for Neopress 1-Click Migration');
+set_theme_mod('site_tagline', 'Enterprise WordPress Instance Ready for Daypress 1-Click Migration');
 
 $custom_css = "
-/* Neopress Migration Reference Styling */
+/* Daypress Migration Reference Styling */
 :root {
-    --neopress-accent: #2563eb;
-    --neopress-dark: #090d16;
+    --daypress-accent: #2563eb;
+    --daypress-dark: #090d16;
 }
 .site-header {
     border-bottom: 2px solid #2563eb !important;

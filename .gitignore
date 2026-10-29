@@ -13,8 +13,8 @@ target/
 
 /uploads/*
 !uploads/.gitkeep
-crates/neopress-server/uploads/
-crates/neopress-server/static/themes/
+crates/daypress-server/uploads/
+crates/daypress-server/static/themes/
 
 # Agent teamwork & test artifacts
 .agents/teamwork/
@@ -24,7 +24,7 @@ __pycache__/
 *.pyc
 *.WordPress.*.xml
 *.zip
-!neopress-migrator.zip
+!daypress-migrator.zip
 
 # Environment variables & secrets
 .env
@@ -59,4 +59,4 @@ test.png
 
 # Private client migration reports and tests against private exports (kept locally, never published)
 docs/migrations/
-crates/neopress-server/tests/empirical_challenger_m1_r2_test.rs
+crates/daypress-server/tests/empirical_challenger_m1_r2_test.rs

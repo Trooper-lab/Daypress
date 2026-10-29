@@ -92,8 +92,8 @@ try {
     });
     exitCode = res.status || 0;
   } else {
-    // 2. Fallback: Execute inside Docker container neopress-ref-wp
-    const container = 'neopress-ref-wp';
+    // 2. Fallback: Execute inside Docker container daypress-ref-wp
+    const container = 'daypress-ref-wp';
     const remoteTarget = '/tmp/target.php';
     const remoteInputs = '/tmp/inputs.json';
     const remoteRunner = '/tmp/generate_golden_master.php';

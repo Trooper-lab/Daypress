@@ -1,11 +1,11 @@
 name: Feature request
-description: Suggest a concrete improvement to Neopress.
+description: Suggest a concrete improvement to Daypress.
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        For open-ended ideas or questions, start a [Discussion](https://github.com/Trooper-lab/neopress/discussions) first.
+        For open-ended ideas or questions, start a [Discussion](https://github.com/Trooper-lab/daypress/discussions) first.
   - type: textarea
     id: problem
     attributes:

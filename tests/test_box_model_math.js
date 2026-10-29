@@ -1,4 +1,4 @@
-// Adversarial Stress Harness for NeoStudio Box-Model, Overlay Geometry & Zoom Engine
+// Adversarial Stress Harness for DayStudio Box-Model, Overlay Geometry & Zoom Engine
 const assert = require("assert");
 
 console.log("=== STARTING ADVERSARIAL STRESS TEST FOR BOX-MODEL & CANVAS ===");

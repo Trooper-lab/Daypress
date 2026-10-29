@@ -13,12 +13,12 @@ Security fixes land on `main` and ship in the next patch release of the latest m
 
 **Please do not open a public issue, discussion, or pull request for a security problem.** Report it privately instead:
 
-1. **Preferred:** [open a private vulnerability report](https://github.com/Trooper-lab/neopress/security/advisories/new) on GitHub.
-2. **Or email** [billy@trooper.es](mailto:billy@trooper.es) with the subject line `Neopress security`.
+1. **Preferred:** [open a private vulnerability report](https://github.com/Trooper-lab/daypress/security/advisories/new) on GitHub.
+2. **Or email** [billy@trooper.es](mailto:billy@trooper.es) with the subject line `Daypress security`.
 
 Please include:
 
-- the Neopress version or commit you tested,
+- the Daypress version or commit you tested,
 - steps to reproduce, or a proof of concept,
 - what an attacker could do with it (the impact),
 - any suggested fix, if you have one.
@@ -34,8 +34,8 @@ Please include:
 
 In scope:
 
-- `neopress-server`: the public site, the admin portal (`/n-admin`), the REST APIs (`/wp-json/*`), authentication and sessions, file uploads, and the importers (JSON bundle and WXR).
-- The WordPress migrator plugin (`neopress-migrator.php`).
+- `daypress-server`: the public site, the admin portal (`/d-admin`), the REST APIs (`/wp-json/*`), authentication and sessions, file uploads, and the importers (JSON bundle and WXR).
+- The WordPress migrator plugin (`daypress-migrator.php`).
 
 Out of scope:
 
@@ -44,8 +44,8 @@ Out of scope:
 - Reports from automated scanners without a demonstrated impact.
 - Actions that require an already-compromised administrator account, unless they let the attacker escape the admin's normal permissions (for example, code execution on the server).
 
-## Running Neopress safely
+## Running Daypress safely
 
-- Set `NEOPRESS_ADMIN_PASSWORD`, or change the generated first-run password right after your first login.
-- Serve Neopress behind HTTPS (for example, through a reverse proxy).
+- Set `DAYPRESS_ADMIN_PASSWORD`, or change the generated first-run password right after your first login.
+- Serve Daypress behind HTTPS (for example, through a reverse proxy).
 - Keep regular backups of your database and `uploads/` folder.

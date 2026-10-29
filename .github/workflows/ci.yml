@@ -1,4 +1,4 @@
-name: Neopress CI
+name: Daypress CI
 
 on:
   push:

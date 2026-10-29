@@ -1,6 +1,6 @@
 """
 Empirical Adversarial Test Harness:
-Verifies NeoStudio Artboard CSS Containment and CAD Dock Invariants under hostile theme styles.
+Verifies DayStudio Artboard CSS Containment and CAD Dock Invariants under hostile theme styles.
 """
 
 import os
@@ -28,8 +28,8 @@ SCREENSHOT_PATH = os.path.abspath("tests/screenshots/adversarial_containment_pro
 # Hostile theme stylesheet designed to break layout chrome and bleed out
 HOSTILE_THEME_CSS = """
 :root {
-    --neo-chassis: #ff0000 !important;
-    --neo-topbar-h: 200px !important;
+    --day-chassis: #ff0000 !important;
+    --day-topbar-h: 200px !important;
 }
 html, body {
     background: #ff00ff !important;
@@ -94,7 +94,7 @@ def setup_test_database():
 
     # Create tables
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS wp_options (
+        CREATE TABLE IF NOT EXISTS options (
             option_id INTEGER PRIMARY KEY AUTOINCREMENT,
             option_name TEXT UNIQUE NOT NULL,
             option_value TEXT NOT NULL,
@@ -102,7 +102,7 @@ def setup_test_database():
         );
     """)
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS wp_posts (
+        CREATE TABLE IF NOT EXISTS posts (
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
             post_author INTEGER NOT NULL DEFAULT 1,
             post_date TEXT NOT NULL DEFAULT '',
@@ -130,7 +130,7 @@ def setup_test_database():
         );
     """)
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS wp_postmeta (
+        CREATE TABLE IF NOT EXISTS postmeta (
             meta_id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER NOT NULL,
             meta_key TEXT NOT NULL,
@@ -139,14 +139,14 @@ def setup_test_database():
     """)
 
     # Seed settings with hostile theme css
-    cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('blogname', 'Neopress Adversarial');")
-    cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('custom_css', ?);", (HOSTILE_THEME_CSS,))
-    cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('elementor_kit_css', ?);", (HOSTILE_KIT_CSS,))
+    cur.execute("INSERT INTO options (option_name, option_value) VALUES ('blogname', 'Daypress Adversarial');")
+    cur.execute("INSERT INTO options (option_name, option_value) VALUES ('custom_css', ?);", (HOSTILE_THEME_CSS,))
+    cur.execute("INSERT INTO options (option_name, option_value) VALUES ('elementor_kit_css', ?);", (HOSTILE_KIT_CSS,))
 
     # Seed post 1 with custom content
     post_html = '<section class="section"><h2>Adversarial Section</h2><header><h3>Hostile Artboard Header</h3></header><nav><a href="#">Hostile Nav</a></nav></section>'
     cur.execute("""
-        INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+        INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
         VALUES (1, 'Adversarial Test Page', 'adversarial-test', 'page', 'publish', ?);
     """, (post_html,))
 
@@ -157,10 +157,10 @@ def setup_test_database():
 def run_adversarial_containment_audit():
     setup_test_database()
 
-    bin_path = os.path.abspath("target/debug/neopress.exe")
+    bin_path = os.path.abspath("target/debug/daypress.exe")
     assert os.path.exists(bin_path), f"Binary {bin_path} not found"
 
-    print(f"[SERVER] Starting Neopress on port {TEST_PORT}...")
+    print(f"[SERVER] Starting Daypress on port {TEST_PORT}...")
     proc = subprocess.Popen(
         [bin_path, "--port", str(TEST_PORT), "--db", TEST_DB],
         stdout=subprocess.DEVNULL,
@@ -181,16 +181,16 @@ def run_adversarial_containment_audit():
 
     if not ready:
         proc.kill()
-        raise RuntimeError("Neopress failed to start")
+        raise RuntimeError("Daypress failed to start")
 
-    print(f"[SERVER] Neopress ready on {BASE_URL}")
+    print(f"[SERVER] Daypress ready on {BASE_URL}")
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(viewport={"width": 1440, "height": 900})
             context.add_cookies([{
-                "name": "neopress_admin",
+                "name": "daypress_admin",
                 "value": "1",
                 "domain": "127.0.0.1",
                 "path": "/"
@@ -200,12 +200,12 @@ def run_adversarial_containment_audit():
             url = f"{BASE_URL}/studio?post_id=1"
             print(f"[BROWSER] Navigating to {url}...")
             page.goto(url, wait_until="networkidle")
-            page.wait_for_selector("#neostudio-shell", timeout=10000)
+            page.wait_for_selector("#daystudio-shell", timeout=10000)
 
             # -------------------------------------------------------------
             # 1. Topbar CAD Chrome Invariant Verification
             # -------------------------------------------------------------
-            topbar = page.locator("#neostudio-topbar")
+            topbar = page.locator("#daystudio-topbar")
             assert topbar.is_visible(), "Topbar must be visible"
             topbar_rect = topbar.bounding_box()
             assert topbar_rect is not None
@@ -230,7 +230,7 @@ def run_adversarial_containment_audit():
             # -------------------------------------------------------------
             # 2. Bottom-Bar CAD Chrome Invariant Verification
             # -------------------------------------------------------------
-            bottom_bar = page.locator("#neostudio-bottom-bar")
+            bottom_bar = page.locator("#daystudio-bottom-bar")
             assert bottom_bar.is_visible(), "Bottom bar must be visible"
             bottom_rect = bottom_bar.bounding_box()
             assert bottom_rect is not None
@@ -254,9 +254,9 @@ def run_adversarial_containment_audit():
             assert "yellow" not in bottom_hit.lower(), f"Bottom bar covered by hostile nav! Hit: {bottom_hit}"
 
             # -------------------------------------------------------------
-            # 3. Left Rail (<nav id="neostudio-rail">) Verification
+            # 3. Left Rail (<nav id="daystudio-rail">) Verification
             # -------------------------------------------------------------
-            rail = page.locator("#neostudio-rail")
+            rail = page.locator("#daystudio-rail")
             assert rail.is_visible(), "Left Rail must be visible"
             rail_rect = rail.bounding_box()
             assert rail_rect is not None
@@ -269,7 +269,7 @@ def run_adversarial_containment_audit():
             # -------------------------------------------------------------
             # 4. Studio Shell & Body Containment Verification
             # -------------------------------------------------------------
-            shell = page.locator("#neostudio-shell")
+            shell = page.locator("#daystudio-shell")
             shell_rect = shell.bounding_box()
             assert shell_rect is not None
             assert shell_rect["width"] == 1440.0, f"Shell width must be 1440px, got {shell_rect['width']}"
@@ -291,7 +291,7 @@ def run_adversarial_containment_audit():
             # -------------------------------------------------------------
             # 5. Artboard CSS Containment & Stacking Context Isolation
             # -------------------------------------------------------------
-            artboard = page.locator("#neostudio-artboard")
+            artboard = page.locator("#daystudio-artboard")
             assert artboard.is_visible(), "Artboard must be visible"
             artboard_styles = artboard.evaluate("""el => {
                 const s = window.getComputedStyle(el);
@@ -311,7 +311,7 @@ def run_adversarial_containment_audit():
             # Verify hostile fixed header inside artboard is contained
             artboard_rect = artboard.bounding_box()
             assert artboard_rect is not None
-            hostile_header = page.locator("#neostudio-artboard header").first
+            hostile_header = page.locator("#daystudio-artboard header").first
             if hostile_header.count() > 0:
                 header_rect = hostile_header.bounding_box()
                 print(f"[HOSTILE HEADER IN ARTBOARD] rect: {header_rect}, artboard_rect: {artboard_rect}")

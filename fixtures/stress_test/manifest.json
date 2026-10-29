@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "version": "1.0.0",
-  "title": "Neopress Multi-Site Stress-Test Fixture Manifest",
+  "title": "Daypress Multi-Site Stress-Test Fixture Manifest",
   "description": "Deterministic index of the 4 target WordPress archetypes (excluding WooCommerce) for automated Rust integration tests and Playwright headless visual audits.",
   "generated_at": "2026-10-23T21:00:00Z",
   "archetypes": [
@@ -34,7 +34,7 @@
           "landmark_selectors": [
             "header",
             "footer",
-            "nav.np-primary-menu",
+            "nav.dp-primary-menu",
             "ul.sub-menu",
             ".sticky"
           ],
@@ -70,7 +70,7 @@
           ],
           "expected_strings": [
             "Core Blocks Showcase",
-            "Neopress delivers sub-millisecond",
+            "Daypress delivers sub-millisecond",
             "First Nested Item"
           ]
         },
@@ -121,11 +121,11 @@
         }
       ],
       "cad_invariants": {
-        "builder_path": "/n-admin/builder?post=1",
+        "builder_path": "/d-admin/builder?post=1",
         "selectors": {
-          "#neostudio-topbar": { "max_height": 44, "y": 0 },
-          "#neostudio-bottom-bar": { "max_height": 32 },
-          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+          "#daystudio-topbar": { "max_height": 44, "y": 0 },
+          "#daystudio-bottom-bar": { "max_height": 32 },
+          "#daystudio-rail": { "exact_width": 48, "x": 0 }
         }
       }
     },
@@ -188,11 +188,11 @@
         }
       ],
       "cad_invariants": {
-        "builder_path": "/n-admin/builder?post=1",
+        "builder_path": "/d-admin/builder?post=1",
         "selectors": {
-          "#neostudio-topbar": { "max_height": 44, "y": 0 },
-          "#neostudio-bottom-bar": { "max_height": 32 },
-          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+          "#daystudio-topbar": { "max_height": 44, "y": 0 },
+          "#daystudio-bottom-bar": { "max_height": 32 },
+          "#daystudio-rail": { "exact_width": 48, "x": 0 }
         }
       }
     },
@@ -221,8 +221,8 @@
           "landmark_selectors": [
             "header",
             "footer",
-            ".np-elementor-header",
-            ".np-elementor-footer"
+            ".dp-elementor-header",
+            ".dp-elementor-footer"
           ],
           "forbidden_patterns": [
             "contenteditable=\"true\"",
@@ -266,11 +266,11 @@
         }
       ],
       "cad_invariants": {
-        "builder_path": "/n-admin/builder?post=1",
+        "builder_path": "/d-admin/builder?post=1",
         "selectors": {
-          "#neostudio-topbar": { "max_height": 44, "y": 0 },
-          "#neostudio-bottom-bar": { "max_height": 32 },
-          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+          "#daystudio-topbar": { "max_height": 44, "y": 0 },
+          "#daystudio-bottom-bar": { "max_height": 32 },
+          "#daystudio-rail": { "exact_width": 48, "x": 0 }
         }
       }
     },
@@ -282,7 +282,7 @@
       "theme_slug": "northwind",
       "fixture_dir": "fixtures/stress_test/archetype4_custom_acf",
       "wxr_file": "site.WordPress.xml",
-      "theme_dir": "crates/neopress-server/static/themes/northwind",
+      "theme_dir": "crates/daypress-server/static/themes/northwind",
       "source_site_url": "https://northwind.example",
       "expectations": {
         "min_posts": 250,
@@ -381,11 +381,11 @@
         }
       ],
       "cad_invariants": {
-        "builder_path": "/n-admin/builder?post=1",
+        "builder_path": "/d-admin/builder?post=1",
         "selectors": {
-          "#neostudio-topbar": { "max_height": 44, "y": 0 },
-          "#neostudio-bottom-bar": { "max_height": 32 },
-          "#neostudio-rail": { "exact_width": 48, "x": 0 }
+          "#daystudio-topbar": { "max_height": 44, "y": 0 },
+          "#daystudio-bottom-bar": { "max_height": 32 },
+          "#daystudio-rail": { "exact_width": 48, "x": 0 }
         }
       }
     }

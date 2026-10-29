@@ -20,7 +20,7 @@ def run_tests():
             except Exception:
                 pass
 
-    bin_path = os.path.abspath("target/debug/neopress.exe")
+    bin_path = os.path.abspath("target/debug/daypress.exe")
     proc = subprocess.Popen(
         [bin_path, "--port", str(PORT), "--db", DB],
         stdout=subprocess.DEVNULL,
@@ -47,10 +47,10 @@ def run_tests():
         # Test 1: Seed a post with deliberate editor chrome leaks in post_content and layout_json
         leaky_content = (
             '<div contenteditable="true" draggable="true" '
-            'class="neostudio-shell neostudio-inspector elementor-grid-handle custom-valid-class" '
-            'data-neostudio-id="leak-123" data-drag-handle="true">\n'
+            'class="daystudio-shell daystudio-inspector elementor-grid-handle custom-valid-class" '
+            'data-daystudio-id="leak-123" data-drag-handle="true">\n'
             '    <p contenteditable="true">Some editable text</p>\n'
-            '    <div CONTENTEDITABLE draggable class="neostudio-handle">Handle</div>\n'
+            '    <div CONTENTEDITABLE draggable class="daystudio-handle">Handle</div>\n'
             '</div>'
         )
         layout_with_styles = {
@@ -94,7 +94,7 @@ def run_tests():
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO wp_posts (
+            INSERT INTO posts (
                 ID, post_author, post_date, post_date_gmt, post_content, post_title,
                 post_excerpt, post_status, post_name, post_modified, post_modified_gmt,
                 guid, post_type, layout_json
@@ -124,14 +124,14 @@ def run_tests():
             leaks.append("draggable")
         if "elementor-grid-handle" in html:
             leaks.append("elementor-grid-handle")
-        if "neostudio-shell" in html:
-            leaks.append("neostudio-shell")
-        if "neostudio-inspector" in html:
-            leaks.append("neostudio-inspector")
-        if "neostudio-handle" in html:
-            leaks.append("neostudio-handle")
-        if "data-neostudio" in html:
-            leaks.append("data-neostudio")
+        if "daystudio-shell" in html:
+            leaks.append("daystudio-shell")
+        if "daystudio-inspector" in html:
+            leaks.append("daystudio-inspector")
+        if "daystudio-handle" in html:
+            leaks.append("daystudio-handle")
+        if "data-daystudio" in html:
+            leaks.append("data-daystudio")
         if "data-drag-handle" in html:
             leaks.append("data-drag-handle")
 
@@ -141,18 +141,18 @@ def run_tests():
         print("[PASS] Exactly 0 editor chrome leaks in SSR HTML!")
 
         print("[TEST 2] Testing Scoped Layout CSS Injection...")
-        if '<style id="np-page-styles">' not in html:
-            print('[FAIL] <style id="np-page-styles"> not found in head!')
+        if '<style id="dp-page-styles">' not in html:
+            print('[FAIL] <style id="dp-page-styles"> not found in head!')
             return False
-        print('[PASS] Found <style id="np-page-styles"> in <head>')
+        print('[PASS] Found <style id="dp-page-styles"> in <head>')
 
         if "#123456" not in html:
             print("[FAIL] Scoped background_color not compiled into page styles!")
             return False
-        print("[PASS] Scoped layout styles present in <style id=\"np-page-styles\">")
+        print("[PASS] Scoped layout styles present in <style id=\"dp-page-styles\">")
 
         print("[TEST 3] Testing Public Theme Modular Styles...")
-        for sel in [".np-price-card", ".np-countdown", ".np-flipbox"]:
+        for sel in [".dp-price-card", ".dp-countdown", ".dp-flipbox"]:
             if sel not in html:
                 print(f"[FAIL] {sel} missing from public CSS!")
                 return False
@@ -161,7 +161,7 @@ def run_tests():
         print("[TEST 4] Testing Malformed Layout JSON Fallback...")
         conn = sqlite3.connect(DB)
         cur = conn.cursor()
-        cur.execute("UPDATE wp_posts SET layout_json = '{corrupted_json' WHERE ID = 100;")
+        cur.execute("UPDATE posts SET layout_json = '{corrupted_json' WHERE ID = 100;")
         conn.commit()
         conn.close()
 

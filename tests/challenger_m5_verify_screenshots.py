@@ -5,16 +5,16 @@ from PIL import Image, ImageStat
 SCREENSHOTS_DIR = os.path.abspath("tests/screenshots")
 
 EXPECTED_FILES = [
-    ("01_neostudio_builder_desktop_default.png", 1200, 900),
-    ("02_neostudio_builder_navigator_active.png", 1200, 900),
-    ("03_neostudio_builder_theme_templates_drawer.png", 1200, 900),
-    ("04_neostudio_builder_box_model_inspector.png", 1200, 900),
-    ("05_neostudio_builder_xray_mode.png", 1200, 900),
-    ("06_neostudio_builder_responsive_tablet.png", 1200, 900),
-    ("07_neostudio_builder_responsive_mobile.png", 1200, 900),
-    ("08_neostudio_builder_create_template_modal.png", 1200, 900),
-    ("09_neostudio_builder_display_conditions_modal.png", 1200, 900),
-    ("10_neostudio_builder_save_published_state.png", 1200, 900),
+    ("01_daystudio_builder_desktop_default.png", 1200, 900),
+    ("02_daystudio_builder_navigator_active.png", 1200, 900),
+    ("03_daystudio_builder_theme_templates_drawer.png", 1200, 900),
+    ("04_daystudio_builder_box_model_inspector.png", 1200, 900),
+    ("05_daystudio_builder_xray_mode.png", 1200, 900),
+    ("06_daystudio_builder_responsive_tablet.png", 1200, 900),
+    ("07_daystudio_builder_responsive_mobile.png", 1200, 900),
+    ("08_daystudio_builder_create_template_modal.png", 1200, 900),
+    ("09_daystudio_builder_display_conditions_modal.png", 1200, 900),
+    ("10_daystudio_builder_save_published_state.png", 1200, 900),
     ("11_ssr_frontpage_desktop_1200.png", 1200, None),
     ("12_ssr_frontpage_tablet_768.png", 768, None),
     ("13_ssr_frontpage_mobile_375.png", 375, None),
@@ -116,13 +116,13 @@ def analyze_screenshots():
             print(f"[FAIL] Error reading {filename}: {e}")
             all_passed = False
 
-    print("\n=== CAD Tokens Check on 01_neostudio_builder_desktop_default.png ===")
+    print("\n=== CAD Tokens Check on 01_daystudio_builder_desktop_default.png ===")
     r01 = next((r for r in results if r["filename"].startswith("01")), None)
     if r01:
         for t_name, t_found in r01["tokens"].items():
             print(f"  {t_name:32s}: {'FOUND' if t_found else 'NOT DETECTED'}")
 
-    print("\n=== CAD Tokens Check on 04_neostudio_builder_box_model_inspector.png ===")
+    print("\n=== CAD Tokens Check on 04_daystudio_builder_box_model_inspector.png ===")
     r04 = next((r for r in results if r["filename"].startswith("04")), None)
     if r04:
         for t_name, t_found in r04["tokens"].items():
