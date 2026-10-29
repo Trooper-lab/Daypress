@@ -98,7 +98,10 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
         NodeKind::Grid { columns, gap } => {
             let tag = resolve_semantic_tag(node.styles.html_tag.as_deref(), "div");
             let cols_decl = if *columns > 0 && !css.contains("grid-template-columns:") {
-                format!("grid-template-columns: repeat({}, minmax(0, 1fr)); ", columns)
+                format!(
+                    "grid-template-columns: repeat({}, minmax(0, 1fr)); ",
+                    columns
+                )
             } else {
                 String::new()
             };

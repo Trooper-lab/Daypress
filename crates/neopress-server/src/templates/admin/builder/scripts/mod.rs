@@ -14,6 +14,7 @@ pub mod canvas_render;
 pub mod canvas_selection;
 pub mod command_palette;
 pub mod core_state;
+pub mod css_drawer;
 pub mod drawers;
 pub mod inspector_box_model;
 pub mod inspector_content;
@@ -54,6 +55,7 @@ pub fn get_scripts() -> &'static str {
             navigator::JS_NAVIGATOR,
             palette_defaults::JS_PALETTE_DEFAULTS,
             tokens_drawer::JS_TOKENS_DRAWER,
+            css_drawer::JS_CSS_DRAWER,
             drawers::JS_DRAWERS,
             theme_drawer::JS_THEME_DRAWER,
             command_palette::JS_COMMAND_PALETTE,

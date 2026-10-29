@@ -12,6 +12,7 @@ pub const JS_CANVAS_SELECTION: &str = r###"
         if (window.renderInspector) window.renderInspector();
         if (window.syncNavigatorSelection) window.syncNavigatorSelection(id);
         if (window.updateBoxOverlays) window.updateBoxOverlays(id);
+        if (window.refreshCssDrawerSelection) window.refreshCssDrawerSelection();
     }
     window.selectElement = selectElement;
 

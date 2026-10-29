@@ -108,7 +108,13 @@ impl<'de> Deserialize<'de> for NeopressNode {
         };
 
         // Also accept `html_tag` or `tag` placed directly on `node` or inside `node.data`
-        if styles.html_tag.as_deref().map(str::trim).unwrap_or("").is_empty() {
+        if styles
+            .html_tag
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
+        {
             let fallback_tag = obj
                 .get("html_tag")
                 .or_else(|| obj.get("tag"))

@@ -232,7 +232,8 @@ fn parse_css_block(
             let stmt = slice(start, i + 1).trim();
             if stmt.to_ascii_lowercase().starts_with("@import") {
                 if let Some(url) = extract_url_from_import(stmt) {
-                    if url.contains("fonts.googleapis.com") && !sheet.google_font_urls.contains(&url)
+                    if url.contains("fonts.googleapis.com")
+                        && !sheet.google_font_urls.contains(&url)
                     {
                         for fam in extract_families_from_google_url(&url) {
                             if !sheet.google_font_families.contains(&fam) {
@@ -393,9 +394,8 @@ fn compute_specificity(sel: &str) -> (u32, u32, u32) {
         if t.is_empty() || t == "*" {
             continue;
         }
-        let mut chars = t.chars().peekable();
         let mut at_start = true;
-        while let Some(c) = chars.next() {
+        for c in t.chars() {
             if c == '#' {
                 ids += 1;
                 at_start = false;
@@ -420,11 +420,7 @@ pub fn parse_declarations(body: &str) -> Vec<(String, String)> {
         }
         if let Some((prop, val)) = decl.split_once(':') {
             let p = prop.trim().to_ascii_lowercase();
-            let v = val
-                .trim()
-                .trim_end_matches("!important")
-                .trim()
-                .to_string();
+            let v = val.trim().trim_end_matches("!important").trim().to_string();
             if !p.is_empty() && !v.is_empty() {
                 out.push((p, v));
             }
@@ -607,13 +603,17 @@ pub fn build_elementor_kit(
     }
 
     // 2. System Typography + Custom Typography
-    let heading_font = find_var_by_keys(&font_vars, &["serif", "display", "heading", "font-heading"])
-        .or_else(|| sheet.google_font_families.first().cloned())
-        .unwrap_or_else(|| "'Newsreader', Georgia, serif".to_string());
+    let heading_font =
+        find_var_by_keys(&font_vars, &["serif", "display", "heading", "font-heading"])
+            .or_else(|| sheet.google_font_families.first().cloned())
+            .unwrap_or_else(|| "'Newsreader', Georgia, serif".to_string());
 
-    let body_font = find_var_by_keys(&font_vars, &["sans", "body", "text", "font-sans", "font-body"])
-        .or_else(|| sheet.google_font_families.get(1).cloned())
-        .unwrap_or_else(|| "'Schibsted Grotesk', -apple-system, sans-serif".to_string());
+    let body_font = find_var_by_keys(
+        &font_vars,
+        &["sans", "body", "text", "font-sans", "font-body"],
+    )
+    .or_else(|| sheet.google_font_families.get(1).cloned())
+    .unwrap_or_else(|| "'Schibsted Grotesk', -apple-system, sans-serif".to_string());
 
     let mono_font = find_var_by_keys(&font_vars, &["mono", "code", "font-mono"])
         .or_else(|| sheet.google_font_families.get(2).cloned())
@@ -746,26 +746,30 @@ pub fn resolve_element_styles(
         .filter(|r| selector_matches(&r.selector, el, ancestors))
         .collect();
 
-    matched.sort_by(|a, b| a.specificity.cmp(&b.specificity).then(a.order.cmp(&b.order)));
+    matched.sort_by(|a, b| {
+        a.specificity
+            .cmp(&b.specificity)
+            .then(a.order.cmp(&b.order))
+    });
 
     for rule in matched {
         let target_styles: &mut StyleProperties = match (rule.media, rule.pseudo) {
             (MediaTarget::Desktop, PseudoTarget::None) => &mut styles,
-            (MediaTarget::Tablet, PseudoTarget::None) => {
-                styles.tablet.get_or_insert_with(|| Box::new(StyleProperties::default()))
-            }
-            (MediaTarget::Mobile, PseudoTarget::None) => {
-                styles.mobile.get_or_insert_with(|| Box::new(StyleProperties::default()))
-            }
-            (_, PseudoTarget::Hover) => {
-                styles.hover.get_or_insert_with(|| Box::new(StyleProperties::default()))
-            }
-            (_, PseudoTarget::Focus) => {
-                styles.focus.get_or_insert_with(|| Box::new(StyleProperties::default()))
-            }
-            (_, PseudoTarget::Active) => {
-                styles.active.get_or_insert_with(|| Box::new(StyleProperties::default()))
-            }
+            (MediaTarget::Tablet, PseudoTarget::None) => styles
+                .tablet
+                .get_or_insert_with(|| Box::new(StyleProperties::default())),
+            (MediaTarget::Mobile, PseudoTarget::None) => styles
+                .mobile
+                .get_or_insert_with(|| Box::new(StyleProperties::default())),
+            (_, PseudoTarget::Hover) => styles
+                .hover
+                .get_or_insert_with(|| Box::new(StyleProperties::default())),
+            (_, PseudoTarget::Focus) => styles
+                .focus
+                .get_or_insert_with(|| Box::new(StyleProperties::default())),
+            (_, PseudoTarget::Active) => styles
+                .active
+                .get_or_insert_with(|| Box::new(StyleProperties::default())),
         };
         for (prop, val) in &rule.declarations {
             apply_css_declaration(target_styles, prop, val);
@@ -1079,7 +1083,15 @@ fn is_color_value(val: &str) -> bool {
 fn is_font_family_var(key: &str, val: &str) -> bool {
     matches!(
         key,
-        "serif" | "sans" | "mono" | "display" | "font-sans" | "font-serif" | "font-mono" | "font-heading" | "font-body"
+        "serif"
+            | "sans"
+            | "mono"
+            | "display"
+            | "font-sans"
+            | "font-serif"
+            | "font-mono"
+            | "font-heading"
+            | "font-body"
     ) || key.contains("font")
         || val.contains("serif")
         || val.contains("monospace")
