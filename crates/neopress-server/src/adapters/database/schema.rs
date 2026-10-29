@@ -28,12 +28,13 @@ impl Database {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_path_buf(),
             login_throttle: Default::default(),
+            password_reset_throttle: Default::default(),
         };
 
         db.init_schema()?;
 
         if path != Path::new(":memory:") {
-            let needs_official_seed = {
+            let needs_starter_content = {
                 let conn = db.conn.lock().unwrap();
                 let is_migrated: bool = conn
                     .query_row(
@@ -53,8 +54,8 @@ impl Database {
                 !is_migrated && (is_new || (post_count == 0 && user_count == 0))
             };
 
-            if needs_official_seed {
-                db.seed_neopress_official_site()?;
+            if needs_starter_content {
+                db.seed_starter_site()?;
             }
             db.ensure_admin_credentials()?;
         } else if is_new {
@@ -118,10 +119,10 @@ impl Database {
         Ok(())
     }
 
-    /// Seeds the official Neopress marketing website, product pages, and high-converting articles.
-    pub fn seed_neopress_official_site(&self) -> Result<()> {
+    /// Replaces all content with the starter content for a new install (see `crate::seed`).
+    pub fn seed_starter_site(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        crate::seed::seed_neopress_official_site(&conn)
+        crate::seed::seed_starter_site(&conn)
     }
 
     /// Creates an in-memory SQLite database instance (ideal for automated unit and integration tests).
@@ -134,6 +135,7 @@ impl Database {
             conn: Arc::new(Mutex::new(conn)),
             db_path: PathBuf::from(":memory:"),
             login_throttle: Default::default(),
+            password_reset_throttle: Default::default(),
         };
 
         db.init_schema()?;
@@ -167,6 +169,7 @@ impl Database {
         }
 
         conn.execute_batch(super::ddl::SUBSYSTEMS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::PASSWORD_RESETS_SCHEMA_SQL)?;
         crate::theme_builder::schema::init_theme_builder_schema(&conn)?;
         let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
 

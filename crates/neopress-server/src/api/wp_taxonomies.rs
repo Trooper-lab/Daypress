@@ -336,6 +336,7 @@ pub(crate) async fn get_post_types_handler() -> Json<Value> {
 pub(crate) async fn get_post_statuses_handler() -> Json<Value> {
     Json(serde_json::json!({
         "publish": { "name": "Published", "public": true, "slug": "publish" },
+        "future": { "name": "Scheduled", "public": false, "slug": "future" },
         "draft": { "name": "Draft", "public": false, "slug": "draft" },
         "pending": { "name": "Pending", "public": false, "slug": "pending" },
         "private": { "name": "Private", "public": false, "slug": "private" },

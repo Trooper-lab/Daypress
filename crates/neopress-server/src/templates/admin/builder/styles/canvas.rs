@@ -31,12 +31,10 @@ pub const CSS_CANVAS: &str = r#"
 
 #neostudio-artboard {
     position: relative;
-    background: #ffffff;
     min-height: 850px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
     transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     margin: 0 auto;
-    color: #0f172a;
     box-sizing: border-box;
     contain: layout paint !important;
     transform: translateZ(0) !important;
@@ -55,6 +53,13 @@ pub const CSS_CANVAS: &str = r#"
 
 #neostudio-artboard.artboard-mobile {
     width: 375px;
+}
+
+/* Tablet/mobile previews answer the site's width breakpoints themselves (scoping.rs repeats
+   width @media rules as @container rules); the desktop artboard follows the studio window. */
+#neostudio-artboard.artboard-tablet,
+#neostudio-artboard.artboard-mobile {
+    container: neostudio-artboard / inline-size;
 }
 
 /* -------------------------------------------------------------
@@ -130,9 +135,10 @@ pub const CSS_CANVAS: &str = r#"
     flex-direction: column;
 }
 
-/* Browser-like typography baseline for page content so it never inherits the studio UI font
-   (12.5px Inter). Zero specificity via :where(), so scoped theme CSS always wins. */
+/* Browser-like page baseline so content never inherits the studio UI font (12.5px Inter).
+   Zero specificity via :where(), so the scoped site CSS (body background, color, fonts) wins. */
 :where(#neostudio-artboard) {
+    background: #ffffff;
     font-size: 16px;
     line-height: 1.5;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

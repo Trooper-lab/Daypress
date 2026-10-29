@@ -121,6 +121,9 @@ PRAGMA user_version = 1;
 "#;
 
 pub const SUBSYSTEMS_SCHEMA_SQL: &str = r#"
+-- Lets the scheduled-post promotion (`scheduling.rs`) find due `future` posts cheaply.
+CREATE INDEX IF NOT EXISTS idx_post_status_date ON wp_posts(post_status, post_date);
+
 CREATE TABLE IF NOT EXISTS wp_application_passwords (
     uuid TEXT PRIMARY KEY,
     app_id TEXT NOT NULL,
@@ -247,4 +250,18 @@ CREATE TABLE IF NOT EXISTS wp_neopress_plugins (
     config_json TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+"#;
+
+/// Single-use "Lost your password?" links. Only the SHA-256 of each token is stored, so a
+/// copy of the database cannot be turned into working reset links. Times are Unix seconds.
+pub const PASSWORD_RESETS_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS wp_neopress_password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES wp_users(ID) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER DEFAULT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON wp_neopress_password_resets(user_id, created_at);
 "#;

@@ -147,6 +147,8 @@ pub fn render_actions_script(
             }}
 
             async function submitData(status) {{
+                const scheduleFields = npScheduleOverrides(status, false);
+                if (scheduleFields === null) return;
                 if (currentMode === 'visual') {{
                     syncVisualToTextarea();
                 }}
@@ -229,7 +231,8 @@ pub fn render_actions_script(
                     seo_noindex,
                     seo_schema_type,
                     meta: collectAcfMeta(),
-                    taxonomies: collectTaxonomies()
+                    taxonomies: collectTaxonomies(),
+                    ...scheduleFields
                 }};
 
                 try {{
@@ -261,7 +264,7 @@ pub fn render_actions_script(
                         isDirty = false;
                         const key = 'neopress_draft_' + (activePostId || 'new_{post_type}');
                         localStorage.removeItem(key);
-                        showToast('✓ {type_singular} saved to SQLite successfully!');
+                        showToast(savedPost && savedPost.status === 'future' ? '✓ {type_singular} scheduled' : '✓ {type_singular} saved to SQLite successfully!');
                         setTimeout(() => {{
                             window.location.href = '/n-admin/edit' + (post_type !== 'post' ? '?post_type=' + post_type : '');
                         }}, 500);

@@ -109,7 +109,7 @@ The check turns green, and you will not be asked again for later pull requests. 
 4. **Open a Pull Request against `main`** and fill in the template.
    - Write the **PR title** in [Conventional Commits](https://www.conventionalcommits.org/) format, `type(scope): summary`. For example: `feat(api): add support for wp/v2/tags query filtering`. Common types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `ci`, `chore`.
    - **Link the issue** your PR resolves with `Fixes #123` in the description. GitHub closes it automatically when the PR is merged.
-5. **Make CI pass on both Linux and Windows.** When `main` moves ahead of your branch, GitHub shows an **Update branch** button on the PR. Use it (or merge `upstream/main` locally) so CI tests your change against the latest code.
+5. **Make CI pass on Linux, Windows, and macOS.** When `main` moves ahead of your branch, GitHub shows an **Update branch** button on the PR. Use it (or merge `upstream/main` locally) so CI tests your change against the latest code.
 6. **Sign the CLA** when the bot asks (first PR only).
 7. **Review**: a maintainer reviews your PR. Push follow-up commits to the same branch to address feedback; there is no need to force-push or open a new PR.
 

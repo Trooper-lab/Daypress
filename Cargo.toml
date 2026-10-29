@@ -63,3 +63,12 @@ opt-level = 3
 
 [profile.dev.package.blake2]
 opt-level = 3
+
+# Lighter debug info for dev and test builds: line numbers for the workspace crates (enough for
+# backtraces), none for dependencies. Linking the many integration-test binaries then needs much
+# less memory and disk.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

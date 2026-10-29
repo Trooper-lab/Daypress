@@ -7,6 +7,7 @@
 use super::admin_bar::render_admin_bar;
 pub use super::head_meta::plain_text_excerpt;
 use super::head_meta::{render_head_meta, HeadMetaOutput};
+use super::site_chrome;
 use crate::auth::AuthUser;
 use crate::models::{WpPostResponse, WpSettingsResponse};
 use crate::templates::utils::{escape_html, escape_json};
@@ -23,16 +24,8 @@ pub fn render_base_layout(
     current_post: Option<&WpPostResponse>,
     partials: Option<&ResolvedThemePartials>,
 ) -> String {
-    let site_name = if settings.title.trim().is_empty() {
-        "Neopress"
-    } else {
-        settings.title.trim()
-    };
-    let site_desc = if settings.description.trim().is_empty() {
-        site_name
-    } else {
-        settings.description.trim()
-    };
+    let site_name = site_chrome::site_name(settings);
+    let site_desc = site_chrome::site_description(settings);
 
     let HeadMetaOutput {
         page_title,
@@ -41,30 +34,23 @@ pub fn render_base_layout(
         canonical_tag,
         og_image_tags,
         schema_type,
+        feed_links,
     } = render_head_meta(title, settings, current_post, site_name, site_desc);
 
-    let brand_color = if settings.brand_color.trim().is_empty() {
-        "#ff4f00"
-    } else {
-        settings.brand_color.trim()
-    };
+    let brand_color = site_chrome::brand_color(settings);
 
     let (admin_bar_html, body_class_admin) =
         render_admin_bar(current_user, current_post, settings, site_name);
 
-    let header_login_btn = if current_user.is_some() {
-        r##"<a href="/n-admin/" class="np-button np-btn-sm"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>"##
-    } else {
-        r##"<a href="/login" class="btn-login">Log In</a>"##
-    };
-
-    let brand_display = escape_html(site_name);
-
     // Customizer → Typography: swap the site font stack (custom CSS below can still override it).
-    let typography_block = match settings.typography_scale.as_str() {
-        "serif" => "\n\t<style id=\"neopress-typography\">:root { --font-sans: \"Newsreader\", Georgia, \"Times New Roman\", serif; }</style>",
-        "mono" => "\n\t<style id=\"neopress-typography\">:root { --font-sans: \"JetBrains Mono\", ui-monospace, SFMono-Regular, Menlo, monospace; }</style>",
-        _ => "",
+    let typography_css = site_chrome::typography_css(settings);
+    let typography_block = if typography_css.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\t<style id=\"neopress-typography\">{}</style>",
+            typography_css
+        )
     };
     let custom_css_block = if !settings.custom_css.trim().is_empty() {
         format!(
@@ -72,22 +58,10 @@ pub fn render_base_layout(
             typography_block, settings.custom_css
         )
     } else {
-        typography_block.to_string()
+        typography_block
     };
 
-    let is_blank_template = current_post
-        .map(|p| {
-            p.template == "page-template-blank.php"
-                || p.template == "canvas"
-                || p.template == "elementor_canvas"
-        })
-        .unwrap_or(false);
-
-    let has_elementor_theme = !settings.elementor_kit_css.trim().is_empty()
-        || !settings.elementor_header_html.trim().is_empty()
-        || !settings.elementor_footer_html.trim().is_empty()
-        || is_blank_template
-        || content.contains("divi_section_");
+    let is_blank_template = site_chrome::is_blank_template(current_post);
 
     let elementor_kit_css_block = if !settings.elementor_kit_css.trim().is_empty() {
         format!(
@@ -104,156 +78,12 @@ pub fn render_base_layout(
         "/static/favicon.svg".to_string()
     };
 
-    let html_theme_class = if has_elementor_theme {
-        "elementor-theme-active"
-    } else {
-        "dark"
-    };
+    let html_theme_class = site_chrome::html_theme_class(settings, content, is_blank_template);
 
-    let privacy_link_html = if settings.privacy_policy_page_id > 0 {
-        format!(
-            r#" &bull; <a href="/?page_id={}">Privacy Policy</a>"#,
-            settings.privacy_policy_page_id
-        )
-    } else {
-        String::new()
-    };
-
-    let (nav_links_html, footer_nav_html) = if !settings.nav_menu_items.is_empty() {
-        let tree = super::menus::build_nav_menu_tree(&settings.nav_menu_items);
-        let menu_html = super::menus::render_hierarchical_nav_menu(&tree, false);
-        let footer_html = super::menus::render_footer_nav_links(&settings.nav_menu_items);
-        (menu_html, footer_html)
-    } else {
-        (
-            r#"<ul class="menu np-primary-menu"><li class="menu-item np-nav-item"><a href="/" class="nav-link">Home</a></li><li class="menu-item np-nav-item"><a href="/#posts" class="nav-link">Articles</a></li></ul>"#.to_string(),
-            r#"<a href="/">Home</a><a href="/#posts">Articles</a>"#.to_string(),
-        )
-    };
-
-    // Header Resolution Pipeline
-    let has_tb_header = partials
-        .map(|p| p.has_theme_builder_header)
-        .unwrap_or(false);
-    let header_hidden = partials.map(|p| p.header_hidden).unwrap_or(false);
-    let header_force_fallback = partials.map(|p| p.header_force_fallback).unwrap_or(false);
-    let site_header_html = if is_blank_template || header_hidden {
-        String::new()
-    } else if !header_force_fallback && partials.and_then(|p| p.header_html.as_ref()).is_some() {
-        let h_html = partials
-            .and_then(|p| p.header_html.as_ref())
-            .unwrap_or(&String::new())
-            .clone();
-        let sticky_cls = if partials.map(|p| p.header_sticky).unwrap_or(false) {
-            " np-sticky"
-        } else {
-            ""
-        };
-        let trans_cls = if partials.map(|p| p.header_transparent).unwrap_or(false) {
-            " np-transparent"
-        } else {
-            ""
-        };
-        format!(
-            r#"<header class="np-theme-header{}{}">{}</header>"#,
-            sticky_cls, trans_cls, h_html
-        )
-    } else if !header_force_fallback
-        && !has_tb_header
-        && !settings.elementor_header_html.trim().is_empty()
-    {
-        format!(
-            r#"<header class="np-elementor-header">{}</header>"#,
-            settings.elementor_header_html
-        )
-    } else {
-        format!(
-            r##"<header class="neo-header">
-		<div class="header-container">
-			<a href="/" class="logo-brand">
-				<span class="badge-neo">CMS</span>
-				<span>{brand_display}</span>
-			</a>
-			<nav class="neo-nav">
-				{nav_links_html}
-			</nav>
-			<div class="header-actions">
-				<form action="/" method="GET" class="header-search">
-					<input type="text" name="s" placeholder="Search site..." aria-label="Search" />
-				</form>
-				{header_login_btn}
-			</div>
-		</div>
-	</header>"##,
-            brand_display = brand_display,
-            nav_links_html = nav_links_html,
-            header_login_btn = header_login_btn
-        )
-    };
-
-    // Footer Resolution Pipeline
-    let has_tb_footer = partials
-        .map(|p| p.has_theme_builder_footer)
-        .unwrap_or(false);
-    let footer_hidden = partials.map(|p| p.footer_hidden).unwrap_or(false);
-    let footer_force_fallback = partials.map(|p| p.footer_force_fallback).unwrap_or(false);
-    let site_footer_html = if is_blank_template || footer_hidden {
-        String::new()
-    } else if !footer_force_fallback && partials.and_then(|p| p.footer_html.as_ref()).is_some() {
-        let f_html = partials
-            .and_then(|p| p.footer_html.as_ref())
-            .unwrap_or(&String::new())
-            .clone();
-        format!(r#"<footer class="np-theme-footer">{}</footer>"#, f_html)
-    } else if !footer_force_fallback
-        && !has_tb_footer
-        && !settings.elementor_footer_html.trim().is_empty()
-    {
-        format!(
-            r#"<footer class="np-elementor-footer">{}</footer>"#,
-            settings.elementor_footer_html
-        )
-    } else {
-        format!(
-            r##"<footer class="neo-footer">
-		<div class="footer-grid">
-			<div class="footer-brand">
-				<div class="logo-brand">
-					<span class="badge-neo">CMS</span>
-					<span>{brand_display}</span>
-				</div>
-				<p>{site_desc}</p>
-			</div>
-			<div>
-				<div class="footer-col-title">Navigation</div>
-				<div class="footer-links">
-					{footer_nav_html}
-				</div>
-			</div>
-			<div>
-				<div class="footer-col-title">Feeds &amp; Endpoints</div>
-				<div class="footer-links">
-					<a href="/sitemap.xml">XML Sitemap</a>
-					<a href="/wp-json/wp/v2/posts">REST API v2</a>
-					<a href="/n-admin/">Admin Portal</a>
-				</div>
-			</div>
-		</div>
-		<div class="footer-bottom">
-			<div>
-				&copy; 2026 {brand_display}. Powered by Neopress Native Rust CMS.{privacy_link_html}
-			</div>
-			<div class="engine-chip">
-				<span>⚡</span> Neopress AST &bull; Embedded SQLite WAL
-			</div>
-		</div>
-	</footer>"##,
-            brand_display = brand_display,
-            privacy_link_html = privacy_link_html,
-            site_desc = escape_html(site_desc),
-            footer_nav_html = footer_nav_html
-        )
-    };
+    // Header & Footer Resolution Pipelines (Theme Builder → Elementor → native Neopress)
+    let site_header_html =
+        site_chrome::render_site_header(settings, current_user, partials, is_blank_template);
+    let site_footer_html = site_chrome::render_site_footer(settings, partials, is_blank_template);
 
     let theme_header_css = partials
         .and_then(|p| p.header_css.as_ref())
@@ -331,6 +161,7 @@ pub fn render_base_layout(
 	<meta name="description" content="{meta_desc}" />
 	{robots_meta}
 	{canonical_tag}
+	{feed_links}
 	<meta name="generator" content="Neopress Rust CMS" />
 
 	<!-- Native SEO: OpenGraph & Twitter Cards -->
@@ -414,6 +245,7 @@ pub fn render_base_layout(
         meta_desc = escape_html(&meta_desc),
         robots_meta = robots_meta,
         canonical_tag = canonical_tag,
+        feed_links = feed_links,
         og_image_tags = og_image_tags,
         favicon_href = favicon_href,
         schema_type = schema_type,

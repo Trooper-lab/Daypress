@@ -62,6 +62,15 @@ pub fn render_wp_posts_view_with_matrix(
     let all_non_trash_count = posts.iter().filter(|p| p.status != "trash").count();
     let pub_count = posts.iter().filter(|p| p.status == "publish").count();
     let draft_count = posts.iter().filter(|p| p.status == "draft").count();
+    let scheduled_count = posts.iter().filter(|p| p.status == "future").count();
+    // Like WordPress, the "Scheduled" view only appears while something is scheduled.
+    let scheduled_tab = if scheduled_count > 0 {
+        format!(
+            r#"<button type="button" class="btn btn-secondary status-tab" data-filter="future" onclick="filterByStatus('future', this)">Scheduled ({scheduled_count})</button>"#
+        )
+    } else {
+        String::new()
+    };
     let trash_count = posts.iter().filter(|p| p.status == "trash").count();
 
     let nav_slugs: std::collections::HashSet<String> = settings
@@ -104,11 +113,18 @@ pub fn render_wp_posts_view_with_matrix(
             format!("/{}/{}/", p.post_type, p.slug)
         };
         let status_badge = match p.status.as_str() {
-            "draft" => r#"<span class="badge badge-draft">Draft</span>"#,
+            "draft" => r#"<span class="badge badge-draft">Draft</span>"#.to_string(),
             "trash" => {
-                r#"<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Trash</span>"#
+                r#"<span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Trash</span>"#.to_string()
             }
-            _ => r#"<span class="badge badge-published">Published</span>"#,
+            "future" => {
+                let when: String = p.date.replace('T', " ").chars().take(16).collect();
+                format!(
+                    r#"<span class="badge" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;" title="Goes live {} UTC">Scheduled</span>"#,
+                    escape_html(&when)
+                )
+            }
+            _ => r#"<span class="badge badge-published">Published</span>"#.to_string(),
         };
 
         let author_display = if p.author_name.is_empty()
@@ -263,6 +279,7 @@ pub fn render_wp_posts_view_with_matrix(
                 <button type="button" class="btn btn-secondary status-tab" data-filter="all" style="background: #0f172a; color: #fff;" onclick="filterByStatus('all', this)">All ({count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="publish" onclick="filterByStatus('publish', this)">Published ({pub_count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="draft" onclick="filterByStatus('draft', this)">Draft ({draft_count})</button>
+                {scheduled_tab}
                 <button type="button" class="btn btn-secondary status-tab" data-filter="trash" onclick="filterByStatus('trash', this)">Trash ({trash_count})</button>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -458,6 +475,7 @@ pub fn render_wp_posts_view_with_matrix(
         count = all_non_trash_count,
         pub_count = pub_count,
         draft_count = draft_count,
+        scheduled_tab = scheduled_tab,
         trash_count = trash_count,
         rows_html = rows_html
     );

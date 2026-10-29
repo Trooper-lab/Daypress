@@ -158,11 +158,13 @@ pub async fn handle_admin_builder(
     let post = post.unwrap_or_else(super::admin_extra::placeholder_builder_post);
 
     let layout_opt = db.get_post_layout(post.id).unwrap_or(None);
+    let partials = super::admin_extra::builder_theme_partials(&db, &settings, &post);
 
-    Html(templates::render_wp_builder_view(
+    Html(templates::render_wp_builder_view_with_partials(
         &settings,
         &post,
         layout_opt.as_deref(),
+        Some(&partials),
     ))
 }
 
@@ -252,6 +254,12 @@ pub async fn handle_login_page(
         params.loggedout.as_deref() == Some("true") || params.loggedout.as_deref() == Some("1");
     let error_msg = params.error.as_deref();
     let redirect_to = params.redirect_to.as_deref();
+    if params.action.as_deref() == Some("resetpass") && error_msg.is_none() {
+        let notice =
+            templates::LoginNotice::Info("Your password has been reset. You can now log in.");
+        let html = templates::render_wp_login_view_with_notice(&settings, notice, redirect_to);
+        return Html(html).into_response();
+    }
 
     Html(templates::render_wp_login_view(
         &settings,

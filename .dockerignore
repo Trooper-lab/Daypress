@@ -1,0 +1,23 @@
+# Build output and local state never go into the build context.
+target/
+**/target/
+data/
+uploads/
+backups/
+crates/neopress-server/uploads/
+crates/neopress-server/static/themes/
+node_modules/
+.git/
+.github/
+.agents/
+.claude/
+.vscode/
+.idea/
+docs/
+tests/
+.env
+.env.*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log

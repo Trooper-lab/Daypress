@@ -145,7 +145,8 @@ pub fn render_autosave_script(post_type: &str) -> String {
                                 menu_order,
                                 featured_media: featured_media > 0 ? featured_media : undefined,
                                 categories,
-                                meta: collectAcfMeta()
+                                meta: collectAcfMeta(),
+                                ...npScheduleOverrides(status, true)
                             }})
                         }});
                         data = await res.json();

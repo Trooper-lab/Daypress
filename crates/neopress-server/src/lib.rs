@@ -19,6 +19,7 @@ pub mod handlers;
 pub mod importer;
 pub mod media;
 pub mod models;
+pub mod password_reset;
 pub mod plugins;
 pub mod seed;
 pub mod static_assets;
@@ -100,6 +101,14 @@ pub fn create_app(database: Database) -> Router {
             get(media::handle_serve_media),
         )
         .route("/login", get(handle_login_page).post(handle_login_submit))
+        .route(
+            "/login/lost-password",
+            get(handle_lost_password_page).post(handle_lost_password_submit),
+        )
+        .route(
+            "/login/reset-password",
+            get(handle_reset_password_page).post(handle_reset_password_submit),
+        )
         .route("/logout", get(handle_logout))
         .route(
             "/n-admin/login",
@@ -290,6 +299,13 @@ pub fn create_app(database: Database) -> Router {
         .route("/n-admin/analytics", get(handle_admin_analytics))
         .route("/sitemap.xml", get(handle_sitemap_xml))
         .route("/robots.txt", get(handle_robots_txt))
+        // RSS 2.0 feeds (static `feed` segments win over the `/{slug}` catch-alls below).
+        .route("/feed", get(handle_rss_feed))
+        .route("/feed/", get(handle_rss_feed))
+        .route("/category/{slug}/feed", get(handle_category_rss_feed))
+        .route("/category/{slug}/feed/", get(handle_category_rss_feed))
+        .route("/tag/{slug}/feed", get(handle_tag_rss_feed))
+        .route("/tag/{slug}/feed/", get(handle_tag_rss_feed))
         .route(
             "/wp-admin",
             get(|| async { Redirect::permanent("/n-admin/") }),
@@ -357,6 +373,11 @@ pub fn create_app(database: Database) -> Router {
         .layer(axum::middleware::from_fn_with_state(
             database.clone(),
             auth::admin_session_gate,
+        ))
+        // Scheduled posts whose date has passed are published before any request reads posts.
+        .layer(axum::middleware::from_fn_with_state(
+            database.clone(),
+            handlers::publish_due_posts_layer,
         ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
