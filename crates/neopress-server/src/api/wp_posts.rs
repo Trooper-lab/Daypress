@@ -84,6 +84,7 @@ pub(crate) async fn create_post(
     State(db): State<Database>,
     Json(payload): Json<CreatePostRequest>,
 ) -> Result<(StatusCode, Json<WpPostResponse>), AppError> {
+    check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     let post = db.create_post(&payload)?;
     Ok((StatusCode::CREATED, Json(post)))
 }
@@ -94,6 +95,7 @@ pub(crate) async fn update_post(
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdatePostRequest>,
 ) -> Result<Json<WpPostResponse>, AppError> {
+    check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     match db.update_post(id, &payload)? {
         Some(post) => Ok(Json(post)),
         None => Err(AppError::NotFound(format!("Post {} not found", id))),
@@ -188,6 +190,7 @@ pub(crate) async fn create_page(
     Json(mut payload): Json<CreatePostRequest>,
 ) -> Result<(StatusCode, Json<WpPostResponse>), AppError> {
     payload.post_type = "page".to_string();
+    check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     let page = db.create_post(&payload)?;
     Ok((StatusCode::CREATED, Json(page)))
 }
@@ -198,6 +201,7 @@ pub(crate) async fn update_page(
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdatePostRequest>,
 ) -> Result<Json<WpPostResponse>, AppError> {
+    check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     match db.update_post(id, &payload)? {
         Some(page) => Ok(Json(page)),
         None => Err(AppError::NotFound(format!("Page {} not found", id))),
@@ -218,4 +222,10 @@ fn restrict_status_for_visitor(params: &mut PostQueryParams, user: Option<&crate
     if !user.is_some_and(|u| u.can_edit_content()) {
         params.status = Some("publish".to_string());
     }
+}
+
+/// Rejects a `date` / `date_gmt` that is not an ISO 8601 date (WordPress `rest_invalid_date`).
+fn check_dates(date: Option<&str>, date_gmt: Option<&str>) -> Result<(), AppError> {
+    crate::adapters::database::scheduling::validate_requested_dates(date, date_gmt)
+        .map_err(AppError::BadRequest)
 }

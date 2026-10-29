@@ -16,6 +16,7 @@ pub mod password_resets;
 pub mod plugins_seo;
 pub mod post_ast;
 pub mod posts;
+pub mod scheduling;
 pub mod schema;
 pub mod settings_extra;
 pub mod taxonomies;

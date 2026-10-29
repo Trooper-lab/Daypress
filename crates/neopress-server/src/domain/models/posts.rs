@@ -101,6 +101,13 @@ pub struct CreatePostRequest {
     pub meta: Option<serde_json::Value>,
     #[serde(default)]
     pub taxonomies: Option<std::collections::HashMap<String, Vec<i64>>>,
+    /// Publish date (ISO 8601, site time = UTC). A `publish` post dated ahead is stored as
+    /// `future` (scheduled), as in WordPress.
+    #[serde(default)]
+    pub date: Option<String>,
+    /// Publish date in UTC; wins over `date` when both are given.
+    #[serde(default)]
+    pub date_gmt: Option<String>,
 }
 
 pub fn default_post_status() -> String {
@@ -145,6 +152,12 @@ pub struct UpdatePostRequest {
     pub meta: Option<serde_json::Value>,
     #[serde(default)]
     pub taxonomies: Option<std::collections::HashMap<String, Vec<i64>>>,
+    /// New publish date (ISO 8601, site time = UTC); see [`CreatePostRequest::date`].
+    #[serde(default)]
+    pub date: Option<String>,
+    /// New publish date in UTC; wins over `date` when both are given.
+    #[serde(default)]
+    pub date_gmt: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

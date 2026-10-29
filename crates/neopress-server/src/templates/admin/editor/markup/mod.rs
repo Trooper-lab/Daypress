@@ -3,6 +3,7 @@
 mod custom_fields;
 mod fields;
 mod meta;
+mod schedule;
 mod shell;
 mod sidebar;
 
@@ -253,6 +254,7 @@ pub fn render_wp_post_new_view(
 
     let custom_fields_card = render_custom_fields_card(existing);
     let dynamic_taxonomies_html = sidebar::render_taxonomy_cards(taxonomies, is_page);
+    let schedule_html = schedule::render_schedule_controls(existing);
 
     let sidebar_html = render_editor_sidebar(&SidebarParams {
         btn_text: &btn_text,
@@ -271,11 +273,9 @@ pub fn render_wp_post_new_view(
         } else {
             ""
         },
-        is_private_selected: if initial_status == "private" {
-            "selected"
-        } else {
-            ""
-        },
+        is_private_selected: schedule::selected_if(&initial_status, "private"),
+        is_future_selected: schedule::selected_if(&initial_status, "future"),
+        schedule_html: &schedule_html,
         initial_date: &initial_date,
         initial_modified: &initial_modified,
         page_attr_style: if is_page { "" } else { "display: none;" },
@@ -340,7 +340,7 @@ pub fn render_wp_post_new_view(
                 {duplicate_btn_html}
                 <button type="button" class="btn btn-secondary" onclick="saveDraft()">Save Draft</button>
                 <button type="button" class="btn btn-secondary" onclick="previewPage()">View Live ↗</button>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('postFormSubmit').click()">{btn_text}</button>
+                <button type="button" class="btn btn-primary np-publish-btn" onclick="document.getElementById('postFormSubmit').click()">{btn_text}</button>
             </div>
         </div>
 

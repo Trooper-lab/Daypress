@@ -374,6 +374,11 @@ pub fn create_app(database: Database) -> Router {
             database.clone(),
             auth::admin_session_gate,
         ))
+        // Scheduled posts whose date has passed are published before any request reads posts.
+        .layer(axum::middleware::from_fn_with_state(
+            database.clone(),
+            handlers::publish_due_posts_layer,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .layer(axum::extract::DefaultBodyLimit::max(500 * 1024 * 1024))

@@ -9,6 +9,9 @@ pub struct SidebarParams<'a> {
     pub is_draft_selected: &'a str,
     pub is_pending_selected: &'a str,
     pub is_private_selected: &'a str,
+    pub is_future_selected: &'a str,
+    /// Date/time picker for the "Scheduled" status (`markup/schedule.rs`).
+    pub schedule_html: &'a str,
     pub initial_date: &'a str,
     pub initial_modified: &'a str,
     pub page_attr_style: &'a str,
@@ -184,8 +187,10 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                             <option value="draft" {is_draft_selected}>Draft</option>
                             <option value="pending" {is_pending_selected}>Pending Review</option>
                             <option value="private" {is_private_selected}>Private</option>
+                            <option value="future" {is_future_selected}>Scheduled</option>
                         </select>
                     </div>
+                    {schedule_html}
 
                     <div class="form-group">
                         <label class="form-label">Author</label>
@@ -202,7 +207,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
 
                     <div style="border-top: 1px solid #f1f5f9; padding-top: 14px; margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
                         <button type="button" onclick="trashPost()" style="color: #ef4444; font-size: 12px; background: none; border: none; cursor: pointer; padding: 4px;">Move to Trash</button>
-                        <button type="submit" class="btn btn-primary">{btn_text}</button>
+                        <button type="submit" class="btn btn-primary np-publish-btn">{btn_text}</button>
                     </div>
                 </div>
             </div>
@@ -296,6 +301,8 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
         is_draft_selected = p.is_draft_selected,
         is_pending_selected = p.is_pending_selected,
         is_private_selected = p.is_private_selected,
+        is_future_selected = p.is_future_selected,
+        schedule_html = p.schedule_html,
         initial_date = p.initial_date,
         initial_modified = p.initial_modified,
         btn_text = p.btn_text,

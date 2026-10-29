@@ -160,7 +160,7 @@ Retrieve a paginated list of posts.
 | `per_page` | integer | `10` | Maximum number of posts to return. |
 | `slug` | string | - | Filter posts by exact slug. |
 | `search` | string | - | Limit results to posts containing the search term. |
-| `status` | string | `"publish"` | Post status (`publish`, `draft`, `trash`). |
+| `status` | string | `"publish"` | Post status (`publish`, `future`, `draft`, `pending`, `private`, `trash`, `any`). Visitors only ever get `publish`. |
 
 #### Example Request
 ```bash
@@ -184,6 +184,8 @@ Create a new post.
   "slug": "migrating-to-native-rust"
 }
 ```
+
+Optional `date` / `date_gmt` (ISO 8601, e.g. `2026-11-01T09:30:00`; `date_gmt` wins when both are sent) set the publish date. Site time is UTC, so a date without an offset is read as UTC. As in WordPress, a `publish` post dated at least a minute ahead is stored as `future` (scheduled): it stays out of every public page, feed, the sitemap and unauthenticated REST reads until its date passes, then it is published automatically. Sending `status: "future"` with a date that is not ahead publishes the post. An unparseable date returns `400`.
 
 #### Example Response (`201 Created`)
 ```json

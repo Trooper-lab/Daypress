@@ -121,6 +121,9 @@ PRAGMA user_version = 1;
 "#;
 
 pub const SUBSYSTEMS_SCHEMA_SQL: &str = r#"
+-- Lets the scheduled-post promotion (`scheduling.rs`) find due `future` posts cheaply.
+CREATE INDEX IF NOT EXISTS idx_post_status_date ON wp_posts(post_status, post_date);
+
 CREATE TABLE IF NOT EXISTS wp_application_passwords (
     uuid TEXT PRIMARY KEY,
     app_id TEXT NOT NULL,

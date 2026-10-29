@@ -7,6 +7,7 @@
 //! * [`native_modules`]: Cookieless Analytics, SEO & 301 Redirects, Declarative Forms, SQLite Hot Backups, and Plugin SDK.
 //! * [`lost_password`]: "Lost your password?" request and reset-link screens.
 //! * [`rss_feed`]: RSS 2.0 feeds for posts, categories and tags.
+//! * [`scheduled_posts`]: Middleware that publishes scheduled posts once their date passes.
 
 pub mod admin_actions;
 pub mod admin_extra;
@@ -18,6 +19,7 @@ pub mod native_modules;
 pub mod params;
 pub mod public_ssr;
 pub mod rss_feed;
+pub mod scheduled_posts;
 pub mod seo_feeds;
 pub mod taxonomy_archive_render;
 
@@ -31,5 +33,6 @@ pub use native_modules::*;
 pub use params::*;
 pub use public_ssr::*;
 pub use rss_feed::*;
+pub use scheduled_posts::*;
 pub use seo_feeds::*;
 pub use taxonomy_archive_render::*;

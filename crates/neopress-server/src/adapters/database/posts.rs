@@ -726,11 +726,19 @@ impl Database {
         let parent = req.parent.unwrap_or(0);
         let menu_order = req.menu_order.unwrap_or(0);
         let author = req.author.unwrap_or(1);
+        // `publish` dated ahead becomes `future` (scheduled), like WordPress.
+        let (post_date, status) = super::scheduling::schedule_for_new_post(
+            &req.status,
+            &req.post_type,
+            req.date.as_deref(),
+            req.date_gmt.as_deref(),
+            &now,
+        );
 
         conn.execute(
             r#"INSERT INTO wp_posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_parent, menu_order)
-               VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, ?2, ?2, '', ?8, ?9, ?10)"#,
-            params![author, now, req.content, req.title, excerpt, req.status, slug, req.post_type, parent, menu_order],
+               VALUES (?1, ?11, ?11, ?3, ?4, ?5, ?6, ?7, ?2, ?2, '', ?8, ?9, ?10)"#,
+            params![author, now, req.content, req.title, excerpt, status, slug, req.post_type, parent, menu_order, post_date],
         )?;
 
         let id = conn.last_insert_rowid();
@@ -908,6 +916,16 @@ impl Database {
                 }
             }
         }
+        // A new date and/or status can (un)schedule the post, like WordPress.
+        let new_date =
+            super::scheduling::requested_post_date(req.date.as_deref(), req.date_gmt.as_deref());
+        super::scheduling::apply_schedule_on_update(
+            &tx,
+            id,
+            req.status.is_some(),
+            new_date.as_deref(),
+            &now,
+        )?;
         if let Some(slug) = &req.slug {
             let clean_slug = if slug.trim().is_empty() {
                 req.title
@@ -1493,16 +1511,20 @@ impl crate::ports::output::PostRepository for Database {
         search: Option<&str>,
         limit: i64,
     ) -> DomainResult<Vec<WpPostResponse>> {
+        // The MCP stdio server reads through this port without the HTTP middleware.
+        let _ = self.publish_due_scheduled_posts();
         self.get_posts(post_type, status, search, limit)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
     fn find_post_by_id(&self, id: i64) -> DomainResult<Option<WpPostResponse>> {
+        let _ = self.publish_due_scheduled_posts();
         self.get_post_by_id(id)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
     fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<WpPostResponse>> {
+        let _ = self.publish_due_scheduled_posts();
         self.get_post_by_slug(slug)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
