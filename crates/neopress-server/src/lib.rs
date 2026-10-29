@@ -299,6 +299,13 @@ pub fn create_app(database: Database) -> Router {
         .route("/n-admin/analytics", get(handle_admin_analytics))
         .route("/sitemap.xml", get(handle_sitemap_xml))
         .route("/robots.txt", get(handle_robots_txt))
+        // RSS 2.0 feeds (static `feed` segments win over the `/{slug}` catch-alls below).
+        .route("/feed", get(handle_rss_feed))
+        .route("/feed/", get(handle_rss_feed))
+        .route("/category/{slug}/feed", get(handle_category_rss_feed))
+        .route("/category/{slug}/feed/", get(handle_category_rss_feed))
+        .route("/tag/{slug}/feed", get(handle_tag_rss_feed))
+        .route("/tag/{slug}/feed/", get(handle_tag_rss_feed))
         .route(
             "/wp-admin",
             get(|| async { Redirect::permanent("/n-admin/") }),

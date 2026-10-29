@@ -6,6 +6,7 @@
 //! * [`home`]: Dynamic front page & blog index AST renderer.
 //! * [`single`]: Single post/page AST renderer and interactive comments section.
 //! * [`archives`]: Category, tag, author, search results, and 404 templates.
+//! * [`rss`]: RSS 2.0 feed documents.
 
 pub mod admin_bar;
 pub mod archives;
@@ -13,6 +14,7 @@ pub mod head_meta;
 pub mod home;
 pub mod menus;
 pub mod pagination;
+pub mod rss;
 pub mod shell;
 pub mod single;
 pub(crate) mod styles;

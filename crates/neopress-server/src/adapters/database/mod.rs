@@ -7,6 +7,7 @@
 pub mod admin_lists;
 pub mod comments;
 pub mod ddl;
+pub mod feeds;
 pub mod maintenance;
 pub mod media;
 pub mod migration;

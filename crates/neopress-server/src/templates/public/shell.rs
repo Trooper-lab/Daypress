@@ -41,6 +41,7 @@ pub fn render_base_layout(
         canonical_tag,
         og_image_tags,
         schema_type,
+        feed_links,
     } = render_head_meta(title, settings, current_post, site_name, site_desc);
 
     let brand_color = if settings.brand_color.trim().is_empty() {
@@ -331,6 +332,7 @@ pub fn render_base_layout(
 	<meta name="description" content="{meta_desc}" />
 	{robots_meta}
 	{canonical_tag}
+	{feed_links}
 	<meta name="generator" content="Neopress Rust CMS" />
 
 	<!-- Native SEO: OpenGraph & Twitter Cards -->
@@ -414,6 +416,7 @@ pub fn render_base_layout(
         meta_desc = escape_html(&meta_desc),
         robots_meta = robots_meta,
         canonical_tag = canonical_tag,
+        feed_links = feed_links,
         og_image_tags = og_image_tags,
         favicon_href = favicon_href,
         schema_type = schema_type,

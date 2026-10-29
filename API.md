@@ -610,6 +610,9 @@ Dynamic streaming XML sitemap conforming to sitemaps.org 0.9 protocol, indexing 
 #### `GET /robots.txt`
 Standard search crawler directives linking to `/sitemap.xml` with administration route exclusions.
 
+#### `GET /feed/`, `GET /category/{slug}/feed/`, `GET /tag/{slug}/feed/`
+RSS 2.0 feeds (`application/rss+xml`) of published blog posts, newest first, limited to Settings → Reading → "Syndication feeds show the most recent" (default 10). Each item has its title, permalink, `guid`, `pubDate`, author (`dc:creator`), categories and tags, an excerpt and the post HTML (`content:encoded`). Term feeds return `404` for an unknown slug. Public pages advertise `/feed/` with `<link rel="alternate" type="application/rss+xml">`.
+
 ---
 
 ## 🚨 Error Responses

@@ -35,6 +35,8 @@ pub struct HeadMetaOutput {
     pub canonical_tag: String,
     pub og_image_tags: String,
     pub schema_type: String,
+    /// RSS autodiscovery `<link rel="alternate">` for `/feed/`.
+    pub feed_links: String,
 }
 
 pub fn render_head_meta(
@@ -130,6 +132,12 @@ pub fn render_head_meta(
         "WebSite".to_string()
     };
 
+    // Feed autodiscovery, like WordPress `feed_links()`.
+    let feed_links = format!(
+        r#"<link rel="alternate" type="application/rss+xml" title="{} &raquo; Feed" href="/feed/" />"#,
+        escape_html(site_name)
+    );
+
     HeadMetaOutput {
         page_title,
         meta_desc,
@@ -137,5 +145,6 @@ pub fn render_head_meta(
         canonical_tag,
         og_image_tags,
         schema_type,
+        feed_links,
     }
 }
