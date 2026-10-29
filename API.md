@@ -1,6 +1,6 @@
-# Neopress REST API Reference
+# Daypress REST API Reference
 
-Neopress provides drop-in compatibility with the **WordPress REST API v2** specification alongside high-performance extensions under the `/wp-json/neopress/v1/` namespace.
+Daypress provides drop-in compatibility with the **WordPress REST API v2** specification alongside high-performance extensions under the `/wp-json/daypress/v1/` namespace.
 
 ---
 
@@ -17,8 +17,8 @@ curl -X GET http://localhost:8080/wp-json/
 #### Example Response (`200 OK`)
 ```json
 {
-  "name": "Neopress Site",
-  "description": "Just another Neopress high-performance site",
+  "name": "Daypress Site",
+  "description": "Just another Daypress high-performance site",
   "url": "http://localhost:8080",
   "home": "http://localhost:8080",
   "gmt_offset": "0",
@@ -26,7 +26,7 @@ curl -X GET http://localhost:8080/wp-json/
   "namespaces": [
     "wp/v2",
     "jwt-auth/v1",
-    "neopress/v1"
+    "daypress/v1"
   ],
   "authentication": {
     "application_passwords": {
@@ -41,7 +41,7 @@ curl -X GET http://localhost:8080/wp-json/
       }
     },
     "nonce": {
-      "endpoint": "/wp-json/neopress/v1/auth/nonce"
+      "endpoint": "/wp-json/daypress/v1/auth/nonce"
     }
   },
   "routes": {
@@ -53,12 +53,12 @@ curl -X GET http://localhost:8080/wp-json/
     "/wp/v2/users": {},
     "/wp/v2/settings": {},
     "/jwt-auth/v1/token": {},
-    "/neopress/v1/auth/nonce": {},
-    "/neopress/v1/stats": {},
-    "/neopress/v1/vacuum": {},
-    "/neopress/v1/integrity-check": {},
-    "/neopress/v1/import": {},
-    "/neopress/v1/import-wxr": {}
+    "/daypress/v1/auth/nonce": {},
+    "/daypress/v1/stats": {},
+    "/daypress/v1/vacuum": {},
+    "/daypress/v1/integrity-check": {},
+    "/daypress/v1/import": {},
+    "/daypress/v1/import-wxr": {}
   }
 }
 ```
@@ -67,7 +67,7 @@ curl -X GET http://localhost:8080/wp-json/
 
 ## 🔐 Authentication & Credential Architecture
 
-Neopress supports full standard WordPress headless and admin client authentication mechanisms:
+Daypress supports full standard WordPress headless and admin client authentication mechanisms:
 
 ### 1. Application Passwords (WordPress 5.6+ Standard)
 Headless clients and external builders (Next.js, Astro, WP-CLI) authenticate using HTTP Basic Auth with user credentials or generated Application Passwords.
@@ -104,7 +104,7 @@ curl -X POST http://localhost:8080/wp-json/wp/v2/posts \
 ```
 
 ### 2. Bearer JWT Tokens (`jwt-auth/v1`)
-Neopress supports standard HS256 JWT tokens compatible with the `jwt-auth` WordPress plugin ecosystem.
+Daypress supports standard HS256 JWT tokens compatible with the `jwt-auth` WordPress plugin ecosystem.
 
 #### `POST /wp-json/jwt-auth/v1/token`
 Generate a signed JWT token using account credentials.
@@ -137,7 +137,7 @@ curl -X POST http://localhost:8080/wp-json/jwt-auth/v1/token/validate \
 ### 3. REST Nonces (`X-WP-Nonce`)
 Frontend scripts, admin editors, and cookie sessions validate writes using WordPress rest nonces:
 
-#### `GET /wp-json/neopress/v1/auth/nonce`
+#### `GET /wp-json/daypress/v1/auth/nonce`
 Fetch a cryptographic nonce for action `wp_rest`.
 ```json
 {
@@ -179,7 +179,7 @@ Create a new post.
 ```json
 {
   "title": "Migrating to Native Rust",
-  "content": "<p>Discover how Neopress achieves sub-millisecond query latencies.</p>",
+  "content": "<p>Discover how Daypress achieves sub-millisecond query latencies.</p>",
   "status": "publish",
   "slug": "migrating-to-native-rust"
 }
@@ -200,7 +200,7 @@ Optional `date` / `date_gmt` (ISO 8601, e.g. `2026-11-01T09:30:00`; `date_gmt` w
     "rendered": "Migrating to Native Rust"
   },
   "content": {
-    "rendered": "<p>Discover how Neopress achieves sub-millisecond query latencies.</p>"
+    "rendered": "<p>Discover how Daypress achieves sub-millisecond query latencies.</p>"
   },
   "excerpt": {
     "rendered": ""
@@ -327,7 +327,7 @@ curl -X POST http://localhost:8080/wp-json/wp/v2/media \
 
 ### Dynamic On-The-Fly Thumbnails & Edge CDN Caching
 - **High-Performance Static Delivery**: Static files requested from `/uploads/{*file}` or `/wp-content/uploads/{*file}` are served directly with `Cache-Control: public, max-age=31536000, immutable`.
-- **On-The-Fly Resizing**: When requesting any dimension crop (e.g. `diagram-300x200.png` or `diagram.webp`) that does not yet exist on disk, Neopress parses the crop parameters from the URI, resizes the base image on the fly, persists the crop to disk, and streams the result.
+- **On-The-Fly Resizing**: When requesting any dimension crop (e.g. `diagram-300x200.png` or `diagram.webp`) that does not yet exist on disk, Daypress parses the crop parameters from the URI, resizes the base image on the fly, persists the crop to disk, and streams the result.
 - **Bulk Import Protection**: During large imports (e.g. 2GB+ media dumps), thumbnail generation runs in non-blocking background workers or dynamically on first request, ensuring instantaneous import without timeouts or CPU exhaustion.
 
 ### `DELETE /wp-json/wp/v2/media/{id}`
@@ -352,7 +352,7 @@ Delete an attachment and remove its physical file from disk.
 
 ## 💬 Comments (`/wp-json/wp/v2/comments`)
 
-Neopress provides full WordPress comments API support for headless discussion systems and the admin moderation queue.
+Daypress provides full WordPress comments API support for headless discussion systems and the admin moderation queue.
 
 ### `GET /wp-json/wp/v2/comments`
 List comments with author details, post relations, and moderation status.
@@ -428,18 +428,18 @@ Update site options.
 #### Request Body
 ```json
 {
-  "title": "Neopress High-Performance",
+  "title": "Daypress High-Performance",
   "description": "Native Rust CMS"
 }
 ```
 
 ---
 
-## 🚀 Neopress v1 System Extensions
+## 🚀 Daypress v1 System Extensions
 
-Neopress provides dedicated high-performance operational endpoints for database management and atomic migration under `/wp-json/neopress/v1/`.
+Daypress provides dedicated high-performance operational endpoints for database management and atomic migration under `/wp-json/daypress/v1/`.
 
-### `GET /wp-json/neopress/v1/stats`
+### `GET /wp-json/daypress/v1/stats`
 Telemetry and SQLite storage diagnostics.
 
 #### Example Response (`200 OK`)
@@ -455,7 +455,7 @@ Telemetry and SQLite storage diagnostics.
 
 ---
 
-### `POST /wp-json/neopress/v1/vacuum`
+### `POST /wp-json/daypress/v1/vacuum`
 Defragments the SQLite database and reclaims unused disk pages.
 
 #### Example Response (`200 OK`)
@@ -468,7 +468,7 @@ Defragments the SQLite database and reclaims unused disk pages.
 
 ---
 
-### `GET /wp-json/neopress/v1/integrity-check`
+### `GET /wp-json/daypress/v1/integrity-check`
 Runs SQLite's low-level `PRAGMA integrity_check` across all B-Trees and indices.
 
 #### Example Response (`200 OK`)
@@ -481,7 +481,7 @@ Runs SQLite's low-level `PRAGMA integrity_check` across all B-Trees and indices.
 
 ---
 
-### `POST /wp-json/neopress/v1/import`
+### `POST /wp-json/daypress/v1/import`
 Atomically imports an entire WordPress migration bundle in a single SQLite transaction.
 
 #### Request Body
@@ -513,13 +513,13 @@ Atomically imports an entire WordPress migration bundle in a single SQLite trans
 
 ---
 
-### `POST /wp-json/neopress/v1/import-wxr`
+### `POST /wp-json/daypress/v1/import-wxr`
 Streaming ingestion of standard WordPress XML export files (WXR 1.2 / Tools &rarr; Export &rarr; All content).
 Accepts either `multipart/form-data` with a `.xml` file or raw `application/xml` payloads. Employs a streaming XML parser (`quick-xml`) with near-zero memory footprint for multi-gigabyte exports.
 
 #### Example Request
 ```bash
-curl -X POST http://localhost:8080/wp-json/neopress/v1/import-wxr \
+curl -X POST http://localhost:8080/wp-json/daypress/v1/import-wxr \
   -H "Authorization: Basic YWRtaW46YWRtaW4=" \
   -F "file=@/path/to/wordpress-export.xml"
 ```
@@ -542,30 +542,30 @@ curl -X POST http://localhost:8080/wp-json/neopress/v1/import-wxr \
 
 ## 🛠️ Administration & Data Portability APIs
 
-In addition to standard REST API v2 endpoints, Neopress exposes high-performance administration APIs for settings persistence and data portability:
+In addition to standard REST API v2 endpoints, Daypress exposes high-performance administration APIs for settings persistence and data portability:
 
 ### Settings APIs
-- `POST /n-admin/api/options-writing`: Persists writing options (`default_category`, `default_post_format`, `mailserver_url`, `mailserver_port`).
-- `POST /n-admin/api/options-reading`: Persists reading options (`show_on_front`, `page_on_front`, `posts_per_page`, `blog_public`).
-- `POST /n-admin/api/options-discussion`: Persists discussion options (`default_comment_status`, `thread_comments`, `show_avatars`).
-- `POST /n-admin/api/options-media`: Persists media sizes (`thumbnail_size_w`, `medium_size_w`, `large_size_w`, `thumbnail_crop`).
-- `POST /n-admin/api/options-permalink`: Persists URL rewrite patterns (`permalink_structure`, `category_base`, `tag_base`).
-- `POST /n-admin/api/options-privacy`: Persists privacy policy designated page (`wp_page_for_privacy_policy`).
+- `POST /d-admin/api/options-writing`: Persists writing options (`default_category`, `default_post_format`, `mailserver_url`, `mailserver_port`).
+- `POST /d-admin/api/options-reading`: Persists reading options (`show_on_front`, `page_on_front`, `posts_per_page`, `blog_public`).
+- `POST /d-admin/api/options-discussion`: Persists discussion options (`default_comment_status`, `thread_comments`, `show_avatars`).
+- `POST /d-admin/api/options-media`: Persists media sizes (`thumbnail_size_w`, `medium_size_w`, `large_size_w`, `thumbnail_crop`).
+- `POST /d-admin/api/options-permalink`: Persists URL rewrite patterns (`permalink_structure`, `category_base`, `tag_base`).
+- `POST /d-admin/api/options-privacy`: Persists privacy policy designated page (`wp_page_for_privacy_policy`).
 
 ---
 
 ### Data Export & GDPR APIs
 
-#### `GET /n-admin/export-wxr`
-Generates and downloads a complete standard WordPress XML export (WXR 1.2 / RSS 2.0) containing all posts, categories, tags, authors, and channel metadata with `Content-Disposition: attachment; filename="neopress.wxr.xml"`.
+#### `GET /d-admin/export-wxr`
+Generates and downloads a complete standard WordPress XML export (WXR 1.2 / RSS 2.0) containing all posts, categories, tags, authors, and channel metadata with `Content-Disposition: attachment; filename="daypress.wxr.xml"`.
 
-#### `GET /n-admin/export-json`
-Generates a complete JSON backup bundle containing all site settings, posts, users, and comments with `Content-Disposition: attachment; filename="neopress-backup.json"`.
+#### `GET /d-admin/export-json`
+Generates a complete JSON backup bundle containing all site settings, posts, users, and comments with `Content-Disposition: attachment; filename="daypress-backup.json"`.
 
-#### `GET /n-admin/api/export-personal-data?user={email_or_username}`
+#### `GET /d-admin/api/export-personal-data?user={email_or_username}`
 Retrieves all comments and user records associated with the specified identity formatted as a GDPR personal data archive.
 
-#### `POST /n-admin/api/erase-personal-data`
+#### `POST /d-admin/api/erase-personal-data`
 Anonymizes and scrubs personal data (replaces name with `Anonymous`, email with `deleted@privacy.local`, and IP with `0.0.0.0`) across all comment records matching the identifier.
 
 ##### Request Body
@@ -588,22 +588,22 @@ Anonymizes and scrubs personal data (replaces name with `Anonymous`, email with 
 
 ### Native Subsystems & Visual Builder APIs
 
-#### `GET /wp-json/neopress/v1/layout/{id}`
-Retrieves the canonical `NeopressLayout` JSON for a post. Prioritizes the dedicated `layout_json` column on `wp_posts`, with automatic fallback to `wp_postmeta` (`_neopress_layout`).
+#### `GET /wp-json/daypress/v1/layout/{id}`
+Retrieves the canonical `DaypressLayout` JSON for a post. Prioritizes the dedicated `layout_json` column on `posts`, with automatic fallback to `postmeta` (`_daypress_layout`).
 
-#### `POST /wp-json/neopress/v1/layout/{id}`
-Saves the JSON layout for a post using a transactional dual-write pattern to `layout_json` and `wp_postmeta`, and synchronizes pre-rendered semantic HTML to `wp_posts.post_content` for zero-JS public SSR.
+#### `POST /wp-json/daypress/v1/layout/{id}`
+Saves the JSON layout for a post using a transactional dual-write pattern to `layout_json` and `postmeta`, and synchronizes pre-rendered semantic HTML to `posts.post_content` for zero-JS public SSR.
 
-#### `POST /wp-json/neopress/v1/forms/{id}/submit`
+#### `POST /wp-json/daypress/v1/forms/{id}/submit`
 Submits data to a declarative form. Validates input, rejects spam submissions via invisible honeypot (`_np_hp`) and cryptographic time-lock tokens, stores the entry in SQLite, and dispatches notification emails and signed webhooks.
 
-#### `POST /wp-json/neopress/v1/analytics/event`
+#### `POST /wp-json/daypress/v1/analytics/event`
 Server-side cookieless pageview ingestion. Hashes `(Client_IP + User_Agent + Daily_Salt)` with zero cookies or local storage, maintaining complete GDPR and ePrivacy compliance without consent banners.
 
-#### `GET /wp-json/neopress/v1/analytics/summary`
+#### `GET /wp-json/daypress/v1/analytics/summary`
 *(Authenticated)* Returns high-performance rollup metrics: total unique visitors, pageviews, and top landing page paths.
 
-#### `POST /wp-json/neopress/v1/email/send`
+#### `POST /wp-json/daypress/v1/email/send`
 *(Authenticated)* Dispatches a transactional email message through the native email subsystem, recording latency and delivery status to the SQLite audit log.
 
 #### `GET /sitemap.xml`
@@ -619,7 +619,7 @@ RSS 2.0 feeds (`application/rss+xml`) of published blog posts, newest first, lim
 
 ## 🚨 Error Responses
 
-When an error occurs, Neopress returns standard WordPress REST JSON error payloads matching standard HTTP status codes:
+When an error occurs, Daypress returns standard WordPress REST JSON error payloads matching standard HTTP status codes:
 
 ```json
 {

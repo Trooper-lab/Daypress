@@ -29,7 +29,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          path-to-document: https://github.com/Trooper-lab/neopress/blob/main/CLA.md
+          path-to-document: https://github.com/Trooper-lab/daypress/blob/main/CLA.md
           path-to-signatures: signatures/v1/cla.json
           branch: cla-signatures
           allowlist: BillyDP,Trooper-lab,dependabot[bot],github-actions[bot]

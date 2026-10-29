@@ -1,7 +1,7 @@
 """
 tests/adversarial_cad_dock_stress.py
 
-Adversarial Empirical Challenge for NeoStudio CAD Dock Chrome Invariants.
+Adversarial Empirical Challenge for DayStudio CAD Dock Chrome Invariants.
 Challenger 2 — Milestone 5.
 
 Tests:
@@ -11,10 +11,10 @@ Tests:
    - 1280x800 (WXGA)
    - 1024x768 (XGA)
    Asserts:
-   - #neostudio-topbar: height <= 44.0px, y == 0.0, width == viewport_width
-   - #neostudio-bottom-bar: height <= 32.0px, y == viewport_height - height, width == viewport_width
-   - #neostudio-rail: width == 48.0px, x == 0.0, height == viewport_height - topbar_height - bottom_bar_height
-   - #neostudio-artboard: Stacking Context isolation: contain contains 'layout' & 'paint', transform != 'none', isolation == 'isolate'
+   - #daystudio-topbar: height <= 44.0px, y == 0.0, width == viewport_width
+   - #daystudio-bottom-bar: height <= 32.0px, y == viewport_height - height, width == viewport_width
+   - #daystudio-rail: width == 48.0px, x == 0.0, height == viewport_height - topbar_height - bottom_bar_height
+   - #daystudio-artboard: Stacking Context isolation: contain contains 'layout' & 'paint', transform != 'none', isolation == 'isolate'
 
 2. Adversarial Hostile Attacks:
    Attack A: Rogue fixed element escape:
@@ -26,7 +26,7 @@ Tests:
      Inject:
        * { margin-top: 100px !important; padding: 50px !important; box-sizing: content-box !important; }
      into an artboard style block.
-     Verify chrome invariants remain intact due to @scope and #neostudio-shell reset.
+     Verify chrome invariants remain intact due to @scope and #daystudio-shell reset.
 
    Attack C: Massive overflow attack:
      <div style="width: 10000px; height: 10000px; transform: scale(5) translate(-1000px, -1000px); background: blue;"></div>
@@ -42,7 +42,7 @@ from playwright.sync_api import sync_playwright
 
 TEST_PORT = 8097
 DB_PATH = os.path.abspath("data/test_audit_arch1.sqlite")
-BIN_PATH = os.path.abspath("target/debug/neopress.exe" if sys.platform == "win32" else "target/debug/neopress")
+BIN_PATH = os.path.abspath("target/debug/daypress.exe" if sys.platform == "win32" else "target/debug/daypress")
 
 def test_adversarial_cad_dock():
     print("=" * 65)
@@ -53,7 +53,7 @@ def test_adversarial_cad_dock():
     assert os.path.exists(DB_PATH), f"Database not found at {DB_PATH}"
 
     # Spawn test server
-    print(f"[SERVER] Spawning Neopress on port {TEST_PORT}...")
+    print(f"[SERVER] Spawning Daypress on port {TEST_PORT}...")
     proc = subprocess.Popen(
         [BIN_PATH, "--port", str(TEST_PORT), "--db", DB_PATH],
         stdout=subprocess.DEVNULL,
@@ -93,13 +93,13 @@ def test_adversarial_cad_dock():
             print("\n--- TEST 1: Baseline Invariants Across Multiple Viewports ---")
             for w, h in viewports:
                 ctx = browser.new_context(viewport={"width": w, "height": h})
-                ctx.add_cookies([{"name": "neopress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
+                ctx.add_cookies([{"name": "daypress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
                 page = ctx.new_page()
-                page.goto(f"{base_url}/n-admin/builder?post=1", wait_until="networkidle")
-                page.wait_for_selector("#neostudio-shell", timeout=10000)
+                page.goto(f"{base_url}/d-admin/builder?post=1", wait_until="networkidle")
+                page.wait_for_selector("#daystudio-shell", timeout=10000)
 
                 # 1. Topbar
-                topbar = page.locator("#neostudio-topbar")
+                topbar = page.locator("#daystudio-topbar")
                 assert topbar.is_visible()
                 tb_box = topbar.bounding_box()
                 print(f"[{w}x{h}] Topbar: {tb_box}")
@@ -108,7 +108,7 @@ def test_adversarial_cad_dock():
                 assert tb_box["width"] == float(w), f"Topbar width {tb_box['width']} != viewport width {w}"
 
                 # 2. Bottom-bar
-                bottom_bar = page.locator("#neostudio-bottom-bar")
+                bottom_bar = page.locator("#daystudio-bottom-bar")
                 assert bottom_bar.is_visible()
                 bb_box = bottom_bar.bounding_box()
                 print(f"[{w}x{h}] Bottom-bar: {bb_box}")
@@ -117,7 +117,7 @@ def test_adversarial_cad_dock():
                 assert bb_box["width"] == float(w), f"Bottom-bar width {bb_box['width']} != viewport width {w}"
 
                 # 3. Rail
-                rail = page.locator("#neostudio-rail")
+                rail = page.locator("#daystudio-rail")
                 assert rail.is_visible()
                 r_box = rail.bounding_box()
                 print(f"[{w}x{h}] Rail: {r_box}")
@@ -126,7 +126,7 @@ def test_adversarial_cad_dock():
                 assert r_box["y"] == tb_box["height"], f"Rail y != topbar height: {r_box['y']}"
 
                 # 4. Artboard Isolation Properties
-                artboard = page.locator("#neostudio-artboard")
+                artboard = page.locator("#daystudio-artboard")
                 assert artboard.is_visible()
                 computed = artboard.evaluate("""el => {
                     const s = window.getComputedStyle(el);
@@ -150,10 +150,10 @@ def test_adversarial_cad_dock():
             # -------------------------------------------------------------
             print("\n--- TEST 2: Adversarial Hostile Attack Scenarios ---")
             ctx = browser.new_context(viewport={"width": 1440, "height": 900})
-            ctx.add_cookies([{"name": "neopress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
+            ctx.add_cookies([{"name": "daypress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
             page = ctx.new_page()
-            page.goto(f"{base_url}/n-admin/builder?post=1", wait_until="networkidle")
-            page.wait_for_selector("#neostudio-shell", timeout=10000)
+            page.goto(f"{base_url}/d-admin/builder?post=1", wait_until="networkidle")
+            page.wait_for_selector("#daystudio-shell", timeout=10000)
 
             # Attack A: Inject position:fixed rogue full-screen overlay inside artboard
             print("  Executing Attack A: position:fixed rogue child inside artboard...")
@@ -161,7 +161,7 @@ def test_adversarial_cad_dock():
                 const rogue = document.createElement('div');
                 rogue.id = 'rogue-overlay';
                 rogue.setAttribute('style', 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999999; background: rgba(255,0,0,0.8); pointer-events: auto;');
-                document.getElementById('neostudio-artboard').appendChild(rogue);
+                document.getElementById('daystudio-artboard').appendChild(rogue);
             }""")
 
             # Hit-test topbar:
@@ -180,7 +180,7 @@ def test_adversarial_cad_dock():
             assert "rogue" not in str(bottom_hit).lower(), f"CRITICAL FAILURE: Rogue element occluded bottom-bar! Hit: {bottom_hit}"
 
             # Verify rogue element rect is trapped within artboard coordinates
-            artboard_box = page.locator("#neostudio-artboard").bounding_box()
+            artboard_box = page.locator("#daystudio-artboard").bounding_box()
             rogue_box = page.locator("#rogue-overlay").bounding_box()
             print(f"  Artboard box: {artboard_box}")
             print(f"  Rogue overlay box: {rogue_box}")
@@ -194,7 +194,7 @@ def test_adversarial_cad_dock():
                 const monster = document.createElement('div');
                 monster.id = 'monster-overflow';
                 monster.setAttribute('style', 'position: absolute; width: 10000px; height: 10000px; top: -5000px; left: -5000px; transform: scale(3); background: rgba(0,0,255,0.8);');
-                document.getElementById('neostudio-artboard').appendChild(monster);
+                document.getElementById('daystudio-artboard').appendChild(monster);
             }""")
             # Hit test again
             top_hit2 = page.evaluate("() => { const el = document.elementFromPoint(200, 20); return el ? el.id || el.className || el.tagName : null; }")
@@ -214,7 +214,7 @@ def test_adversarial_cad_dock():
             print("=" * 65)
 
     finally:
-        print("[SERVER] Terminating Neopress process...")
+        print("[SERVER] Terminating Daypress process...")
         proc.terminate()
         try:
             proc.wait(timeout=3)

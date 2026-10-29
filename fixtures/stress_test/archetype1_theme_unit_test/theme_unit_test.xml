@@ -9,7 +9,7 @@
 <channel>
 	<title>Theme Unit Test</title>
 	<link>http://127.0.0.1:8090</link>
-	<description>WordPress Theme Unit Test Suite for Neopress</description>
+	<description>WordPress Theme Unit Test Suite for Daypress</description>
 	<language>en-US</language>
 	<wp:wxr_version>1.2</wp:wxr_version>
 	<wp:base_site_url>http://127.0.0.1:8090</wp:base_site_url>
@@ -204,7 +204,7 @@
 <!-- /wp:columns -->
 
 <!-- wp:quote {"className":"is-style-large"} -->
-<blockquote class="wp-block-quote is-style-large"><p>Neopress delivers sub-millisecond WordPress performance.</p><cite>Core Engineering</cite></blockquote>
+<blockquote class="wp-block-quote is-style-large"><p>Daypress delivers sub-millisecond WordPress performance.</p><cite>Core Engineering</cite></blockquote>
 <!-- /wp:quote -->
 
 <!-- wp:list {"ordered":true} -->
@@ -225,7 +225,7 @@ https://www.youtube.com/watch?v=dQw4w9WgXcQ
 <!-- /wp:embed -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table class="has-fixed-layout"><thead><tr><th>Feature</th><th>Neopress</th></tr></thead><tbody><tr><td>Latency</td><td>&lt;1ms</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table class="has-fixed-layout"><thead><tr><th>Feature</th><th>Daypress</th></tr></thead><tbody><tr><td>Latency</td><td>&lt;1ms</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:buttons -->

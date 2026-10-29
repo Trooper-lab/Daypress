@@ -1,34 +1,34 @@
-# Runs Neopress with its database, uploads and backups in a named volume.
+# Runs Daypress with its database, uploads and backups in a named volume.
 #
 #   docker compose up -d --build
-#   docker compose logs neopress     # shows the generated admin password on first start
+#   docker compose logs daypress     # shows the generated admin password on first start
 #
 # Values in ${...} come from your shell or from a .env file next to this file.
 
-name: neopress
+name: daypress
 
 services:
-  neopress:
+  daypress:
     build: .
-    image: neopress:local
+    image: daypress:local
     ports:
       - "8090:8090"
     environment:
       PORT: "8090"
-      DATABASE_PATH: /data/neopress.sqlite
+      DATABASE_PATH: /data/daypress.sqlite
       # Optional: choose the first admin password instead of a generated one.
-      NEOPRESS_ADMIN_PASSWORD: ${NEOPRESS_ADMIN_PASSWORD:-}
+      DAYPRESS_ADMIN_PASSWORD: ${DAYPRESS_ADMIN_PASSWORD:-}
       # Optional: SMTP for form notifications and email. Nothing is sent without a host.
-      NEOPRESS_SMTP_HOST: ${NEOPRESS_SMTP_HOST:-}
-      NEOPRESS_SMTP_PORT: ${NEOPRESS_SMTP_PORT:-}
-      NEOPRESS_SMTP_SECURITY: ${NEOPRESS_SMTP_SECURITY:-}
-      NEOPRESS_SMTP_USER: ${NEOPRESS_SMTP_USER:-}
-      NEOPRESS_SMTP_PASSWORD: ${NEOPRESS_SMTP_PASSWORD:-}
-      NEOPRESS_SMTP_FROM: ${NEOPRESS_SMTP_FROM:-}
-      NEOPRESS_SMTP_FROM_NAME: ${NEOPRESS_SMTP_FROM_NAME:-}
+      DAYPRESS_SMTP_HOST: ${DAYPRESS_SMTP_HOST:-}
+      DAYPRESS_SMTP_PORT: ${DAYPRESS_SMTP_PORT:-}
+      DAYPRESS_SMTP_SECURITY: ${DAYPRESS_SMTP_SECURITY:-}
+      DAYPRESS_SMTP_USER: ${DAYPRESS_SMTP_USER:-}
+      DAYPRESS_SMTP_PASSWORD: ${DAYPRESS_SMTP_PASSWORD:-}
+      DAYPRESS_SMTP_FROM: ${DAYPRESS_SMTP_FROM:-}
+      DAYPRESS_SMTP_FROM_NAME: ${DAYPRESS_SMTP_FROM_NAME:-}
     volumes:
-      - neopress-data:/data
+      - daypress-data:/data
     restart: unless-stopped
 
 volumes:
-  neopress-data:
+  daypress-data:

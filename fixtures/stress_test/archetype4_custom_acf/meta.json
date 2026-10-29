@@ -2,7 +2,7 @@
   "archetype_id": "archetype4_custom_acf",
   "name": "Northwind Custom ACF Theme Bundle",
   "wxr_file": "site.WordPress.xml",
-  "theme_path": "crates/neopress-server/static/themes/northwind",
+  "theme_path": "crates/daypress-server/static/themes/northwind",
   "source_site_url": "https://northwind.example",
   "registered_cpts": [
     "trainingen",

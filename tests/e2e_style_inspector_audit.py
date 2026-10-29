@@ -1,7 +1,7 @@
 """
-NeoStudio Style Inspector — full functional verification (Playwright, headless Chromium).
+DayStudio Style Inspector — full functional verification (Playwright, headless Chromium).
 
-Boots an isolated Neopress instance, seeds a "style lab" page and drives EVERY style control in the
+Boots an isolated Daypress instance, seeds a "style lab" page and drives EVERY style control in the
 inspector, asserting the computed style on the canvas element after each change. Then saves and
 verifies the public SSR page renders identically (desktop, tablet media query, :hover rules).
 """
@@ -31,7 +31,7 @@ LAYOUT = {
                     "children": [
                         {"id": "h_a", "type": "Heading", "data": {"text": "Style Lab Heading", "level": 2}, "styles": {}},
                         {"id": "btn_a", "type": "Button", "data": {"text": "Click me", "url": "#"}, "styles": {"background_color": "#111111", "text_color": "#ffffff", "padding_top": "10px", "padding_bottom": "10px", "padding_left": "16px", "padding_right": "16px"}},
-                        {"id": "img_a", "type": "Image", "data": {"src": "/static/neopress-icon.svg", "alt": "icon"}, "styles": {"width": "120px"}},
+                        {"id": "img_a", "type": "Image", "data": {"src": "/static/daypress-icon.svg", "alt": "icon"}, "styles": {"width": "120px"}},
                         # Imported (nested) styles: builder edits must not be shadowed by these
                         {"id": "txt_nested", "type": "Text", "data": {"content_html": "<p>Nested import text</p>"},
                          "styles": {"padding": {"top": "10px"}, "typography": {"color": "#123456"}, "z_index": 3}},
@@ -58,7 +58,7 @@ class Server:
         for ext in ["", "-shm", "-wal", "-journal"]:
             if os.path.exists(DB + ext):
                 os.remove(DB + ext)
-        exe = os.path.join(REPO, "target", "debug", "neopress.exe")
+        exe = os.path.join(REPO, "target", "debug", "daypress.exe")
         self.proc = subprocess.Popen([exe, "--port", str(PORT), "--db", DB], cwd=REPO,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(60):
@@ -80,11 +80,11 @@ class Server:
 def seed():
     s = json.dumps(LAYOUT)
     con = sqlite3.connect(DB)
-    con.execute("""INSERT OR REPLACE INTO wp_posts (ID, post_author, post_date, post_date_gmt, post_content, post_title,
+    con.execute("""INSERT OR REPLACE INTO posts (ID, post_author, post_date, post_date_gmt, post_content, post_title,
         post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, layout_json)
         VALUES (1, 1, datetime('now'), datetime('now'), '<p>lab</p>', 'Style Lab', '', 'publish', 'style-lab',
         datetime('now'), datetime('now'), 'http://x/style-lab/', 'page', ?)""", (s,))
-    con.execute("INSERT OR REPLACE INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (1, '_neopress_layout', ?)", (s,))
+    con.execute("INSERT OR REPLACE INTO postmeta (post_id, meta_key, meta_value) VALUES (1, '_daypress_layout', ?)", (s,))
     con.commit(); con.close()
 
 
@@ -96,18 +96,18 @@ def run():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             ctx = browser.new_context(viewport={"width": 1440, "height": 1000})
-            ctx.add_cookies([{"name": "neopress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
+            ctx.add_cookies([{"name": "daypress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
             page = ctx.new_page()
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "favicon" not in m.text and "fonts.g" not in m.text else None)
             page.on("pageerror", lambda e: errors.append("PAGEERROR " + str(e)))
             page.goto(f"{BASE}/studio?post_id=1", wait_until="networkidle")
-            page.wait_for_selector('#neostudio-canvas [data-node-id="h_a"]')
+            page.wait_for_selector('#daystudio-canvas [data-node-id="h_a"]')
 
-            INS = "#neostudio-inspector"
+            INS = "#daystudio-inspector"
             def cs(node_id, prop):
-                return page.evaluate("([id, p]) => getComputedStyle(document.querySelector(`#neostudio-canvas [data-node-id='${id}']`))[p]", [node_id, prop])
+                return page.evaluate("([id, p]) => getComputedStyle(document.querySelector(`#daystudio-canvas [data-node-id='${id}']`))[p]", [node_id, prop])
             def select(node_id):
-                page.click(f'#neostudio-canvas [data-node-id="{node_id}"]')
+                page.click(f'#daystudio-canvas [data-node-id="{node_id}"]')
                 page.wait_for_selector(f'{INS} .target-id:has-text("#{node_id}")')
             def open_panel(pid):
                 panel = page.locator(f'{INS} .cad-panel[data-panel-id="{pid}"]')
@@ -142,7 +142,7 @@ def run():
             print("\n[2] Backgrounds")
             typ("background_color", "#00ff00"); check("bg color green", cs("h_a", "backgroundColor") == "rgb(0, 255, 0)")
             chip("data-grad", "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)"); check("gradient chip", "linear-gradient" in cs("h_a", "backgroundImage"))
-            typ("background_image", "/static/neopress-icon.svg"); bi = cs("h_a", "backgroundImage")
+            typ("background_image", "/static/daypress-icon.svg"); bi = cs("h_a", "backgroundImage")
             check("bg image + gradient layered", "url(" in bi and "gradient" in bi, bi)
             sel("background_size", "contain"); check("bg size contain", cs("h_a", "backgroundSize").startswith("contain"))
             sel("background_repeat", "no-repeat"); check("bg repeat none", cs("h_a", "backgroundRepeat").startswith("no-repeat"))
@@ -199,7 +199,7 @@ def run():
 
             print("\n[7] Box model")
             select("btn_a")
-            fac = page.locator(f'{INS} .neo-box-facet[data-prop="padding_top"]')
+            fac = page.locator(f'{INS} .day-box-facet[data-prop="padding_top"]')
             fac.dblclick(); page.keyboard.type("33"); page.keyboard.press("Enter")
             check("padding-top typed 33px", cs("btn_a", "paddingTop") == "33px")
             box = fac.bounding_box()
@@ -207,7 +207,7 @@ def run():
             page.mouse.move(box["x"] + box["width"] / 2 + 10, box["y"] + box["height"] / 2, steps=5); page.mouse.up()
             check("padding scrub +10 -> 43px", cs("btn_a", "paddingTop") == "43px", cs("btn_a", "paddingTop"))
             page.click(f'{INS} #btn-toggle-box-link')
-            mf = page.locator(f'{INS} .neo-box-facet[data-prop="margin_left"]')
+            mf = page.locator(f'{INS} .day-box-facet[data-prop="margin_left"]')
             mf.dblclick(); page.keyboard.type("2rem"); page.keyboard.press("Enter")
             check("linked margin 2rem on all sides", cs("btn_a", "marginTop") == "32px" and cs("btn_a", "marginRight") == "32px", cs("btn_a", "marginTop"))
             page.click(f'{INS} #btn-toggle-box-link')
@@ -251,7 +251,7 @@ def run():
             check("CustomHtml keeps own inline padding", cs("custom_a", "paddingTop") == "12px")
             select("txt_nested")
             check("nested import padding shows (10px)", cs("txt_nested", "paddingTop") == "10px")
-            fac = page.locator(f'{INS} .neo-box-facet[data-prop="padding_top"]')
+            fac = page.locator(f'{INS} .day-box-facet[data-prop="padding_top"]')
             fac.dblclick(); page.keyboard.type("50"); page.keyboard.press("Enter")
             check("edit beats nested import padding", cs("txt_nested", "paddingTop") == "50px")
             typ("text_color", "#654321"); check("edit beats nested typography color", cs("txt_nested", "color") == "rgb(101, 67, 33)")
@@ -259,7 +259,7 @@ def run():
 
             print("\n[12] Save + public SSR parity")
             page.evaluate("window.StudioApi.saveLayout()")
-            page.wait_for_function("!window.NeoStudioState.isSaving && !window.NeoStudioState.isDirty", timeout=10000)
+            page.wait_for_function("!window.DayStudioState.isSaving && !window.DayStudioState.isDirty", timeout=10000)
             pub = ctx.new_page()
             pub.goto(f"{BASE}/style-lab/", wait_until="networkidle")
             def pcs(sel_, prop):
@@ -284,7 +284,7 @@ def run():
             pub.screenshot(path=os.path.join(SHOTS, "ssr_tablet.png"), full_page=True)
 
             # Reload studio: persisted values come back in the inspector
-            page.reload(wait_until="networkidle"); page.wait_for_selector('#neostudio-canvas [data-node-id="h_a"]')
+            page.reload(wait_until="networkidle"); page.wait_for_selector('#daystudio-canvas [data-node-id="h_a"]')
             select("h_a")
             check("reload: inspector shows saved font-size", page.locator(f'{INS} input.ns-input[data-prop="font_size"]').input_value() == "40px")
             check("reload: canvas keeps styles", cs("h_a", "fontSize") == "40px" and cs("h_a", "opacity") == "0.5")

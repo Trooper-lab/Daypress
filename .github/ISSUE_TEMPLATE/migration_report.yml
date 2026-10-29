@@ -1,11 +1,11 @@
 name: Migration report
-description: A WordPress site did not migrate or render correctly in Neopress.
+description: A WordPress site did not migrate or render correctly in Daypress.
 labels: ["migration"]
 body:
   - type: markdown
     attributes:
       value: |
-        Migration reports are how Neopress learns to convert more WordPress sites. The more detail, the better.
+        Migration reports are how Daypress learns to convert more WordPress sites. The more detail, the better.
 
         **Privacy:** do not attach exports that contain real personal data (users, comments, email addresses, form entries). Share screenshots or a cut-down example instead.
   - type: dropdown
@@ -58,11 +58,11 @@ body:
     id: screenshots
     attributes:
       label: Screenshots
-      description: Before (WordPress) and after (Neopress), if you can.
+      description: Before (WordPress) and after (Daypress), if you can.
   - type: input
     id: version
     attributes:
-      label: Neopress version or commit
+      label: Daypress version or commit
       placeholder: "v0.1.0, or a commit hash"
     validations:
       required: true

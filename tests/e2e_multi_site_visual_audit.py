@@ -12,11 +12,11 @@ Verifies:
    - 4 representative routes per archetype: Homepage, Inner Page, Post/CPT Single, Archive/CPT Archive.
    - Multi-breakpoint viewports: Desktop (1440x900), Tablet (768x1024), Mobile (375x812).
    - Assertions: HTTP status == 200, zero unhandled console errors, zero editor chrome leaks.
-2. NeoStudio CAD Dock Chrome Invariants:
-   - #neostudio-topbar: height <= 44.0px, y == 0.0, obsidian chassis background, non-occluded.
-   - #neostudio-bottom-bar: height <= 32.0px, y == viewport_height - height, non-occluded.
-   - #neostudio-rail: width == 48.0px, x == 0.0, non-occluded.
-   - #neostudio-artboard: Stacking Context isolation (contain: layout paint, transform != none, isolation: isolate).
+2. DayStudio CAD Dock Chrome Invariants:
+   - #daystudio-topbar: height <= 44.0px, y == 0.0, obsidian chassis background, non-occluded.
+   - #daystudio-bottom-bar: height <= 32.0px, y == viewport_height - height, non-occluded.
+   - #daystudio-rail: width == 48.0px, x == 0.0, non-occluded.
+   - #daystudio-artboard: Stacking Context isolation (contain: layout paint, transform != none, isolation: isolate).
 """
 
 import os
@@ -47,21 +47,21 @@ BREAKPOINTS = {
     "mobile": {"width": 375, "height": 812},
 }
 
-class NeopressServerContext:
-    """Manages the background neopress-server process lifecycle."""
+class DaypressServerContext:
+    """Manages the background daypress-server process lifecycle."""
     def __init__(self, port: int, db_path: str, bin_path: str = None):
         self.port = port
         self.db_path = os.path.abspath(db_path)
         self.base_url = f"http://127.0.0.1:{port}"
         if bin_path is None:
-            self.bin_path = os.path.abspath("target/debug/neopress.exe" if sys.platform == "win32" else "target/debug/neopress")
+            self.bin_path = os.path.abspath("target/debug/daypress.exe" if sys.platform == "win32" else "target/debug/daypress")
         else:
             self.bin_path = os.path.abspath(bin_path)
         self.proc = None
 
     def __enter__(self):
         assert os.path.exists(self.bin_path), f"Binary not found at {self.bin_path}. Run `cargo build` first."
-        print(f"[SERVER] Spawning Neopress on port {self.port} with DB {self.db_path}...")
+        print(f"[SERVER] Spawning Daypress on port {self.port} with DB {self.db_path}...")
         self.proc = subprocess.Popen(
             [self.bin_path, "--port", str(self.port), "--db", self.db_path],
             stdout=subprocess.DEVNULL,
@@ -81,13 +81,13 @@ class NeopressServerContext:
                 pass
         if not ready:
             self.__exit__(None, None, None)
-            raise RuntimeError(f"Neopress failed to start and respond on {self.base_url}/wp-json within 10s")
-        print(f"[SERVER] Neopress ready on {self.base_url}")
+            raise RuntimeError(f"Daypress failed to start and respond on {self.base_url}/wp-json within 10s")
+        print(f"[SERVER] Daypress ready on {self.base_url}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.proc:
-            print("[SERVER] Terminating Neopress process...")
+            print("[SERVER] Terminating Daypress process...")
             self.proc.terminate()
             try:
                 self.proc.wait(timeout=3)
@@ -113,13 +113,13 @@ class ArchetypeSeeder:
 
         # Create core WordPress tables
         cur.executescript("""
-            CREATE TABLE IF NOT EXISTS wp_options (
+            CREATE TABLE IF NOT EXISTS options (
                 option_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 option_name TEXT UNIQUE NOT NULL,
                 option_value TEXT NOT NULL,
                 autoload TEXT NOT NULL DEFAULT 'yes'
             );
-            CREATE TABLE IF NOT EXISTS wp_posts (
+            CREATE TABLE IF NOT EXISTS posts (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 post_author INTEGER NOT NULL DEFAULT 1,
                 post_date TEXT NOT NULL DEFAULT '',
@@ -145,19 +145,19 @@ class ArchetypeSeeder:
                 comment_count INTEGER NOT NULL DEFAULT 0,
                 layout_json TEXT
             );
-            CREATE TABLE IF NOT EXISTS wp_postmeta (
+            CREATE TABLE IF NOT EXISTS postmeta (
                 meta_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 post_id INTEGER NOT NULL,
                 meta_key TEXT NOT NULL,
                 meta_value TEXT NOT NULL
             );
-            CREATE TABLE IF NOT EXISTS wp_terms (
+            CREATE TABLE IF NOT EXISTS terms (
                 term_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 slug TEXT NOT NULL,
                 term_group INTEGER NOT NULL DEFAULT 0
             );
-            CREATE TABLE IF NOT EXISTS wp_term_taxonomy (
+            CREATE TABLE IF NOT EXISTS term_taxonomy (
                 term_taxonomy_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 term_id INTEGER NOT NULL,
                 taxonomy TEXT NOT NULL,
@@ -165,13 +165,13 @@ class ArchetypeSeeder:
                 parent INTEGER NOT NULL DEFAULT 0,
                 count INTEGER NOT NULL DEFAULT 0
             );
-            CREATE TABLE IF NOT EXISTS wp_term_relationships (
+            CREATE TABLE IF NOT EXISTS term_relationships (
                 object_id INTEGER NOT NULL,
                 term_taxonomy_id INTEGER NOT NULL,
                 term_order INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (object_id, term_taxonomy_id)
             );
-            CREATE TABLE IF NOT EXISTS wp_comments (
+            CREATE TABLE IF NOT EXISTS comments (
                 comment_ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 comment_post_ID INTEGER NOT NULL DEFAULT 0,
                 comment_author TEXT NOT NULL DEFAULT '',
@@ -188,7 +188,7 @@ class ArchetypeSeeder:
                 comment_parent INTEGER NOT NULL DEFAULT 0,
                 user_id INTEGER NOT NULL DEFAULT 0
             );
-            CREATE TABLE IF NOT EXISTS wp_neopress_templates (
+            CREATE TABLE IF NOT EXISTS daypress_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 template_type TEXT NOT NULL,
@@ -201,9 +201,9 @@ class ArchetypeSeeder:
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
-            CREATE TABLE IF NOT EXISTS wp_neopress_template_conditions (
+            CREATE TABLE IF NOT EXISTS daypress_template_conditions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                template_id INTEGER NOT NULL REFERENCES wp_neopress_templates(id) ON DELETE CASCADE,
+                template_id INTEGER NOT NULL REFERENCES daypress_templates(id) ON DELETE CASCADE,
                 condition_type TEXT NOT NULL DEFAULT 'include',
                 rule_target TEXT NOT NULL,
                 target_id TEXT NOT NULL DEFAULT '',
@@ -213,130 +213,130 @@ class ArchetypeSeeder:
         """)
 
         # Base site settings
-        cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('blogname', 'Neopress Visual Audit');")
-        cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('siteurl', 'http://127.0.0.1:8095');")
-        cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('home', 'http://127.0.0.1:8095');")
+        cur.execute("INSERT INTO options (option_name, option_value) VALUES ('blogname', 'Daypress Visual Audit');")
+        cur.execute("INSERT INTO options (option_name, option_value) VALUES ('siteurl', 'http://127.0.0.1:8095');")
+        cur.execute("INSERT INTO options (option_name, option_value) VALUES ('home', 'http://127.0.0.1:8095');")
 
         # Archetype Specific Seeding
         if archetype_id == 1:
             # Archetype 1: Official Theme Unit Test (Gutenberg, 3+ level nav, sticky posts)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('current_theme', 'Theme Unit Test');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('current_theme', 'Theme Unit Test');")
             # Seed Category 'Classic'
-            cur.execute("INSERT INTO wp_terms (term_id, name, slug) VALUES (10, 'Classic', 'classic');")
-            cur.execute("INSERT INTO wp_term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (10, 10, 'category');")
+            cur.execute("INSERT INTO terms (term_id, name, slug) VALUES (10, 'Classic', 'classic');")
+            cur.execute("INSERT INTO term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (10, 10, 'category');")
             # Post 1: Homepage
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (1, 'Welcome to Theme Unit Test', 'home', 'page', 'publish',
                 '<!-- wp:group {"metadata":{"name":"Hero"}} --><div class="wp-block-group"><h1>Official WordPress Theme Unit Test</h1><p>Verifying multi-level navigation and core Gutenberg blocks.</p></div><!-- /wp:group -->');
             """)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('page_on_front', '1');")
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('show_on_front', 'page');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('page_on_front', '1');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('show_on_front', 'page');")
             # Post 2: Inner Page
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (2, 'Page with Comments', 'page-with-comments', 'page', 'publish',
                 '<!-- wp:paragraph --><p>This is an inner page testing comments and breadcrumb hierarchy.</p><!-- /wp:paragraph -->');
             """)
             # Post 3: Single Post with Gutenberg Blocks
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (3, 'Post Format Test: Gallery & Quote', 'post-format-test-gallery', 'post', 'publish',
                 '<!-- wp:quote --><blockquote class="wp-block-quote"><p>Sub-millisecond WordPress SSR with native Rust execution.</p></blockquote><!-- /wp:quote -->' ||
                 '<!-- wp:gallery {"columns":2} --><figure class="wp-block-gallery columns-2"><p class="gallery-item">Gallery Item 1</p><p class="gallery-item">Gallery Item 2</p></figure><!-- /wp:gallery -->');
             """)
-            cur.execute("INSERT INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (3, 10);")
+            cur.execute("INSERT INTO term_relationships (object_id, term_taxonomy_id) VALUES (3, 10);")
 
         elif archetype_id == 2:
             # Archetype 2: Gutenberg FSE / Block Theme (theme.json presets)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('current_theme', 'Twenty Twenty-Four');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('current_theme', 'Twenty Twenty-Four');")
             cur.execute("""
-                INSERT INTO wp_options (option_name, option_value) VALUES ('theme_json_styles',
+                INSERT INTO options (option_name, option_value) VALUES ('theme_json_styles',
                 ':root { --wp--preset--color--primary: #1e40af; --wp--preset--font-size--large: 32px; }');
             """)
-            cur.execute("INSERT INTO wp_terms (term_id, name, slug) VALUES (20, 'News', 'news');")
-            cur.execute("INSERT INTO wp_term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (20, 20, 'category');")
+            cur.execute("INSERT INTO terms (term_id, name, slug) VALUES (20, 'News', 'news');")
+            cur.execute("INSERT INTO term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (20, 20, 'category');")
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (1, 'Twenty Twenty-Four FSE Home', 'home', 'page', 'publish',
                 '<header class="wp-block-template-part"><h2>FSE Header</h2></header><main><h1>Modern Block Theme Architecture</h1></main>');
             """)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('page_on_front', '1');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('page_on_front', '1');")
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (2, 'FSE Services', 'services', 'page', 'publish',
                 '<!-- wp:columns --><div class="wp-block-columns"><div class="wp-block-column"><h3>Service A</h3></div><div class="wp-block-column"><h3>Service B</h3></div></div><!-- /wp:columns -->');
             """)
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (3, 'Welcome to Block Theme', 'welcome-to-block-theme', 'post', 'publish',
                 '<p>Gutenberg full site editing block single post.</p>');
             """)
-            cur.execute("INSERT INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (3, 20);")
+            cur.execute("INSERT INTO term_relationships (object_id, term_taxonomy_id) VALUES (3, 20);")
 
         elif archetype_id == 3:
             # Archetype 3: Elementor Starter Site (Astra kit, flex/grid containers)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('current_theme', 'Astra');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('current_theme', 'Astra');")
             kit_css = ":root { --e-global-color-primary: #6366f1; --e-global-typography-primary: 'Inter'; }"
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('elementor_kit_css', ?);", (kit_css,))
-            cur.execute("INSERT INTO wp_terms (term_id, name, slug) VALUES (30, 'Blog', 'blog');")
-            cur.execute("INSERT INTO wp_term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (30, 30, 'category');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('elementor_kit_css', ?);", (kit_css,))
+            cur.execute("INSERT INTO terms (term_id, name, slug) VALUES (30, 'Blog', 'blog');")
+            cur.execute("INSERT INTO term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (30, 30, 'category');")
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (1, 'Astra Starter Site Agency', 'home', 'page', 'publish',
                 '<div class="elementor-element elementor-widget-container"><h1>Next-Gen Creative Agency</h1><p>High speed conversion.</p></div>');
             """)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('page_on_front', '1');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('page_on_front', '1');")
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (2, 'About Us', 'about', 'page', 'publish',
                 '<div class="elementor-container elementor-column-gap-default"><div class="elementor-row"><h2>Our Story</h2></div></div>');
             """)
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (3, 'Global Enterprise Case Studies', 'case-studies', 'post', 'publish',
                 '<div class="elementor-widget-theme-post-content"><p>Detailed case study content.</p></div>');
             """)
-            cur.execute("INSERT INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (3, 30);")
+            cur.execute("INSERT INTO term_relationships (object_id, term_taxonomy_id) VALUES (3, 30);")
 
         elif archetype_id == 4:
             # Archetype 4: Custom PHP + ACF + CPT (NORTHWIND)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('current_theme', 'northwind');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('current_theme', 'northwind');")
             # CPT Taxonomy
-            cur.execute("INSERT INTO wp_terms (term_id, name, slug) VALUES (40, 'Agile', 'agile');")
-            cur.execute("INSERT INTO wp_term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (40, 40, 'trainingen_category');")
+            cur.execute("INSERT INTO terms (term_id, name, slug) VALUES (40, 'Agile', 'agile');")
+            cur.execute("INSERT INTO term_taxonomy (term_taxonomy_id, term_id, taxonomy) VALUES (40, 40, 'trainingen_category');")
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (1, 'NORTHWIND Home', 'home', 'page', 'publish',
                 '<section class="section diagonal-top"><h1>Northwind Recruitment & Academy</h1></section>');
             """)
-            cur.execute("INSERT INTO wp_options (option_name, option_value) VALUES ('page_on_front', '1');")
+            cur.execute("INSERT INTO options (option_name, option_value) VALUES ('page_on_front', '1');")
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (2, 'Voor Professionals', 'professionals', 'page', 'publish',
                 '<section class="section"><h2>Groei in jouw marketing carrière</h2></section>');
             """)
             # Single CPT Post
             cur.execute("""
-                INSERT INTO wp_posts (ID, post_title, post_name, post_type, post_status, post_content)
+                INSERT INTO posts (ID, post_title, post_name, post_type, post_status, post_content)
                 VALUES (3, 'Agile Marketing Coach', 'agile-coach', 'trainingen', 'publish',
                 '<section class="training-detail"><h2>Agile Marketing Training</h2><p>12-week immersive masterclass.</p></section>');
             """)
-            cur.execute("INSERT INTO wp_term_relationships (object_id, term_taxonomy_id) VALUES (3, 40);")
-            cur.execute("INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (3, 'duur', '12 weken');")
-            cur.execute("INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (3, 'locatie', 'Utrecht');")
+            cur.execute("INSERT INTO term_relationships (object_id, term_taxonomy_id) VALUES (3, 40);")
+            cur.execute("INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (3, 'duur', '12 weken');")
+            cur.execute("INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (3, 'locatie', 'Utrecht');")
 
         conn.commit()
         conn.close()
         print(f"[DB] Archetype {archetype_id} database seeded at {db_path}")
 
 def run_cad_dock_assertions(page, archetype_id: int):
-    """Programmatically asserts NeoStudio CAD Dock Chrome bounding-box invariants."""
+    """Programmatically asserts DayStudio CAD Dock Chrome bounding-box invariants."""
     print(f"[AUDIT] Verifying CAD Dock Chrome Invariants for Archetype {archetype_id}...")
 
     # 1. Topbar Invariant Verification
-    topbar = page.locator("#neostudio-topbar")
-    assert topbar.is_visible(), "Topbar #neostudio-topbar must be visible"
+    topbar = page.locator("#daystudio-topbar")
+    assert topbar.is_visible(), "Topbar #daystudio-topbar must be visible"
     t_rect = topbar.bounding_box()
     assert t_rect is not None, "Topbar bounding box must not be None"
     assert t_rect["y"] == 0.0, f"Topbar y must be 0, got {t_rect['y']}"
@@ -346,8 +346,8 @@ def run_cad_dock_assertions(page, archetype_id: int):
     assert "artboard" not in str(top_hit).lower(), f"Topbar hit-test occluded by artboard! Hit: {top_hit}"
 
     # 2. Bottom-Bar Invariant Verification
-    bottom_bar = page.locator("#neostudio-bottom-bar")
-    assert bottom_bar.is_visible(), "Bottom-bar #neostudio-bottom-bar must be visible"
+    bottom_bar = page.locator("#daystudio-bottom-bar")
+    assert bottom_bar.is_visible(), "Bottom-bar #daystudio-bottom-bar must be visible"
     b_rect = bottom_bar.bounding_box()
     assert b_rect is not None, "Bottom-bar bounding box must not be None"
     assert b_rect["height"] <= 32.0, f"Bottom-bar height must be <= 32px, got {b_rect['height']}px"
@@ -358,16 +358,16 @@ def run_cad_dock_assertions(page, archetype_id: int):
     assert "artboard" not in str(bottom_hit).lower(), f"Bottom-bar hit-test occluded by artboard! Hit: {bottom_hit}"
 
     # 3. Left Rail Invariant Verification
-    rail = page.locator("#neostudio-rail")
-    assert rail.is_visible(), "Left Rail #neostudio-rail must be visible"
+    rail = page.locator("#daystudio-rail")
+    assert rail.is_visible(), "Left Rail #daystudio-rail must be visible"
     r_rect = rail.bounding_box()
     assert r_rect is not None, "Rail bounding box must not be None"
     assert r_rect["x"] == 0.0, f"Rail x must be 0, got {r_rect['x']}"
     assert r_rect["width"] == 48.0, f"Rail width must be 48px, got {r_rect['width']}px"
 
     # 4. Artboard CSS Containment & Stacking Context Isolation
-    artboard = page.locator("#neostudio-artboard")
-    assert artboard.is_visible(), "Artboard #neostudio-artboard must be visible"
+    artboard = page.locator("#daystudio-artboard")
+    assert artboard.is_visible(), "Artboard #daystudio-artboard must be visible"
     a_styles = artboard.evaluate("""el => {
         const s = window.getComputedStyle(el);
         return {
@@ -381,7 +381,7 @@ def run_cad_dock_assertions(page, archetype_id: int):
     assert a_styles["transform"] != "none", f"Artboard missing transform stacking context: {a_styles['transform']}"
     assert a_styles["isolation"] == "isolate", f"Artboard missing isolation: isolate: {a_styles['isolation']}"
 
-    # 5. Capture NeoStudio Builder Screenshot
+    # 5. Capture DayStudio Builder Screenshot
     screenshot_name = f"builder_arch{archetype_id}_desktop_1440x900.png"
     out_path = os.path.join(SCREENSHOT_DIR, screenshot_name)
     page.screenshot(path=out_path)
@@ -429,7 +429,7 @@ def audit_archetype(archetype_id: int, port: int, headless: bool):
         ],
     }[archetype_id]
 
-    with NeopressServerContext(port=port, db_path=db_path) as srv:
+    with DaypressServerContext(port=port, db_path=db_path) as srv:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=headless)
 
@@ -457,7 +457,7 @@ def audit_archetype(archetype_id: int, port: int, headless: bool):
                     # Assert zero editor chrome leaks in SSR DOM
                     content = page.content()
                     assert 'contenteditable="true"' not in content, f"Leaked contenteditable='true' in SSR response: {url}"
-                    assert 'class="neostudio-shell' not in content, f"Leaked neostudio-shell in SSR response: {url}"
+                    assert 'class="daystudio-shell' not in content, f"Leaked daystudio-shell in SSR response: {url}"
                     assert '<!-- wp:' not in content, f"Unparsed Gutenberg <!-- wp: comment leaked in SSR: {url}"
 
                     # Capture screenshot artifact
@@ -468,16 +468,16 @@ def audit_archetype(archetype_id: int, port: int, headless: bool):
 
                     context.close()
 
-            # --- PART B: NeoStudio CAD Dock Chrome Invariants Verification ---
+            # --- PART B: DayStudio CAD Dock Chrome Invariants Verification ---
             context = browser.new_context(viewport={"width": 1440, "height": 900})
-            context.add_cookies([{"name": "neopress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
+            context.add_cookies([{"name": "daypress_admin", "value": "1", "domain": "127.0.0.1", "path": "/"}])
             page = context.new_page()
 
-            builder_url = f"{srv.base_url}/n-admin/builder?post=1"
+            builder_url = f"{srv.base_url}/d-admin/builder?post=1"
             print(f"[BUILDER] Navigating to {builder_url}...")
             resp = page.goto(builder_url, wait_until="networkidle")
             assert resp is not None and resp.status == 200, f"Builder returned status {resp.status if resp else 'None'}"
-            page.wait_for_selector("#neostudio-shell", timeout=10000)
+            page.wait_for_selector("#daystudio-shell", timeout=10000)
 
             run_cad_dock_assertions(page, archetype_id)
             context.close()
@@ -486,8 +486,8 @@ def audit_archetype(archetype_id: int, port: int, headless: bool):
     print(f"[PASS] Archetype {archetype_id} fully audited and verified 100%!")
 
 def main():
-    parser = argparse.ArgumentParser(description="Neopress Multi-Site Visual & CAD Bounding-Box Audit")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to run Neopress test server on")
+    parser = argparse.ArgumentParser(description="Daypress Multi-Site Visual & CAD Bounding-Box Audit")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to run Daypress test server on")
     parser.add_argument("--headless", type=bool, default=True, help="Run browser in headless mode")
     parser.add_argument("--archetypes", type=str, default="1,2,3,4", help="Comma-separated archetype IDs (e.g. 1,2,3,4)")
     args = parser.parse_args()
@@ -496,7 +496,7 @@ def main():
     archetype_ids = [int(x.strip()) for x in args.archetypes.split(",") if x.strip()]
 
     print("=================================================================")
-    print("  🚀 Neopress Playwright Visual & Bounding-Box Audit Suite")
+    print("  🚀 Daypress Playwright Visual & Bounding-Box Audit Suite")
     print("=================================================================")
     print(f"Port:       {args.port}")
     print(f"Headless:   {args.headless}")

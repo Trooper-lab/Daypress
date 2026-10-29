@@ -4,8 +4,8 @@ target/
 data/
 uploads/
 backups/
-crates/neopress-server/uploads/
-crates/neopress-server/static/themes/
+crates/daypress-server/uploads/
+crates/daypress-server/static/themes/
 node_modules/
 .git/
 .github/

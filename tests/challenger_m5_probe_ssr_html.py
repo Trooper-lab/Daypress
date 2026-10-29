@@ -20,7 +20,7 @@ def main():
             except Exception:
                 pass
 
-    bin_path = os.path.abspath("target/debug/neopress.exe")
+    bin_path = os.path.abspath("target/debug/daypress.exe")
     proc = subprocess.Popen(
         [bin_path, "--port", str(TEST_PORT), "--db", TEST_DB],
         stdout=subprocess.DEVNULL,
@@ -87,7 +87,7 @@ def main():
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO wp_posts (
+            INSERT INTO posts (
                 ID, post_author, post_date, post_date_gmt, post_content, post_title,
                 post_excerpt, post_status, post_name, post_modified, post_modified_gmt,
                 guid, post_type, layout_json
@@ -110,13 +110,13 @@ def main():
             html = resp.read().decode("utf-8")
 
         print("=== PROBE SSR HTML RESULTS ===")
-        print(f"Has .np-price-card in HTML: {'.np-price-card' in html}")
-        print(f"Has .np-price-card in CSS style tag: {'.np-price-card {' in html or '.np-price-card{' in html}")
-        print(f"Has .np-countdown in CSS style tag: {'.np-countdown {' in html or '.np-countdown{' in html}")
+        print(f"Has .dp-price-card in HTML: {'.dp-price-card' in html}")
+        print(f"Has .dp-price-card in CSS style tag: {'.dp-price-card {' in html or '.dp-price-card{' in html}")
+        print(f"Has .dp-countdown in CSS style tag: {'.dp-countdown {' in html or '.dp-countdown{' in html}")
 
         # Check for PriceCard rendered HTML snippet
-        if "np-price-card" in html:
-            idx = html.find("np-price-card")
+        if "dp-price-card" in html:
+            idx = html.find("dp-price-card")
             start = max(0, idx - 40)
             end = min(len(html), idx + 350)
             print("\nRendered Snippet:")

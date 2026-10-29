@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="32" height="32">
+  <title>Daypress mark - ink</title>
+  <rect width="1000" height="1000" rx="140" fill="#16171a"/>
+  <path fill="#f3eee4" fill-rule="evenodd" d="M425 182 V156 L575 125 H592 V712 Q592 742 616 748 L660 756 V780 L508 802 L494 720 Q432 798 334 798 C212 798 136 700 136 568 C136 430 222 332 350 332 C418 332 466 360 492 396 V218 Q492 188 458 182 Z M492 466 C470 410 422 376 360 376 C268 376 220 450 220 562 C220 674 276 740 364 740 C422 740 470 704 492 652 Z"/>
+  <circle cx="785" cy="734" r="64" fill="#e8744a"/>
+</svg>
