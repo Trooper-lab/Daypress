@@ -213,6 +213,9 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
                 window.markDirty(true);
                 window.renderCanvas();
             };
+            ctrl.onchange = () => {
+                if (window.pushHistorySnapshot) window.pushHistorySnapshot();
+            };
         });
     }
 

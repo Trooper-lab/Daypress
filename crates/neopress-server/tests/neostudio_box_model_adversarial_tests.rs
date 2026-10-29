@@ -184,9 +184,9 @@ fn test_scrubber_modifiers_and_clamping_script_source() {
     assert!(bm_js.contains("if (!isLinked) return [prop];"));
     assert!(bm_js.contains("SIDES.map(s => group + \"_\" + s)"));
 
-    // 4. Double click inline text input
+    // 4. A click without dragging opens the inline text input
     assert!(bm_js.contains("neo-box-model-inline-input"));
-    assert!(bm_js.contains("facet.addEventListener(\"dblclick\""));
+    assert!(bm_js.contains("openFacetInput(container, facet, node, prop, isPadding);"));
 }
 
 #[test]

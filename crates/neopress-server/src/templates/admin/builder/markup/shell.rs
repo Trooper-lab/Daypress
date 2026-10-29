@@ -131,6 +131,9 @@ pub fn render_shell() -> &'static str {
                 <button class="rail-tab-btn" data-drawer="tokens" id="rail-btn-tokens" title="Global Tokens & Styles (Ctrl+G)">
                     <i class="fa-solid fa-sliders"></i>
                 </button>
+                <button class="rail-tab-btn" data-drawer="css" id="rail-btn-css" title="Custom CSS & Element Classes (Ctrl+E)">
+                    <i class="fa-solid fa-file-code"></i>
+                </button>
                 <button class="rail-tab-btn" data-drawer="history" id="rail-btn-history" title="Audit History (Ctrl+H)">
                     <i class="fa-solid fa-clock-rotate-left"></i>
                 </button>

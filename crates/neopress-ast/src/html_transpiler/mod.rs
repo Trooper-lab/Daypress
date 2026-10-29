@@ -81,15 +81,10 @@ pub fn transpile_html_document(
     let content_root = main_el.unwrap_or(body_el);
 
     if options.extract_header_footer && footer_html.is_none() {
-        if let Some(last_el) = content_root
-            .children
-            .iter()
-            .rev()
-            .find_map(|n| match n {
-                DomNode::Element(e) if !matches!(e.tag.as_str(), "script" | "style") => Some(e),
-                _ => None,
-            })
-        {
+        if let Some(last_el) = content_root.children.iter().rev().find_map(|n| match n {
+            DomNode::Element(e) if !matches!(e.tag.as_str(), "script" | "style") => Some(e),
+            _ => None,
+        }) {
             if last_el.tag == "footer" {
                 footer_html = Some(last_el.outer_html());
             }
@@ -317,12 +312,19 @@ mod tests {
         assert_eq!(count_custom_html_nodes(&res.layout.root), 0);
         assert!(res.node_count >= 10);
         assert!(res.header_html.as_deref().unwrap_or("").contains("mast"));
-        assert!(res.footer_html.as_deref().unwrap_or("").contains("Colophon"));
+        assert!(res
+            .footer_html
+            .as_deref()
+            .unwrap_or("")
+            .contains("Colophon"));
 
         let kit = res.kit.as_ref().expect("should extract ElementorKit");
         assert_eq!(kit.content_width, 1380);
         assert!(kit.system_colors.iter().any(|c| c.color == "#C8371A"));
-        assert!(kit.custom_colors.iter().any(|c| c.id == "paper" && c.color == "#F5F1E8"));
+        assert!(kit
+            .custom_colors
+            .iter()
+            .any(|c| c.id == "paper" && c.color == "#F5F1E8"));
 
         let ssr = crate::render_layout_to_html(&res.layout);
         assert!(ssr.contains("WordPress, rebuilt in <em>Rust</em>."));

@@ -108,6 +108,9 @@ pub const JS_TOKENS_DRAWER: &str = r###"
             }
         }
         lines.push("}");
+        if (gs.custom_css && String(gs.custom_css).trim()) {
+            lines.push(String(gs.custom_css));
+        }
 
         styleEl.textContent = lines.join("\n");
     }

@@ -255,7 +255,10 @@ fn auto_close_implicit(stack: &mut Vec<DomElement>, new_tag: &str) {
         "dt" | "dd" => matches!(current_tag, "dt" | "dd"),
         "tr" => matches!(current_tag, "tr" | "td" | "th"),
         "td" | "th" => matches!(current_tag, "td" | "th"),
-        "thead" | "tbody" | "tfoot" => matches!(current_tag, "thead" | "tbody" | "tfoot" | "tr" | "td" | "th"),
+        "thead" | "tbody" | "tfoot" => matches!(
+            current_tag,
+            "thead" | "tbody" | "tfoot" | "tr" | "td" | "th"
+        ),
         "p" | "div" | "section" | "article" | "header" | "footer" | "aside" | "nav" | "ul"
         | "ol" | "dl" | "blockquote" | "figure" | "table" | "hr" | "h1" | "h2" | "h3" | "h4"
         | "h5" | "h6" => current_tag == "p",

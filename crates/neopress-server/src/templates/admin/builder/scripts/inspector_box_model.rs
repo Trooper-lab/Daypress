@@ -1,20 +1,23 @@
 //! Interactive Trapezoidal Box-Model Scrubber Engine and Unit Switcher (`scripts/inspector_box_model.rs`).
 //!
 //! - Drag a value horizontally to scrub (Shift = x10, Alt = x0.1); Alt+click resets that side.
-//! - Double-click to type any CSS length (`24`, `2rem`, `5%`, `auto`); empty clears the side.
-//! - Values set on the current layer are bright, inherited values amber, computed values muted.
+//! - Click (or double-click) to type any CSS length (`24`, `24px`, `10%`, `2rem`, `auto`); empty clears the side.
+//! - Auto-detects typed units (`px`, `%`, `rem`, `em`, `vh`, `vw`) and syncs the unit selector.
 
 pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
 (function() {
     let currentUnit = "px";
     let isLinked = false;
     const SIDES = ["top", "right", "bottom", "left"];
+    const BOX_UNITS = ["px", "%", "rem", "em", "vh", "vw"];
 
     function renderBoxModelWidget(container, node) {
         const boxContainer = document.createElement("div");
         boxContainer.className = "neo-box-model-container";
         const facet = (group, side) =>
-            `<div class="neo-box-facet facet-${side}" data-prop="${group}_${side}" data-side="${side}" title="${group} ${side} — drag to scrub, double-click to type, Alt+click to reset"><span class="neo-val"></span></div>`;
+            `<div class="neo-box-facet facet-${side}" data-prop="${group}_${side}" data-side="${side}" title="${group} ${side} — click to type (e.g. 24px, 10%, auto), drag to scrub, Alt+click to reset"><span class="neo-val"></span></div>`;
+
+        const unitOpts = BOX_UNITS.map(u => `<option value="${u}" ${u === currentUnit ? "selected" : ""}>${u}</option>`).join("");
 
         boxContainer.innerHTML = `
             <div class="neo-box-model-widget">
@@ -30,7 +33,7 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
                 <div class="neo-box-tools">
                     <div class="neo-unit-toggle">
                         <span>Unit:</span>
-                        <button class="btn-unit-cycle" id="btn-cycle-box-unit" title="Unit used for scrubbing and unit-less typed values">${currentUnit}</button>
+                        <select class="btn-unit-cycle" id="btn-cycle-box-unit" title="Default unit for scrubbing and unit-less values">${unitOpts}</select>
                     </div>
                     <div style="display:flex;gap:4px;">
                         <button class="btn-link-quads" id="btn-box-center" title="Center horizontally (margin-left/right: auto)"><i class="fa-solid fa-arrows-left-right-to-line"></i></button>
@@ -43,11 +46,12 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
         paint(boxContainer, node);
         initScrubbers(boxContainer, node);
 
-        boxContainer.querySelector("#btn-cycle-box-unit").onclick = (e) => {
-            const units = ["px", "rem", "em", "%", "vh", "vw"];
-            currentUnit = units[(units.indexOf(currentUnit) + 1) % units.length];
-            e.currentTarget.textContent = currentUnit;
-        };
+        const unitSel = boxContainer.querySelector("#btn-cycle-box-unit");
+        if (unitSel) {
+            unitSel.onchange = () => {
+                currentUnit = unitSel.value;
+            };
+        }
         boxContainer.querySelector("#btn-toggle-box-link").onclick = (e) => {
             isLinked = !isLinked;
             e.currentTarget.classList.toggle("is-linked", isLinked);
@@ -110,8 +114,54 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
         const raw = window.getLayerValue(node, prop) || window.getInheritedValue(node, prop);
         const m = /^(-?\d*\.?\d+)([a-z%]*)$/i.exec(String(raw || "").trim());
         if (m) return { val: parseFloat(m[1]), unit: m[2] || currentUnit };
-        // auto / calc() / unset: start from the rendered pixel value
         return { val: computedPx(node, prop), unit: currentUnit === "px" ? "px" : currentUnit };
+    }
+
+    function openFacetInput(container, facet, node, prop, isPadding) {
+        if (facet.querySelector("input.neo-box-model-inline-input")) return;
+        const valEl = facet.querySelector(".neo-val");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "neo-box-model-inline-input";
+        input.value = window.getLayerValue(node, prop) || "";
+        input.placeholder = valEl.textContent.trim();
+        valEl.style.display = "none";
+        facet.appendChild(input);
+        input.focus();
+        input.select();
+
+        let done = false;
+        function finish(apply) {
+            if (done) return;
+            done = true;
+            if (apply) {
+                let v = input.value.trim();
+                const mUnit = /^(-?\d*\.?\d+)\s*(?:px|%|rem|em|vh|vw)?\s*(px|%|rem|em|vh|vw)$/i.exec(v);
+                if (mUnit) {
+                    let n = parseFloat(mUnit[1]);
+                    if (isPadding && n < 0) n = 0;
+                    const u = mUnit[2].toLowerCase();
+                    currentUnit = u;
+                    const unitSel = container.querySelector("#btn-cycle-box-unit");
+                    if (unitSel) unitSel.value = u;
+                    v = n + u;
+                } else if (/^-?\d*\.?\d+$/.test(v)) {
+                    let n = parseFloat(v);
+                    if (isPadding && n < 0) n = 0;
+                    v = n + currentUnit;
+                }
+                applyValue(node, prop, v, true);
+            }
+            input.remove();
+            valEl.style.display = "";
+            paint(container, node);
+        }
+        input.onblur = () => finish(true);
+        input.onkeydown = (ke) => {
+            ke.stopPropagation();
+            if (ke.key === "Enter") finish(true);
+            if (ke.key === "Escape") finish(false);
+        };
     }
 
     function initScrubbers(container, node) {
@@ -140,7 +190,7 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
 
                 function onMouseMove(me) {
                     const dx = me.clientX - startX;
-                    if (!moved && Math.abs(dx) < 2) return;
+                    if (!moved && Math.abs(dx) < 3) return;
                     moved = true;
                     const mult = (me.shiftKey ? 10 : (me.altKey ? 0.1 : 1)) * (fine ? 0.1 : 1);
                     let n = start.val + dx * mult;
@@ -155,50 +205,15 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
                     document.body.style.userSelect = "";
                     window.removeEventListener("mousemove", onMouseMove);
                     window.removeEventListener("mouseup", onMouseUp);
-                    if (moved) window.commitStyleChange();
+                    if (moved) {
+                        window.commitStyleChange();
+                    } else {
+                        openFacetInput(container, facet, node, prop, isPadding);
+                    }
                 }
 
                 window.addEventListener("mousemove", onMouseMove);
                 window.addEventListener("mouseup", onMouseUp);
-            });
-
-            facet.addEventListener("dblclick", (e) => {
-                e.stopPropagation();
-                if (node.data && node.data._locked) return;
-                const valEl = facet.querySelector(".neo-val");
-                const input = document.createElement("input");
-                input.type = "text";
-                input.className = "neo-box-model-inline-input";
-                input.value = window.getLayerValue(node, prop) || "";
-                input.placeholder = valEl.textContent.trim();
-                valEl.style.display = "none";
-                facet.appendChild(input);
-                input.focus();
-                input.select();
-
-                let done = false;
-                function finish(apply) {
-                    if (done) return;
-                    done = true;
-                    if (apply) {
-                        let v = input.value.trim();
-                        if (/^-?\d*\.?\d+$/.test(v)) {
-                            let n = parseFloat(v);
-                            if (isPadding && n < 0) n = 0;
-                            v = n + currentUnit;
-                        }
-                        applyValue(node, prop, v, true);
-                    }
-                    input.remove();
-                    valEl.style.display = "";
-                    paint(container, node);
-                }
-                input.onblur = () => finish(true);
-                input.onkeydown = (ke) => {
-                    ke.stopPropagation();
-                    if (ke.key === "Enter") finish(true);
-                    if (ke.key === "Escape") finish(false);
-                };
             });
         });
     }

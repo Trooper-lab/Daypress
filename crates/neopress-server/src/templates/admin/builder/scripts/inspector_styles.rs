@@ -2,29 +2,176 @@
 
 pub const JS_INSPECTOR_STYLES: &str = r###"
 (function() {
+    const SANS_FONTS = [
+        "Inter", "Schibsted Grotesk", "Plus Jakarta Sans", "Space Grotesk", "DM Sans",
+        "Manrope", "Outfit", "Work Sans", "Roboto", "Open Sans", "Lato",
+        "Montserrat", "Poppins", "Raleway", "Nunito", "Oswald"
+    ];
+    const SERIF_FONTS = [
+        "Newsreader", "Playfair Display", "Fraunces", "Instrument Serif",
+        "Merriweather", "Lora", "DM Serif Display", "Libre Baskerville"
+    ];
+    const MONO_FONTS = [
+        "IBM Plex Mono", "JetBrains Mono", "Fira Code"
+    ];
     const SYSTEM_FONTS = [
-        "system-ui, -apple-system, 'Segoe UI', sans-serif",
-        "Georgia, 'Times New Roman', serif",
-        "'Helvetica Neue', Arial, sans-serif",
-        "ui-monospace, Menlo, Consolas, monospace"
+        ["system-ui, -apple-system, 'Segoe UI', sans-serif", "System UI Sans"],
+        ["Georgia, 'Times New Roman', serif", "System Serif (Georgia)"],
+        ["'Helvetica Neue', Arial, sans-serif", "Helvetica / Arial"],
+        ["ui-monospace, Menlo, Consolas, monospace", "System Monospace"]
     ];
 
-    function fontOptions() {
-        const theme = new Set();
-        try {
-            document.fonts.forEach(f => {
-                const fam = String(f.family || "").replace(/["']/g, "").trim();
-                if (fam && !/font awesome|fontawesome/i.test(fam)) theme.add(fam);
-            });
-        } catch (e) {}
+    function cleanFontLabel(v) {
+        const s = String(v || "").trim();
+        if (!s) return "";
+        if (s.startsWith("var(")) return s;
+        return s.split(",")[0].replace(/["']/g, "").trim() || s;
+    }
+
+    function renderFontControl() {
+        const esc = window.NSInspector.esc;
         const gs = window.NeoStudioState && window.NeoStudioState.pageAst && window.NeoStudioState.pageAst.global_styles;
+        const tokenOpts = [
+            ["var(--serif)", "Token: Display / Serif (--serif)"],
+            ["var(--sans)", "Token: Body / Sans (--sans)"],
+            ["var(--mono)", "Token: Monospace (--mono)"]
+        ];
         if (gs) {
             [...(gs.system_typography || []), ...(gs.custom_typography || [])].forEach(t => {
-                if (t && t.font_family) theme.add(t.font_family);
+                if (t && t.font_family) {
+                    const label = `${t.title || t.id}: ${cleanFontLabel(t.font_family)}`;
+                    if (!tokenOpts.some(([v]) => v === t.font_family)) {
+                        tokenOpts.push([t.font_family, label]);
+                    }
+                }
             });
         }
-        const all = new Set([...(window.NeoStyle.GOOGLE_FONTS || []), ...theme, ...SYSTEM_FONTS]);
-        return Array.from(all).map(f => `<option value="${window.NSInspector.esc(f)}"></option>`).join("");
+
+        const optGroup = (label, items) =>
+            `<optgroup label="${esc(label)}">` +
+            items.map(it => {
+                const [v, l] = Array.isArray(it) ? it : [it, it];
+                return `<option value="${esc(v)}">${esc(l)}</option>`;
+            }).join("") +
+            `</optgroup>`;
+
+        return `
+            <div class="ns-font-control" style="display:flex;flex-direction:column;gap:4px;width:100%;">
+                <div style="display:flex;gap:4px;width:100%;align-items:center;">
+                    <select class="cad-select ns-font-picker" data-font-select="font_family" style="flex:1;min-width:0;">
+                        <option value="">— Inherit</option>
+                        ${optGroup("Design System Tokens", tokenOpts)}
+                        ${optGroup("Sans-Serif Fonts", SANS_FONTS)}
+                        ${optGroup("Serif & Editorial Fonts", SERIF_FONTS)}
+                        ${optGroup("Monospace Fonts", MONO_FONTS)}
+                        ${optGroup("System Font Stacks", SYSTEM_FONTS)}
+                        <option value="__custom__">Custom font / CSS var…</option>
+                    </select>
+                    <button type="button" class="ns-clear" data-clear="font_family" title="Reset font family">&times;</button>
+                </div>
+                <input type="text" class="cad-input font-mono ns-font-custom" placeholder="e.g. 'Newsreader', serif or var(--serif)" spellcheck="false" autocomplete="off" style="display:none;width:100%;">
+            </div>
+        `;
+    }
+
+    function refreshFontControls(root, node) {
+        const esc = window.NSInspector.esc;
+        root.querySelectorAll("select.ns-font-picker[data-font-select]").forEach(sel => {
+            const prop = sel.dataset.fontSelect;
+            const val = window.getLayerValue(node, prop);
+            const inh = window.getInheritedValue(node, prop) || window.NSInspector.computedOf(node, prop);
+            const wrap = sel.closest(".ns-font-control");
+            const customInput = wrap ? wrap.querySelector(".ns-font-custom") : null;
+
+            sel.options[0].textContent = "— " + window.NSInspector.short(cleanFontLabel(inh) || "Inherit", 16);
+            sel.classList.toggle("is-unset", !val);
+
+            if (val) {
+                let matched = Array.from(sel.options).find(o => o.value === val);
+                if (!matched) {
+                    const primary = cleanFontLabel(val).toLowerCase();
+                    matched = Array.from(sel.options).find(o => o.value && o.value !== "__custom__" && cleanFontLabel(o.value).toLowerCase() === primary);
+                }
+                if (!matched) {
+                    let dyn = sel.querySelector('option[data-dyn-font="1"]');
+                    if (!dyn) {
+                        dyn = document.createElement("option");
+                        dyn.dataset.dynFont = "1";
+                        sel.insertBefore(dyn, sel.options[1]);
+                    }
+                    dyn.value = val;
+                    dyn.textContent = cleanFontLabel(val) + " (Custom)";
+                    matched = dyn;
+                }
+                if (document.activeElement !== sel && sel.dataset.customOpen !== "1") {
+                    sel.value = matched.value;
+                }
+                if (customInput && document.activeElement !== customInput) {
+                    customInput.value = val;
+                }
+            } else {
+                if (document.activeElement !== sel && sel.dataset.customOpen !== "1") {
+                    sel.value = "";
+                }
+                if (customInput && document.activeElement !== customInput && sel.dataset.customOpen !== "1") {
+                    customInput.value = "";
+                    customInput.style.display = "none";
+                }
+            }
+        });
+    }
+    window.refreshFontControls = refreshFontControls;
+
+    function bindFontControl(panel, node) {
+        const sel = panel.querySelector("select.ns-font-picker[data-font-select]");
+        const wrap = sel ? sel.closest(".ns-font-control") : null;
+        const customInput = wrap ? wrap.querySelector(".ns-font-custom") : null;
+        if (!sel) return;
+
+        sel.addEventListener("change", () => {
+            if (sel.value === "__custom__") {
+                sel.dataset.customOpen = "1";
+                if (customInput) {
+                    customInput.style.display = "block";
+                    customInput.value = window.getLayerValue(node, "font_family") || "";
+                    customInput.focus();
+                    customInput.select();
+                }
+                return;
+            }
+            delete sel.dataset.customOpen;
+            if (customInput) customInput.style.display = "none";
+            if (sel.value && window.NeoStyle && window.NeoStyle.ensureFontLoaded) {
+                window.NeoStyle.ensureFontLoaded(sel.value);
+            }
+            window.setLocalStyle("font_family", sel.value, { commit: true });
+            window.NSInspector.refresh(panel, node);
+        });
+
+        if (customInput) {
+            customInput.addEventListener("input", () => {
+                const v = customInput.value.trim();
+                if (v && window.NeoStyle && window.NeoStyle.ensureFontLoaded) {
+                    window.NeoStyle.ensureFontLoaded(v);
+                }
+                window.setLocalStyle("font_family", v, false);
+                window.NSInspector.refresh(panel, node);
+            });
+            customInput.addEventListener("change", () => {
+                delete sel.dataset.customOpen;
+                const v = customInput.value.trim();
+                window.setLocalStyle("font_family", v, true);
+                window.NSInspector.refresh(panel, node);
+            });
+            customInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") { e.preventDefault(); customInput.blur(); }
+                if (e.key === "Escape") {
+                    delete sel.dataset.customOpen;
+                    customInput.style.display = "none";
+                    window.NSInspector.refresh(panel, node);
+                }
+            });
+        }
     }
 
     function renderTokenColorChips(propName) {
@@ -56,8 +203,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
         // 1. TYPOGRAPHY
         // ---------------------------------------------------------
         const typoBody = `
-            <datalist id="ns-font-families">${fontOptions()}</datalist>
-            ${N.row("Family", "font_family", N.input("font_family", "inherit", "ns-font-families"))}
+            ${N.row("Family", "font_family", renderFontControl())}
             ${N.pair("Size", "font_size", N.input("font_size", "16px"), "Weight", "font_weight", N.select("font_weight", [
                 ["100", "100 Thin"], ["200", "200 Extra Light"], ["300", "300 Light"], ["400", "400 Normal"], ["500", "500 Medium"],
                 ["600", "600 Semi Bold"], ["700", "700 Bold"], ["800", "800 Extra Bold"], ["900", "900 Black"]
@@ -79,6 +225,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
             ${N.row("Shadow", "text_shadow", N.input("text_shadow", "0 1px 2px rgba(0,0,0,.3)"))}
         `;
         const typoPanel = N.panel(container, "typography", "fa-font", "Typography", typoBody);
+        bindFontControl(typoPanel, node);
         bindTokenChips(typoPanel, node);
         N.bind(typoPanel, node);
 
@@ -125,7 +272,7 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
             ${N.row("Color", "border_color", N.color("border_color"))}
             ${renderTokenColorChips("border_color")}
             <div class="cad-row ns-presets">
-                ${["0px", "4px", "8px", "16px", "9999px"].map(r => `<button type="button" class="ns-chip" data-radius="${r}" title="border-radius: ${r}">${r === "9999px" ? "Pill" : r}</button>`).join("")}
+                ${["0px", "4px", "8px", "16px", "50%", "9999px"].map(r => `<button type="button" class="ns-chip" data-radius="${r}" title="border-radius: ${r}">${r === "9999px" ? "Pill" : r}</button>`).join("")}
             </div>
         `;
         const borderPanel = N.panel(container, "border", "fa-vector-square", "Borders", borderBody);

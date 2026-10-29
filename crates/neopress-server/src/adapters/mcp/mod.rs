@@ -573,7 +573,10 @@ mod tests {
     use crate::db::Database;
 
     fn count_custom_html(node: &neopress_ast::NeopressNode) -> usize {
-        let own = usize::from(matches!(node.kind, neopress_ast::NodeKind::CustomHtml { .. }));
+        let own = usize::from(matches!(
+            node.kind,
+            neopress_ast::NodeKind::CustomHtml { .. }
+        ));
         own + node.children.iter().map(count_custom_html).sum::<usize>()
     }
 
@@ -643,15 +646,21 @@ mod tests {
         let db = Database::new_in_memory().expect("in-memory db");
         let service = CmsService::from_adapter(db);
 
+        // The sample designs are not in the repository. Point NEOPRESS_HTML_SAMPLES_DIR at a
+        // folder holding them to run this test; without it, the test is skipped.
+        let Ok(samples_dir) = std::env::var("NEOPRESS_HTML_SAMPLES_DIR") else {
+            eprintln!("skipped: set NEOPRESS_HTML_SAMPLES_DIR to run the HTML design import test");
+            return;
+        };
+        let samples_dir = std::path::PathBuf::from(samples_dir);
         let paths = [
-            r"C:\Users\Billy\Downloads\Neopress.html",
-            r"C:\Users\Billy\Downloads\neopress-design-system.html",
+            samples_dir.join("Neopress.html"),
+            samples_dir.join("neopress-design-system.html"),
         ];
 
         for (idx, path) in paths.iter().enumerate() {
-            let Ok(html) = std::fs::read_to_string(path) else {
-                continue;
-            };
+            let html = std::fs::read_to_string(path)
+                .unwrap_or_else(|e| panic!("cannot read sample {}: {e}", path.display()));
             let slug = if idx == 0 { "home" } else { "design-system" };
             let resp = handle_mcp_rpc(
                 &service,

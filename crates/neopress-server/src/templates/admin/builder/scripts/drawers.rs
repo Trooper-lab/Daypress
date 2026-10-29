@@ -41,6 +41,7 @@ pub const JS_DRAWERS: &str = r###"
         else if (drawerId === "navigator") window.renderNavigatorDrawer && window.renderNavigatorDrawer(container);
         else if (drawerId === "templates") window.renderThemeDrawer && window.renderThemeDrawer(container);
         else if (drawerId === "tokens") window.renderTokensDrawer && window.renderTokensDrawer(container);
+        else if (drawerId === "css") window.renderCssDrawer && window.renderCssDrawer(container);
         else if (drawerId === "history") renderHistoryDrawer(container);
     }
     window.renderActiveDrawer = renderActiveDrawer;

@@ -23,7 +23,9 @@ pub use html_transpiler::{
     transpile_html_document, transpile_html_to_layout, HtmlDesignImportOptions,
     HtmlDesignImportResult,
 };
-pub use kit::{parse_php_serialized_to_json, ButtonStyle, ElementorKit, GlobalColor, GlobalTypography};
+pub use kit::{
+    parse_php_serialized_to_json, ButtonStyle, ElementorKit, GlobalColor, GlobalTypography,
+};
 pub use render::{
     compile_layout_css, render_layout_to_html, render_node_to_html, resolve_semantic_tag,
     sanitize_editor_html, sanitize_ssr_html, strip_editor_classes,

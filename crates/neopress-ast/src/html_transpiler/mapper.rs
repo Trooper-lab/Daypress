@@ -55,24 +55,27 @@ pub fn map_dom_children(
     let mut out = Vec::new();
     let mut inline_buf = String::new();
 
-    let flush_inline_buf = |buf: &mut String, out: &mut Vec<NeopressNode>, ctx: &mut MapperContext<'_>| {
-        let trimmed = buf.trim();
-        if !trimmed.is_empty() {
-            let id = ctx.next_id(None, "txt");
-            ctx.node_count += 1;
-            let mut styles = StyleProperties::default();
-            styles.html_tag = Some("span".to_string());
-            out.push(NeopressNode {
-                id,
-                kind: NodeKind::Text {
-                    content_html: trimmed.to_string(),
-                },
-                styles,
-                children: Vec::new(),
-            });
-        }
-        buf.clear();
-    };
+    let flush_inline_buf =
+        |buf: &mut String, out: &mut Vec<NeopressNode>, ctx: &mut MapperContext<'_>| {
+            let trimmed = buf.trim();
+            if !trimmed.is_empty() {
+                let id = ctx.next_id(None, "txt");
+                ctx.node_count += 1;
+                let styles = StyleProperties {
+                    html_tag: Some("span".to_string()),
+                    ..Default::default()
+                };
+                out.push(NeopressNode {
+                    id,
+                    kind: NodeKind::Text {
+                        content_html: trimmed.to_string(),
+                    },
+                    styles,
+                    children: Vec::new(),
+                });
+            }
+            buf.clear();
+        };
 
     for child in children {
         match child {
@@ -87,7 +90,9 @@ pub fn map_dom_children(
                 if should_skip_element(&el.tag) {
                     continue;
                 }
-                if is_pure_inline_formatting_tag(&el.tag) && !has_layout_display(ctx.sheet, el, ancestors) {
+                if is_pure_inline_formatting_tag(&el.tag)
+                    && !has_layout_display(ctx.sheet, el, ancestors)
+                {
                     inline_buf.push_str(&el.outer_html());
                     continue;
                 }
@@ -304,7 +309,8 @@ pub fn map_element(
     next_anc.push(el);
     let children = map_dom_children(ctx, &el.children, &next_anc);
 
-    let is_grid = styles.display.as_deref() == Some("grid") || styles.grid_template_columns.is_some();
+    let is_grid =
+        styles.display.as_deref() == Some("grid") || styles.grid_template_columns.is_some();
     let is_flex = matches!(styles.display.as_deref(), Some("flex" | "inline-flex"));
 
     let (kind, prefix, default_tag) = if tag == "section" {
@@ -412,7 +418,17 @@ fn is_leaf_text_element(el: &DomElement, styles: &StyleProperties) -> bool {
     // without nested block containers are always leaf Text nodes.
     if matches!(
         tag,
-        "p" | "cite" | "code" | "pre" | "dt" | "dd" | "th" | "td" | "summary" | "address" | "time" | "label"
+        "p" | "cite"
+            | "code"
+            | "pre"
+            | "dt"
+            | "dd"
+            | "th"
+            | "td"
+            | "summary"
+            | "address"
+            | "time"
+            | "label"
     ) && !has_block_descendant(el)
     {
         return true;
@@ -421,8 +437,10 @@ fn is_leaf_text_element(el: &DomElement, styles: &StyleProperties) -> bool {
     // If the element is explicitly a multi-child CSS Grid or Flex container and has no direct
     // prose text (only child elements, like `<div class="masthead-bar"><span>...</span><span>...</span></div>`),
     // map it as a Grid/Flex container so each child element is an independent node.
-    let is_layout = matches!(styles.display.as_deref(), Some("grid" | "flex" | "inline-flex"))
-        || styles.grid_template_columns.is_some();
+    let is_layout = matches!(
+        styles.display.as_deref(),
+        Some("grid" | "flex" | "inline-flex")
+    ) || styles.grid_template_columns.is_some();
 
     let has_direct_non_ws_text = el
         .children
@@ -442,7 +460,9 @@ fn is_leaf_text_element(el: &DomElement, styles: &StyleProperties) -> bool {
     // If the element has no block descendants and either:
     // - has direct non-whitespace text (e.g. `<div>Hello <span>world</span></div>`, `<li>Item</li>`, `<figcaption>Fig 1</figcaption>`)
     // - or is a single inline wrapper (`<span><strong>Label</strong></span>`, `<p><code>foo</code></p>`)
-    if !has_block_descendant(el) && (has_direct_non_ws_text || matches!(tag, "span" | "figcaption" | "li" | "blockquote")) {
+    if !has_block_descendant(el)
+        && (has_direct_non_ws_text || matches!(tag, "span" | "figcaption" | "li" | "blockquote"))
+    {
         // Check if it's a container of multiple distinct child spans/links without direct text
         if !has_direct_non_ws_text && element_children_count > 1 {
             return false;
