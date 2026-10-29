@@ -104,6 +104,28 @@ pub fn template_to_builder_post(
     }
 }
 
+/// Theme Builder header/footer the public page resolves for `post`, so NeoStudio frames the
+/// artboard with the same site chrome visitors see.
+pub(crate) fn builder_theme_partials(
+    db: &Database,
+    settings: &models::WpSettingsResponse,
+    post: &models::WpPostResponse,
+) -> crate::theme_builder::models::ResolvedThemePartials {
+    let terms = super::public_ssr::hydrate_post_terms(db, post);
+    let req_ctx = crate::theme_builder::models::RequestContext::for_post(
+        post.id,
+        &post.post_type,
+        settings.page_on_front > 0 && post.id == settings.page_on_front,
+        terms,
+    );
+    crate::theme_builder::ssr_injector::SsrInjector::resolve_and_hydrate_partials_with_post(
+        db,
+        &req_ctx,
+        settings,
+        Some(post),
+    )
+}
+
 /// Stand-in post NeoStudio opens on when the site has no content yet.
 pub(crate) fn placeholder_builder_post() -> models::WpPostResponse {
     models::WpPostResponse {

@@ -2,6 +2,7 @@
 //!
 //! Modularized into focused template modules:
 //! * [`shell`]: Base HTML document shell, SEO/OpenGraph/JSON-LD head, header, footer, and lightbox.
+//! * [`site_chrome`]: Global header/footer resolution and page theme CSS, shared with NeoStudio.
 //! * [`styles`]: Core responsive public theme CSS variables and rules.
 //! * [`home`]: Dynamic front page & blog index AST renderer.
 //! * [`single`]: Single post/page AST renderer and interactive comments section.
@@ -17,6 +18,7 @@ pub mod pagination;
 pub mod rss;
 pub mod shell;
 pub mod single;
+pub mod site_chrome;
 pub(crate) mod styles;
 
 pub use archives::{

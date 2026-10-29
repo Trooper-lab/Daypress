@@ -142,6 +142,7 @@ pub const CSS_OVERLAYS: &str = r#"
 
 .neostudio-xray .np-section,
 .neostudio-xray .np-container,
+.neostudio-xray .np-column,
 .neostudio-xray .elementor-column {
     background-image: repeating-linear-gradient(
         45deg,

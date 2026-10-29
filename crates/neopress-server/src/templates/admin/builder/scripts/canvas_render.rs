@@ -217,21 +217,23 @@ pub const JS_CANVAS_RENDER: &str = r###"
                 renderChildren(el, node);
                 break;
             }
+            // Same classes as public SSR; the Style Engine adds the grid/flex track styles
+            // (NeoStyle.layoutDeclarations) exactly like neopress-ast's layout renderer does.
             case "Column": {
                 el = document.createElement("div");
-                el.className = "elementor-column";
+                el.className = "np-column";
                 renderChildren(el, node);
                 break;
             }
             case "Grid": {
                 el = document.createElement("div");
-                el.className = "elementor-grid";
+                el.className = "np-grid";
                 renderChildren(el, node);
                 break;
             }
             case "Flex": {
                 el = document.createElement("div");
-                el.className = "elementor-flex";
+                el.className = "np-flex";
                 renderChildren(el, node);
                 break;
             }

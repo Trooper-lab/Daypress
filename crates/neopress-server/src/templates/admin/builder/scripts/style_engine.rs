@@ -192,6 +192,26 @@ pub const JS_STYLE_ENGINE: &str = r###"
     }
     window.NeoStyle.declarations = declarations;
 
+    // Structural declarations public SSR puts in front of a layout node's own styles
+    // (mirrors neopress-ast render/html/layout.rs), so Grid/Flex/Column lay out the same on the canvas.
+    function layoutDeclarations(node, own) {
+        const d = (node && node.data) || {};
+        const count = (v, dflt) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 0 ? n : dflt; };
+        if (node.type === "Grid") {
+            return [["display", "grid"], ["grid-template-columns", `repeat(${count(d.columns, 3)}, minmax(0, 1fr))`],
+                ["gap", `${count(d.gap, 0)}px`]];
+        }
+        if (node.type === "Flex") {
+            const out = [["display", "flex"], ["flex-direction", d.direction || "row"], ["justify-content", d.justify || "flex-start"],
+                ["align-items", d.align || "stretch"], ["flex-wrap", d.wrap ? "wrap" : "nowrap"]];
+            if (!isEmpty(d.basis)) out.push(["flex", `1 1 ${d.basis}`], ["min-width", "0"], ["gap", "16px"]);
+            return out;
+        }
+        if (node.type === "Column" && !own.some(([p]) => p === "flex" || p === "flex-basis")) return [["flex", "1"]];
+        return [];
+    }
+    window.NeoStyle.layoutDeclarations = layoutDeclarations;
+
     function setDecl(el, prop, val) {
         const m = /\s*!important\s*$/i.exec(val);
         el.style.setProperty(prop, m ? val.slice(0, m.index) : val, m ? "important" : "");
@@ -272,7 +292,9 @@ pub const JS_STYLE_ENGINE: &str = r###"
         else el.removeAttribute("style");
 
         const resolved = resolveStyles(node, bp);
-        declarations(resolved).forEach(([p, v]) => setDecl(el, p, v));
+        const own = declarations(resolved);
+        layoutDeclarations(node, own).forEach(([p, v]) => setDecl(el, p, v));
+        own.forEach(([p, v]) => setDecl(el, p, v));
         if (resolved.font_family) ensureFontLoaded(resolved.font_family);
 
         // Image widgets: object-fit / sizing target the <img> itself

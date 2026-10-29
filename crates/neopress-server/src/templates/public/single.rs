@@ -36,27 +36,7 @@ pub fn render_single_post(
         settings.title.trim()
     };
 
-    let fallback_kit_css = if !settings.elementor_kit_css.trim().is_empty() {
-        String::new()
-    } else {
-        neopress_ast::ElementorKit::default().compile_to_css()
-    };
-
-    let global_css = if let Some(ref l) = parsed_layout {
-        if let Some(ref gs) = l.global_styles {
-            if !gs.is_null() {
-                serde_json::from_value::<neopress_ast::ElementorKit>(gs.clone())
-                    .map(|kit| kit.compile_to_css())
-                    .unwrap_or_else(|_| fallback_kit_css.clone())
-            } else {
-                fallback_kit_css.clone()
-            }
-        } else {
-            fallback_kit_css.clone()
-        }
-    } else {
-        fallback_kit_css
-    };
+    let global_css = super::site_chrome::page_kit_css(settings, parsed_layout.as_ref());
 
     let page_custom_css = if layout_scoped_css.is_empty() {
         global_css

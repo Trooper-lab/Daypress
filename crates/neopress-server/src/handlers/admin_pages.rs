@@ -158,11 +158,13 @@ pub async fn handle_admin_builder(
     let post = post.unwrap_or_else(super::admin_extra::placeholder_builder_post);
 
     let layout_opt = db.get_post_layout(post.id).unwrap_or(None);
+    let partials = super::admin_extra::builder_theme_partials(&db, &settings, &post);
 
-    Html(templates::render_wp_builder_view(
+    Html(templates::render_wp_builder_view_with_partials(
         &settings,
         &post,
         layout_opt.as_deref(),
+        Some(&partials),
     ))
 }
 
