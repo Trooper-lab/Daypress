@@ -1,5 +1,5 @@
+pub mod daystudio;
 pub mod divi;
-pub mod elementor;
 pub mod gutenberg;
 pub mod html_transpiler;
 pub mod kit;
@@ -9,13 +9,13 @@ pub mod url_utils;
 
 use std::collections::HashMap;
 
+pub use daystudio::{
+    normalize_video_embed_url, resolve_dynamic_tag, transpile_daystudio_json,
+    transpile_daystudio_json_with_context, DaystudioContext,
+};
 pub use divi::{
     render_spb_calculator_widget, transpile_divi_content, transpile_divi_content_with_context,
     DiviContext, SpbServiceItem,
-};
-pub use elementor::{
-    normalize_video_embed_url, resolve_dynamic_tag, transpile_elementor_json,
-    transpile_elementor_json_with_context, ElementorContext,
 };
 pub use gutenberg::theme_json::{self, compile_theme_json_to_css, parse_theme_json, ThemeJson};
 pub use gutenberg::{transpile_gutenberg_content, transpile_gutenberg_content_with_context};
@@ -24,7 +24,7 @@ pub use html_transpiler::{
     HtmlDesignImportResult,
 };
 pub use kit::{
-    parse_php_serialized_to_json, ButtonStyle, ElementorKit, GlobalColor, GlobalTypography,
+    parse_php_serialized_to_json, ButtonStyle, DaystudioKit, GlobalColor, GlobalTypography,
 };
 pub use render::{
     compile_layout_css, render_layout_to_html, render_node_to_html, resolve_semantic_tag,
@@ -44,9 +44,9 @@ pub fn transpile_content(content: &str, meta: &HashMap<String, String>) -> Optio
     // 1. Check for Elementor payload in postmeta
     if let Some(elem_json) = meta.get("_elementor_data") {
         if !elem_json.trim().is_empty() {
-            let ctx = ElementorContext::from_meta(meta);
-            if let Ok(mut layout) = transpile_elementor_json_with_context(elem_json, &ctx) {
-                // Wire ElementorKit global styles when _elementor_kit_settings or _elementor_page_settings is present
+            let ctx = DaystudioContext::from_meta(meta);
+            if let Ok(mut layout) = transpile_daystudio_json_with_context(elem_json, &ctx) {
+                // Wire DaystudioKit global styles when kit/page settings are present
                 if let Some(settings_raw) = meta
                     .get("_elementor_kit_settings")
                     .filter(|s| !s.trim().is_empty())
@@ -55,7 +55,7 @@ pub fn transpile_content(content: &str, meta: &HashMap<String, String>) -> Optio
                             .filter(|s| !s.trim().is_empty())
                     })
                 {
-                    if let Some(kit) = ElementorKit::from_raw_settings(settings_raw) {
+                    if let Some(kit) = DaystudioKit::from_raw_settings(settings_raw) {
                         layout.global_styles = serde_json::to_value(kit).ok();
                     } else if let Ok(val) = serde_json::from_str::<serde_json::Value>(settings_raw)
                     {
@@ -82,7 +82,7 @@ pub fn transpile_content(content: &str, meta: &HashMap<String, String>) -> Optio
                 .get("_elementor_kit_settings")
                 .filter(|s| !s.trim().is_empty())
             {
-                if let Some(kit) = ElementorKit::from_raw_settings(settings_raw) {
+                if let Some(kit) = DaystudioKit::from_raw_settings(settings_raw) {
                     layout.global_styles = serde_json::to_value(kit).ok();
                 } else if let Ok(val) = serde_json::from_str::<serde_json::Value>(settings_raw) {
                     if val.is_object() {

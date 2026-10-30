@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use super::common::WpRenderedText;
+use super::common::DaypressRenderedText;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
-pub struct WpCommentResponse {
+pub struct DaypressCommentResponse {
     pub id: i64,
     pub post: i64,
     pub parent: i64,
@@ -13,7 +13,7 @@ pub struct WpCommentResponse {
     pub author_url: String,
     pub date: String,
     pub date_gmt: String,
-    pub content: WpRenderedText,
+    pub content: DaypressRenderedText,
     pub link: String,
     pub status: String,
     #[serde(rename = "type")]
@@ -54,7 +54,7 @@ pub struct UpdateCommentRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WpCommentAdminItem {
+pub struct DaypressCommentAdminItem {
     pub id: i64,
     pub post_id: i64,
     pub post_title: String,
@@ -79,7 +79,7 @@ pub struct CommentCounts {
 /// One row of the admin Comments moderation table (`/d-admin/edit-comments`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminCommentRow {
-    pub item: WpCommentAdminItem,
+    pub item: DaypressCommentAdminItem,
     /// `comment_parent` (0 when top-level).
     pub parent_id: i64,
     /// Author name of the parent comment (empty when top-level / parent missing).

@@ -3,11 +3,11 @@
 //! Subdivided into modular, single-responsibility stylesheets strictly <= 400 lines:
 //! - `base.rs`: CSS variables, reset, body, header, footer, admin bar.
 //! - `elements.rs`: Canonical Daypress AST Element System (.dp-*).
-//! - `elementor.rs`: Elementor compatibility, boxed containers, form grids, modals.
+//! - `daystudio.rs`: DayStudio theme active containers, boxed containers, form grids, modals.
 //! - `widgets.rs`: Pro Block widgets (PriceCard, Countdown, FlipBox, ProgressBar, etc.).
 
 pub mod base;
-pub mod elementor;
+pub mod daystudio;
 pub mod elements;
 pub mod widgets;
 
@@ -19,7 +19,7 @@ pub fn render_public_theme_css(brand_color: &str) -> String {
         "{}\n{}\n{}\n{}",
         base::render_base_css(brand_color),
         elements::CSS_ELEMENTS,
-        elementor::CSS_ELEMENTOR,
+        daystudio::CSS_DAYSTUDIO,
         widgets::CSS_WIDGETS,
     )
 }

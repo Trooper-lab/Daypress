@@ -88,6 +88,9 @@ pub const JS_CANVAS_RENDER: &str = r###"
 
         if (!el) return null;
 
+        if (node.id && node.id !== "root" && !node.id.startsWith("daystudio-") && !el.id) {
+            el.id = node.id;
+        }
         el.dataset.nodeId = node.id;
         el.classList.add("daystudio-node", "node-" + (node.type || "unknown").toLowerCase());
 
@@ -258,8 +261,16 @@ pub const JS_CANVAS_RENDER: &str = r###"
             }
             case "Container": {
                 el = document.createElement(resolveSemanticTag(node, "div"));
-                el.className = "dp-container";
-                renderChildren(el, node);
+                const isBoxed = !!(node.data && node.data.boxed);
+                el.className = isBoxed ? "dp-container dp-container-boxed" : "dp-container";
+                if (isBoxed) {
+                    const inner = document.createElement("div");
+                    inner.className = "dp-container-inner";
+                    renderChildren(inner, node);
+                    el.appendChild(inner);
+                } else {
+                    renderChildren(el, node);
+                }
                 break;
             }
             case "Column": {

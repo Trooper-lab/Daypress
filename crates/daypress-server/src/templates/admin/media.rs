@@ -1,8 +1,11 @@
-use super::layout::render_wp_admin_shell;
-use crate::models::{WpMediaResponse, WpSettingsResponse};
+use super::layout::render_admin_shell;
+use crate::models::{DaypressMediaResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 
-pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaResponse]) -> String {
+pub fn render_media_view(
+    settings: &DaypressSettingsResponse,
+    media: &[DaypressMediaResponse],
+) -> String {
     let mut media_cards = String::new();
 
     if media.is_empty() {
@@ -302,10 +305,10 @@ pub fn render_wp_media_view(settings: &WpSettingsResponse, media: &[WpMediaRespo
         media_cards = media_cards
     );
 
-    render_wp_admin_shell("media", "Media Library", &body, settings)
+    render_admin_shell("media", "Media Library", &body, settings)
 }
 
-pub fn render_wp_media_new_view(settings: &WpSettingsResponse) -> String {
+pub fn render_media_new_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -405,5 +408,5 @@ pub fn render_wp_media_new_view(settings: &WpSettingsResponse) -> String {
         </script>
     "##;
 
-    render_wp_admin_shell("media-new", "Upload New Media", body, settings)
+    render_admin_shell("media-new", "Upload New Media", body, settings)
 }

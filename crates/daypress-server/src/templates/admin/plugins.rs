@@ -1,13 +1,13 @@
-use super::layout::render_wp_admin_shell;
+use super::layout::render_admin_shell;
 use crate::models::{
-    BackupSnapshotItem, DaypressForm, FormEntryItem, FormFieldSchema, FormSettings,
-    GlobalSeoSettings, InstalledPluginRecord, NotFoundLogEntry, RedirectRule, WpSettingsResponse,
+    BackupSnapshotItem, DaypressForm, DaypressSettingsResponse, FormEntryItem, FormFieldSchema,
+    FormSettings, GlobalSeoSettings, InstalledPluginRecord, NotFoundLogEntry, RedirectRule,
 };
 use crate::templates::utils::escape_html;
 
 // 1. Installed Plugins (/d-admin/plugins)
-pub fn render_wp_plugins_view(
-    settings: &WpSettingsResponse,
+pub fn render_plugins_view(
+    settings: &DaypressSettingsResponse,
     installed: &[InstalledPluginRecord],
 ) -> String {
     let total_count = installed.len();
@@ -345,11 +345,11 @@ pub fn render_wp_plugins_view(
         rows_html = rows_html
     );
 
-    render_wp_admin_shell("plugins", "Plugins", &body, settings)
+    render_admin_shell("plugins", "Plugins", &body, settings)
 }
 
 // 2. Add New Plugin & Community SDK Installer (/d-admin/plugin-install)
-pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
+pub fn render_plugin_install_view(settings: &DaypressSettingsResponse) -> String {
     let sdk_json = serde_json::to_string_pretty(&crate::plugins::starter_plugin_sdk_template())
         .unwrap_or_else(|_| "{}".to_string());
     let sdk_sample = escape_html(&sdk_json);
@@ -571,11 +571,11 @@ pub fn render_wp_plugin_install_view(settings: &WpSettingsResponse) -> String {
         sdk_sample = sdk_sample
     );
 
-    render_wp_admin_shell("plugin-install", "Add Plugins", &body, settings)
+    render_admin_shell("plugin-install", "Add Plugins", &body, settings)
 }
 
 // 3. Plugin File Editor (/d-admin/plugin-editor)
-pub fn render_wp_plugin_editor_view(settings: &WpSettingsResponse) -> String {
+pub fn render_plugin_editor_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -667,12 +667,12 @@ impl WalOptimizer {
         </script>
     "##;
 
-    render_wp_admin_shell("plugin-editor", "Plugin File Editor", body, settings)
+    render_admin_shell("plugin-editor", "Plugin File Editor", body, settings)
 }
 
 // 4. Dynamic Plugin Settings Page (/d-admin/plugin-settings?plugin=<slug>)
-pub fn render_wp_plugin_settings_view(
-    settings: &WpSettingsResponse,
+pub fn render_plugin_settings_view(
+    settings: &DaypressSettingsResponse,
     plugin: Option<&InstalledPluginRecord>,
 ) -> String {
     let Some(record) = plugin else {
@@ -681,7 +681,7 @@ pub fn render_wp_plugin_settings_view(
             <p style="color:var(--ink-muted);margin:8px 0 16px 0;">The requested plugin is not installed in SQLite.</p>
             <a href="/d-admin/plugins" class="btn btn-primary">&larr; Back to Plugins</a>
         </div>"#;
-        return render_wp_admin_shell("plugin-settings", "Plugin Settings", not_found, settings);
+        return render_admin_shell("plugin-settings", "Plugin Settings", not_found, settings);
     };
 
     let slug = escape_html(&record.manifest.slug);
@@ -827,12 +827,12 @@ pub fn render_wp_plugin_settings_view(
         fields_html = fields_html
     );
 
-    render_wp_admin_shell("plugin-settings", &name, &body, settings)
+    render_admin_shell("plugin-settings", &name, &body, settings)
 }
 
 // 5. Full SEO Toolkit & Redirection Suite (/d-admin/seo)
-pub fn render_wp_seo_view(
-    settings: &WpSettingsResponse,
+pub fn render_seo_view(
+    settings: &DaypressSettingsResponse,
     seo: &GlobalSeoSettings,
     redirects: &[RedirectRule],
     logs_404: &[NotFoundLogEntry],
@@ -1114,12 +1114,12 @@ pub fn render_wp_seo_view(
         log_404_rows = log_404_rows
     );
 
-    render_wp_admin_shell("seo", "SEO & Redirects", &body, settings)
+    render_admin_shell("seo", "SEO & Redirects", &body, settings)
 }
 
 // 6. Daypress Forms Studio & Submissions Inbox (/d-admin/forms)
-pub fn render_wp_forms_view(
-    settings: &WpSettingsResponse,
+pub fn render_forms_view(
+    settings: &DaypressSettingsResponse,
     forms: &[(DaypressForm, i64)],
     entries: &[FormEntryItem],
     selected_form_id: Option<i64>,
@@ -1398,12 +1398,12 @@ pub fn render_wp_forms_view(
         entries_rows = entries_rows
     );
 
-    render_wp_admin_shell("forms", "Forms Studio", &body, settings)
+    render_admin_shell("forms", "Forms Studio", &body, settings)
 }
 
 // 7. Snapshot & Hot Backup Manager (/d-admin/backups)
-pub fn render_wp_backups_view(
-    settings: &WpSettingsResponse,
+pub fn render_backups_view(
+    settings: &DaypressSettingsResponse,
     snapshots: &[BackupSnapshotItem],
 ) -> String {
     let mut rows_html = String::new();
@@ -1525,5 +1525,5 @@ pub fn render_wp_backups_view(
         rows_html = rows_html
     );
 
-    render_wp_admin_shell("backups", "Backups", &body, settings)
+    render_admin_shell("backups", "Backups", &body, settings)
 }

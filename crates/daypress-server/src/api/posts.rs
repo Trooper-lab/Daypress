@@ -24,7 +24,7 @@ pub(crate) async fn list_posts(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     Query(mut params): Query<PostQueryParams>,
-) -> Result<(HeaderMap, Json<Vec<WpPostResponse>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressPostResponse>>), AppError> {
     restrict_status_for_visitor(&mut params, user.as_ref());
     let per_page = params.per_page.unwrap_or(10).clamp(1, 500) as usize;
     if let Some(slug) = params.slug.as_deref() {
@@ -37,9 +37,9 @@ pub(crate) async fn list_posts(
             let p = db
                 .get_post_by_slug(slug)?
                 .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()));
-            let vec: Vec<WpPostResponse> = p.into_iter().collect();
+            let vec: Vec<DaypressPostResponse> = p.into_iter().collect();
             let total = vec.len() as i64;
-            return Ok(wp_list_response(vec, total, per_page as i64));
+            return Ok(rest_list_response(vec, total, per_page as i64));
         }
     }
 
@@ -65,14 +65,14 @@ pub(crate) async fn list_posts(
         offset,
         per_page,
     )?;
-    Ok(wp_list_response(posts, total as i64, per_page as i64))
+    Ok(rest_list_response(posts, total as i64, per_page as i64))
 }
 
 pub(crate) async fn get_post(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpPostResponse>, AppError> {
+) -> Result<Json<DaypressPostResponse>, AppError> {
     match db.get_post_by_id(id)? {
         Some(post) if crate::auth::can_view_status(&post.status, user.as_ref()) => Ok(Json(post)),
         _ => Err(AppError::NotFound(format!("Post {} not found", id))),
@@ -83,7 +83,7 @@ pub(crate) async fn create_post(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreatePostRequest>,
-) -> Result<(StatusCode, Json<WpPostResponse>), AppError> {
+) -> Result<(StatusCode, Json<DaypressPostResponse>), AppError> {
     check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     let post = db.create_post(&payload)?;
     Ok((StatusCode::CREATED, Json(post)))
@@ -94,7 +94,7 @@ pub(crate) async fn update_post(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdatePostRequest>,
-) -> Result<Json<WpPostResponse>, AppError> {
+) -> Result<Json<DaypressPostResponse>, AppError> {
     check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     match db.update_post(id, &payload)? {
         Some(post) => Ok(Json(post)),
@@ -140,7 +140,7 @@ pub(crate) async fn list_pages(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     Query(mut params): Query<PostQueryParams>,
-) -> Result<(HeaderMap, Json<Vec<WpPostResponse>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressPostResponse>>), AppError> {
     restrict_status_for_visitor(&mut params, user.as_ref());
     let per_page = params.per_page.unwrap_or(10).clamp(1, 500) as usize;
     let page = params.page.unwrap_or(1).max(1) as usize;
@@ -165,14 +165,14 @@ pub(crate) async fn list_pages(
         offset,
         per_page,
     )?;
-    Ok(wp_list_response(pages, total as i64, per_page as i64))
+    Ok(rest_list_response(pages, total as i64, per_page as i64))
 }
 
 pub(crate) async fn get_page(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpPostResponse>, AppError> {
+) -> Result<Json<DaypressPostResponse>, AppError> {
     match db.get_post_by_id(id)? {
         Some(page)
             if page.post_type == "page"
@@ -188,7 +188,7 @@ pub(crate) async fn create_page(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(mut payload): Json<CreatePostRequest>,
-) -> Result<(StatusCode, Json<WpPostResponse>), AppError> {
+) -> Result<(StatusCode, Json<DaypressPostResponse>), AppError> {
     payload.post_type = "page".to_string();
     check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     let page = db.create_post(&payload)?;
@@ -200,7 +200,7 @@ pub(crate) async fn update_page(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdatePostRequest>,
-) -> Result<Json<WpPostResponse>, AppError> {
+) -> Result<Json<DaypressPostResponse>, AppError> {
     check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     match db.update_post(id, &payload)? {
         Some(page) => Ok(Json(page)),
@@ -226,6 +226,62 @@ fn restrict_status_for_visitor(params: &mut PostQueryParams, user: Option<&crate
 
 /// Rejects a `date` / `date_gmt` that is not an ISO 8601 date (WordPress `rest_invalid_date`).
 fn check_dates(date: Option<&str>, date_gmt: Option<&str>) -> Result<(), AppError> {
+    crate::adapters::database::scheduling::validate_requested_dates(date, date_gmt)
+        .map_err(AppError::BadRequest)
+}
+
+pub(crate) async fn list_post_revisions(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath(id): AxPath<i64>,
+) -> Result<(HeaderMap, Json<Vec<DaypressRevisionResponse>>), AppError> {
+    let _parent = db
+        .get_post_by_id(id)?
+        .ok_or_else(|| AppError::NotFound(format!("Post {} not found", id)))?;
+    let revisions = db.get_post_revisions(id)?;
+    let total = revisions.len() as i64;
+    Ok(rest_list_response(revisions, total, total.max(10)))
+}
+
+pub(crate) async fn get_post_revision(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((parent_id, rev_id)): AxPath<(i64, i64)>,
+) -> Result<Json<DaypressRevisionResponse>, AppError> {
+    match db.get_revision_by_id(parent_id, rev_id)? {
+        Some(rev) if rev.parent == parent_id => Ok(Json(rev)),
+        _ => Err(AppError::NotFound(format!("Revision {} not found", rev_id))),
+    }
+}
+
+pub(crate) async fn restore_post_revision_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((parent_id, rev_id)): AxPath<(i64, i64)>,
+) -> Result<Json<DaypressPostResponse>, AppError> {
+    match db.restore_post_revision(parent_id, rev_id)? {
+        Some(post) => Ok(Json(post)),
+        None => Err(AppError::NotFound(format!("Revision {} not found", rev_id))),
+    }
+}
+
+pub(crate) async fn delete_post_revision_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((parent_id, rev_id)): AxPath<(i64, i64)>,
+) -> Result<Json<Value>, AppError> {
+    let prev = db
+        .get_revision_by_id(parent_id, rev_id)?
+        .filter(|r| r.parent == parent_id)
+        .ok_or_else(|| AppError::NotFound(format!("Revision {} not found", rev_id)))?;
+    db.delete_post_revision(parent_id, rev_id)?;
+    Ok(Json(serde_json::json!({
+        "deleted": true,
+        "previous": prev
+    })))
+}
+#[allow(dead_code)]
+fn _check_dates_unused(date: Option<&str>, date_gmt: Option<&str>) -> Result<(), AppError> {
     crate::adapters::database::scheduling::validate_requested_dates(date, date_gmt)
         .map_err(AppError::BadRequest)
 }

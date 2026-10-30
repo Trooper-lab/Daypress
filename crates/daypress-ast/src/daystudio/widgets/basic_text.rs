@@ -1,6 +1,6 @@
-use crate::elementor::context::{resolve_setting_link, ElementorContext};
-use crate::elementor::styles::extract_global_color;
-use crate::elementor::widgets::parse_spacing_obj;
+use crate::daystudio::context::{resolve_setting_link, DaystudioContext};
+use crate::daystudio::styles::extract_global_color;
+use crate::daystudio::widgets::parse_spacing_obj;
 use crate::schema::{NodeKind, StyleProperties};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ pub(crate) fn map_basic_text_widget(
     widget_type: &str,
     settings: &Value,
     styles: &mut StyleProperties,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Option<NodeKind> {
     let globals = settings.get("__globals__").and_then(|g| g.as_object());
 

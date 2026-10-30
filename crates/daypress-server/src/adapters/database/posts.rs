@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 impl Database {
     pub(crate) fn hydrate_post_relations(
         conn: &Connection,
-        post: &mut WpPostResponse,
+        post: &mut DaypressPostResponse,
         base_url: &str,
     ) {
         let base_trimmed = base_url.trim_end_matches('/');
@@ -179,7 +179,7 @@ impl Database {
                     let ccontent: String = r.get(8)?;
                     let capproved: String = r.get(9)?;
                     let ctype: String = r.get(10)?;
-                    Ok(WpCommentResponse {
+                    Ok(DaypressCommentResponse {
                         id: cid,
                         post: cpost,
                         parent: cparent,
@@ -188,7 +188,7 @@ impl Database {
                         author_url: curl,
                         date: cdate.replace(' ', "T"),
                         date_gmt: cdate_gmt.replace(' ', "T"),
-                        content: WpRenderedText {
+                        content: DaypressRenderedText {
                             rendered: ccontent,
                             protected: false,
                         },
@@ -258,7 +258,7 @@ impl Database {
         post.seo_og_image = seo_map.remove("_daypress_seo_og_image").unwrap_or_default();
     }
 
-    pub(crate) fn map_post_row(row: &rusqlite::Row) -> rusqlite::Result<WpPostResponse> {
+    pub(crate) fn map_post_row(row: &rusqlite::Row) -> rusqlite::Result<DaypressPostResponse> {
         let id: i64 = row.get(0)?;
         let date: String = row.get(1)?;
         let date_gmt: String = row.get(2)?;
@@ -278,26 +278,26 @@ impl Database {
         let menu_order: i64 = row.get(16)?;
         let is_sticky: i64 = row.get(17).unwrap_or(0);
 
-        Ok(WpPostResponse {
+        Ok(DaypressPostResponse {
             id,
             date: date.replace(' ', "T"),
             date_gmt: date_gmt.replace(' ', "T"),
-            guid: WpGuid { rendered: guid },
+            guid: DaypressGuid { rendered: guid },
             modified: modified.replace(' ', "T"),
             modified_gmt: modified_gmt.replace(' ', "T"),
             slug: slug.clone(),
             status,
             post_type: ptype,
             link: String::new(),
-            title: WpRenderedText {
+            title: DaypressRenderedText {
                 rendered: title_raw,
                 protected: false,
             },
-            content: WpRenderedText {
+            content: DaypressRenderedText {
                 rendered: content_raw,
                 protected: false,
             },
-            excerpt: WpRenderedText {
+            excerpt: DaypressRenderedText {
                 rendered: excerpt_raw,
                 protected: false,
             },
@@ -334,7 +334,7 @@ impl Database {
         status: Option<&str>,
         search: Option<&str>,
         limit: i64,
-    ) -> Result<Vec<WpPostResponse>> {
+    ) -> Result<Vec<DaypressPostResponse>> {
         let conn = self.conn.lock().unwrap();
         let status = status.unwrap_or("publish");
         let base_url = Self::get_base_url_with_conn(&conn);
@@ -347,15 +347,15 @@ impl Database {
         let is_any_status = status == "any";
 
         let (where_clause, params_vec): (String, Vec<rusqlite::types::Value>) = match (is_any_type, is_any_status, search.filter(|s| !s.is_empty())) {
-            (true, true, None) => ("".to_string(), vec![]),
-            (true, false, None) => ("WHERE post_status = ?".to_string(), vec![status.to_string().into()]),
+            (true, true, None) => ("WHERE post_type != 'revision'".to_string(), vec![]),
+            (true, false, None) => ("WHERE post_type != 'revision' AND post_status = ?".to_string(), vec![status.to_string().into()]),
             (false, true, None) => ("WHERE post_type = ?".to_string(), vec![post_type.to_string().into()]),
             (false, false, None) => ("WHERE post_type = ? AND post_status = ?".to_string(), vec![post_type.to_string().into(), status.to_string().into()]),
-            (true, true, Some(s)) => ("WHERE (post_title LIKE ? OR post_content LIKE ?)".to_string(), {
+            (true, true, Some(s)) => ("WHERE post_type != 'revision' AND (post_title LIKE ? OR post_content LIKE ?)".to_string(), {
                 let p = format!("%{}%", s);
                 vec![p.clone().into(), p.into()]
             }),
-            (true, false, Some(s)) => ("WHERE post_status = ? AND (post_title LIKE ? OR post_content LIKE ?)".to_string(), {
+            (true, false, Some(s)) => ("WHERE post_type != 'revision' AND post_status = ? AND (post_title LIKE ? OR post_content LIKE ?)".to_string(), {
                 let p = format!("%{}%", s);
                 vec![status.to_string().into(), p.clone().into(), p.into()]
             }),
@@ -418,9 +418,9 @@ impl Database {
         order: Option<&str>,
         offset: usize,
         per_page: usize,
-    ) -> Result<(Vec<WpPostResponse>, usize)> {
+    ) -> Result<(Vec<DaypressPostResponse>, usize)> {
         let all = self.get_posts(post_type, status, search, 10000)?;
-        let mut filtered: Vec<WpPostResponse> = all
+        let mut filtered: Vec<DaypressPostResponse> = all
             .into_iter()
             .filter(|p| {
                 if let Some(s) = slug.filter(|s| !s.is_empty()) {
@@ -520,7 +520,7 @@ impl Database {
     pub fn get_posts_by_category_slug(
         &self,
         slug: &str,
-    ) -> Result<(Option<WpCategoryResponse>, Vec<WpPostResponse>)> {
+    ) -> Result<(Option<DaypressCategoryResponse>, Vec<DaypressPostResponse>)> {
         let cats = self.get_terms("category")?;
         let cat_opt = cats.into_iter().find(|c| c.slug == slug);
         if let Some(ref cat) = cat_opt {
@@ -547,7 +547,7 @@ impl Database {
     pub fn get_posts_by_tag_slug(
         &self,
         slug: &str,
-    ) -> Result<(Option<WpCategoryResponse>, Vec<WpPostResponse>)> {
+    ) -> Result<(Option<DaypressCategoryResponse>, Vec<DaypressPostResponse>)> {
         let tags = self.get_terms("post_tag")?;
         let tag_opt = tags.into_iter().find(|t| t.slug == slug);
         if let Some(ref tag) = tag_opt {
@@ -574,7 +574,7 @@ impl Database {
     pub fn get_posts_by_author_slug(
         &self,
         slug: &str,
-    ) -> Result<(Option<WpUserDetail>, Vec<WpPostResponse>)> {
+    ) -> Result<(Option<DaypressUserDetail>, Vec<DaypressPostResponse>)> {
         let users = self.get_all_users()?;
         let matched = users.into_iter().find(|u| {
             u.username.eq_ignore_ascii_case(slug)
@@ -602,7 +602,7 @@ impl Database {
         }
     }
 
-    pub fn get_post_by_id(&self, id: i64) -> Result<Option<WpPostResponse>> {
+    pub fn get_post_by_id(&self, id: i64) -> Result<Option<DaypressPostResponse>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0)
@@ -621,7 +621,7 @@ impl Database {
         Ok(Some(post))
     }
 
-    pub fn get_post_by_slug(&self, slug: &str) -> Result<Option<WpPostResponse>> {
+    pub fn get_post_by_slug(&self, slug: &str) -> Result<Option<DaypressPostResponse>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0)
@@ -704,7 +704,7 @@ impl Database {
         }
     }
 
-    pub fn create_post(&self, req: &CreatePostRequest) -> Result<WpPostResponse> {
+    pub fn create_post(&self, req: &CreatePostRequest) -> Result<DaypressPostResponse> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let desired = match &req.slug {
@@ -724,19 +724,26 @@ impl Database {
         let parent = req.parent.unwrap_or(0);
         let menu_order = req.menu_order.unwrap_or(0);
         let author = req.author.unwrap_or(1);
-        // `publish` dated ahead becomes `future` (scheduled), like WordPress.
-        let (post_date, status) = super::scheduling::schedule_for_new_post(
-            &req.status,
-            &req.post_type,
-            req.date.as_deref(),
-            req.date_gmt.as_deref(),
-            &now,
-        );
+        // `publish` dated ahead becomes `future` (scheduled), like WordPress, using site timezone.
+        let (post_date_local, post_date_gmt, status) =
+            super::scheduling::schedule_for_new_post_in_site_tz(
+                &conn,
+                &req.status,
+                &req.post_type,
+                req.date.as_deref(),
+                req.date_gmt.as_deref(),
+                &now,
+            );
+        let site_offset_secs = super::scheduling::read_site_timezone_offset(&conn, None);
+        let now_local = (Utc::now().naive_utc()
+            + chrono::Duration::seconds(site_offset_secs as i64))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
 
         conn.execute(
             r#"INSERT INTO posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_parent, menu_order)
-               VALUES (?1, ?11, ?11, ?3, ?4, ?5, ?6, ?7, ?2, ?2, '', ?8, ?9, ?10)"#,
-            params![author, now, req.content, req.title, excerpt, status, slug, req.post_type, parent, menu_order, post_date],
+               VALUES (?1, ?11, ?12, ?3, ?4, ?5, ?6, ?7, ?13, ?2, '', ?8, ?9, ?10)"#,
+            params![author, now, req.content, req.title, excerpt, status, slug, req.post_type, parent, menu_order, post_date_local, post_date_gmt, now_local],
         )?;
 
         let id = conn.last_insert_rowid();
@@ -874,10 +881,19 @@ impl Database {
         Ok(self.get_post_by_id(id)?.unwrap())
     }
 
-    pub fn update_post(&self, id: i64, req: &UpdatePostRequest) -> Result<Option<WpPostResponse>> {
+    pub fn update_post(
+        &self,
+        id: i64,
+        req: &UpdatePostRequest,
+    ) -> Result<Option<DaypressPostResponse>> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let site_offset_secs = super::scheduling::read_site_timezone_offset(&tx, None);
+        let now_local = (Utc::now().naive_utc()
+            + chrono::Duration::seconds(site_offset_secs as i64))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
 
         // Capture old slug & status before updating so we can auto-create a 301 redirect if slug changes on a published post
         let old_slug_and_status: Option<(String, String)> = tx
@@ -888,22 +904,28 @@ impl Database {
             )
             .ok();
 
+        let revision_candidate =
+            req.title.is_some() || req.content.is_some() || req.excerpt.is_some();
+        if revision_candidate {
+            let _ = Self::snapshot_post_revision_with_conn(&tx, id, &now_local, &now);
+        }
+
         if let Some(title) = &req.title {
             tx.execute(
-                "UPDATE posts SET post_title = ?1, post_modified = ?2 WHERE ID = ?3",
-                params![title, now, id],
+                "UPDATE posts SET post_title = ?1, post_modified = ?2, post_modified_gmt = ?3 WHERE ID = ?4",
+                params![title, now_local, now, id],
             )?;
         }
         if let Some(content) = &req.content {
             tx.execute(
-                "UPDATE posts SET post_content = ?1, post_modified = ?2 WHERE ID = ?3",
-                params![content, now, id],
+                "UPDATE posts SET post_content = ?1, post_modified = ?2, post_modified_gmt = ?3 WHERE ID = ?4",
+                params![content, now_local, now, id],
             )?;
         }
         if let Some(status) = &req.status {
             tx.execute(
-                "UPDATE posts SET post_status = ?1, post_modified = ?2 WHERE ID = ?3",
-                params![status, now, id],
+                "UPDATE posts SET post_status = ?1, post_modified = ?2, post_modified_gmt = ?3 WHERE ID = ?4",
+                params![status, now_local, now, id],
             )?;
             // Keep WordPress trash bookkeeping in sync when status moves into / out of the Trash.
             if let Some((_, old_status)) = old_slug_and_status.as_ref() {
@@ -914,14 +936,32 @@ impl Database {
                 }
             }
         }
-        // A new date and/or status can (un)schedule the post, like WordPress.
-        let new_date =
-            super::scheduling::requested_post_date(req.date.as_deref(), req.date_gmt.as_deref());
+        // A new date and/or status can (un)schedule the post, like WordPress, respecting site timezone.
+        let tz_str: String = tx
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'timezone_string'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or_default();
+        let gmt_off_str: Option<String> = tx
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'gmt_offset'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        let new_dates = super::scheduling::requested_post_dates_with_tz(
+            req.date.as_deref(),
+            req.date_gmt.as_deref(),
+            &tz_str,
+            gmt_off_str.as_deref(),
+        );
         super::scheduling::apply_schedule_on_update(
             &tx,
             id,
             req.status.is_some(),
-            new_date.as_deref(),
+            new_dates.as_ref().map(|(l, u)| (l.as_str(), u.as_str())),
             &now,
         )?;
         if let Some(slug) = &req.slug {
@@ -1121,7 +1161,7 @@ impl Database {
     /// Deep-clones the `posts` row (with `post_status = 'draft'`, `" (Copy)"` suffix,
     /// and unique `-copy` slug), `layout_json`, all `postmeta` rows (SEO, featured image,
     /// custom fields, Elementor/Daypress layout), and `term_relationships` in a single transaction.
-    pub fn duplicate_post(&self, source_id: i64) -> Result<Option<WpPostResponse>> {
+    pub fn duplicate_post(&self, source_id: i64) -> Result<Option<DaypressPostResponse>> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -1247,7 +1287,7 @@ impl Database {
         self.get_post_by_id(new_id)
     }
 
-    pub fn trash_post(&self, id: i64) -> Result<Option<WpPostResponse>> {
+    pub fn trash_post(&self, id: i64) -> Result<Option<DaypressPostResponse>> {
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         {
             let conn = self.conn.lock().unwrap();
@@ -1299,6 +1339,14 @@ impl Database {
 
     pub fn delete_post(&self, id: i64) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
+        let _ = conn.execute(
+            "DELETE FROM postmeta WHERE post_id IN (SELECT ID FROM posts WHERE post_parent = ?1 AND post_type = 'revision')",
+            params![id],
+        );
+        let _ = conn.execute(
+            "DELETE FROM posts WHERE post_parent = ?1 AND post_type = 'revision'",
+            params![id],
+        );
         let _ = conn.execute("DELETE FROM postmeta WHERE post_id = ?1", params![id]);
         let _ = conn.execute(
             "DELETE FROM term_relationships WHERE object_id = ?1",
@@ -1458,16 +1506,24 @@ impl Database {
     ) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let site_offset_secs = super::scheduling::read_site_timezone_offset(&tx, None);
+        let now_local = (Utc::now().naive_utc()
+            + chrono::Duration::seconds(site_offset_secs as i64))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+
+        let _ = Self::snapshot_post_revision_with_conn(&tx, post_id, &now_local, &now);
 
         if let Some(html) = rendered_html {
             tx.execute(
-                "UPDATE posts SET layout_json = ?1, post_content = ?2 WHERE ID = ?3",
-                params![layout_json, html, post_id],
+                "UPDATE posts SET layout_json = ?1, post_content = ?2, post_modified = ?3, post_modified_gmt = ?4 WHERE ID = ?5",
+                params![layout_json, html, now_local, now, post_id],
             )?;
         } else {
             tx.execute(
-                "UPDATE posts SET layout_json = ?1 WHERE ID = ?2",
-                params![layout_json, post_id],
+                "UPDATE posts SET layout_json = ?1, post_modified = ?2, post_modified_gmt = ?3 WHERE ID = ?4",
+                params![layout_json, now_local, now, post_id],
             )?;
         }
 
@@ -1479,6 +1535,8 @@ impl Database {
             "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_daypress_layout', ?2)",
             params![post_id, layout_json],
         )?;
+
+        let _ = Self::snapshot_post_revision_with_conn(&tx, post_id, &now_local, &now);
 
         tx.commit()?;
         Ok(())
@@ -1499,6 +1557,324 @@ impl Database {
         tx.commit()?;
         Ok(())
     }
+
+    // =========================================================================
+    // POST REVISIONS & REVISION CLEANING ENGINE
+    // =========================================================================
+
+    pub(crate) fn snapshot_post_revision_with_conn(
+        conn: &Connection,
+        post_id: i64,
+        now_local: &str,
+        now_gmt: &str,
+    ) -> Result<Option<i64>> {
+        let row: Option<(i64, String, String, String, String, String)> = conn
+            .query_row(
+                "SELECT post_author, post_title, post_content, post_excerpt, post_type, COALESCE(layout_json, '') FROM posts WHERE ID = ?1",
+                params![post_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
+            )
+            .ok();
+        let Some((author, title, content, excerpt, ptype, layout_json)) = row else {
+            return Ok(None);
+        };
+        if !matches!(ptype.as_str(), "post" | "page") {
+            return Ok(None);
+        }
+        // Skip empty initial auto-drafts
+        if title.trim().is_empty() && content.trim().is_empty() && layout_json.trim().is_empty() {
+            return Ok(None);
+        }
+
+        // Deduplicate against the most recent revision for this post
+        let last_rev: Option<(String, String, String, String)> = conn
+            .query_row(
+                "SELECT post_title, post_content, post_excerpt, COALESCE(layout_json, '') FROM posts WHERE post_parent = ?1 AND post_type = 'revision' ORDER BY ID DESC LIMIT 1",
+                params![post_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .ok();
+        if let Some((lt, lc, le, ll)) = last_rev {
+            if lt == title && lc == content && le == excerpt && ll == layout_json {
+                return Ok(None);
+            }
+        }
+
+        let slug = format!("{}-revision-v1", post_id);
+        let layout_opt = if layout_json.trim().is_empty() {
+            None
+        } else {
+            Some(layout_json.as_str())
+        };
+        conn.execute(
+            r#"INSERT INTO posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, comment_status, ping_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_parent, menu_order, layout_json)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'inherit', 'closed', 'closed', ?7, ?2, ?3, '', 'revision', ?8, 0, ?9)"#,
+            params![author, now_local, now_gmt, content, title, excerpt, slug, post_id, layout_opt],
+        )?;
+        let rev_id = conn.last_insert_rowid();
+        let base_url = Self::get_base_url_with_conn(conn);
+        let guid = format!("{}/?p={}", base_url.trim_end_matches('/'), rev_id);
+        let _ = conn.execute(
+            "UPDATE posts SET guid = ?1 WHERE ID = ?2",
+            params![guid, rev_id],
+        );
+        if let Some(l) = layout_opt {
+            let _ = conn.execute(
+                "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_daypress_layout', ?2)",
+                params![rev_id, l],
+            );
+        }
+        Ok(Some(rev_id))
+    }
+
+    fn map_revision_row(
+        conn: &Connection,
+        row: &rusqlite::Row,
+    ) -> Result<DaypressRevisionResponse> {
+        let id: i64 = row.get(0)?;
+        let author: i64 = row.get(1)?;
+        let date: String = row.get(2)?;
+        let date_gmt: String = row.get(3)?;
+        let modified: String = row.get(4)?;
+        let modified_gmt: String = row.get(5)?;
+        let parent: i64 = row.get(6)?;
+        let slug: String = row.get(7)?;
+        let guid: String = row.get(8)?;
+        let title: String = row.get(9)?;
+        let content: String = row.get(10)?;
+        let excerpt: String = row.get(11)?;
+        let layout_json: String = row.get(12)?;
+
+        let author_name: String = conn
+            .query_row(
+                "SELECT display_name FROM users WHERE ID = ?1",
+                params![author],
+                |r| r.get(0),
+            )
+            .unwrap_or_else(|_| "admin".to_string());
+
+        Ok(DaypressRevisionResponse {
+            id,
+            author,
+            author_name,
+            date: date.replace(' ', "T"),
+            date_gmt: date_gmt.replace(' ', "T"),
+            modified: modified.replace(' ', "T"),
+            modified_gmt: modified_gmt.replace(' ', "T"),
+            parent,
+            slug,
+            guid: DaypressGuid { rendered: guid },
+            title: DaypressRenderedText {
+                rendered: title,
+                protected: false,
+            },
+            content: DaypressRenderedText {
+                rendered: content,
+                protected: false,
+            },
+            excerpt: DaypressRenderedText {
+                rendered: excerpt,
+                protected: false,
+            },
+            has_layout: !layout_json.trim().is_empty(),
+        })
+    }
+
+    pub fn get_post_revisions(&self, post_id: i64) -> Result<Vec<DaypressRevisionResponse>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT ID, post_author, post_date, post_date_gmt, post_modified, post_modified_gmt, COALESCE(post_parent, 0), post_name, guid, post_title, post_content, post_excerpt, COALESCE(layout_json, '')
+             FROM posts WHERE post_parent = ?1 AND post_type = 'revision' ORDER BY ID DESC",
+        )?;
+        let rows = stmt.query_map(params![post_id], |r| Self::map_revision_row(&conn, r))?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn get_revision_by_id(
+        &self,
+        post_id: i64,
+        rev_id: i64,
+    ) -> Result<Option<DaypressRevisionResponse>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT ID, post_author, post_date, post_date_gmt, post_modified, post_modified_gmt, COALESCE(post_parent, 0), post_name, guid, post_title, post_content, post_excerpt, COALESCE(layout_json, '')
+             FROM posts WHERE ID = ?1 AND post_parent = ?2 AND post_type = 'revision'",
+        )?;
+        let mut rows = stmt.query_map(params![rev_id, post_id], |r| {
+            Self::map_revision_row(&conn, r)
+        })?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn restore_post_revision(
+        &self,
+        post_id: i64,
+        rev_id: i64,
+    ) -> Result<Option<DaypressPostResponse>> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let rev_row: Option<(String, String, String, Option<String>)> = tx
+            .query_row(
+                "SELECT post_title, post_content, post_excerpt, layout_json FROM posts WHERE ID = ?1 AND post_parent = ?2 AND post_type = 'revision'",
+                params![rev_id, post_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .ok();
+        let Some((title, content, excerpt, layout_json)) = rev_row else {
+            return Ok(None);
+        };
+
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let site_offset_secs = super::scheduling::read_site_timezone_offset(&tx, None);
+        let now_local = (Utc::now().naive_utc()
+            + chrono::Duration::seconds(site_offset_secs as i64))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+
+        // Snapshot current state before restoring
+        let _ = Self::snapshot_post_revision_with_conn(&tx, post_id, &now_local, &now);
+
+        tx.execute(
+            "UPDATE posts SET post_title = ?1, post_content = ?2, post_excerpt = ?3, layout_json = ?4, post_modified = ?5, post_modified_gmt = ?6 WHERE ID = ?7",
+            params![title, content, excerpt, layout_json, now_local, now, post_id],
+        )?;
+        tx.execute(
+            "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = '_daypress_layout'",
+            params![post_id],
+        )?;
+        if let Some(ref l) = layout_json {
+            if !l.trim().is_empty() {
+                let _ = tx.execute(
+                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_daypress_layout', ?2)",
+                    params![post_id, l],
+                );
+            }
+        } else {
+            let _ = super::post_ast::synchronize_post_ast_layout(&tx, post_id, &content, None);
+        }
+
+        // Snapshot restored state as latest revision
+        let _ = Self::snapshot_post_revision_with_conn(&tx, post_id, &now_local, &now);
+
+        tx.commit()?;
+        drop(conn);
+        self.get_post_by_id(post_id)
+    }
+
+    pub fn restore_revision_by_id(&self, rev_id: i64) -> Result<Option<DaypressPostResponse>> {
+        let parent_id: Option<i64> = {
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT post_parent FROM posts WHERE ID = ?1 AND post_type = 'revision'",
+                params![rev_id],
+                |r| r.get(0),
+            )
+            .ok()
+        };
+        let Some(post_id) = parent_id.filter(|id| *id > 0) else {
+            return Ok(None);
+        };
+        self.restore_post_revision(post_id, rev_id)
+    }
+
+    pub fn delete_post_revision(&self, post_id: i64, rev_id: i64) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM posts WHERE ID = ?1 AND post_parent = ?2 AND post_type = 'revision'",
+                params![rev_id, post_id],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|n| n > 0)
+            .unwrap_or(false);
+        if !exists {
+            return Ok(false);
+        }
+        let _ = conn.execute("DELETE FROM postmeta WHERE post_id = ?1", params![rev_id]);
+        let deleted = conn.execute(
+            "DELETE FROM posts WHERE ID = ?1 AND post_parent = ?2 AND post_type = 'revision'",
+            params![rev_id, post_id],
+        )?;
+        Ok(deleted > 0)
+    }
+
+    /// Cleans post revisions across the site, optionally keeping the N most recent revisions per post
+    /// and/or only deleting revisions older than `older_than_days`.
+    pub fn clean_post_revisions(
+        &self,
+        keep_per_post: Option<usize>,
+        older_than_days: Option<i64>,
+    ) -> Result<CleanRevisionsResponse> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+
+        let keep = keep_per_post.unwrap_or(0);
+        let cutoff_gmt = older_than_days.filter(|d| *d > 0).map(|days| {
+            (Utc::now().naive_utc() - chrono::Duration::days(days))
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        });
+
+        let parent_ids: Vec<i64> = {
+            let mut stmt = tx.prepare(
+                "SELECT DISTINCT COALESCE(post_parent, 0) FROM posts WHERE post_type = 'revision'",
+            )?;
+            let rows = stmt.query_map([], |r| r.get(0))?;
+            rows.filter_map(|r| r.ok()).collect()
+        };
+
+        let mut to_delete: Vec<i64> = Vec::new();
+        for parent_id in parent_ids {
+            let rev_rows: Vec<(i64, String)> = {
+                let mut stmt = tx.prepare(
+                    "SELECT ID, post_date_gmt FROM posts WHERE post_parent = ?1 AND post_type = 'revision' ORDER BY ID DESC",
+                )?;
+                let rows = stmt.query_map(params![parent_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                rows.filter_map(|r| r.ok()).collect()
+            };
+            for (idx, (rev_id, rev_date_gmt)) in rev_rows.into_iter().enumerate() {
+                if idx < keep {
+                    continue;
+                }
+                if let Some(ref cutoff) = cutoff_gmt {
+                    if rev_date_gmt.replace('T', " ") > *cutoff {
+                        continue;
+                    }
+                }
+                to_delete.push(rev_id);
+            }
+        }
+
+        let mut deleted_count = 0usize;
+        for rev_id in to_delete {
+            let _ = tx.execute("DELETE FROM postmeta WHERE post_id = ?1", params![rev_id]);
+            deleted_count += tx.execute(
+                "DELETE FROM posts WHERE ID = ?1 AND post_type = 'revision'",
+                params![rev_id],
+            )?;
+        }
+
+        let remaining_count: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM posts WHERE post_type = 'revision'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        tx.commit()?;
+        Ok(CleanRevisionsResponse {
+            deleted_count,
+            remaining_count,
+        })
+    }
 }
 
 impl crate::ports::output::PostRepository for Database {
@@ -1508,26 +1884,26 @@ impl crate::ports::output::PostRepository for Database {
         status: Option<&str>,
         search: Option<&str>,
         limit: i64,
-    ) -> DomainResult<Vec<WpPostResponse>> {
+    ) -> DomainResult<Vec<DaypressPostResponse>> {
         // The MCP stdio server reads through this port without the HTTP middleware.
         let _ = self.publish_due_scheduled_posts();
         self.get_posts(post_type, status, search, limit)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn find_post_by_id(&self, id: i64) -> DomainResult<Option<WpPostResponse>> {
+    fn find_post_by_id(&self, id: i64) -> DomainResult<Option<DaypressPostResponse>> {
         let _ = self.publish_due_scheduled_posts();
         self.get_post_by_id(id)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<WpPostResponse>> {
+    fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<DaypressPostResponse>> {
         let _ = self.publish_due_scheduled_posts();
         self.get_post_by_slug(slug)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn create_post(&self, req: &CreatePostRequest) -> DomainResult<WpPostResponse> {
+    fn create_post(&self, req: &CreatePostRequest) -> DomainResult<DaypressPostResponse> {
         Database::create_post(self, req).map_err(|e| DomainError::Storage(e.to_string()))
     }
 
@@ -1535,15 +1911,15 @@ impl crate::ports::output::PostRepository for Database {
         &self,
         id: i64,
         req: &UpdatePostRequest,
-    ) -> DomainResult<Option<WpPostResponse>> {
+    ) -> DomainResult<Option<DaypressPostResponse>> {
         Database::update_post(self, id, req).map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn duplicate_post(&self, source_id: i64) -> DomainResult<Option<WpPostResponse>> {
+    fn duplicate_post(&self, source_id: i64) -> DomainResult<Option<DaypressPostResponse>> {
         Database::duplicate_post(self, source_id).map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn trash_post(&self, id: i64) -> DomainResult<Option<WpPostResponse>> {
+    fn trash_post(&self, id: i64) -> DomainResult<Option<DaypressPostResponse>> {
         Database::trash_post(self, id).map_err(|e| DomainError::Storage(e.to_string()))
     }
 

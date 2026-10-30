@@ -5,7 +5,7 @@ use axum::http::{Request, StatusCode};
 use base64::Engine;
 use daypress_server::adapters::database::Database;
 use daypress_server::create_app;
-use daypress_server::templates::render_wp_builder_view;
+use daypress_server::templates::render_builder_view;
 use tower::ServiceExt;
 
 #[test]
@@ -38,7 +38,7 @@ fn test_daystudio_markup_contains_2026_cad_tokens_and_shell() {
     })
     .to_string();
 
-    let html = render_wp_builder_view(&settings, post, Some(&sample_layout));
+    let html = render_builder_view(&settings, post, Some(&sample_layout));
 
     // 1. Verify the theme class and the self-hosted brand typefaces
     assert!(html.contains("class=\"daystudio-theme-active\""));

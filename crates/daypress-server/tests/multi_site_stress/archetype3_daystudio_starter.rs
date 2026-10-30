@@ -57,7 +57,7 @@ const FALLBACK_ELEMENTOR_STARTER_WXR: &str = r##"<?xml version="1.0" encoding="U
 pub async fn run_test() {
     let db = setup_test_db();
     let wxr_data = load_fixture_or_fallback(
-        "archetype3_elementor_starter/elementor_starter.xml",
+        "archetype3_daystudio_starter/elementor_starter.xml",
         FALLBACK_ELEMENTOR_STARTER_WXR,
     );
 
@@ -97,7 +97,7 @@ pub async fn run_test() {
 
     assert_zero_comment_leaks(&html, "Archetype 3 /home/");
     assert!(
-        html.contains(r#"<style id="daypress-elementor-kit-css">"#),
+        html.contains(r#"<style id="daystudio-kit-css">"#),
         "SSR must contain kit css block"
     );
     assert!(html.contains("--e-global-color-primary: #ff4f00;"));

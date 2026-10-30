@@ -20,7 +20,7 @@ use std::io::Cursor;
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn test_elementor_starter_kit_wxr_ingestion_and_ssr_head_css() {
+async fn test_daystudio_starter_kit_wxr_ingestion_and_ssr_head_css() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
 
     let wxr = r##"<?xml version="1.0" encoding="UTF-8" ?>
@@ -124,7 +124,7 @@ async fn test_elementor_starter_kit_wxr_ingestion_and_ssr_head_css() {
     let html = String::from_utf8_lossy(&body);
 
     assert!(
-        html.contains(r#"<style id="daypress-elementor-kit-css">"#),
+        html.contains(r#"<style id="daystudio-kit-css">"#),
         "SSR must contain kit css block"
     );
     assert!(
@@ -204,7 +204,7 @@ async fn test_multi_chunk_cdata_streaming_without_truncation() {
 }
 
 #[tokio::test]
-async fn test_elementor_library_theme_templates_and_display_conditions_ssr() {
+async fn test_daystudio_library_theme_templates_and_display_conditions_ssr() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
 
     let wxr = r##"<?xml version="1.0" encoding="UTF-8" ?>

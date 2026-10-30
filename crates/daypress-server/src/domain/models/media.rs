@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::common::WpRenderedText;
+use super::common::DaypressRenderedText;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MediaSizeDetail {
@@ -23,11 +23,11 @@ pub struct MediaDetails {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WpMediaResponse {
+pub struct DaypressMediaResponse {
     pub id: i64,
     pub date: String,
     pub slug: String,
-    pub title: WpRenderedText,
+    pub title: DaypressRenderedText,
     pub source_url: String,
     pub mime_type: String,
     pub file_size: u64,
@@ -39,17 +39,17 @@ pub struct WpMediaResponse {
     pub media_details: MediaDetails,
     /// Attachment caption (`post_excerpt`), WP REST `caption`.
     #[serde(default = "empty_rendered_text")]
-    pub caption: WpRenderedText,
+    pub caption: DaypressRenderedText,
     /// Attachment description (`post_content`), WP REST `description`.
     #[serde(default = "empty_rendered_text")]
-    pub description: WpRenderedText,
+    pub description: DaypressRenderedText,
     /// Parent post ID (`post_parent`), WP REST `post` (null when unattached).
     #[serde(default)]
     pub post: Option<i64>,
 }
 
-pub fn empty_rendered_text() -> WpRenderedText {
-    WpRenderedText {
+pub fn empty_rendered_text() -> DaypressRenderedText {
+    DaypressRenderedText {
         rendered: String::new(),
         protected: false,
     }

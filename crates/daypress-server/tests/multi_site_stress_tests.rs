@@ -21,8 +21,8 @@ async fn test_archetype2_gutenberg_fse_presets_and_templates() {
 }
 
 #[tokio::test]
-async fn test_archetype3_elementor_starter_kit_and_remapping() {
-    multi_site_stress::archetype3_elementor_starter::run_test().await;
+async fn test_archetype3_daystudio_starter_kit_and_remapping() {
+    multi_site_stress::archetype3_daystudio_starter::run_test().await;
 }
 
 #[tokio::test]

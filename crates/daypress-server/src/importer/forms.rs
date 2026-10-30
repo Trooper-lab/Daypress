@@ -138,7 +138,7 @@ pub fn ingest_forms_and_spb(
     let mut enqueued_google_fonts: std::collections::BTreeSet<String> =
         std::collections::BTreeSet::new();
     let mut first_migrated_form_id: Option<i64> = None;
-    let mut has_elementor_forms = false;
+    let mut has_daystudio_forms = false;
     let mut has_spb_calculator = false;
 
     for item in posts {
@@ -148,7 +148,7 @@ pub fn ingest_forms_and_spb(
             .map(|d| d.contains("\"widgetType\":\"form\""))
             .unwrap_or(false)
         {
-            has_elementor_forms = true;
+            has_daystudio_forms = true;
         }
         if item.content.contains("[spb_kw_calculator_module")
             || item.content.contains("[spb_kitwerk_calculator")
@@ -288,7 +288,7 @@ pub fn ingest_forms_and_spb(
         }
     }
 
-    if has_elementor_forms || has_spb_calculator {
+    if has_daystudio_forms || has_spb_calculator {
         let existing_forms: i64 = tx
             .query_row("SELECT COUNT(*) FROM daypress_forms", [], |r| r.get(0))
             .unwrap_or(0);
@@ -299,7 +299,7 @@ pub fn ingest_forms_and_spb(
             );
         }
     }
-    if !form_id_map.is_empty() || has_elementor_forms || has_spb_calculator {
+    if !form_id_map.is_empty() || has_daystudio_forms || has_spb_calculator {
         let _ = crate::convergence::activate_builtin_plugin_tx(tx, "daypress-forms", None);
     }
 

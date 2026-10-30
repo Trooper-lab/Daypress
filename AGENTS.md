@@ -15,7 +15,7 @@ Daypress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
 
 3. **Relational Integrity in 1-Click & WXR Migrations**:
    - Both `db.rs::import_bundle` (`/wp-json/daypress/v1/import`) and `wxr.rs::import_wxr_xml` (`/wp-json/daypress/v1/import-wxr`) MUST maintain deterministic `old_post_id -> new_post_id` and `old_term_id -> new_term_id` mappings (or preserve original IDs) so `post_parent`, `page_on_front`, `page_for_posts`, `_thumbnail_id`, `categories`, `tags`, `nav_menu_item`, and `comments` never break.
-   - Always run `daypress_ast::transpile_content` (with `ElementorKit` global styles when present) during both JSON bundle imports and WXR imports.
+   - Always run `daypress_ast::transpile_content` (with `DaystudioKit` global styles when present) during both JSON bundle imports and WXR imports.
 
 4. **Unified Layout AST Schema (`crates/daypress-ast`)**:
    - `DaypressLayout`, `StyleProperties`, and `NodeKind` in `crates/daypress-ast/src/schema.rs` MUST seamlessly deserialize and serialize both nested AST style objects AND flat Visual Builder style objects (`background_color`, `text_color`, `padding_top`, etc.) as well as all Visual Builder `NodeKind` variants (`Root`, `Column`, `NativeForm`, `Benchmark`, `Image`, `Icon`, `Counter`, `Spacer`, `Accordion`, `Tabs`, `Video`, `Form`).

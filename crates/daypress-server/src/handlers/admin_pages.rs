@@ -16,7 +16,7 @@ use serde::Deserialize;
 // Admin Handlers
 pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let mut posts: Vec<models::WpPostResponse> = db
+    let mut posts: Vec<models::DaypressPostResponse> = db
         .get_posts("any", Some("publish"), None, 120)
         .unwrap_or_default()
         .into_iter()
@@ -40,9 +40,7 @@ pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> 
     }
     let stats = db.get_stats().unwrap_or_default();
 
-    Html(templates::render_wp_dashboard_view(
-        &posts, &settings, &stats,
-    ))
+    Html(templates::render_dashboard_view(&posts, &settings, &stats))
 }
 
 pub async fn handle_admin_posts(
@@ -67,7 +65,7 @@ pub async fn handle_admin_posts(
         None
     };
 
-    Html(templates::render_wp_posts_view_with_matrix(
+    Html(templates::render_posts_view_with_matrix(
         &posts,
         &settings,
         ptype,
@@ -105,7 +103,7 @@ pub async fn handle_admin_post_new(
         .get_taxonomies_for_post_type(&ptype, target_id)
         .unwrap_or_default();
 
-    Html(templates::render_wp_post_new_view(
+    Html(templates::render_post_new_view(
         &settings,
         &ptype,
         existing_post.as_ref(),
@@ -130,7 +128,7 @@ pub async fn handle_admin_builder(
             let layout_str =
                 serde_json::to_string(&tpl.layout).unwrap_or_else(|_| "{}".to_string());
             let synth_post = super::admin_extra::template_to_builder_post(&tpl);
-            return Html(templates::render_wp_builder_view(
+            return Html(templates::render_builder_view(
                 &settings,
                 &synth_post,
                 Some(&layout_str),
@@ -160,7 +158,7 @@ pub async fn handle_admin_builder(
     let layout_opt = db.get_post_layout(post.id).unwrap_or(None);
     let partials = super::admin_extra::builder_theme_partials(&db, &settings, &post);
 
-    Html(templates::render_wp_builder_view_with_partials(
+    Html(templates::render_builder_view_with_partials(
         &settings,
         &post,
         layout_opt.as_deref(),
@@ -171,7 +169,7 @@ pub async fn handle_admin_builder(
 pub async fn handle_admin_media(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let media = db.get_media_attachments().unwrap_or_default();
-    Html(templates::render_wp_media_view(&settings, &media))
+    Html(templates::render_media_view(&settings, &media))
 }
 
 pub async fn handle_admin_profile(
@@ -192,7 +190,7 @@ pub async fn handle_admin_profile(
         .get_user_detail(target_id)
         .unwrap_or(None)
         .or_else(|| db.get_user_detail(1).unwrap_or(None))
-        .unwrap_or_else(|| models::WpUserDetail {
+        .unwrap_or_else(|| models::DaypressUserDetail {
             id: target_id,
             username: "admin".to_string(),
             display_name: "admin".to_string(),
@@ -200,30 +198,31 @@ pub async fn handle_admin_profile(
             url: "".to_string(),
             registered: "2026-10-21".to_string(),
             role: "Administrator".to_string(),
+            ..Default::default()
         });
-    Html(templates::render_wp_profile_view(&settings, &user))
+    Html(templates::render_profile_view(&settings, &user))
 }
 
 pub async fn handle_admin_themes(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_themes_view(&settings))
+    Html(templates::render_themes_view(&settings))
 }
 
 pub async fn handle_admin_plugins(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let installed = db.get_all_installed_plugins().unwrap_or_default();
-    Html(templates::render_wp_plugins_view(&settings, &installed))
+    Html(templates::render_plugins_view(&settings, &installed))
 }
 
 pub async fn handle_admin_users(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let users = db.get_all_users().unwrap_or_default();
-    Html(templates::render_wp_users_view(&settings, &users))
+    Html(templates::render_users_view(&settings, &users))
 }
 
 pub async fn handle_admin_user_new(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_user_new_view(&settings))
+    Html(templates::render_user_new_view(&settings))
 }
 
 pub async fn handle_admin_user_new_submit(
@@ -237,7 +236,7 @@ pub async fn handle_admin_user_new_submit(
             headers.insert(header::LOCATION, "/d-admin/users".parse().unwrap());
             (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
         }
-        Err(_) => Html(templates::render_wp_user_new_view(&settings)).into_response(),
+        Err(_) => Html(templates::render_user_new_view(&settings)).into_response(),
     }
 }
 
@@ -257,11 +256,11 @@ pub async fn handle_login_page(
     if params.action.as_deref() == Some("resetpass") && error_msg.is_none() {
         let notice =
             templates::LoginNotice::Info("Your password has been reset. You can now log in.");
-        let html = templates::render_wp_login_view_with_notice(&settings, notice, redirect_to);
+        let html = templates::render_login_view_with_notice(&settings, notice, redirect_to);
         return Html(html).into_response();
     }
 
-    Html(templates::render_wp_login_view(
+    Html(templates::render_login_view(
         &settings,
         error_msg,
         loggedout,
@@ -282,7 +281,7 @@ pub async fn handle_login_submit(
     let password = form.pwd.as_deref().unwrap_or("");
 
     if username.is_empty() || password.is_empty() {
-        return Html(templates::render_wp_login_view(
+        return Html(templates::render_login_view(
             &settings,
             Some("The username or password field is empty."),
             false,
@@ -294,7 +293,7 @@ pub async fn handle_login_submit(
     match db.attempt_login(username, password, client.as_deref()) {
         Ok(crate::auth::LoginAttempt::Throttled { retry_after_secs }) => (
             StatusCode::TOO_MANY_REQUESTS,
-            Html(templates::render_wp_login_view(
+            Html(templates::render_login_view(
                 &settings,
                 Some(&format!(
                     "Too many failed login attempts. Please try again in {} minutes.",
@@ -326,7 +325,7 @@ pub async fn handle_login_submit(
             }
             (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
         }
-        _ => Html(templates::render_wp_login_view(
+        _ => Html(templates::render_login_view(
             &settings,
             Some("Unknown username or incorrect password."),
             false,
@@ -351,7 +350,7 @@ pub async fn handle_logout() -> impl IntoResponse {
 pub async fn handle_admin_tools(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_wp_tools_view(&settings, &stats))
+    Html(templates::render_tools_view(&settings, &stats))
 }
 
 pub async fn handle_admin_tags(
@@ -366,16 +365,16 @@ pub async fn handle_admin_tags(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "category".to_string());
     let terms = db.get_terms(&taxonomy).unwrap_or_default();
-    Html(templates::render_wp_tags_view(&settings, &taxonomy, &terms))
+    Html(templates::render_tags_view(&settings, &taxonomy, &terms))
 }
 
 pub async fn handle_admin_settings(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_settings_view(&settings))
+    Html(templates::render_settings_view(&settings))
 }
 
 pub async fn handle_admin_engine(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_wp_engine_view(&settings, &stats))
+    Html(templates::render_engine_view(&settings, &stats))
 }

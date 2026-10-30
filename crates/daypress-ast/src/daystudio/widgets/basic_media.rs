@@ -1,6 +1,6 @@
-use crate::elementor::context::{resolve_setting_link, ElementorContext};
-use crate::elementor::normalize_video_embed_url;
-use crate::elementor::resolve_dynamic_tag;
+use crate::daystudio::context::{resolve_setting_link, DaystudioContext};
+use crate::daystudio::normalize_video_embed_url;
+use crate::daystudio::resolve_dynamic_tag;
 use crate::schema::{AccordionItem, IconListItem, NodeKind, StyleProperties, TabItem, ToggleItem};
 use serde_json::Value;
 
@@ -8,7 +8,7 @@ pub(crate) fn map_basic_media_widget(
     widget_type: &str,
     settings: &Value,
     _styles: &mut StyleProperties,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Option<NodeKind> {
     match widget_type {
         "image" | "theme-site-logo" => {

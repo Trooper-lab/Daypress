@@ -3,7 +3,7 @@ use super::globals::{extract_global_color, extract_global_typography};
 use crate::schema::{StyleProperties, TypographyConfig};
 use serde_json::{Map, Value};
 
-pub(crate) fn extract_elementor_typography(
+pub(crate) fn extract_daystudio_typography(
     settings: &Value,
     globals: Option<&Map<String, Value>>,
     styles: &mut StyleProperties,

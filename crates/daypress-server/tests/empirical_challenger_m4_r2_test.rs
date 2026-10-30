@@ -108,7 +108,7 @@ fn test_builder_view_rendered_cad_dock_and_containment_invariants() {
         })
         .expect("Create probe page");
 
-    let builder_html = templates::render_wp_builder_view(&settings, &post, None);
+    let builder_html = templates::render_builder_view(&settings, &post, None);
 
     // 1. Topbar CAD Invariants
     assert!(

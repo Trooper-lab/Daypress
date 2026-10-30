@@ -128,7 +128,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_import_html_design",
-                "description": "Import a complete HTML/CSS design document into 100% native DayStudio AST blocks (zero CustomHtml fallbacks), extract <header>/<footer> chrome, populate ElementorKit global design tokens, and compile SSR HTML in one call.",
+                "description": "Import a complete HTML/CSS design document into 100% native DayStudio AST blocks (zero CustomHtml fallbacks), extract <header>/<footer> chrome, populate DaystudioKit global design tokens, and compile SSR HTML in one call.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["html"],
@@ -145,12 +145,12 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_update_global_styles",
-                "description": "Update Global Design Tokens (ElementorKit colors, typography scales, content measure, button defaults, and custom CSS) on a page and/or site-wide.",
+                "description": "Update Global Design Tokens (DaystudioKit colors, typography scales, content measure, button defaults, and custom CSS) on a page and/or site-wide.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["global_styles"],
                     "properties": {
-                        "global_styles": { "type": "object", "description": "ElementorKit JSON object" },
+                        "global_styles": { "type": "object", "description": "DaystudioKit JSON object" },
                         "post_id": { "type": "integer", "description": "Optional post/page ID whose layout AST global_styles should also be updated" }
                     }
                 }
@@ -458,8 +458,8 @@ fn dispatch_tool_call(
                 .get("global_styles")
                 .cloned()
                 .ok_or_else(|| DomainError::Validation("'global_styles' is required".into()))?;
-            let kit: daypress_ast::ElementorKit = serde_json::from_value(gs_val).map_err(|e| {
-                DomainError::Validation(format!("Invalid ElementorKit global_styles: {e}"))
+            let kit: daypress_ast::DaystudioKit = serde_json::from_value(gs_val).map_err(|e| {
+                DomainError::Validation(format!("Invalid DaystudioKit global_styles: {e}"))
             })?;
             let kit_css = kit.compile_to_css();
             service.update_site_option("elementor_kit_css", &kit_css)?;

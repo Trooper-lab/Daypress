@@ -1,13 +1,13 @@
 use super::box_model::extract_spacing_val;
 use super::globals::extract_global_color;
-use crate::elementor::context::ElementorContext;
+use crate::daystudio::context::DaystudioContext;
 use crate::schema::{BackgroundConfig, StyleProperties};
 use serde_json::{Map, Value};
 
-pub(crate) fn extract_elementor_background(
+pub(crate) fn extract_daystudio_background(
     settings: &Value,
     globals: Option<&Map<String, Value>>,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
     styles: &mut StyleProperties,
 ) {
     let bg_type = settings

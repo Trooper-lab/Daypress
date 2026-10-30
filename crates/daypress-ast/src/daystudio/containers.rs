@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
-pub(crate) fn parse_elementor_node(
+pub(crate) fn parse_daystudio_node(
     val: &Value,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
     depth: usize,
 ) -> Option<DaypressNode> {
     let obj = val.as_object()?;
@@ -26,7 +26,7 @@ pub(crate) fn parse_elementor_node(
         .unwrap_or("widget");
 
     let settings = obj.get("settings").cloned().unwrap_or(Value::Null);
-    let mut styles = extract_elementor_styles(&settings, ctx);
+    let mut styles = extract_daystudio_styles(&settings, ctx);
 
     let raw_children = obj
         .get("elements")
@@ -36,7 +36,7 @@ pub(crate) fn parse_elementor_node(
 
     let mut children: Vec<DaypressNode> = raw_children
         .iter()
-        .filter_map(|c| parse_elementor_node(c, ctx, depth + 1))
+        .filter_map(|c| parse_daystudio_node(c, ctx, depth + 1))
         .collect();
 
     let kind = match el_type {
@@ -58,7 +58,7 @@ pub(crate) fn parse_elementor_node(
                 .unwrap_or("flex");
 
             if container_type == "grid" {
-                parse_elementor_grid_container(&settings, &mut styles, ctx);
+                parse_daystudio_grid_container(&settings, &mut styles, ctx);
             } else {
                 styles.display = Some("flex".to_string());
                 let dir = settings
@@ -154,7 +154,7 @@ pub(crate) fn parse_elementor_node(
                 .get("widgetType")
                 .and_then(|v| v.as_str())
                 .unwrap_or("html");
-            map_elementor_widget(widget_type, &settings, &mut styles, &mut children, ctx)?
+            map_daystudio_widget(widget_type, &settings, &mut styles, &mut children, ctx)?
         }
         _ => NodeKind::CustomHtml {
             raw: format!("<!-- Unrecognized Elementor type: {} -->", el_type),
@@ -267,10 +267,10 @@ pub(crate) fn parse_grid_gap_def(settings: &Value, base_key: &str) -> Option<Str
     }
 }
 
-pub(crate) fn parse_elementor_grid_container(
+pub(crate) fn parse_daystudio_grid_container(
     settings: &Value,
     styles: &mut StyleProperties,
-    _ctx: &ElementorContext,
+    _ctx: &DaystudioContext,
 ) {
     styles.display = Some("grid".to_string());
 

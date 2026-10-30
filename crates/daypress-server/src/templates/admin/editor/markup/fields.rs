@@ -1,11 +1,11 @@
 //! Field widgets for the post editor: SEO defaults, parent page options, categories, featured image.
 
-use crate::models::{WpCategoryResponse, WpMediaResponse, WpPostResponse};
+use crate::models::{DaypressCategoryResponse, DaypressMediaResponse, DaypressPostResponse};
 use crate::templates::utils::escape_html;
 
 /// Initial SEO studio values (title, description, keyphrase, canonical, OG image, noindex, schema).
 pub(super) fn initial_seo_fields(
-    existing: Option<&WpPostResponse>,
+    existing: Option<&DaypressPostResponse>,
     is_page: bool,
 ) -> (String, String, String, String, String, bool, String) {
     if let Some(post) = existing {
@@ -44,8 +44,8 @@ pub(super) fn initial_seo_fields(
 }
 
 pub(super) fn render_parent_options(
-    all_pages: &[WpPostResponse],
-    existing: Option<&WpPostResponse>,
+    all_pages: &[DaypressPostResponse],
+    existing: Option<&DaypressPostResponse>,
     initial_parent: i64,
 ) -> String {
     let mut parent_options = String::from(r#"<option value="0">(no parent - top level)</option>"#);
@@ -67,7 +67,7 @@ pub(super) fn render_parent_options(
 }
 
 pub(super) fn render_category_checkboxes(
-    all_categories: &[WpCategoryResponse],
+    all_categories: &[DaypressCategoryResponse],
     initial_categories: &[i64],
 ) -> String {
     let mut cat_checkboxes = String::new();
@@ -90,7 +90,7 @@ pub(super) fn render_category_checkboxes(
 }
 
 pub(super) fn render_featured_image_preview(
-    all_media: &[WpMediaResponse],
+    all_media: &[DaypressMediaResponse],
     initial_featured_media: i64,
 ) -> String {
     if initial_featured_media > 0 {

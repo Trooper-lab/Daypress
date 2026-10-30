@@ -1,10 +1,10 @@
-use super::layout::render_wp_admin_shell;
-use crate::models::{CommentCounts, WpCommentAdminItem, WpSettingsResponse};
+use super::layout::render_admin_shell;
+use crate::models::{CommentCounts, DaypressCommentAdminItem, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 
-pub fn render_wp_comments_view(
-    settings: &WpSettingsResponse,
-    comments: &[WpCommentAdminItem],
+pub fn render_comments_view(
+    settings: &DaypressSettingsResponse,
+    comments: &[DaypressCommentAdminItem],
     counts: &CommentCounts,
     current_status: Option<&str>,
 ) -> String {
@@ -198,5 +198,5 @@ pub fn render_wp_comments_view(
         rows_html = rows_html
     );
 
-    render_wp_admin_shell("comments", "Comments", &body, settings)
+    render_admin_shell("comments", "Comments", &body, settings)
 }

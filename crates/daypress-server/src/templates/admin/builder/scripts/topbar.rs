@@ -25,7 +25,10 @@ pub const JS_TOPBAR: &str = r###"
             });
 
             if (artboard) {
-                artboard.classList.remove("artboard-desktop", "artboard-tablet", "artboard-mobile");
+                artboard.style.width = "";
+                artboard.classList.remove("artboard-desktop", "artboard-tablet", "artboard-mobile", "is-custom-width");
+                const zoomWrapper = document.getElementById("daystudio-zoom-wrapper");
+                if (zoomWrapper) { zoomWrapper.style.width = ""; zoomWrapper.classList.remove("is-custom-width"); }
                 artboard.classList.add("artboard-" + bp);
             }
 

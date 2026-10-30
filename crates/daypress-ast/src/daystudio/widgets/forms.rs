@@ -1,5 +1,5 @@
 use super::*;
-use crate::elementor::context::ElementorContext;
+use crate::daystudio::context::DaystudioContext;
 use crate::schema::{DaypressNode, NodeKind, StyleProperties};
 use serde_json::Value;
 
@@ -7,7 +7,7 @@ pub(crate) fn map_form_widget(
     settings: &Value,
     _styles: &mut StyleProperties,
     children: &mut Vec<DaypressNode>,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Option<NodeKind> {
     let form_id = settings
         .get("form_id")
@@ -41,7 +41,7 @@ pub(crate) fn map_form_widget(
             .unwrap_or("Uw inzending is succesvol verstuurd.");
         let btn_lbl = button_text.as_deref().unwrap_or("Verzenden");
         let custom_fields_html =
-            compile_elementor_form_fields(fields, btn_lbl, success_msg, redirect_url.as_deref());
+            compile_daystudio_form_fields(fields, btn_lbl, success_msg, redirect_url.as_deref());
         children.push(DaypressNode {
             id: format!("form_fields_{}", form_id),
             kind: NodeKind::CustomHtml {
@@ -60,13 +60,13 @@ pub(crate) fn map_form_widget(
     })
 }
 
-pub(crate) fn compile_elementor_form_fields(
+pub(crate) fn compile_daystudio_form_fields(
     fields: &[Value],
     button_text: &str,
     success_message: &str,
     redirect_url: Option<&str>,
 ) -> String {
-    let mut html = String::from("<div class=\"dp-form-fields dp-elementor-form-grid\">\n");
+    let mut html = String::from("<div class=\"dp-form-fields dp-daystudio-form-grid\">\n");
     for (idx, field) in fields.iter().enumerate() {
         let field_type = field
             .get("field_type")

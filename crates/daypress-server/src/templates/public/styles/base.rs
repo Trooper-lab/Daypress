@@ -25,8 +25,8 @@ pub fn render_base_css(brand_color: &str) -> String {
 			--e-global-color-secondary: #0f172a;
 			--e-global-color-text: #e2e8f0;
 			--e-global-color-accent: #ff4f00;
-			--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			--font-mono: 'JetBrains Mono', monospace;
+			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 		}}
 
 		*, *::before, *::after {{

@@ -1,7 +1,7 @@
+use crate::daystudio::normalize_video_embed_url;
 use crate::divi::context::DiviContext;
 use crate::divi::parser::DiviShortcode;
 use crate::divi::widgets::escape_html;
-use crate::elementor::normalize_video_embed_url;
 use crate::schema::{DaypressNode, NodeKind, SocialIconItem};
 
 pub fn map_dynamic_module(

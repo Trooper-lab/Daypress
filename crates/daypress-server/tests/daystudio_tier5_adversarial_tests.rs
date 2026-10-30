@@ -17,7 +17,7 @@ use daypress_ast::{
 };
 use daypress_server::{
     create_app,
-    models::WpSettingsResponse,
+    models::DaypressSettingsResponse,
     templates::public::render_base_layout,
     theme_builder::{
         conditions::{evaluate_condition, ConditionMatch},
@@ -366,7 +366,7 @@ fn test_tier5_multibyte_utf8_extremes_astral_emojis_rtl_and_cjk() {
     let rendered_node = render_layout_to_html(&layout);
     assert!(rendered_node.contains("👨‍👩‍👧‍👦") || rendered_node.contains("🦹‍♂️"));
 
-    let settings = WpSettingsResponse {
+    let settings = DaypressSettingsResponse {
         title: extreme_title.to_string(),
         description: "RTL & Astral Emoji CMS".to_string(),
         ..Default::default()

@@ -4,7 +4,7 @@
 //! editor script (`scripts/schedule.rs`) converts it to UTC and sends it as `date_gmt`.
 //! Site time is UTC, so the stored `post_date` is the UTC time the post goes live.
 
-use crate::models::WpPostResponse;
+use crate::models::DaypressPostResponse;
 use crate::templates::utils::escape_html;
 
 /// `selected` when `current` is `status`.
@@ -18,7 +18,7 @@ pub(super) fn selected_if(current: &str, status: &str) -> &'static str {
 
 /// The picker (shown while "Scheduled" is selected) and, for a post that is already
 /// scheduled, the time it goes live.
-pub(super) fn render_schedule_controls(existing: Option<&WpPostResponse>) -> String {
+pub(super) fn render_schedule_controls(existing: Option<&DaypressPostResponse>) -> String {
     let initial_status = existing.map(|p| p.status.as_str()).unwrap_or("");
     let scheduled_gmt = existing
         .filter(|p| p.status == "future")

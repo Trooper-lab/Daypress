@@ -143,7 +143,7 @@ pub const CSS_OVERLAYS: &str = r#"
 .daystudio-xray .dp-section,
 .daystudio-xray .dp-container,
 .daystudio-xray .dp-column,
-.daystudio-xray .elementor-column {
+.daystudio-xray .daystudio-column {
     background-image: repeating-linear-gradient(
         45deg,
         rgba(6, 182, 212, 0.04),
@@ -159,10 +159,20 @@ pub const CSS_OVERLAYS: &str = r#"
 }
 
 /* -------------------------------------------------------------
-   PSEUDO-STATE FORCED HOVER SIMULATION
+   PSEUDO-STATE FORCED HOVER SIMULATION & BREAKPOINT VISIBILITY
    ------------------------------------------------------------- */
 .daystudio-force-hover {
     outline: 2px dashed var(--day-token) !important;
     outline-offset: 1px;
+}
+
+.daystudio-hidden-bp {
+    display: none !important;
+}
+
+.daystudio-xray .daystudio-hidden-bp {
+    display: block !important;
+    opacity: 0.35 !important;
+    outline: 1px dashed #ef4444 !important;
 }
 "#;

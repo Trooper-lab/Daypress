@@ -22,34 +22,62 @@ use std::path::Path;
 
 pub(crate) async fn list_users(
     State(db): State<Database>,
-) -> Result<(HeaderMap, Json<Vec<WpUserResponse>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressUserResponse>>), AppError> {
     let base_url = db.get_base_url();
     let users = db.get_all_users()?;
-    let list: Vec<WpUserResponse> = users
+    let list: Vec<DaypressUserResponse> = users
         .into_iter()
-        .map(|u| WpUserResponse {
-            id: u.id,
-            name: u.display_name,
-            url: u.url,
-            description: "".to_string(),
-            link: format!("{}/author/{}/", base_url.trim_end_matches('/'), u.username),
-            slug: u.username,
-            avatar_urls: serde_json::json!({
-                "24": "https://secure.gravatar.com/avatar/?s=24&d=mm&r=g",
-                "48": "https://secure.gravatar.com/avatar/?s=48&d=mm&r=g",
-                "96": "https://secure.gravatar.com/avatar/?s=96&d=mm&r=g"
-            }),
+        .map(|u| {
+            let detail = db.get_user_detail(u.id).ok().flatten();
+            let av = if !u.avatar_url.trim().is_empty() {
+                u.avatar_url.clone()
+            } else {
+                crate::adapters::database::users::gravatar_url_for_email(&u.email, 96)
+            };
+            DaypressUserResponse {
+                id: u.id,
+                name: u.display_name,
+                url: u.url,
+                description: detail
+                    .as_ref()
+                    .map(|d| d.description.clone())
+                    .unwrap_or_default(),
+                link: format!("{}/author/{}/", base_url.trim_end_matches('/'), u.username),
+                slug: u.username,
+                avatar_urls: serde_json::json!({
+                    "24": av,
+                    "48": av,
+                    "96": av
+                }),
+                first_name: detail
+                    .as_ref()
+                    .map(|d| d.first_name.clone())
+                    .unwrap_or_default(),
+                last_name: detail
+                    .as_ref()
+                    .map(|d| d.last_name.clone())
+                    .unwrap_or_default(),
+                nickname: detail
+                    .as_ref()
+                    .map(|d| d.nickname.clone())
+                    .unwrap_or_default(),
+                locale: detail
+                    .as_ref()
+                    .map(|d| d.locale.clone())
+                    .unwrap_or_default(),
+                roles: vec![u.role],
+            }
         })
         .collect();
     let total = list.len() as i64;
-    Ok(wp_list_response(list, total, total.max(10)))
+    Ok(rest_list_response(list, total, total.max(10)))
 }
 
 pub(crate) async fn create_user(
     _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<CreateUserRequest>,
-) -> Result<(StatusCode, Json<WpUserDetail>), AppError> {
+) -> Result<(StatusCode, Json<DaypressUserDetail>), AppError> {
     let user = db.create_user(&payload)?;
     Ok((StatusCode::CREATED, Json(user)))
 }
@@ -73,7 +101,7 @@ pub(crate) async fn list_comments(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Query(params): Query<CommentListQueryParams>,
-) -> Result<(HeaderMap, Json<Vec<WpCommentAdminItem>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressCommentAdminItem>>), AppError> {
     let per_page = params.per_page.unwrap_or(100).clamp(1, 500);
     let mut comments = db
         .get_comments(params.status.as_deref(), 500)
@@ -84,19 +112,19 @@ pub(crate) async fn list_comments(
     let total = comments.len() as i64;
     let page = params.page.unwrap_or(1).max(1) as usize;
     let offset = (page - 1) * (per_page as usize);
-    let paged: Vec<WpCommentAdminItem> = comments
+    let paged: Vec<DaypressCommentAdminItem> = comments
         .into_iter()
         .skip(offset)
         .take(per_page as usize)
         .collect();
-    Ok(wp_list_response(paged, total, per_page))
+    Ok(rest_list_response(paged, total, per_page))
 }
 
 pub(crate) async fn create_comment_handler(
     crate::auth::OptionalAuthUser(auth): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     Json(mut payload): Json<CreateCommentRequest>,
-) -> Result<(StatusCode, Json<WpCommentResponse>), AppError> {
+) -> Result<(StatusCode, Json<DaypressCommentResponse>), AppError> {
     if payload.content.trim().is_empty() {
         return Err(AppError::BadRequest(
             "Comment content is required".to_string(),
@@ -148,7 +176,7 @@ pub(crate) async fn get_comment(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpCommentAdminItem>, AppError> {
+) -> Result<Json<DaypressCommentAdminItem>, AppError> {
     if let Some(c) = db.get_comment_by_id(id)? {
         Ok(Json(c))
     } else {
@@ -204,7 +232,7 @@ pub(crate) async fn delete_comment_handler(
 pub(crate) async fn get_current_user(
     auth: AuthUser,
     State(db): State<Database>,
-) -> Result<Json<WpUserDetail>, AppError> {
+) -> Result<Json<DaypressUserDetail>, AppError> {
     match db.get_user_detail(auth.user_id)? {
         Some(u) => Ok(Json(u)),
         None => Err(AppError::NotFound("User not found".to_string())),
@@ -215,7 +243,7 @@ pub(crate) async fn update_current_user(
     auth: AuthUser,
     State(db): State<Database>,
     Json(mut payload): Json<UpdateUserRequest>,
-) -> Result<Json<WpUserDetail>, AppError> {
+) -> Result<Json<DaypressUserDetail>, AppError> {
     // Users may edit their own profile, but only administrators may change roles.
     if !auth.is_admin() {
         payload.role = None;
@@ -230,7 +258,7 @@ pub(crate) async fn get_user_by_id(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpUserDetail>, AppError> {
+) -> Result<Json<DaypressUserDetail>, AppError> {
     match db.get_user_detail(id)? {
         Some(u) => Ok(Json(u)),
         None => Err(AppError::NotFound(format!("User {} not found", id))),
@@ -242,14 +270,14 @@ pub(crate) async fn update_user_by_id(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateUserRequest>,
-) -> Result<Json<WpUserDetail>, AppError> {
+) -> Result<Json<DaypressUserDetail>, AppError> {
     match db.update_user_detail(id, &payload)? {
         Some(u) => Ok(Json(u)),
         None => Err(AppError::NotFound(format!("User {} not found", id))),
     }
 }
 
-// --- Application Passwords Endpoints ---
+// --- Application Passwords & Session Management Endpoints ---
 
 pub(crate) async fn list_app_passwords(
     auth: AuthUser,
@@ -294,6 +322,50 @@ pub(crate) async fn delete_app_password(
     }
 }
 
+pub(crate) async fn delete_all_app_passwords(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+) -> Result<Json<Value>, AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let count = db.delete_all_application_passwords(user_id)?;
+    Ok(Json(serde_json::json!({
+        "deleted": true,
+        "count": count
+    })))
+}
+
+pub(crate) async fn destroy_other_sessions_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+) -> Result<(HeaderMap, Json<Value>), AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let new_ver = db.bump_user_session_version(user_id)?;
+    let mut headers = HeaderMap::new();
+    if auth.user_id == user_id {
+        if let Ok(secret) = db.get_auth_secret() {
+            let cookie =
+                crate::auth::session_cookie_header_with_version(user_id, &secret, false, new_ver);
+            if let Ok(hv) = header::HeaderValue::from_str(&cookie) {
+                headers.insert(header::SET_COOKIE, hv);
+            }
+        }
+    }
+    Ok((
+        headers,
+        Json(serde_json::json!({
+            "success": true,
+            "session_ver": new_ver,
+            "message": "You are now logged out everywhere else."
+        })),
+    ))
+}
+
 // --- Nonce & JWT Auth Endpoints ---
 
 pub(crate) async fn get_auth_nonce(
@@ -301,7 +373,7 @@ pub(crate) async fn get_auth_nonce(
     State(db): State<Database>,
 ) -> Result<Json<NonceResponse>, AppError> {
     let secret = db.get_auth_secret()?;
-    let nonce = crate::auth::create_wp_nonce("wp_rest", auth.user_id, &secret);
+    let nonce = crate::auth::create_rest_nonce("wp_rest", auth.user_id, &secret);
     Ok(Json(NonceResponse {
         nonce,
         action: "wp_rest".to_string(),
@@ -331,14 +403,11 @@ pub(crate) async fn generate_jwt_token(
 
     let user_detail = db
         .get_user_detail(user.user_id)?
-        .unwrap_or_else(|| WpUserDetail {
+        .unwrap_or_else(|| DaypressUserDetail {
             id: user.user_id,
             username: user.username.clone(),
             display_name: user.username.clone(),
-            email: "admin@example.com".to_string(),
-            url: "".to_string(),
-            registered: "".to_string(),
-            role: "administrator".to_string(),
+            ..Default::default()
         });
 
     let secret = db.get_auth_secret()?;

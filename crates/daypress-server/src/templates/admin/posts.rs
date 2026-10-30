@@ -1,23 +1,23 @@
-use super::layout::render_wp_admin_shell;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use super::layout::render_admin_shell;
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 use crate::theme_builder::{HeaderFooterMatrixResponse, ResolvedSlotStatus};
 
-pub fn render_wp_posts_view(
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+pub fn render_posts_view(
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     is_page: bool,
 ) -> String {
     let ptype = if is_page { "page" } else { "post" };
-    render_wp_posts_view_for_type(posts, settings, ptype)
+    render_posts_view_for_type(posts, settings, ptype)
 }
 
-pub fn render_wp_posts_view_for_type(
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+pub fn render_posts_view_for_type(
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     post_type: &str,
 ) -> String {
-    render_wp_posts_view_with_matrix(posts, settings, post_type, None)
+    render_posts_view_with_matrix(posts, settings, post_type, None)
 }
 
 fn format_slot_mini_badge(prefix: &str, slot: &ResolvedSlotStatus) -> String {
@@ -40,9 +40,9 @@ fn format_slot_mini_badge(prefix: &str, slot: &ResolvedSlotStatus) -> String {
     )
 }
 
-pub fn render_wp_posts_view_with_matrix(
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+pub fn render_posts_view_with_matrix(
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     post_type: &str,
     matrix: Option<&HeaderFooterMatrixResponse>,
 ) -> String {
@@ -80,7 +80,7 @@ pub fn render_wp_posts_view_with_matrix(
         .filter(|s| !s.is_empty())
         .collect();
 
-    let mut ordered_posts: Vec<&WpPostResponse> = posts.iter().collect();
+    let mut ordered_posts: Vec<&DaypressPostResponse> = posts.iter().collect();
     ordered_posts.sort_by(|a, b| {
         let a_front = a.id == settings.page_on_front;
         let b_front = b.id == settings.page_on_front;
@@ -487,5 +487,5 @@ pub fn render_wp_posts_view_with_matrix(
     } else {
         post_type
     };
-    render_wp_admin_shell(tab, post_type_label, &body, settings)
+    render_admin_shell(tab, post_type_label, &body, settings)
 }

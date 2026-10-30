@@ -1,6 +1,6 @@
 //! Interactive Design Tokens Drawer (`scripts/tokens_drawer.rs`).
 //!
-//! Live editor bound to `window.DayStudioState.pageAst.global_styles` (`ElementorKit`)
+//! Live editor bound to `window.DayStudioState.pageAst.global_styles` (`DaystudioKit`)
 //! supporting System & Custom Colors, Typography Families & Scales, Layout Measure,
 //! Button Defaults, and Custom CSS with real-time artboard injection and SQLite persistence.
 
@@ -25,10 +25,10 @@ pub const JS_TOKENS_DRAWER: &str = r###"
                     { id: "rule", title: "Hairline Rule", color: "#D6CEBC" }
                 ],
                 system_typography: [
-                    { id: "primary", title: "Display Heading", font_family: "'Newsreader', Georgia, serif", font_size: "48px", font_weight: "400", line_height: "1.05" },
-                    { id: "secondary", title: "Section Heading", font_family: "'Schibsted Grotesk', sans-serif", font_size: "28px", font_weight: "600", line_height: "1.15" },
-                    { id: "text", title: "Body Copy", font_family: "'Schibsted Grotesk', sans-serif", font_size: "16px", font_weight: "400", line_height: "1.55" },
-                    { id: "accent", title: "Monospace / Spec", font_family: "'IBM Plex Mono', monospace", font_size: "12px", font_weight: "500", line_height: "1.4" }
+                    { id: "primary", title: "Display Heading", font_family: "Roboto, sans-serif", font_size: "48px", font_weight: "600", line_height: "1.2" },
+                    { id: "secondary", title: "Section Heading", font_family: "Roboto Slab, serif", font_size: "28px", font_weight: "400", line_height: "1.3" },
+                    { id: "text", title: "Body Copy", font_family: "Roboto, sans-serif", font_size: "16px", font_weight: "400", line_height: "1.5" },
+                    { id: "accent", title: "Monospace / Spec", font_family: "Roboto, sans-serif", font_size: "14px", font_weight: "500", line_height: "1.4" }
                 ],
                 custom_typography: [],
                 content_width: 1320,
@@ -67,7 +67,7 @@ pub const JS_TOKENS_DRAWER: &str = r###"
         }
 
         const lines = [];
-        lines.push("#daystudio-site-preview, #daystudio-canvas {");
+        lines.push("#daystudio-artboard, #daystudio-site-preview, #daystudio-canvas {");
         lines.push(`  --e-content-width: ${gs.content_width || 1320}px;`);
         lines.push(`  --dp-container-max-width: ${gs.content_width || 1320}px;`);
         lines.push(`  --wide: ${gs.content_width || 1320}px;`);
@@ -109,7 +109,10 @@ pub const JS_TOKENS_DRAWER: &str = r###"
         }
         lines.push("}");
         if (gs.custom_css && String(gs.custom_css).trim()) {
-            lines.push(String(gs.custom_css));
+            const scopedCustom = String(gs.custom_css)
+                .replace(/(^|[},;\s])(?:html|body|:root)(?=\s*[,{])/g, "$1:scope")
+                .replace(/@media\s*\(([^)]*(?:max-width|min-width)[^)]*)\)\s*\{([\s\S]*?)\}/g, (m, c, inner) => `${m}\n@container daystudio-artboard (${c}) {${inner}}`);
+            lines.push(`@scope (#daystudio-artboard) {\n${scopedCustom}\n}`);
         }
 
         styleEl.textContent = lines.join("\n");
@@ -165,7 +168,7 @@ pub const JS_TOKENS_DRAWER: &str = r###"
 
         container.innerHTML = `
             <div class="drawer-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span class="drawer-title">Design Tokens (ElementorKit)</span>
+                <span class="drawer-title">Design Tokens (DaystudioKit)</span>
                 <button type="button" class="cad-btn primary" id="tok-save-top-btn" style="padding:4px 10px;font-size:11px;"><i class="fa-solid fa-floppy-disk"></i> Save</button>
             </div>
             <div class="drawer-scroll-body" style="padding:12px;">

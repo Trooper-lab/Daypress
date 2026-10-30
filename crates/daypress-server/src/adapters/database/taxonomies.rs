@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 impl Database {
-    pub fn get_terms(&self, taxonomy: &str) -> Result<Vec<WpCategoryResponse>> {
+    pub fn get_terms(&self, taxonomy: &str) -> Result<Vec<DaypressCategoryResponse>> {
         let conn = self.conn.lock().unwrap();
         let base_url = Self::get_base_url_with_conn(&conn);
         let route_prefix = if taxonomy == "post_tag" {
@@ -39,7 +39,7 @@ impl Database {
             let parent: i64 = row.get(4)?;
             let count: i64 = row.get(5)?;
 
-            Ok(WpCategoryResponse {
+            Ok(DaypressCategoryResponse {
                 id,
                 count,
                 description,
@@ -63,7 +63,11 @@ impl Database {
         Ok(list)
     }
 
-    pub fn get_term_by_id(&self, taxonomy: &str, id: i64) -> Result<Option<WpCategoryResponse>> {
+    pub fn get_term_by_id(
+        &self,
+        taxonomy: &str,
+        id: i64,
+    ) -> Result<Option<DaypressCategoryResponse>> {
         let list = self.get_terms(taxonomy)?;
         Ok(list.into_iter().find(|t| t.id == id))
     }
@@ -72,7 +76,7 @@ impl Database {
         &self,
         taxonomy: &str,
         req: &CreateTermRequest,
-    ) -> Result<WpCategoryResponse, AppError> {
+    ) -> Result<DaypressCategoryResponse, AppError> {
         let name = req.name.trim();
         if name.is_empty() {
             return Err(AppError::BadRequest("Term name is required".to_string()));
@@ -162,11 +166,17 @@ impl Database {
             .ok_or_else(|| AppError::Internal("Failed to load created term".to_string()))
     }
 
-    pub fn create_category(&self, req: &CreateTermRequest) -> Result<WpCategoryResponse, AppError> {
+    pub fn create_category(
+        &self,
+        req: &CreateTermRequest,
+    ) -> Result<DaypressCategoryResponse, AppError> {
         self.create_term("category", req)
     }
 
-    pub fn create_tag(&self, req: &CreateTermRequest) -> Result<WpCategoryResponse, AppError> {
+    pub fn create_tag(
+        &self,
+        req: &CreateTermRequest,
+    ) -> Result<DaypressCategoryResponse, AppError> {
         self.create_term("post_tag", req)
     }
 
@@ -175,7 +185,7 @@ impl Database {
         taxonomy: &str,
         id: i64,
         req: &UpdateTermRequest,
-    ) -> Result<Option<WpCategoryResponse>> {
+    ) -> Result<Option<DaypressCategoryResponse>> {
         {
             let conn = self.conn.lock().unwrap();
             let exists: Option<i64> = conn
@@ -264,7 +274,7 @@ impl Database {
         &self,
         taxonomy: &str,
         slug: &str,
-    ) -> Result<Option<WpCategoryResponse>> {
+    ) -> Result<Option<DaypressCategoryResponse>> {
         let conn = self.conn.lock().unwrap();
         let base_url = Self::get_base_url_with_conn(&conn);
         let route_prefix = if taxonomy == "post_tag" {
@@ -291,7 +301,7 @@ impl Database {
             let parent: i64 = row.get(4)?;
             let count: i64 = row.get(5)?;
 
-            Ok(WpCategoryResponse {
+            Ok(DaypressCategoryResponse {
                 id,
                 count,
                 description,
@@ -319,7 +329,7 @@ impl Database {
         &self,
         taxonomy: &str,
         term_id: i64,
-    ) -> Result<Vec<WpPostResponse>> {
+    ) -> Result<Vec<DaypressPostResponse>> {
         let conn = self.conn.lock().unwrap();
         let base_url = Self::get_base_url_with_conn(&conn);
 
@@ -352,12 +362,16 @@ impl Database {
 }
 
 impl crate::ports::output::TaxonomyRepository for Database {
-    fn list_terms(&self, taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>> {
+    fn list_terms(&self, taxonomy: &str) -> DomainResult<Vec<DaypressCategoryResponse>> {
         self.get_terms(taxonomy)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn find_term_by_id(&self, taxonomy: &str, id: i64) -> DomainResult<Option<WpCategoryResponse>> {
+    fn find_term_by_id(
+        &self,
+        taxonomy: &str,
+        id: i64,
+    ) -> DomainResult<Option<DaypressCategoryResponse>> {
         self.get_term_by_id(taxonomy, id)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
@@ -366,7 +380,7 @@ impl crate::ports::output::TaxonomyRepository for Database {
         &self,
         taxonomy: &str,
         req: &CreateTermRequest,
-    ) -> DomainResult<WpCategoryResponse> {
+    ) -> DomainResult<DaypressCategoryResponse> {
         Database::create_term(self, taxonomy, req).map_err(DomainError::from)
     }
 
@@ -375,7 +389,7 @@ impl crate::ports::output::TaxonomyRepository for Database {
         taxonomy: &str,
         id: i64,
         req: &UpdateTermRequest,
-    ) -> DomainResult<Option<WpCategoryResponse>> {
+    ) -> DomainResult<Option<DaypressCategoryResponse>> {
         Database::update_term(self, taxonomy, id, req)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }

@@ -1,5 +1,5 @@
 use super::RenderArgs;
-use crate::elementor::normalize_video_embed_url;
+use crate::daystudio::normalize_video_embed_url;
 use crate::render::sanitizer::{escape_attr, with_extra_classes};
 use crate::schema::NodeKind;
 

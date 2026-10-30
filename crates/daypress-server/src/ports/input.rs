@@ -14,23 +14,23 @@ pub trait ContentUseCase: Send + Sync {
         status: Option<&str>,
         search: Option<&str>,
         limit: i64,
-    ) -> DomainResult<Vec<WpPostResponse>>;
+    ) -> DomainResult<Vec<DaypressPostResponse>>;
 
-    fn get_content_by_id(&self, id: i64) -> DomainResult<WpPostResponse>;
-    fn get_content_by_slug(&self, slug: &str) -> DomainResult<WpPostResponse>;
-    fn publish_content(&self, req: CreatePostRequest) -> DomainResult<WpPostResponse>;
-    fn edit_content(&self, id: i64, req: UpdatePostRequest) -> DomainResult<WpPostResponse>;
+    fn get_content_by_id(&self, id: i64) -> DomainResult<DaypressPostResponse>;
+    fn get_content_by_slug(&self, slug: &str) -> DomainResult<DaypressPostResponse>;
+    fn publish_content(&self, req: CreatePostRequest) -> DomainResult<DaypressPostResponse>;
+    fn edit_content(&self, id: i64, req: UpdatePostRequest) -> DomainResult<DaypressPostResponse>;
     fn remove_content(&self, id: i64, force: bool) -> DomainResult<bool>;
 
     fn get_layout_ast(&self, post_id: i64) -> DomainResult<Option<String>>;
     fn update_layout_ast(&self, post_id: i64, layout_json: &str) -> DomainResult<()>;
 
-    fn list_taxonomies(&self, taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>>;
+    fn list_taxonomies(&self, taxonomy: &str) -> DomainResult<Vec<DaypressCategoryResponse>>;
     fn create_taxonomy_term(
         &self,
         taxonomy: &str,
         req: CreateTermRequest,
-    ) -> DomainResult<WpCategoryResponse>;
+    ) -> DomainResult<DaypressCategoryResponse>;
 }
 
 /// Input port for 1-Click WordPress Migration & WXR XML interchange.
@@ -45,7 +45,7 @@ pub trait MigrationUseCase: Send + Sync {
 
 /// Input port for querying and updating WordPress site settings & options.
 pub trait SettingsUseCase: Send + Sync {
-    fn get_site_settings(&self) -> DomainResult<WpSettingsResponse>;
+    fn get_site_settings(&self) -> DomainResult<DaypressSettingsResponse>;
     fn update_site_option(&self, name: &str, value: &str) -> DomainResult<()>;
     fn get_site_option(&self, name: &str) -> DomainResult<Option<String>>;
     fn get_system_stats(&self) -> DomainResult<DbStats>;

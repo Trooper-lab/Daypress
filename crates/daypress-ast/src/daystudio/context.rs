@@ -13,14 +13,14 @@ pub use crate::schema::NavMenuItem;
 /// Site-wide resolution context for Elementor dynamic tags (`__dynamic__`),
 /// Theme Builder widgets (`theme-site-logo`, `nav-menu`), and domain-relative URLs.
 #[derive(Debug, Clone, Default)]
-pub struct ElementorContext {
+pub struct DaystudioContext {
     pub post_urls: HashMap<String, String>,
     pub menus: HashMap<String, Vec<NavMenuItem>>,
     pub site_logo_url: Option<String>,
     pub source_site_url: Option<String>,
 }
 
-impl ElementorContext {
+impl DaystudioContext {
     pub fn from_meta(meta: &HashMap<String, String>) -> Self {
         let mut ctx = Self::default();
         if let Some(urls_json) = meta.get("__dp_post_urls_json") {
@@ -122,30 +122,30 @@ impl ElementorContext {
 }
 
 /// Parses raw Elementor JSON (`_elementor_data`) into a canonical DaypressLayout AST.
-pub fn transpile_elementor_json(raw_json: &str) -> Result<DaypressLayout, String> {
-    transpile_elementor_json_with_context(raw_json, &ElementorContext::default())
+pub fn transpile_daystudio_json(raw_json: &str) -> Result<DaypressLayout, String> {
+    transpile_daystudio_json_with_context(raw_json, &DaystudioContext::default())
 }
 
 /// Parses raw Elementor JSON (`_elementor_data`) with full site context for dynamic tags and menus.
-pub fn transpile_elementor_json_with_context(
+pub fn transpile_daystudio_json_with_context(
     raw_json: &str,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Result<DaypressLayout, String> {
     let parsed: Value = serde_json::from_str(raw_json)
         .map_err(|e| format!("Failed to parse Elementor JSON: {}", e))?;
 
     let root_children = if let Some(arr) = parsed.as_array() {
         arr.iter()
-            .filter_map(|v| parse_elementor_node(v, ctx, 0))
+            .filter_map(|v| parse_daystudio_node(v, ctx, 0))
             .collect()
     } else if let Some(obj) = parsed.as_object() {
         if let Some(elements) = obj.get("elements").and_then(|e| e.as_array()) {
             elements
                 .iter()
-                .filter_map(|v| parse_elementor_node(v, ctx, 0))
+                .filter_map(|v| parse_daystudio_node(v, ctx, 0))
                 .collect()
         } else {
-            vec![parse_elementor_node(&parsed, ctx, 0).ok_or("Invalid Elementor node")?]
+            vec![parse_daystudio_node(&parsed, ctx, 0).ok_or("Invalid Elementor node")?]
         }
     } else {
         return Err("Elementor JSON root must be an array or object".to_string());
@@ -258,7 +258,7 @@ pub(crate) fn extract_tag_attr<'a>(tag: &'a str, attr: &str) -> Option<&'a str> 
 }
 
 /// Resolves an Elementor `[elementor-tag ...]` shortcode string into a concrete URL or value.
-pub fn resolve_dynamic_tag(tag_str: &str, ctx: &ElementorContext) -> Option<String> {
+pub fn resolve_dynamic_tag(tag_str: &str, ctx: &DaystudioContext) -> Option<String> {
     let name = extract_tag_attr(tag_str, "name")?;
     let settings_enc = extract_tag_attr(tag_str, "settings").unwrap_or("%7B%7D");
     let settings_dec = percent_decode(settings_enc);
@@ -340,7 +340,7 @@ pub fn resolve_dynamic_tag(tag_str: &str, ctx: &ElementorContext) -> Option<Stri
 pub(crate) fn resolve_setting_link(
     settings: &Value,
     key: &str,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Option<String> {
     if let Some(dyn_str) = settings
         .get("__dynamic__")

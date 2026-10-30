@@ -231,7 +231,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                         <select id="page_template" class="form-select">
                             <option value="default" {tpl_default_sel}>Default Template</option>
                             <option value="full-width" {tpl_full_sel}>Full-Width Clean Canvas</option>
-                            <option value="canvas" {tpl_canvas_sel}>Elementor Canvas (No Header/Footer)</option>
+                            <option value="canvas" {tpl_canvas_sel}>DayStudio Canvas (No Header/Footer)</option>
                             <option value="landing" {tpl_landing_sel}>Landing Page Hero</option>
                             <option value="editorial" {tpl_editorial_sel}>Editorial Longform</option>
                         </select>
@@ -288,6 +288,18 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
             {taxonomies_section}
 
             <!-- 4. Featured Image Card -->
+            <div class="day-card" id="editorRevisionsCard" style="display: none;">
+                <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="day-card-title">Revisions</h2>
+                    <span id="editorRevisionsCount" class="badge badge-draft" style="font-size: 11px;">0</span>
+                </div>
+                <div class="day-card-body">
+                    <div id="editorRevisionsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
+                        <div style="font-size: 12px; color: var(--ink-muted);">No revisions recorded yet.</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="day-card">
                 <div class="day-card-header">
                     <h2 class="day-card-title">Featured Image</h2>

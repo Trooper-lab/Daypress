@@ -2,10 +2,10 @@
 //!
 //! Extracts `:root` / `[data-theme="dark"]` variables, Google Fonts `<link>` / `@import`s,
 //! and CSS rules across desktop, `@media` breakpoints (`tablet` / `mobile`), and
-//! `:hover` / `:focus` / `:active` pseudo-states into `ElementorKit` and `StyleProperties`.
+//! `:hover` / `:focus` / `:active` pseudo-states into `DaystudioKit` and `StyleProperties`.
 
 use super::dom_parser::{DomElement, DomNode};
-use crate::kit::{ButtonStyle, ElementorKit, GlobalColor, GlobalTypography};
+use crate::kit::{ButtonStyle, DaystudioKit, GlobalColor, GlobalTypography};
 use crate::schema::StyleProperties;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -501,12 +501,12 @@ pub fn split_shorthand_values(val: &str) -> Vec<&str> {
     parts
 }
 
-/// Synthesizes an [`ElementorKit`] (`DaypressLayout.global_styles`) from the parsed stylesheet.
-pub fn build_elementor_kit(
+/// Synthesizes an [`DaystudioKit`] (`DaypressLayout.global_styles`) from the parsed stylesheet.
+pub fn build_daystudio_kit(
     sheet: &ParsedStylesheet,
     site_name: Option<String>,
     site_description: Option<String>,
-) -> ElementorKit {
+) -> DaystudioKit {
     let mut color_vars: Vec<(String, String)> = Vec::new();
     let mut font_vars: Vec<(String, String)> = Vec::new();
     let mut content_width = 1320u32;
@@ -705,7 +705,7 @@ pub fn build_elementor_kit(
         custom_css.push_str(sheet.raw_css.trim());
     }
 
-    ElementorKit {
+    DaystudioKit {
         system_colors,
         custom_colors,
         system_typography,

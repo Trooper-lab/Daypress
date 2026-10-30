@@ -97,11 +97,50 @@ pub fn ingest_posts_pass1(
             item.slug.clone()
         };
 
-        let p_date = if item.post_date.is_empty() {
+        let tz_str: String = tx
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'timezone_string'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or_default();
+        let gmt_off_str: Option<String> = tx
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'gmt_offset'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        let (p_date_local, p_date_gmt) =
+            crate::adapters::database::scheduling::requested_post_dates_with_tz(
+                if item.post_date.is_empty() {
+                    None
+                } else {
+                    Some(item.post_date.as_str())
+                },
+                if item.post_date_gmt.is_empty() {
+                    None
+                } else {
+                    Some(item.post_date_gmt.as_str())
+                },
+                &tz_str,
+                gmt_off_str.as_deref(),
+            )
+            .unwrap_or_else(|| {
+                let fb = if item.post_date.is_empty() {
+                    now
+                } else {
+                    item.post_date.as_str()
+                };
+                (fb.to_string(), fb.to_string())
+            });
+        let p_date_unused = if item.post_date.is_empty() {
             now
         } else {
             &item.post_date
         };
+        let _ = p_date_unused;
+        let p_date = p_date_local.as_str();
         let p_type = &item.post_type;
         let p_status = &item.post_status;
         let is_sticky_val: i64 = if item.is_sticky { 1 } else { 0 };
@@ -192,16 +231,16 @@ pub fn ingest_posts_pass1(
         ) {
             Ok(id) => {
                 tx.execute(
-                    "UPDATE posts SET post_title = ?1, post_content = ?2, post_excerpt = ?3, post_status = ?4, post_date = ?5, post_mime_type = ?6, post_parent = ?7, menu_order = ?8, is_sticky = ?9 WHERE ID = ?10",
-                    params![item.title, initial_content, item.excerpt, p_status, p_date, inferred_mime, item.parent, item.menu_order, is_sticky_val, id],
+                    "UPDATE posts SET post_title = ?1, post_content = ?2, post_excerpt = ?3, post_status = ?4, post_date = ?5, post_date_gmt = ?11, post_mime_type = ?6, post_parent = ?7, menu_order = ?8, is_sticky = ?9 WHERE ID = ?10",
+                    params![item.title, initial_content, item.excerpt, p_status, p_date, inferred_mime, item.parent, item.menu_order, is_sticky_val, id, p_date_gmt],
                 )?;
                 id
             }
             Err(_) => {
                 tx.execute(
                     r#"INSERT INTO posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_mime_type, post_parent, menu_order, is_sticky)
-                       VALUES (1, ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?1, ?1, ?7, ?8, ?9, ?10, ?11, ?12)"#,
-                    params![p_date, initial_content, item.title, item.excerpt, p_status, slug, guid, p_type, inferred_mime, item.parent, item.menu_order, is_sticky_val],
+                       VALUES (1, ?1, ?13, ?2, ?3, ?4, ?5, ?6, ?1, ?13, ?7, ?8, ?9, ?10, ?11, ?12)"#,
+                    params![p_date, initial_content, item.title, item.excerpt, p_status, slug, guid, p_type, inferred_mime, item.parent, item.menu_order, is_sticky_val, p_date_gmt],
                 )?;
                 tx.last_insert_rowid()
             }

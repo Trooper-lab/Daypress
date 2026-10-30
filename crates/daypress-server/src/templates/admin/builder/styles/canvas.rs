@@ -9,7 +9,7 @@ pub const CSS_CANVAS: &str = r#"
     position: relative;
     overflow: auto;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: flex-start;
     padding: 24px 32px;
     background-color: var(--day-chassis-subtle);
@@ -25,8 +25,9 @@ pub const CSS_CANVAS: &str = r#"
     display: flex;
     justify-content: center;
     align-items: stretch;
-    width: 100%;
-    max-width: 1200px;
+    width: 1200px;
+    flex-shrink: 0;
+    margin: 0 auto;
 }
 
 #daystudio-artboard {
@@ -35,6 +36,7 @@ pub const CSS_CANVAS: &str = r#"
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
     transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     margin: 0 auto;
+    flex-shrink: 0;
     box-sizing: border-box;
     contain: layout paint !important;
     transform: translateZ(0) !important;
@@ -59,6 +61,24 @@ pub const CSS_CANVAS: &str = r#"
    width @media rules as @container rules); the desktop artboard follows the studio window. */
 #daystudio-artboard.artboard-tablet,
 #daystudio-artboard.artboard-mobile {
+    container: daystudio-artboard / inline-size;
+}
+
+/* Make the parent zoom wrapper the matching inline-size query container as well so
+   @container daystudio-artboard (...) rules targeting :scope (rewritten from body / :root / html)
+   match #daystudio-artboard itself! */
+#daystudio-zoom-wrapper:has(> #daystudio-artboard.artboard-tablet) {
+    width: 768px;
+    container: daystudio-artboard / inline-size;
+}
+
+#daystudio-zoom-wrapper:has(> #daystudio-artboard.artboard-mobile) {
+    width: 375px;
+    container: daystudio-artboard / inline-size;
+}
+
+#daystudio-zoom-wrapper.is-custom-width,
+#daystudio-artboard.is-custom-width {
     container: daystudio-artboard / inline-size;
 }
 
@@ -141,7 +161,7 @@ pub const CSS_CANVAS: &str = r#"
     background: #ffffff;
     font-size: 16px;
     line-height: 1.5;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #111827;
 }
 

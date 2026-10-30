@@ -20,19 +20,19 @@ pub(crate) fn extract_gutenberg_styles(attrs: &Value) -> StyleProperties {
                 top: pad
                     .get("top")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
                 right: pad
                     .get("right")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
                 bottom: pad
                     .get("bottom")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
                 left: pad
                     .get("left")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
             });
         }
         if let Some(mar) = spacing.get("margin").and_then(|m| m.as_object()) {
@@ -40,19 +40,19 @@ pub(crate) fn extract_gutenberg_styles(attrs: &Value) -> StyleProperties {
                 top: mar
                     .get("top")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
                 right: mar
                     .get("right")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
                 bottom: mar
                     .get("bottom")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
                 left: mar
                     .get("left")
                     .and_then(|v| v.as_str())
-                    .map(normalize_wp_preset),
+                    .map(normalize_style_preset),
             });
         }
     }
@@ -181,7 +181,7 @@ pub(crate) fn extract_gutenberg_styles(attrs: &Value) -> StyleProperties {
     styles
 }
 
-pub(crate) fn normalize_wp_preset(val: &str) -> String {
+pub(crate) fn normalize_style_preset(val: &str) -> String {
     // Converts "var:preset|spacing|50" -> "var(--wp--preset--spacing--50)"
     if let Some(rest) = val.strip_prefix("var:preset|") {
         let parts: Vec<&str> = rest.split('|').collect();

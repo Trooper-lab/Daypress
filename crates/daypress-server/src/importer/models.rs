@@ -10,6 +10,7 @@ pub struct ParsedWxrItem {
     pub content: String,
     pub excerpt: String,
     pub post_date: String,
+    pub post_date_gmt: String,
     pub post_status: String,
     pub post_type: String,
     pub post_mime_type: String,

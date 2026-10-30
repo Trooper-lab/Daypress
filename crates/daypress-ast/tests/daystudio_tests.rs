@@ -2,7 +2,7 @@ use daypress_ast::*;
 use std::collections::HashMap;
 
 #[test]
-fn test_elementor_transpilation_and_rendering() {
+fn test_daystudio_transpilation_and_rendering() {
     let elementor_json = r##"[
         {
             "id": "sec_1",
@@ -92,7 +92,7 @@ fn test_elementor_transpilation_and_rendering() {
 }
 
 #[test]
-fn test_elementor_container_globals_and_youtube() {
+fn test_daystudio_container_globals_and_youtube() {
     let elementor_json = r##"[
         {
             "id": "cont_flex_1",
@@ -168,7 +168,7 @@ fn test_elementor_container_globals_and_youtube() {
 }
 
 #[test]
-fn test_elementor_extended_widgets_transpilation_and_rendering() {
+fn test_daystudio_extended_widgets_transpilation_and_rendering() {
     let elementor_json = r##"[
         {
             "id": "sec_ext",
@@ -337,7 +337,7 @@ fn test_elementor_extended_widgets_transpilation_and_rendering() {
 }
 
 #[test]
-fn test_elementor_css_grid_container() {
+fn test_daystudio_css_grid_container() {
     let json = r#"[
         {
             "id": "grid_sec",

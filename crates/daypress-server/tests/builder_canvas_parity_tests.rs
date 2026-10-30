@@ -56,12 +56,8 @@ fn between<'a>(html: &'a str, start: &str, end: &str) -> Option<&'a str> {
 }
 
 fn site_css(builder_html: &str) -> &str {
-    between(
-        builder_html,
-        "<style id=\"daypress-elementor-kit-css\">",
-        "</style>",
-    )
-    .expect("builder must carry the scoped site stylesheet")
+    between(builder_html, "<style id=\"daystudio-kit-css\">", "</style>")
+        .expect("builder must carry the scoped site stylesheet")
 }
 
 fn grid_page_layout() -> Value {
@@ -334,19 +330,19 @@ fn test_builder_site_css_follows_the_public_html_theme_class() {
 
     // Native dark theme: default Elementor kit fonts load, Elementor-only overrides stay inert
     let settings = db.get_settings().unwrap_or_default();
-    let html = templates::render_wp_builder_view(&settings, post, Some(&layout));
+    let html = templates::render_builder_view(&settings, post, Some(&layout));
     let css = site_css(&html);
     assert!(
-        css.starts_with("<style id=\"daypress-elementor-kit-css\">@import url('https://fonts.googleapis.com/css2?family=Roboto"),
+        css.starts_with("<style id=\"daystudio-kit-css\">@import url('https://fonts.googleapis.com/css2?family=Roboto"),
         "kit font imports must be hoisted in front of @scope"
     );
-    assert!(css.contains("html.elementor-theme-active .dp-heading"));
+    assert!(css.contains("html.daystudio-theme-active .dp-heading"));
     assert!(!css.contains(":scope .dp-heading"));
 
     // Imported Elementor site: html.elementor-theme-active rules apply to the artboard
     let mut elementor = settings.clone();
-    elementor.elementor_kit_css = ":root { --e-global-color-primary: #c8742c; }".to_string();
-    let html = templates::render_wp_builder_view(&elementor, post, Some(&layout));
+    elementor.daystudio_kit_css = ":root { --e-global-color-primary: #c8742c; }".to_string();
+    let html = templates::render_builder_view(&elementor, post, Some(&layout));
     let css = site_css(&html);
     assert!(
         css.contains(":scope .dp-heading {"),
@@ -359,5 +355,33 @@ fn test_builder_site_css_follows_the_public_html_theme_class() {
     assert!(
         css.contains(":scope { --e-global-color-primary: #c8742c; }"),
         "kit CSS stays scoped"
+    );
+}
+
+#[test]
+fn test_builder_responsive_artboard_width_fonts_and_scope_container_parity() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let posts = db.get_posts("post", None, None, 1).expect("seed posts");
+    let post = posts.first().expect("seed post");
+    let layout = grid_page_layout().to_string();
+    let settings = db.get_settings().unwrap_or_default();
+    let html = templates::render_builder_view(&settings, post, Some(&layout));
+
+    // 1. Desktop artboard wrapper is a fixed 1200px (flex-shrink: 0) so studio panels never squeeze it narrower
+    assert!(
+        html.contains("#daystudio-zoom-wrapper {")
+            && html.contains("width: 1200px;\n    flex-shrink: 0;"),
+        "zoom wrapper must maintain 1200px width without shrinking"
+    );
+    // 2. Tablet and mobile zoom-wrapper parents act as container-query hosts so @container daystudio-artboard rules targeting :scope (body/html/:root) match #daystudio-artboard itself
+    assert!(
+        html.contains("#daystudio-zoom-wrapper:has(> #daystudio-artboard.artboard-tablet)")
+            && html.contains("#daystudio-zoom-wrapper:has(> #daystudio-artboard.artboard-mobile)"),
+        "parent zoom wrapper must be a daystudio-artboard query container for :scope body/root rules"
+    );
+    // 3. Public base font stack and artboard baseline font stack match
+    assert!(
+        html.contains("font-family: system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;"),
+        "builder artboard and public SSR must share the exact same default font stack"
     );
 }

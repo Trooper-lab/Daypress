@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WpCategoryResponse {
+pub struct DaypressCategoryResponse {
     pub id: i64,
     pub count: i64,
     pub description: String,
@@ -40,6 +40,6 @@ pub struct TaxonomyInfo {
     pub slug: String,
     pub name: String,
     pub hierarchical: bool,
-    pub terms: Vec<WpCategoryResponse>,
+    pub terms: Vec<DaypressCategoryResponse>,
     pub assigned_term_ids: Vec<i64>,
 }

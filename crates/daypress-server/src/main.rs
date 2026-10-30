@@ -171,7 +171,10 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let _cms_service =
         CmsService::new(repo.clone(), repo.clone(), repo.clone(), repo.clone(), repo);
 
-    // 3. Hand wired state to Primary Web & MCP Adapter
+    // 3. Spawn non-blocking 24-hour release update checker (persisted in SQLite)
+    daypress_server::updater::spawn_background_update_checker(database.clone());
+
+    // 4. Hand wired state to Primary Web & MCP Adapter
     let app = create_app(database);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
@@ -195,7 +198,21 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("============================================================");
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    // Retry binding briefly in case an in-app self-update just exited and the OS is releasing the port.
+    let mut bind_attempt = 0u8;
+    let listener = loop {
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => break l,
+            Err(e) if bind_attempt < 12 => {
+                bind_attempt += 1;
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                if bind_attempt == 12 {
+                    return Err(e.into());
+                }
+            }
+            Err(e) => return Err(e.into()),
+        }
+    };
     println!("[SERVER] TcpListener bound to {addr}");
 
     // Connect info gives handlers the client socket address (used by the login throttle).

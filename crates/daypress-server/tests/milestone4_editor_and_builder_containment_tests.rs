@@ -103,7 +103,7 @@ fn test_feature17_custom_fields_editor_markup() {
     };
     let post = db.create_post(&create_req).expect("Create post");
 
-    let html = templates::render_wp_post_new_view(
+    let html = templates::render_post_new_view(
         &settings,
         "post",
         Some(&post),
@@ -365,7 +365,7 @@ fn test_feature20_21_daystudio_builder_containment_and_cad_invariants() {
     };
     let post = db.create_post(&create_req).expect("Create test page");
 
-    let builder_html = templates::render_wp_builder_view(&settings, &post, None);
+    let builder_html = templates::render_builder_view(&settings, &post, None);
 
     // Topbar CAD invariant: height 40px, max-height 44px
     assert!(

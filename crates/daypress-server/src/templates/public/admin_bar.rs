@@ -1,17 +1,17 @@
 //! WordPress Admin Bar Component for Authenticated Users.
 
 use crate::auth::AuthUser;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 
 /// Renders the floating WordPress Admin Bar (`#wpadminbar`) matching the backend admin bar and returns `(html, body_class)`.
 pub fn render_admin_bar(
     user: Option<&AuthUser>,
-    current_post: Option<&WpPostResponse>,
-    settings: &WpSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
+    settings: &DaypressSettingsResponse,
     site_name: &str,
 ) -> (String, &'static str) {
-    if let Some(user) = user {
+    if let Some(user) = user.filter(|u| crate::auth::should_show_admin_bar_front(u.user_id)) {
         let username = escape_html(&user.username);
         let avatar_initial = username
             .chars()

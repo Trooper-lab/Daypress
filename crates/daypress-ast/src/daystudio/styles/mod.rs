@@ -6,4 +6,4 @@ pub mod typography;
 
 pub(crate) use box_model::{extract_spacing_val, parse_spacing_obj};
 pub(crate) use globals::extract_global_color;
-pub(crate) use partition::extract_elementor_styles;
+pub(crate) use partition::extract_daystudio_styles;

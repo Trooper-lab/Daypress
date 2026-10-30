@@ -32,7 +32,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_settings(&self) -> Result<WpSettingsResponse> {
+    pub fn get_settings(&self) -> Result<DaypressSettingsResponse> {
         let pending_comments_count: i64 = {
             let conn = self.conn.lock().unwrap();
             conn.query_row(
@@ -43,7 +43,7 @@ impl Database {
             .unwrap_or(0)
         };
 
-        Ok(WpSettingsResponse {
+        Ok(DaypressSettingsResponse {
             title: self
                 .get_option("blogname")?
                 .unwrap_or_else(|| "WordPress Reference".to_string()),
@@ -56,7 +56,30 @@ impl Database {
             email: self
                 .get_option("admin_email")?
                 .unwrap_or_else(|| "admin@example.com".to_string()),
-            timezone: self.get_option("timezone_string")?.unwrap_or_default(),
+            timezone: self
+                .get_option("timezone_string")?
+                .filter(|s| !s.trim().is_empty())
+                .or_else(|| {
+                    self.get_option("gmt_offset")
+                        .ok()
+                        .flatten()
+                        .filter(|s| !s.trim().is_empty() && s.trim() != "0")
+                        .map(|off| {
+                            if off.starts_with('+')
+                                || off.starts_with('-')
+                                || off.starts_with("UTC")
+                            {
+                                if off.starts_with("UTC") {
+                                    off
+                                } else {
+                                    format!("UTC{off}")
+                                }
+                            } else {
+                                format!("UTC+{off}")
+                            }
+                        })
+                })
+                .unwrap_or_else(|| "UTC".to_string()),
             date_format: self
                 .get_option("date_format")?
                 .unwrap_or_else(|| "F j, Y".to_string()),
@@ -101,10 +124,12 @@ impl Database {
                 .get_option("stylesheet")?
                 .or_else(|| self.get_option("daypress_imported_theme").ok().flatten())
                 .unwrap_or_else(|| "twentytwentyfour".to_string()),
-            custom_css: self
-                .get_option("custom_css")?
-                .or_else(|| self.get_option("daypress_custom_css").ok().flatten())
-                .unwrap_or_default(),
+            custom_css: crate::legacy::rewrite_daystudio_style_prefixes(
+                &self
+                    .get_option("custom_css")?
+                    .or_else(|| self.get_option("daypress_custom_css").ok().flatten())
+                    .unwrap_or_default(),
+            ),
             brand_color: self
                 .get_option("daypress_brand_color")?
                 .unwrap_or_else(|| "#2271b1".to_string()),
@@ -127,18 +152,24 @@ impl Database {
                     ]
                 }),
             pending_comments_count,
-            elementor_kit_css: self
-                .get_option("daypress_elementor_kit_css")?
-                .filter(|s| !s.trim().is_empty())
-                .or_else(|| self.get_option("elementor_active_kit_css").ok().flatten())
-                .unwrap_or_default(),
-            elementor_header_html: self
-                .get_option("daypress_elementor_header_html")?
-                .unwrap_or_default(),
-            elementor_footer_html: self
-                .get_option("daypress_elementor_footer_html")?
-                .unwrap_or_default(),
-            elementor_popups_html: self
+            daystudio_kit_css: crate::legacy::rewrite_daystudio_style_prefixes(
+                &self
+                    .get_option("daypress_elementor_kit_css")?
+                    .filter(|s| !s.trim().is_empty())
+                    .or_else(|| self.get_option("elementor_active_kit_css").ok().flatten())
+                    .unwrap_or_default(),
+            ),
+            daystudio_header_html: crate::legacy::rewrite_daystudio_style_prefixes(
+                &self
+                    .get_option("daypress_elementor_header_html")?
+                    .unwrap_or_default(),
+            ),
+            daystudio_footer_html: crate::legacy::rewrite_daystudio_style_prefixes(
+                &self
+                    .get_option("daypress_elementor_footer_html")?
+                    .unwrap_or_default(),
+            ),
+            daystudio_popups_html: self
                 .get_option("daypress_elementor_popups_html")?
                 .unwrap_or_default(),
             blog_public: self
@@ -166,6 +197,7 @@ impl Database {
                     }
                 })
                 .unwrap_or_default(),
+            update_available: crate::updater::cached_available_update_version(self),
         })
     }
 
@@ -214,6 +246,13 @@ impl Database {
             conn.query_row("SELECT count(*) FROM comments", [], |r| r.get(0))?;
         let total_options: i64 =
             conn.query_row("SELECT count(*) FROM options", [], |r| r.get(0))?;
+        let total_revisions: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM posts WHERE post_type = 'revision'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
         let page_size: i64 = conn.query_row("PRAGMA page_size;", [], |r| r.get(0))?;
         let page_count: i64 = conn.query_row("PRAGMA page_count;", [], |r| r.get(0))?;
         let journal_mode: String = conn.query_row("PRAGMA journal_mode;", [], |r| r.get(0))?;
@@ -230,6 +269,7 @@ impl Database {
             total_pages,
             total_comments,
             total_options,
+            total_revisions,
             page_size,
             page_count,
             journal_mode,
@@ -246,7 +286,7 @@ impl crate::ports::output::OptionRepository for Database {
         Database::set_option(self, name, value).map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn get_settings(&self) -> DomainResult<WpSettingsResponse> {
+    fn get_settings(&self) -> DomainResult<DaypressSettingsResponse> {
         Database::get_settings(self).map_err(|e| DomainError::Storage(e.to_string()))
     }
 

@@ -4,13 +4,13 @@
 //! theme stylesheet an editor sees around the artboard are the ones visitors get.
 
 use crate::auth::AuthUser;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 use crate::theme_builder::models::ResolvedThemePartials;
-use daypress_ast::{DaypressLayout, ElementorKit};
+use daypress_ast::{DaypressLayout, DaystudioKit};
 
 /// Site name shown in the header and footer brand.
-pub fn site_name(settings: &WpSettingsResponse) -> &str {
+pub fn site_name(settings: &DaypressSettingsResponse) -> &str {
     if settings.title.trim().is_empty() {
         "Daypress"
     } else {
@@ -19,7 +19,7 @@ pub fn site_name(settings: &WpSettingsResponse) -> &str {
 }
 
 /// Site tagline, falling back to the site name.
-pub fn site_description(settings: &WpSettingsResponse) -> &str {
+pub fn site_description(settings: &DaypressSettingsResponse) -> &str {
     if settings.description.trim().is_empty() {
         site_name(settings)
     } else {
@@ -28,7 +28,7 @@ pub fn site_description(settings: &WpSettingsResponse) -> &str {
 }
 
 /// Customizer brand color, falling back to the Daypress orange.
-pub fn brand_color(settings: &WpSettingsResponse) -> &str {
+pub fn brand_color(settings: &DaypressSettingsResponse) -> &str {
     if settings.brand_color.trim().is_empty() {
         "#ff4f00"
     } else {
@@ -37,7 +37,7 @@ pub fn brand_color(settings: &WpSettingsResponse) -> &str {
 }
 
 /// Whether the post uses a blank/canvas template that renders without site header and footer.
-pub fn is_blank_template(post: Option<&WpPostResponse>) -> bool {
+pub fn is_blank_template(post: Option<&DaypressPostResponse>) -> bool {
     post.map(|p| {
         p.template == "page-template-blank.php"
             || p.template == "canvas"
@@ -46,27 +46,27 @@ pub fn is_blank_template(post: Option<&WpPostResponse>) -> bool {
     .unwrap_or(false)
 }
 
-/// Class the public shell puts on `<html>`: `elementor-theme-active` for imported Elementor/Divi
+/// Class the public shell puts on `<html>`: `daystudio-theme-active` for imported Elementor/Divi
 /// sites and blank templates, `dark` for the native Daypress theme.
 pub fn html_theme_class(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     content: &str,
     is_blank_template: bool,
 ) -> &'static str {
-    let has_elementor_theme = !settings.elementor_kit_css.trim().is_empty()
-        || !settings.elementor_header_html.trim().is_empty()
-        || !settings.elementor_footer_html.trim().is_empty()
+    let has_daystudio_theme = !settings.daystudio_kit_css.trim().is_empty()
+        || !settings.daystudio_header_html.trim().is_empty()
+        || !settings.daystudio_footer_html.trim().is_empty()
         || is_blank_template
         || content.contains("divi_section_");
-    if has_elementor_theme {
-        "elementor-theme-active"
+    if has_daystudio_theme {
+        "daystudio-theme-active"
     } else {
         "dark"
     }
 }
 
 /// Customizer → Typography: CSS that swaps the site font stack (empty for the default stack).
-pub fn typography_css(settings: &WpSettingsResponse) -> &'static str {
+pub fn typography_css(settings: &DaypressSettingsResponse) -> &'static str {
     match settings.typography_scale.as_str() {
         "serif" => ":root { --font-sans: \"Newsreader\", Georgia, \"Times New Roman\", serif; }",
         "mono" => ":root { --font-sans: \"JetBrains Mono\", ui-monospace, SFMono-Regular, Menlo, monospace; }",
@@ -76,14 +76,17 @@ pub fn typography_css(settings: &WpSettingsResponse) -> &'static str {
 
 /// Page-level Elementor kit CSS (global colors, fonts, heading/button defaults): the layout's own
 /// `global_styles` kit when present, otherwise the default kit unless the site imported one.
-pub fn page_kit_css(settings: &WpSettingsResponse, layout: Option<&DaypressLayout>) -> String {
-    let fallback_kit_css = if !settings.elementor_kit_css.trim().is_empty() {
+pub fn page_kit_css(
+    settings: &DaypressSettingsResponse,
+    layout: Option<&DaypressLayout>,
+) -> String {
+    let fallback_kit_css = if !settings.daystudio_kit_css.trim().is_empty() {
         String::new()
     } else {
-        ElementorKit::default().compile_to_css()
+        DaystudioKit::default().compile_to_css()
     };
     match layout.and_then(|l| l.global_styles.as_ref()) {
-        Some(gs) if !gs.is_null() => serde_json::from_value::<ElementorKit>(gs.clone())
+        Some(gs) if !gs.is_null() => serde_json::from_value::<DaystudioKit>(gs.clone())
             .map(|kit| kit.compile_to_css())
             .unwrap_or(fallback_kit_css),
         _ => fallback_kit_css,
@@ -93,7 +96,7 @@ pub fn page_kit_css(settings: &WpSettingsResponse, layout: Option<&DaypressLayou
 /// Resolves the global site header: Theme Builder template, imported Elementor header, or the
 /// native Daypress header.
 pub fn render_site_header(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&ResolvedThemePartials>,
     is_blank_template: bool,
@@ -124,11 +127,11 @@ pub fn render_site_header(
             );
         }
     }
-    if !header_force_fallback && !has_tb_header && !settings.elementor_header_html.trim().is_empty()
+    if !header_force_fallback && !has_tb_header && !settings.daystudio_header_html.trim().is_empty()
     {
         return format!(
-            r#"<header class="dp-elementor-header">{}</header>"#,
-            settings.elementor_header_html
+            r#"<header class="dp-daystudio-header">{}</header>"#,
+            settings.daystudio_header_html
         );
     }
 
@@ -170,7 +173,7 @@ pub fn render_site_header(
 /// Resolves the global site footer: Theme Builder template, imported Elementor footer, or the
 /// native Daypress footer.
 pub fn render_site_footer(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     partials: Option<&ResolvedThemePartials>,
     is_blank_template: bool,
 ) -> String {
@@ -187,11 +190,11 @@ pub fn render_site_footer(
             return format!(r#"<footer class="dp-theme-footer">{}</footer>"#, f_html);
         }
     }
-    if !footer_force_fallback && !has_tb_footer && !settings.elementor_footer_html.trim().is_empty()
+    if !footer_force_fallback && !has_tb_footer && !settings.daystudio_footer_html.trim().is_empty()
     {
         return format!(
-            r#"<footer class="dp-elementor-footer">{}</footer>"#,
-            settings.elementor_footer_html
+            r#"<footer class="dp-daystudio-footer">{}</footer>"#,
+            settings.daystudio_footer_html
         );
     }
 

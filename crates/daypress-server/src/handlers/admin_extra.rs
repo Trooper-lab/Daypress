@@ -11,13 +11,18 @@ use axum::response::Html;
 pub async fn handle_admin_updates(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_wp_updates_view(&settings, &stats))
+    let update_status = crate::updater::get_update_status(&db);
+    Html(templates::render_updates_view_with_status(
+        &settings,
+        &stats,
+        &update_status,
+    ))
 }
 
 /// 2. Media Add New
 pub async fn handle_admin_media_new(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_media_new_view(&settings))
+    Html(templates::render_media_new_view(&settings))
 }
 
 /// 3. Comments Moderation Queue
@@ -30,7 +35,7 @@ pub async fn handle_admin_comments(
         .get_comments(params.comment_status.as_deref(), 100)
         .unwrap_or_default();
     let counts = db.get_comment_counts().unwrap_or_default();
-    Html(templates::render_wp_comments_view(
+    Html(templates::render_comments_view(
         &settings,
         &comments,
         &counts,
@@ -43,20 +48,20 @@ pub async fn handle_admin_headers_footers(State(db): State<Database>) -> Html<St
     let settings = db.get_settings().unwrap_or_default();
     let matrix = crate::theme_builder::build_header_footer_matrix(&db);
     let starters = crate::theme_builder::get_starter_catalog();
-    Html(templates::render_wp_headers_footers_view(
+    Html(templates::render_headers_footers_view(
         &settings, &matrix, &starters,
     ))
 }
 
 pub fn template_to_builder_post(
     tpl: &crate::theme_builder::ThemeTemplateRecord,
-) -> crate::models::WpPostResponse {
-    use crate::models::{WpGuid, WpPostResponse, WpRenderedText};
-    WpPostResponse {
+) -> crate::models::DaypressPostResponse {
+    use crate::models::{DaypressGuid, DaypressPostResponse, DaypressRenderedText};
+    DaypressPostResponse {
         id: tpl.id,
         date: tpl.created_at.clone(),
         date_gmt: tpl.created_at.clone(),
-        guid: WpGuid {
+        guid: DaypressGuid {
             rendered: String::new(),
         },
         modified: tpl.updated_at.clone(),
@@ -65,15 +70,15 @@ pub fn template_to_builder_post(
         status: tpl.status.clone(),
         post_type: format!("template:{}", tpl.template_type.as_str()),
         link: format!("/wp-json/daypress/v1/templates/preview/{}", tpl.id),
-        title: WpRenderedText {
+        title: DaypressRenderedText {
             rendered: tpl.title.clone(),
             protected: false,
         },
-        content: WpRenderedText {
+        content: DaypressRenderedText {
             rendered: tpl.rendered_html.clone().unwrap_or_default(),
             protected: false,
         },
-        excerpt: WpRenderedText {
+        excerpt: DaypressRenderedText {
             rendered: String::new(),
             protected: false,
         },
@@ -108,8 +113,8 @@ pub fn template_to_builder_post(
 /// artboard with the same site chrome visitors see.
 pub(crate) fn builder_theme_partials(
     db: &Database,
-    settings: &models::WpSettingsResponse,
-    post: &models::WpPostResponse,
+    settings: &models::DaypressSettingsResponse,
+    post: &models::DaypressPostResponse,
 ) -> crate::theme_builder::models::ResolvedThemePartials {
     let terms = super::public_ssr::hydrate_post_terms(db, post);
     let req_ctx = crate::theme_builder::models::RequestContext::for_post(
@@ -127,12 +132,12 @@ pub(crate) fn builder_theme_partials(
 }
 
 /// Stand-in post DayStudio opens on when the site has no content yet.
-pub(crate) fn placeholder_builder_post() -> models::WpPostResponse {
-    models::WpPostResponse {
+pub(crate) fn placeholder_builder_post() -> models::DaypressPostResponse {
+    models::DaypressPostResponse {
         id: 1,
         date: "2026-10-22T00:00:00".to_string(),
         date_gmt: "2026-10-22T00:00:00".to_string(),
-        guid: models::WpGuid {
+        guid: models::DaypressGuid {
             rendered: "".to_string(),
         },
         modified: "2026-10-22T00:00:00".to_string(),
@@ -141,15 +146,15 @@ pub(crate) fn placeholder_builder_post() -> models::WpPostResponse {
         status: "publish".to_string(),
         post_type: "page".to_string(),
         link: "/sample-page/".to_string(),
-        title: models::WpRenderedText {
+        title: models::DaypressRenderedText {
             rendered: "Sample Page".to_string(),
             protected: false,
         },
-        content: models::WpRenderedText {
+        content: models::DaypressRenderedText {
             rendered: "".to_string(),
             protected: false,
         },
-        excerpt: models::WpRenderedText {
+        excerpt: models::DaypressRenderedText {
             rendered: "".to_string(),
             protected: false,
         },

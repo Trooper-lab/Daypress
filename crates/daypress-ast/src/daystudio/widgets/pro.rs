@@ -1,5 +1,5 @@
 use super::*;
-use crate::elementor::context::ElementorContext;
+use crate::daystudio::context::DaystudioContext;
 use crate::schema::{
     NodeKind, PriceFeatureItem, SharePlatformItem, SocialIconItem, StyleProperties,
 };
@@ -9,7 +9,7 @@ pub(crate) fn map_pro_widget(
     widget_type: &str,
     settings: &Value,
     _styles: &mut StyleProperties,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Option<NodeKind> {
     match widget_type {
         "price-table" | "pricing" => {

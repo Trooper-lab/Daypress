@@ -14,15 +14,18 @@ pub trait PostRepository: Send + Sync {
         status: Option<&str>,
         search: Option<&str>,
         limit: i64,
-    ) -> DomainResult<Vec<WpPostResponse>>;
+    ) -> DomainResult<Vec<DaypressPostResponse>>;
 
-    fn find_post_by_id(&self, id: i64) -> DomainResult<Option<WpPostResponse>>;
-    fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<WpPostResponse>>;
-    fn create_post(&self, req: &CreatePostRequest) -> DomainResult<WpPostResponse>;
-    fn update_post(&self, id: i64, req: &UpdatePostRequest)
-        -> DomainResult<Option<WpPostResponse>>;
-    fn duplicate_post(&self, source_id: i64) -> DomainResult<Option<WpPostResponse>>;
-    fn trash_post(&self, id: i64) -> DomainResult<Option<WpPostResponse>>;
+    fn find_post_by_id(&self, id: i64) -> DomainResult<Option<DaypressPostResponse>>;
+    fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<DaypressPostResponse>>;
+    fn create_post(&self, req: &CreatePostRequest) -> DomainResult<DaypressPostResponse>;
+    fn update_post(
+        &self,
+        id: i64,
+        req: &UpdatePostRequest,
+    ) -> DomainResult<Option<DaypressPostResponse>>;
+    fn duplicate_post(&self, source_id: i64) -> DomainResult<Option<DaypressPostResponse>>;
+    fn trash_post(&self, id: i64) -> DomainResult<Option<DaypressPostResponse>>;
     fn delete_post(&self, id: i64) -> DomainResult<bool>;
 
     fn get_post_layout(&self, post_id: i64) -> DomainResult<Option<String>>;
@@ -37,19 +40,23 @@ pub trait PostRepository: Send + Sync {
 
 /// Output port for WordPress Taxonomies (`category`, `post_tag`, `nav_menu`).
 pub trait TaxonomyRepository: Send + Sync {
-    fn list_terms(&self, taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>>;
-    fn find_term_by_id(&self, taxonomy: &str, id: i64) -> DomainResult<Option<WpCategoryResponse>>;
+    fn list_terms(&self, taxonomy: &str) -> DomainResult<Vec<DaypressCategoryResponse>>;
+    fn find_term_by_id(
+        &self,
+        taxonomy: &str,
+        id: i64,
+    ) -> DomainResult<Option<DaypressCategoryResponse>>;
     fn create_term(
         &self,
         taxonomy: &str,
         req: &CreateTermRequest,
-    ) -> DomainResult<WpCategoryResponse>;
+    ) -> DomainResult<DaypressCategoryResponse>;
     fn update_term(
         &self,
         taxonomy: &str,
         id: i64,
         req: &UpdateTermRequest,
-    ) -> DomainResult<Option<WpCategoryResponse>>;
+    ) -> DomainResult<Option<DaypressCategoryResponse>>;
     fn delete_term(&self, taxonomy: &str, id: i64) -> DomainResult<bool>;
 }
 
@@ -57,7 +64,7 @@ pub trait TaxonomyRepository: Send + Sync {
 pub trait OptionRepository: Send + Sync {
     fn get_option(&self, name: &str) -> DomainResult<Option<String>>;
     fn set_option(&self, name: &str, value: &str) -> DomainResult<()>;
-    fn get_settings(&self) -> DomainResult<WpSettingsResponse>;
+    fn get_settings(&self) -> DomainResult<DaypressSettingsResponse>;
     fn get_stats(&self) -> DomainResult<DbStats>;
 }
 
@@ -68,14 +75,14 @@ pub trait CommentRepository: Send + Sync {
         post_id: Option<i64>,
         status: Option<&str>,
         limit: i64,
-    ) -> DomainResult<Vec<WpCommentAdminItem>>;
-    fn find_comment_by_id(&self, id: i64) -> DomainResult<Option<WpCommentAdminItem>>;
-    fn create_comment(&self, req: &CreateCommentRequest) -> DomainResult<WpCommentResponse>;
+    ) -> DomainResult<Vec<DaypressCommentAdminItem>>;
+    fn find_comment_by_id(&self, id: i64) -> DomainResult<Option<DaypressCommentAdminItem>>;
+    fn create_comment(&self, req: &CreateCommentRequest) -> DomainResult<DaypressCommentResponse>;
     fn update_comment(
         &self,
         id: i64,
         req: &UpdateCommentRequest,
-    ) -> DomainResult<Option<WpCommentAdminItem>>;
+    ) -> DomainResult<Option<DaypressCommentAdminItem>>;
     fn delete_comment(&self, id: i64) -> DomainResult<bool>;
 }
 

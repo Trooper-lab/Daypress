@@ -50,12 +50,12 @@ pub fn build_divi_global_css(
         css.push_str(
             r#"
 /* Divi Global Layout & Utility Styles */
-html.elementor-theme-active body {
+html.daystudio-theme-active body {
     background-color: #ffffff;
     color: #333333;
     font-family: 'Montserrat', 'Open Sans', sans-serif;
 }
-.dp-elementor-header, .dp-elementor-footer {
+.dp-daystudio-header, .dp-daystudio-footer {
     width: 100%;
 }
 .et-vert-menu .et-menu {
@@ -80,7 +80,7 @@ html.elementor-theme-active body {
 .et_pb_section.popup:not(.is-open) {
     display: none !important;
 }
-#elementor-canvas .et_pb_section.popup:not(.is-open) {
+#daystudio-canvas .et_pb_section.popup:not(.is-open) {
     display: flex !important;
     border: 2px dashed #7c7458 !important;
     background: #fafaf9 !important;
@@ -259,11 +259,11 @@ pub fn resolve_and_persist_theme_assets(
 }
 
 /// Compiles and persists Elementor Kit styles and JSON into `options`.
-pub fn persist_elementor_kit_styles(
+pub fn persist_daystudio_kit_styles(
     tx: &Transaction,
     raw_settings: &str,
 ) -> Result<Option<String>> {
-    if let Some(kit) = daypress_ast::ElementorKit::from_raw_settings(raw_settings) {
+    if let Some(kit) = daypress_ast::DaystudioKit::from_raw_settings(raw_settings) {
         let compiled_css = kit.compile_to_css();
         let kit_json = serde_json::to_string(&kit).unwrap_or_else(|_| "{}".to_string());
 

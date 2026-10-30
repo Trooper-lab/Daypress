@@ -4,7 +4,7 @@ use super::conditions::resolve_template_for_type;
 use super::models::{BreadcrumbItem, RequestContext, ResolvedThemePartials, TemplateType};
 use super::repository::ThemeTemplateRepository;
 use crate::adapters::database::Database;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use daypress_ast::{
     compile_layout_css, render_layout_to_html, sanitize_ssr_html, DaypressLayout, DaypressNode,
     NavMenuItem, NodeKind,
@@ -12,8 +12,8 @@ use daypress_ast::{
 use std::collections::HashMap;
 
 pub struct HydrationContext<'a> {
-    pub post: Option<&'a WpPostResponse>,
-    pub settings: &'a WpSettingsResponse,
+    pub post: Option<&'a DaypressPostResponse>,
+    pub settings: &'a DaypressSettingsResponse,
     pub breadcrumbs: Vec<BreadcrumbItem>,
     pub nav_menus: HashMap<String, Vec<NavMenuItem>>,
 }
@@ -26,7 +26,7 @@ impl SsrInjector {
     pub fn resolve_and_hydrate_partials(
         db: &Database,
         req_ctx: &RequestContext,
-        settings: &WpSettingsResponse,
+        settings: &DaypressSettingsResponse,
     ) -> ResolvedThemePartials {
         Self::resolve_and_hydrate_partials_with_post(db, req_ctx, settings, None)
     }
@@ -36,8 +36,8 @@ impl SsrInjector {
     pub fn resolve_and_hydrate_partials_with_post(
         db: &Database,
         req_ctx: &RequestContext,
-        settings: &WpSettingsResponse,
-        post: Option<&WpPostResponse>,
+        settings: &DaypressSettingsResponse,
+        post: Option<&DaypressPostResponse>,
     ) -> ResolvedThemePartials {
         let repo = ThemeTemplateRepository::from_database(db);
         let mut partials = ResolvedThemePartials::default();
@@ -424,8 +424,8 @@ impl SsrInjector {
 
     fn create_hydration_context<'a>(
         req_ctx: &RequestContext,
-        settings: &'a WpSettingsResponse,
-        post: Option<&'a WpPostResponse>,
+        settings: &'a DaypressSettingsResponse,
+        post: Option<&'a DaypressPostResponse>,
     ) -> HydrationContext<'a> {
         let mut nav_menus = HashMap::new();
         if !settings.nav_menu_items.is_empty() {

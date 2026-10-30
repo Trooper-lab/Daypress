@@ -8,13 +8,13 @@
 //! 4. Configure Sticky/Transparent/Priority settings, edit display conditions with specific Page/Post
 //!    selectors, preview templates live, install 1-Click Starters, and launch directly into DayStudio.
 
-use super::layout::render_wp_admin_shell;
-use crate::models::WpSettingsResponse;
+use super::layout::render_admin_shell;
+use crate::models::DaypressSettingsResponse;
 use crate::templates::utils::escape_html;
 use crate::theme_builder::models::{HeaderFooterMatrixResponse, StarterTemplateInfo, TemplateType};
 
-pub fn render_wp_headers_footers_view(
-    settings: &WpSettingsResponse,
+pub fn render_headers_footers_view(
+    settings: &DaypressSettingsResponse,
     matrix: &HeaderFooterMatrixResponse,
     starters: &[StarterTemplateInfo],
 ) -> String {
@@ -1553,7 +1553,7 @@ pub fn render_wp_headers_footers_view(
         starters_json = starters_json,
     );
 
-    render_wp_admin_shell(
+    render_admin_shell(
         "headers-footers",
         "Header & Footer Manager",
         &body,

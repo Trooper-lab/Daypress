@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-use super::comments::WpCommentResponse;
-use super::common::{WpGuid, WpRenderedText};
+use super::comments::DaypressCommentResponse;
+use super::common::{DaypressGuid, DaypressRenderedText};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WpPostResponse {
+pub struct DaypressPostResponse {
     pub id: i64,
     pub date: String,
     pub date_gmt: String,
-    pub guid: WpGuid,
+    pub guid: DaypressGuid,
     pub modified: String,
     pub modified_gmt: String,
     pub slug: String,
@@ -16,9 +16,9 @@ pub struct WpPostResponse {
     #[serde(rename = "type")]
     pub post_type: String,
     pub link: String,
-    pub title: WpRenderedText,
-    pub content: WpRenderedText,
-    pub excerpt: WpRenderedText,
+    pub title: DaypressRenderedText,
+    pub content: DaypressRenderedText,
+    pub excerpt: DaypressRenderedText,
     pub author: i64,
     pub featured_media: i64,
     pub comment_status: String,
@@ -42,7 +42,7 @@ pub struct WpPostResponse {
     #[serde(default)]
     pub featured_image_url: Option<String>,
     #[serde(default)]
-    pub comments: Vec<WpCommentResponse>,
+    pub comments: Vec<DaypressCommentResponse>,
     #[serde(default)]
     pub seo_title: String,
     #[serde(default)]
@@ -165,4 +165,40 @@ pub struct DaypressLayoutPayload {
     pub layout: serde_json::Value,
     #[serde(default)]
     pub rendered_html: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaypressRevisionResponse {
+    pub id: i64,
+    pub author: i64,
+    #[serde(default)]
+    pub author_name: String,
+    pub date: String,
+    pub date_gmt: String,
+    pub modified: String,
+    pub modified_gmt: String,
+    pub parent: i64,
+    pub slug: String,
+    pub guid: DaypressGuid,
+    pub title: DaypressRenderedText,
+    pub content: DaypressRenderedText,
+    pub excerpt: DaypressRenderedText,
+    #[serde(default)]
+    pub has_layout: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CleanRevisionsRequest {
+    /// Keep the N most recent revisions per post (0 deletes all revisions).
+    #[serde(default)]
+    pub keep_per_post: Option<usize>,
+    /// Optional age filter: only delete revisions older than N days.
+    #[serde(default)]
+    pub older_than_days: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CleanRevisionsResponse {
+    pub deleted_count: usize,
+    pub remaining_count: i64,
 }

@@ -2,15 +2,15 @@
 
 use super::shell::{plain_text_excerpt, render_base_layout};
 use crate::auth::AuthUser;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 use daypress_ast::{DaypressLayout, DaypressNode, NodeKind, StyleProperties};
 
 /// Renders the dynamic Front Page / Blog Index 100% using Daypress AST elements (`daypress_ast`)
 /// and live database content (`settings`, `posts`). Zero hardcoded marketing copy.
 pub fn render_home_page(
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
@@ -19,8 +19,8 @@ pub fn render_home_page(
 
 /// [`render_home_page`] with a pagination nav below "Latest Articles".
 pub fn render_home_page_paginated(
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
     pagination_html: &str,

@@ -382,7 +382,7 @@ fn test_empirical_post_editor_markup_resilience() {
         })
         .expect("Create post");
 
-    let html = templates::render_wp_post_new_view(
+    let html = templates::render_post_new_view(
         &settings,
         "post",
         Some(&post),

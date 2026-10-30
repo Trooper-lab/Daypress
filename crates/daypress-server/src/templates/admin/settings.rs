@@ -1,11 +1,116 @@
-use super::layout::render_wp_admin_shell;
+use super::layout::render_admin_shell;
 use crate::models::{
-    DiscussionSettings, MediaSettings, PermalinkSettings, PrivacySettings, ReadingSettings,
-    WpCategoryResponse, WpPostResponse, WpSettingsResponse, WritingSettings,
+    DaypressCategoryResponse, DaypressPostResponse, DaypressSettingsResponse, DiscussionSettings,
+    MediaSettings, PermalinkSettings, PrivacySettings, ReadingSettings, WritingSettings,
 };
 use crate::templates::utils::escape_html;
 
-pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
+pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
+    let tz_val = if settings.timezone.trim().is_empty() {
+        "UTC"
+    } else {
+        settings.timezone.trim()
+    };
+    let tz_presets: &[(&str, &[(&str, &str)])] = &[
+        (
+            "UTC & Manual Offsets",
+            &[
+                ("UTC", "UTC (Coordinated Universal Time)"),
+                ("UTC-12:00", "UTC-12:00"),
+                ("UTC-08:00", "UTC-08:00"),
+                ("UTC-07:00", "UTC-07:00"),
+                ("UTC-06:00", "UTC-06:00"),
+                ("UTC-05:00", "UTC-05:00"),
+                ("UTC-04:00", "UTC-04:00"),
+                ("UTC-03:00", "UTC-03:00"),
+                ("UTC+01:00", "UTC+01:00"),
+                ("UTC+02:00", "UTC+02:00"),
+                ("UTC+03:00", "UTC+03:00"),
+                ("UTC+05:30", "UTC+05:30"),
+                ("UTC+08:00", "UTC+08:00"),
+                ("UTC+09:00", "UTC+09:00"),
+                ("UTC+10:00", "UTC+10:00"),
+                ("UTC+12:00", "UTC+12:00"),
+            ],
+        ),
+        (
+            "Europe",
+            &[
+                ("Europe/Amsterdam", "Europe/Amsterdam"),
+                ("Europe/Berlin", "Europe/Berlin"),
+                ("Europe/Brussels", "Europe/Brussels"),
+                ("Europe/London", "Europe/London"),
+                ("Europe/Madrid", "Europe/Madrid"),
+                ("Europe/Paris", "Europe/Paris"),
+                ("Europe/Rome", "Europe/Rome"),
+                ("Europe/Stockholm", "Europe/Stockholm"),
+                ("Europe/Vienna", "Europe/Vienna"),
+                ("Europe/Warsaw", "Europe/Warsaw"),
+                ("Europe/Zurich", "Europe/Zurich"),
+                ("Europe/Athens", "Europe/Athens"),
+                ("Europe/Helsinki", "Europe/Helsinki"),
+                ("Europe/Istanbul", "Europe/Istanbul"),
+            ],
+        ),
+        (
+            "America",
+            &[
+                ("America/New_York", "America/New_York (Eastern)"),
+                ("America/Chicago", "America/Chicago (Central)"),
+                ("America/Denver", "America/Denver (Mountain)"),
+                ("America/Los_Angeles", "America/Los_Angeles (Pacific)"),
+                ("America/Phoenix", "America/Phoenix"),
+                ("America/Toronto", "America/Toronto"),
+                ("America/Vancouver", "America/Vancouver"),
+                ("America/Mexico_City", "America/Mexico_City"),
+                ("America/Sao_Paulo", "America/Sao_Paulo"),
+                ("America/Buenos_Aires", "America/Buenos_Aires"),
+            ],
+        ),
+        (
+            "Asia & Pacific",
+            &[
+                ("Asia/Dubai", "Asia/Dubai"),
+                ("Asia/Kolkata", "Asia/Kolkata"),
+                ("Asia/Bangkok", "Asia/Bangkok"),
+                ("Asia/Singapore", "Asia/Singapore"),
+                ("Asia/Shanghai", "Asia/Shanghai"),
+                ("Asia/Hong_Kong", "Asia/Hong_Kong"),
+                ("Asia/Tokyo", "Asia/Tokyo"),
+                ("Asia/Seoul", "Asia/Seoul"),
+                ("Australia/Sydney", "Australia/Sydney"),
+                ("Australia/Melbourne", "Australia/Melbourne"),
+                ("Australia/Perth", "Australia/Perth"),
+                ("Pacific/Auckland", "Pacific/Auckland"),
+            ],
+        ),
+    ];
+    let mut tz_options = String::new();
+    let mut matched_tz = false;
+    for (group_label, items) in tz_presets {
+        tz_options.push_str(&format!(r#"<optgroup label="{}">"#, group_label));
+        for (val, label) in *items {
+            let sel = if val.eq_ignore_ascii_case(tz_val) {
+                matched_tz = true;
+                "selected"
+            } else {
+                ""
+            };
+            tz_options.push_str(&format!(
+                r#"<option value="{}" {}>{}</option>"#,
+                escape_html(val),
+                sel,
+                escape_html(label)
+            ));
+        }
+        tz_options.push_str("</optgroup>");
+    }
+    if !matched_tz {
+        tz_options.push_str(&format!(
+            r#"<option value="{0}" selected>{0}</option>"#,
+            escape_html(tz_val)
+        ));
+    }
     let body = format!(
         r##"
         <div class="page-header">
@@ -54,6 +159,31 @@ pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
                     </div>
                 </div>
             </div>
+
+            <div class="day-card" style="margin-top: 20px;">
+                <div class="day-card-header">
+                    <h2 class="day-card-title">Timezone, Date &amp; Time</h2>
+                </div>
+                <div class="day-card-body">
+                    <div class="form-group">
+                        <label class="form-label" for="timezone_string">Timezone</label>
+                        <select name="timezone_string" id="timezone_string" class="form-select" style="max-width: 480px;">
+                            {tz_options}
+                        </select>
+                        <p class="form-hint">Choose either a city in the same timezone as you or a UTC (Coordinated Universal Time) time offset. Scheduled posts and naive timestamps use this timezone.</p>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 480px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="date_format">Date Format</label>
+                            <input name="date_format" type="text" id="date_format" value="{date_format}" class="form-input" style="font-family: var(--font-mono);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="time_format">Time Format</label>
+                            <input name="time_format" type="text" id="time_format" value="{time_format}" class="form-input" style="font-family: var(--font-mono);">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </form>
 
         <div class="day-card" style="margin-top: 20px;">
@@ -98,11 +228,14 @@ pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
                 const description = document.getElementById('blogdescription').value;
                 const email = document.getElementById('admin_email').value;
                 const url = document.getElementById('siteurl').value;
+                const timezone_string = document.getElementById('timezone_string').value;
+                const date_format = document.getElementById('date_format').value;
+                const time_format = document.getElementById('time_format').value;
 
                 const res = await fetch('/wp-json/wp/v2/settings', {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ title, description, email, url }})
+                    body: JSON.stringify({{ title, description, email, url, timezone_string, timezone: timezone_string, date_format, time_format }})
                 }});
 
                 if (res.ok) {{
@@ -116,17 +249,20 @@ pub fn render_wp_settings_view(settings: &WpSettingsResponse) -> String {
         title = escape_html(&settings.title),
         desc = escape_html(&settings.description),
         url = escape_html(&settings.url),
-        email = escape_html(&settings.email)
+        email = escape_html(&settings.email),
+        tz_options = tz_options,
+        date_format = escape_html(&settings.date_format),
+        time_format = escape_html(&settings.time_format)
     );
 
-    render_wp_admin_shell("settings", "General Settings", &body, settings)
+    render_admin_shell("settings", "General Settings", &body, settings)
 }
 
 // 2. Writing Settings (/d-admin/options-writing)
-pub fn render_wp_settings_writing_view(
-    settings: &WpSettingsResponse,
+pub fn render_settings_writing_view(
+    settings: &DaypressSettingsResponse,
     writing: &WritingSettings,
-    categories: &[WpCategoryResponse],
+    categories: &[DaypressCategoryResponse],
 ) -> String {
     let mut category_options = String::new();
     for cat in categories {
@@ -290,14 +426,14 @@ pub fn render_wp_settings_writing_view(
         mailserver_login = escape_html(&writing.mailserver_login),
     );
 
-    render_wp_admin_shell("writing", "Writing Settings", &body, settings)
+    render_admin_shell("writing", "Writing Settings", &body, settings)
 }
 
 // 3. Reading Settings (/d-admin/options-reading)
-pub fn render_wp_settings_reading_view(
-    settings: &WpSettingsResponse,
+pub fn render_settings_reading_view(
+    settings: &DaypressSettingsResponse,
     reading: &ReadingSettings,
-    pages: &[WpPostResponse],
+    pages: &[DaypressPostResponse],
 ) -> String {
     let posts_checked = if reading.show_on_front == "posts" {
         "checked"
@@ -444,12 +580,12 @@ pub fn render_wp_settings_reading_view(
         search_checked = search_checked
     );
 
-    render_wp_admin_shell("reading", "Reading Settings", &body, settings)
+    render_admin_shell("reading", "Reading Settings", &body, settings)
 }
 
 // 4. Discussion Settings (/d-admin/options-discussion)
-pub fn render_wp_settings_discussion_view(
-    settings: &WpSettingsResponse,
+pub fn render_settings_discussion_view(
+    settings: &DaypressSettingsResponse,
     discussion: &DiscussionSettings,
 ) -> String {
     let chk = |b: bool| if b { "checked" } else { "" };
@@ -578,12 +714,12 @@ pub fn render_wp_settings_discussion_view(
         show_avatars = chk(discussion.show_avatars)
     );
 
-    render_wp_admin_shell("discussion", "Discussion Settings", &body, settings)
+    render_admin_shell("discussion", "Discussion Settings", &body, settings)
 }
 
 // 5. Media Settings (/d-admin/options-media)
-pub fn render_wp_settings_media_view(
-    settings: &WpSettingsResponse,
+pub fn render_settings_media_view(
+    settings: &DaypressSettingsResponse,
     media: &MediaSettings,
 ) -> String {
     let crop_checked = if media.thumbnail_crop { "checked" } else { "" };
@@ -698,12 +834,12 @@ pub fn render_wp_settings_media_view(
         month_checked = month_checked
     );
 
-    render_wp_admin_shell("options-media", "Media Settings", &body, settings)
+    render_admin_shell("options-media", "Media Settings", &body, settings)
 }
 
 // 6. Permalinks Settings (/d-admin/options-permalink)
-pub fn render_wp_settings_permalink_view(
-    settings: &WpSettingsResponse,
+pub fn render_settings_permalink_view(
+    settings: &DaypressSettingsResponse,
     permalinks: &PermalinkSettings,
 ) -> String {
     let str = &permalinks.permalink_structure;
@@ -844,14 +980,14 @@ pub fn render_wp_settings_permalink_view(
         tag_base = escape_html(&permalinks.tag_base)
     );
 
-    render_wp_admin_shell("permalinks", "Permalink Settings", &body, settings)
+    render_admin_shell("permalinks", "Permalink Settings", &body, settings)
 }
 
 // 7. Privacy Settings (/d-admin/options-privacy)
-pub fn render_wp_settings_privacy_view(
-    settings: &WpSettingsResponse,
+pub fn render_settings_privacy_view(
+    settings: &DaypressSettingsResponse,
     privacy: &PrivacySettings,
-    pages: &[WpPostResponse],
+    pages: &[DaypressPostResponse],
 ) -> String {
     let mut page_options = r#"<option value="0">&mdash; Select &mdash;</option>"#.to_string();
     for p in pages {
@@ -961,5 +1097,5 @@ pub fn render_wp_settings_privacy_view(
         page_options = page_options
     );
 
-    render_wp_admin_shell("privacy", "Privacy Settings", &body, settings)
+    render_admin_shell("privacy", "Privacy Settings", &body, settings)
 }

@@ -38,7 +38,7 @@ pub fn scope_theme_css(css: &str) -> String {
 }
 
 /// Like [`scope_theme_css`], additionally mapping `html.<html_class>` (the class public SSR sets
-/// on `<html>`, e.g. `elementor-theme-active`) onto the artboard.
+/// on `<html>`, e.g. `daystudio-theme-active`) onto the artboard.
 pub fn scope_site_css(css: &str, html_class: Option<&str>) -> String {
     let trimmed = css.trim();
     if trimmed.is_empty() {
@@ -259,8 +259,8 @@ mod tests {
 
     #[test]
     fn test_root_chains_and_theme_class_map_to_scope() {
-        let css = "html, body { display: flex; }\nhtml.elementor-theme-active body { color: #111; }\nhtml.elementor-theme-active .dp-heading { color: #222; }\nhtml > body .x { margin: 0; }";
-        let out = scope_site_css(css, Some("elementor-theme-active"));
+        let css = "html, body { display: flex; }\nhtml.daystudio-theme-active body { color: #111; }\nhtml.daystudio-theme-active .dp-heading { color: #222; }\nhtml > body .x { margin: 0; }";
+        let out = scope_site_css(css, Some("daystudio-theme-active"));
         assert!(out.contains(":scope { display: flex; }"), "{out}");
         assert!(out.contains(":scope { color: #111; }"), "{out}");
         assert!(out.contains(":scope .dp-heading { color: #222; }"), "{out}");
@@ -268,7 +268,7 @@ mod tests {
         // Without the matching theme class the rule stays relative (and never matches)
         let dark = scope_site_css(css, Some("dark"));
         assert!(
-            dark.contains("html.elementor-theme-active .dp-heading"),
+            dark.contains("html.daystudio-theme-active .dp-heading"),
             "{dark}"
         );
     }

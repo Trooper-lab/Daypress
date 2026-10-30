@@ -194,7 +194,7 @@ pub fn upgrade_data(conn: &Connection) -> rusqlite::Result<()> {
             conn,
             "options",
             "option_value",
-            r"option_name LIKE 'daypress\_%' ESCAPE '\'",
+            r"option_name = 'custom_css' OR option_name LIKE 'daypress\_%' ESCAPE '\'",
         )?;
     }
     for meta in ["postmeta", "usermeta", "commentmeta", "termmeta"] {
@@ -311,10 +311,24 @@ fn regex(cell: &'static OnceLock<Regex>, pattern: &str) -> &'static Regex {
     cell.get_or_init(|| Regex::new(pattern).expect("valid legacy rewrite regex"))
 }
 
+/// Normalizes legacy `elementor-*` / `dp-elementor-*` styling selectors and class names
+/// into `daystudio-*` / `dp-daystudio-*` equivalents while leaving prose text untouched.
+pub fn rewrite_daystudio_style_prefixes(text: &str) -> String {
+    text.replace("elementor-theme-active", "daystudio-theme-active")
+        .replace(".elementor-typography-", ".daystudio-typography-")
+        .replace(".elementor-kit", ".daystudio-kit")
+        .replace(".elementor-button", ".daystudio-button")
+        .replace(".elementor-column", ".daystudio-column")
+        .replace("dp-elementor-header", "dp-daystudio-header")
+        .replace("dp-elementor-footer", "dp-daystudio-footer")
+        .replace("dp-elementor-form-grid", "dp-daystudio-form-grid")
+        .replace("/* Elementor Custom CSS */", "/* Daystudio Custom CSS */")
+}
+
 /// Renames the class names, ids, CSS custom properties, shortcodes and REST paths that
 /// Neopress generated into stored markup and CSS. Page text is left alone.
 pub fn rewrite_stored_markup(text: &str) -> String {
-    let text = text
+    let text = rewrite_daystudio_style_prefixes(text)
         .replace("[neopress_form", "[daypress_form")
         .replace("/wp-json/neopress/", "/wp-json/daypress/")
         .replace("data-neostudio", "data-daystudio");

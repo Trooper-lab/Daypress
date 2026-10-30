@@ -277,6 +277,60 @@ pub const SESSION_TTL_REMEMBER_SECS: i64 = 14 * 86400;
 pub const SESSION_TTL_DEFAULT_SECS: i64 = 2 * 86400;
 
 /// Creates a tamper-proof session token: `<user_id>.<expires_unix>.<hmac_hex>`.
+pub fn create_versioned_session_token(
+    user_id: i64,
+    secret: &str,
+    ttl_secs: i64,
+    session_ver: i64,
+) -> String {
+    let exp = Utc::now().timestamp() + ttl_secs;
+    let payload = if session_ver > 0 {
+        format!("{}.{}.{}", user_id, exp, session_ver)
+    } else {
+        format!("{}.{}", user_id, exp)
+    };
+    let sig = hex::encode(hmac_sha256(
+        secret.as_bytes(),
+        format!("session|{}", payload).as_bytes(),
+    ));
+    format!("{}.{}", payload, sig)
+}
+
+pub fn verify_versioned_session_token(token: &str, secret: &str) -> Option<(i64, i64)> {
+    let parts: Vec<&str> = token.trim().split('.').collect();
+    if parts.len() == 3 {
+        let uid: i64 = parts[0].parse().ok()?;
+        let exp: i64 = parts[1].parse().ok()?;
+        if exp < Utc::now().timestamp() {
+            return None;
+        }
+        let expected = hex::encode(hmac_sha256(
+            secret.as_bytes(),
+            format!("session|{}.{}", parts[0], parts[1]).as_bytes(),
+        ));
+        if constant_time_eq(expected.as_bytes(), parts[2].as_bytes()) {
+            return Some((uid, 0));
+        }
+        return None;
+    }
+    if parts.len() == 4 {
+        let uid: i64 = parts[0].parse().ok()?;
+        let exp: i64 = parts[1].parse().ok()?;
+        let ver: i64 = parts[2].parse().ok()?;
+        if exp < Utc::now().timestamp() {
+            return None;
+        }
+        let expected = hex::encode(hmac_sha256(
+            secret.as_bytes(),
+            format!("session|{}.{}.{}", parts[0], parts[1], parts[2]).as_bytes(),
+        ));
+        if constant_time_eq(expected.as_bytes(), parts[3].as_bytes()) {
+            return Some((uid, ver));
+        }
+    }
+    None
+}
+
 pub fn create_session_token(user_id: i64, secret: &str, ttl_secs: i64) -> String {
     let exp = Utc::now().timestamp() + ttl_secs;
     let payload = format!("{}.{}", user_id, exp);
@@ -320,6 +374,31 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// Builds the `Set-Cookie` header value for a freshly authenticated user.
+pub fn session_cookie_header_with_version(
+    user_id: i64,
+    secret: &str,
+    remember: bool,
+    session_ver: i64,
+) -> String {
+    let ttl = if remember {
+        SESSION_TTL_REMEMBER_SECS
+    } else {
+        SESSION_TTL_DEFAULT_SECS
+    };
+    let token = create_versioned_session_token(user_id, secret, ttl, session_ver);
+    if remember {
+        format!(
+            "{}={}; Path=/; Max-Age={}; SameSite=Lax; HttpOnly",
+            SESSION_COOKIE, token, ttl
+        )
+    } else {
+        format!(
+            "{}={}; Path=/; SameSite=Lax; HttpOnly",
+            SESSION_COOKIE, token
+        )
+    }
+}
+
 pub fn session_cookie_header(user_id: i64, secret: &str, remember: bool) -> String {
     let ttl = if remember {
         SESSION_TTL_REMEMBER_SECS
@@ -344,7 +423,13 @@ pub fn session_cookie_header(user_id: i64, secret: &str, remember: bool) -> Stri
 /// (what `/login` would issue); used by integration tests and tooling.
 pub fn session_cookie_for(user_id: i64, db: &Database) -> String {
     let secret = db.get_auth_secret().unwrap_or_default();
-    let token = create_session_token(user_id, &secret, SESSION_TTL_DEFAULT_SECS);
+    let ver = db
+        .get_user_detail(user_id)
+        .ok()
+        .flatten()
+        .map(|u| u.session_ver)
+        .unwrap_or(1);
+    let token = create_versioned_session_token(user_id, &secret, SESSION_TTL_DEFAULT_SECS, ver);
     format!("{}={}", SESSION_COOKIE, token)
 }
 
@@ -355,7 +440,18 @@ pub fn session_user_from_cookie_header(cookie_header: &str, db: &Database) -> Op
     for item in cookie_header.split(';') {
         let trimmed = item.trim();
         if let Some(val) = trimmed.strip_prefix("daypress_admin=") {
-            if let Some(uid) = verify_session_token(val, &secret) {
+            if let Some((uid, token_ver)) = verify_versioned_session_token(val, &secret) {
+                if let Ok(Some(u)) = db.get_user_detail(uid) {
+                    if token_ver >= u.session_ver {
+                        return Some(AuthUser {
+                            user_id: u.id,
+                            username: u.username,
+                            role: u.role,
+                        });
+                    }
+                }
+            }
+            if let Some(uid) = None::<i64> {
                 if let Ok(Some(u)) = db.get_user_detail(uid) {
                     return Some(AuthUser {
                         user_id: u.id,
@@ -412,7 +508,7 @@ pub fn normalize_app_password(s: &str) -> String {
 
 /// Creates a standard WordPress REST Nonce.
 /// Matches WordPress core: tick = timestamp / 43200 (12-hour validity window per tick).
-pub fn create_wp_nonce(action: &str, user_id: i64, secret: &str) -> String {
+pub fn create_rest_nonce(action: &str, user_id: i64, secret: &str) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -425,7 +521,7 @@ pub fn create_wp_nonce(action: &str, user_id: i64, secret: &str) -> String {
 }
 
 /// Verifies a WordPress REST Nonce against current tick and previous tick (valid up to 24h).
-pub fn verify_wp_nonce(nonce: &str, action: &str, user_id: i64, secret: &str) -> bool {
+pub fn verify_rest_nonce(nonce: &str, action: &str, user_id: i64, secret: &str) -> bool {
     if nonce.is_empty() {
         return false;
     }
@@ -590,7 +686,47 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
 /// Per-request context of the logged-in admin, available to SSR templates
 /// (top bar "Howdy, …", REST nonce) without threading it through every renderer.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct _UnusedDeriveTarget;
+static USER_UI_PREFS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<i64, (bool, String)>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+pub fn sync_user_ui_prefs(user_id: i64, show_admin_bar_front: bool, avatar_url: &str) {
+    if let Ok(mut map) = USER_UI_PREFS.lock() {
+        map.insert(user_id, (show_admin_bar_front, avatar_url.to_string()));
+    }
+}
+
+pub fn should_show_admin_bar_front(user_id: i64) -> bool {
+    USER_UI_PREFS
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&user_id).map(|(show, _)| *show))
+        .unwrap_or(true)
+}
+
+pub fn cached_user_avatar_url(user_id: i64) -> Option<String> {
+    USER_UI_PREFS
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&user_id).map(|(_, av)| av.clone()))
+        .filter(|s| !s.trim().is_empty())
+}
+
+#[derive(Debug, Clone)]
 pub struct AdminContext {
+    pub user_id: i64,
+    pub username: String,
+    pub display_name: String,
+    pub role: String,
+    pub nonce: String,
+    pub admin_color: String,
+    pub rich_editing: bool,
+    pub avatar_url: String,
+}
+#[allow(dead_code)]
+struct UnusedAdminCtx {
     pub user_id: i64,
     pub username: String,
     pub display_name: String,
@@ -732,7 +868,16 @@ pub async fn admin_session_gate(
         username: user.username.clone(),
         display_name,
         role: user.role.clone(),
-        nonce: create_wp_nonce("wp_rest", user.user_id, &secret),
+        nonce: create_rest_nonce("wp_rest", user.user_id, &secret),
+        admin_color: detail
+            .as_ref()
+            .map(|d| d.admin_color.clone())
+            .unwrap_or_else(|| "default".to_string()),
+        rich_editing: detail.as_ref().map(|d| d.rich_editing).unwrap_or(true),
+        avatar_url: detail
+            .as_ref()
+            .map(|d| d.avatar_url.clone())
+            .unwrap_or_default(),
     };
 
     let mut req = req;
@@ -820,12 +965,12 @@ mod tests {
     #[test]
     fn test_nonce_generation_and_verification() {
         let secret = "test-secret-key-123456";
-        let nonce = create_wp_nonce("wp_rest", 1, secret);
+        let nonce = create_rest_nonce("wp_rest", 1, secret);
         assert_eq!(nonce.len(), 10);
-        assert!(verify_wp_nonce(&nonce, "wp_rest", 1, secret));
-        assert!(!verify_wp_nonce("invalid-nonce", "wp_rest", 1, secret));
-        assert!(!verify_wp_nonce(&nonce, "other_action", 1, secret));
-        assert!(!verify_wp_nonce(&nonce, "wp_rest", 2, secret));
+        assert!(verify_rest_nonce(&nonce, "wp_rest", 1, secret));
+        assert!(!verify_rest_nonce("invalid-nonce", "wp_rest", 1, secret));
+        assert!(!verify_rest_nonce(&nonce, "other_action", 1, secret));
+        assert!(!verify_rest_nonce(&nonce, "wp_rest", 2, secret));
     }
 
     #[test]

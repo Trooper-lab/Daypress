@@ -112,8 +112,8 @@ impl Database {
         }
 
         // 0. Elementor Kit Global Styles
-        let mut kit_opt: Option<daypress_ast::ElementorKit> = None;
-        if let Some(ref kit_val) = req.elementor_kit {
+        let mut kit_opt: Option<daypress_ast::DaystudioKit> = None;
+        if let Some(ref kit_val) = req.daystudio_kit {
             if !kit_val.is_null() {
                 if let Ok(kit_str) = serde_json::to_string(kit_val) {
                     tx.execute(
@@ -122,11 +122,11 @@ impl Database {
                         params![kit_str],
                     )?;
                 }
-                kit_opt = serde_json::from_value::<daypress_ast::ElementorKit>(kit_val.clone())
+                kit_opt = serde_json::from_value::<daypress_ast::DaystudioKit>(kit_val.clone())
                     .ok()
                     .or_else(|| {
                         kit_val.get("settings").and_then(|s| {
-                            serde_json::from_value::<daypress_ast::ElementorKit>(s.clone()).ok()
+                            serde_json::from_value::<daypress_ast::DaystudioKit>(s.clone()).ok()
                         })
                     });
             }
@@ -597,7 +597,23 @@ impl Database {
             if matches!(p.post_type.as_str(), "wpcf7_contact_form" | "wpforms") {
                 continue;
             }
-            let p_date = p.date.as_deref().unwrap_or(&now);
+            let bundle_tz = req
+                .site_settings
+                .as_ref()
+                .and_then(|s| s.timezone_string.as_deref())
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or("UTC");
+            let bundle_gmt_off: Option<&str> = None;
+            let (p_date_local, p_date_gmt) = super::scheduling::normalize_post_date_with_tz(
+                p.date.as_deref().unwrap_or(&now),
+                bundle_tz,
+                bundle_gmt_off,
+            )
+            .unwrap_or_else(|| {
+                let d = p.date.as_deref().unwrap_or(&now);
+                (d.to_string(), d.to_string())
+            });
+            let p_date = p_date_local.as_str();
             let p_mod = p.modified.as_deref().unwrap_or(p_date);
             let slug = if p.slug.trim().is_empty() {
                 generated_slugify::slugify(&p.title)
@@ -641,7 +657,7 @@ impl Database {
                 if layout.global_styles.is_none() {
                     if let Some(ref kit) = kit_opt {
                         layout.global_styles = serde_json::to_value(kit).ok();
-                    } else if let Some(ref kv) = req.elementor_kit {
+                    } else if let Some(ref kv) = req.daystudio_kit {
                         if !kv.is_null() {
                             layout.global_styles = Some(kv.clone());
                         }
@@ -688,7 +704,7 @@ impl Database {
             let post_id = match existing_id {
                 Some(id) => {
                     tx.execute(
-                        "UPDATE posts SET post_author = ?1, post_title = ?2, post_content = ?3, post_excerpt = ?4, post_status = ?5, post_date = ?6, post_modified = ?7, comment_status = ?8, ping_status = ?9, post_parent = ?10, menu_order = ?11, layout_json = ?12 WHERE ID = ?13",
+                        "UPDATE posts SET post_author = ?1, post_title = ?2, post_content = ?3, post_excerpt = ?4, post_status = ?5, post_date = ?6, post_date_gmt = ?14, post_modified = ?7, comment_status = ?8, ping_status = ?9, post_parent = ?10, menu_order = ?11, layout_json = ?12 WHERE ID = ?13",
                         params![
                             author,
                             p.title,
@@ -701,8 +717,10 @@ impl Database {
                             ping_status,
                             parent,
                             menu_order,
-                            layout_json_str,
-                            id
+                            layout_json_str.as_deref(),
+
+                            id,
+                            p_date_gmt.as_str()
                         ],
                     )?;
                     id
@@ -710,7 +728,7 @@ impl Database {
                 None => {
                     tx.execute(
                         r#"INSERT INTO posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, comment_status, ping_status, post_name, post_modified, post_modified_gmt, guid, post_type, post_parent, menu_order, layout_json)
-                           VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, '', ?11, ?12, ?13, ?14)"#,
+                           VALUES (?1, ?2, ?15, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, '', ?11, ?12, ?13, ?14)"#,
                         params![
                             author,
                             p_date,
@@ -725,7 +743,8 @@ impl Database {
                             p.post_type,
                             parent,
                             menu_order,
-                            layout_json_str
+                            layout_json_str.as_deref(),
+                            p_date_gmt.as_str()
                         ],
                     )?;
                     let id = tx.last_insert_rowid();
@@ -1407,7 +1426,7 @@ mod tests {
                 user_id: 0,
             }],
             users: vec![],
-            elementor_kit: Some(serde_json::json!({
+            daystudio_kit: Some(serde_json::json!({
                 "system_colors": [
                     {"_id": "primary", "title": "Primary", "color": "#ff4f00"}
                 ]
@@ -1491,6 +1510,7 @@ mod tests {
                 display_name: Some("Jane Editor".to_string()),
                 url: None,
                 role: Some("Editor".to_string()),
+                ..Default::default()
             })
             .expect("create_user");
         assert_eq!(user.username, "editor_jane");

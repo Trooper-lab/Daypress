@@ -1,6 +1,7 @@
 use crate::db::Database;
 use crate::models::{
-    PluginHooksManifest, PluginManifest, PluginSettingField, WpPostResponse, WpSettingsResponse,
+    DaypressPostResponse, DaypressSettingsResponse, PluginHooksManifest, PluginManifest,
+    PluginSettingField,
 };
 use std::collections::HashMap;
 
@@ -366,8 +367,8 @@ pub struct RenderedPluginHooks {
 fn interpolate_template(
     raw: &str,
     config: &HashMap<String, String>,
-    settings: &WpSettingsResponse,
-    current_post: Option<&WpPostResponse>,
+    settings: &DaypressSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
 ) -> String {
     if raw.is_empty() {
         return String::new();
@@ -398,8 +399,8 @@ fn interpolate_template(
 /// Evaluates all active built-in and community plugins to produce SSR HTML hook injections.
 pub fn render_active_plugin_hooks(
     db: &Database,
-    settings: &WpSettingsResponse,
-    current_post: Option<&WpPostResponse>,
+    settings: &DaypressSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
 ) -> RenderedPluginHooks {
     let mut hooks = RenderedPluginHooks::default();
     let installed = db.get_all_installed_plugins().unwrap_or_default();
@@ -544,7 +545,7 @@ pub fn render_active_plugin_hooks(
 pub fn expand_shortcodes_in_content(
     content: &str,
     db: &Database,
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
 ) -> String {
     let mut out = content.to_string();
     // Form shortcodes are provided by the built-in "daypress-forms" plugin; like WordPress
@@ -782,8 +783,8 @@ pub fn render_public_form_html(db: &Database, form_id: i64) -> String {
 /// public SSR HTML document.
 pub fn inject_plugin_hooks_into_html(
     db: &Database,
-    settings: &WpSettingsResponse,
-    current_post: Option<&WpPostResponse>,
+    settings: &DaypressSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
     html: String,
 ) -> String {
     // AST-rendered bodies never pass through `expand_shortcodes_in_content`, so expand any
@@ -821,7 +822,7 @@ pub fn inject_plugin_hooks_into_html(
 /// shortcode text quoted in `<head>` metadata or the theme header/footer is left alone.
 fn expand_shortcodes_in_main_region(
     db: &Database,
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     html: String,
 ) -> String {
     const MAIN_OPEN: &str = "<main class=\"day-main\">";

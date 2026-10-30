@@ -35,6 +35,9 @@ lettre = { workspace = true }
 sha2 = { workspace = true }
 hmac = { workspace = true }
 hex = { workspace = true }
+reqwest = { workspace = true }
+flate2 = { workspace = true }
+semver = { workspace = true }
 daypress-ast = { path = "../daypress-ast" }
 generated_slugify = { path = "../generated_slugify" }
 

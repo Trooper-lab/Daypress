@@ -2,16 +2,16 @@
 //!
 //! Converts any complete HTML/CSS document or fragment into 100% native `DaypressLayout`
 //! AST blocks (`Section`, `Container`, `Grid`, `Flex`, `Column`, `Heading`, `Text`,
-//! `Button`, `Image`, `Icon`, `Divider`, `Spacer`) and `ElementorKit` Global Design Tokens
+//! `Button`, `Image`, `Icon`, `Divider`, `Spacer`) and `DaystudioKit` Global Design Tokens
 //! with **zero `CustomHtml` fallbacks**.
 
 pub mod css_parser;
 pub mod dom_parser;
 pub mod mapper;
 
-use crate::kit::ElementorKit;
+use crate::kit::DaystudioKit;
 use crate::schema::{DaypressLayout, DaypressNode, NodeKind, StyleProperties};
-use css_parser::{build_elementor_kit, extract_and_parse_styles, resolve_element_styles};
+use css_parser::{build_daystudio_kit, extract_and_parse_styles, resolve_element_styles};
 use dom_parser::{parse_html_dom, DomElement, DomNode};
 use mapper::{map_dom_children, MapperContext};
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ impl Default for HtmlDesignImportOptions {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HtmlDesignImportResult {
     pub layout: DaypressLayout,
-    pub kit: Option<ElementorKit>,
+    pub kit: Option<DaystudioKit>,
     pub header_html: Option<String>,
     pub footer_html: Option<String>,
     pub title: Option<String>,
@@ -46,7 +46,7 @@ pub struct HtmlDesignImportResult {
 }
 
 /// Transpiles a full HTML/CSS document (or fragment) into a [`HtmlDesignImportResult`]
-/// with 100% native DayStudio blocks and extracted `ElementorKit` global styles.
+/// with 100% native DayStudio blocks and extracted `DaystudioKit` global styles.
 pub fn transpile_html_document(
     html: &str,
     options: &HtmlDesignImportOptions,
@@ -145,7 +145,7 @@ pub fn transpile_html_document(
         || !sheet.google_font_urls.is_empty();
 
     let (kit, global_styles, token_count) = if has_tokens {
-        let k = build_elementor_kit(&sheet, title.clone(), description.clone());
+        let k = build_daystudio_kit(&sheet, title.clone(), description.clone());
         let count = k.system_colors.len()
             + k.custom_colors.len()
             + k.system_typography.len()
@@ -318,7 +318,7 @@ mod tests {
             .unwrap_or("")
             .contains("Colophon"));
 
-        let kit = res.kit.as_ref().expect("should extract ElementorKit");
+        let kit = res.kit.as_ref().expect("should extract DaystudioKit");
         assert_eq!(kit.content_width, 1380);
         assert!(kit.system_colors.iter().any(|c| c.color == "#C8371A"));
         assert!(kit

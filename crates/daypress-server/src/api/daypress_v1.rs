@@ -63,7 +63,7 @@ pub(crate) fn normalize_import_bundle_payload(raw: Value) -> Result<ImportBundle
             }
         }
 
-        // Normalize `posts` array if items use `WpPostResponse` (`{"title": {"rendered": ...}}`) or WP DB columns (`{"post_title": ...}`)
+        // Normalize `posts` array if items use `DaypressPostResponse` (`{"title": {"rendered": ...}}`) or WP DB columns (`{"post_title": ...}`)
         if let Some(posts_arr) = obj.get_mut("posts").and_then(|v| v.as_array_mut()) {
             for p in posts_arr.iter_mut() {
                 if let Some(p_obj) = p.as_object_mut() {
@@ -265,7 +265,7 @@ pub(crate) async fn save_layout_handler(
     // Persist converged global_styles into options (`daypress_elementor_kit_json` & `daypress_elementor_kit_css`)
     if let Some(gs) = payload.layout.get("global_styles") {
         if gs.is_object() {
-            if let Ok(kit) = serde_json::from_value::<daypress_ast::ElementorKit>(gs.clone()) {
+            if let Ok(kit) = serde_json::from_value::<daypress_ast::DaystudioKit>(gs.clone()) {
                 let kit_css = kit.compile_to_css();
                 let _ = db.set_option("daypress_elementor_kit_css", &kit_css);
                 if let Ok(kit_json) = serde_json::to_string(&kit) {
@@ -311,7 +311,40 @@ pub(crate) async fn duplicate_post_handler(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpPostResponse>, AppError> {
+) -> Result<Json<DaypressPostResponse>, AppError> {
+    match db.duplicate_post(id)? {
+        Some(cloned) => Ok(Json(cloned)),
+        None => Err(AppError::NotFound(format!("Post {} not found", id))),
+    }
+}
+
+pub(crate) async fn restore_revision_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath(rev_id): AxPath<i64>,
+) -> Result<Json<DaypressPostResponse>, AppError> {
+    match db.restore_revision_by_id(rev_id)? {
+        Some(restored) => Ok(Json(restored)),
+        None => Err(AppError::NotFound(format!("Revision {} not found", rev_id))),
+    }
+}
+
+pub(crate) async fn clean_revisions_v1_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    payload: Option<Json<CleanRevisionsRequest>>,
+) -> Result<Json<CleanRevisionsResponse>, AppError> {
+    let req = payload.map(|Json(p)| p).unwrap_or_default();
+    let res = db.clean_post_revisions(req.keep_per_post, req.older_than_days)?;
+    Ok(Json(res))
+}
+
+#[allow(dead_code)]
+async fn _unused_duplicate_post_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath(id): AxPath<i64>,
+) -> Result<Json<DaypressPostResponse>, AppError> {
     match db.duplicate_post(id)? {
         Some(cloned) => Ok(Json(cloned)),
         None => Err(AppError::NotFound(format!("Post {} not found", id))),
@@ -498,4 +531,132 @@ pub(crate) async fn send_email_handler(
         "success": true,
         "message": "Email dispatched and logged successfully."
     })))
+}
+
+// --- Native Subsystems: Self-Updater & Release Lifecycle ---
+
+pub(crate) async fn get_update_status_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::updater::UpdateStatusResponse>, AppError> {
+    Ok(Json(crate::updater::get_update_status(&db)))
+}
+
+pub(crate) async fn check_update_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::updater::UpdateStatusResponse>, AppError> {
+    crate::updater::check_for_updates_now(&db).await?;
+    Ok(Json(crate::updater::get_update_status(&db)))
+}
+
+pub(crate) async fn save_update_settings_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    Json(payload): Json<crate::updater::UpdateSettings>,
+) -> Result<Json<crate::updater::UpdateStatusResponse>, AppError> {
+    let mut cleaned = payload;
+    if cleaned.channel != "prerelease" {
+        cleaned.channel = "stable".to_string();
+    }
+    if cleaned.github_repo.trim().is_empty() {
+        cleaned.github_repo = crate::updater::DEFAULT_GITHUB_REPO.to_string();
+    }
+    crate::updater::save_update_settings(&db, &cleaned)?;
+    Ok(Json(crate::updater::get_update_status(&db)))
+}
+
+pub(crate) async fn apply_github_update_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::updater::UpdateApplyReport>, AppError> {
+    let report = crate::updater::download_and_apply_github_update(&db).await?;
+    Ok(Json(report))
+}
+
+pub(crate) async fn upload_update_archive_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    mut multipart: Multipart,
+) -> Result<Json<crate::updater::UpdateApplyReport>, AppError> {
+    let mut archive_bytes: Option<Vec<u8>> = None;
+    let mut expected_sha256: Option<String> = None;
+    let mut target_version: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Invalid multipart upload: {e}")))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "archive" | "file" => {
+                if target_version.is_none() {
+                    if let Some(fname) = field.file_name() {
+                        // Extract version tag from `daypress-v0.2.0-...` if present
+                        if let Some(rest) = fname.strip_prefix("daypress-v") {
+                            if let Some(ver) = rest.split('-').next() {
+                                target_version = Some(ver.to_string());
+                            }
+                        }
+                    }
+                }
+                let data = field.bytes().await.map_err(|e| {
+                    AppError::BadRequest(format!("Failed to read archive field: {e}"))
+                })?;
+                archive_bytes = Some(data.to_vec());
+            }
+            "sha256" => {
+                let txt = field.text().await.unwrap_or_default();
+                if !txt.trim().is_empty() {
+                    expected_sha256 = Some(txt.trim().to_string());
+                }
+            }
+            "version" => {
+                let txt = field.text().await.unwrap_or_default();
+                if !txt.trim().is_empty() {
+                    target_version = Some(txt.trim().to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let bytes = archive_bytes.ok_or_else(|| {
+        AppError::BadRequest("Missing `archive` file field in multipart upload.".into())
+    })?;
+    let ver = target_version.unwrap_or_else(|| "custom".to_string());
+    let exe_path = std::env::current_exe().map_err(|e| {
+        AppError::Internal(format!("Could not determine current executable path: {e}"))
+    })?;
+
+    let report = crate::updater::apply_binary_update_to_path(
+        &db,
+        &exe_path,
+        &bytes,
+        expected_sha256.as_deref(),
+        &ver,
+        "upload",
+    )?;
+    Ok(Json(report))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RollbackUpdatePayload {
+    pub restore_backup_filename: Option<String>,
+}
+
+pub(crate) async fn rollback_update_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    payload: Option<Json<RollbackUpdatePayload>>,
+) -> Result<Json<crate::updater::UpdateApplyReport>, AppError> {
+    let exe_path = std::env::current_exe().map_err(|e| {
+        AppError::Internal(format!("Could not determine current executable path: {e}"))
+    })?;
+    let restore_file = payload
+        .as_ref()
+        .and_then(|p| p.restore_backup_filename.as_deref());
+    let report = crate::updater::rollback_binary_at_path(&db, &exe_path, restore_file)?;
+    Ok(Json(report))
 }

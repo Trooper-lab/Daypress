@@ -13,7 +13,7 @@ use crate::models::{FormFieldSchema, FormSettings};
 
 /// Normalizes WordPress SEO template placeholders (Yoast, RankMath, AIOSEO, SEOPress)
 /// into concrete or clean title/description strings.
-pub fn replace_wp_seo_placeholders(raw: &str, post_title: &str, site_title: &str) -> String {
+pub fn replace_seo_placeholders(raw: &str, post_title: &str, site_title: &str) -> String {
     if raw.trim().is_empty() {
         return String::new();
     }
@@ -55,7 +55,7 @@ pub fn converge_post_seo_meta(
             .or_else(|| postmeta.get("_seopress_titles_title"))
             .cloned();
         if let Some(val) = candidate {
-            let cleaned = replace_wp_seo_placeholders(&val, post_title, site_title);
+            let cleaned = replace_seo_placeholders(&val, post_title, site_title);
             if !cleaned.is_empty() {
                 postmeta.insert("_daypress_seo_title".to_string(), cleaned);
                 converged = true;
@@ -72,7 +72,7 @@ pub fn converge_post_seo_meta(
             .or_else(|| postmeta.get("_seopress_titles_desc"))
             .cloned();
         if let Some(val) = candidate {
-            let cleaned = replace_wp_seo_placeholders(&val, post_title, site_title);
+            let cleaned = replace_seo_placeholders(&val, post_title, site_title);
             if !cleaned.is_empty() {
                 postmeta.insert("_daypress_seo_desc".to_string(), cleaned);
                 converged = true;

@@ -27,6 +27,7 @@ pub mod static_assets;
 pub mod templates;
 pub mod theme;
 pub mod theme_builder;
+pub mod updater;
 pub mod wxr;
 
 pub use adapters::database::SqliteDatabase;
@@ -46,6 +47,7 @@ pub use ports::*;
 pub use seed::*;
 pub use theme::*;
 pub use theme_builder::*;
+pub use updater::*;
 pub use wxr::*;
 
 use axum::{
@@ -80,8 +82,8 @@ pub fn create_app(database: Database) -> Router {
 
     Router::new()
         .route("/mcp", post(adapters::mcp::handle_http_mcp))
-        .route("/wp-json", get(api::wp_json_root))
-        .route("/wp-json/", get(api::wp_json_root))
+        .route("/wp-json", get(api::rest_index_root))
+        .route("/wp-json/", get(api::rest_index_root))
         .nest("/wp-json", api::api_routes())
         // Pre-rebrand `/n-admin/*` URLs redirect to `/d-admin/*`.
         .merge(legacy::routes())
@@ -297,6 +299,23 @@ pub fn create_app(database: Database) -> Router {
         .route("/robots.txt", get(handle_robots_txt))
         // RSS 2.0 feeds (static `feed` segments win over the `/{slug}` catch-alls below).
         .route("/feed", get(handle_rss_feed))
+        .route("/feed/rss", get(handle_rss_feed))
+        .route("/feed/rss/", get(handle_rss_feed))
+        .route("/feed/rss2", get(handle_rss_feed))
+        .route("/feed/rss2/", get(handle_rss_feed))
+        .route("/feed/atom", get(handle_atom_feed))
+        .route("/feed/atom/", get(handle_atom_feed))
+        .route("/comments/feed", get(handle_comments_rss_feed))
+        .route("/comments/feed/", get(handle_comments_rss_feed))
+        .route("/comments/feed/atom", get(handle_comments_atom_feed))
+        .route("/comments/feed/atom/", get(handle_comments_atom_feed))
+        .route("/category/{slug}/feed/atom", get(handle_category_atom_feed))
+        .route(
+            "/category/{slug}/feed/atom/",
+            get(handle_category_atom_feed),
+        )
+        .route("/tag/{slug}/feed/atom", get(handle_tag_atom_feed))
+        .route("/tag/{slug}/feed/atom/", get(handle_tag_atom_feed))
         .route("/feed/", get(handle_rss_feed))
         .route("/category/{slug}/feed", get(handle_category_rss_feed))
         .route("/category/{slug}/feed/", get(handle_category_rss_feed))

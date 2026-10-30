@@ -4,9 +4,11 @@ pub const JS_CANVAS_DRAG: &str = r###"
 (function() {
     function initViewportHandles() {
         const artboard = document.getElementById("daystudio-artboard");
+        const zoomWrapper = document.getElementById("daystudio-zoom-wrapper");
         const handleLeft = document.getElementById("handle-artboard-left");
         const handleRight = document.getElementById("handle-artboard-right");
         const dimReadout = document.getElementById("lbl-dimension-readout");
+        const bpButtons = document.querySelectorAll(".bp-btn");
 
         if (!artboard || !handleLeft || !handleRight) return;
 
@@ -25,13 +27,30 @@ pub const JS_CANVAS_DRAG: &str = r###"
                 function onMouseMove(me) {
                     const deltaX = me.clientX - startX;
                     // Symmetrical resizing from center
-                    const newWidth = direction === "right"
-                        ? Math.max(320, Math.min(1920, startWidth + deltaX * 2))
-                        : Math.max(320, Math.min(1920, startWidth - deltaX * 2));
+                    const newWidth = Math.round(
+                        direction === "right"
+                            ? Math.max(320, Math.min(1920, startWidth + deltaX * 2))
+                            : Math.max(320, Math.min(1920, startWidth - deltaX * 2))
+                    );
 
-                    artboard.style.width = Math.round(newWidth) + "px";
+                    artboard.style.width = newWidth + "px";
+                    artboard.classList.add("is-custom-width");
+                    if (zoomWrapper) {
+                        zoomWrapper.style.width = newWidth + "px";
+                        zoomWrapper.classList.add("is-custom-width");
+                    }
                     if (dimReadout) {
-                        dimReadout.innerHTML = `${Math.round(newWidth)} <span class="dim-unit">px</span> &times; 100%`;
+                        dimReadout.innerHTML = `${newWidth} <span class="dim-unit">px</span> &times; 100%`;
+                    }
+
+                    const nextBp = newWidth <= 480 ? "mobile" : (newWidth <= 1024 ? "tablet" : "desktop");
+                    if (window.DayStudioState && window.DayStudioState.currentBreakpoint !== nextBp) {
+                        window.DayStudioState.currentBreakpoint = nextBp;
+                        artboard.classList.remove("artboard-desktop", "artboard-tablet", "artboard-mobile");
+                        artboard.classList.add("artboard-" + nextBp);
+                        bpButtons.forEach(b => b.classList.toggle("active", b.dataset.bp === nextBp));
+                        if (window.refreshAllNodeStyles) window.refreshAllNodeStyles();
+                        if (window.renderInspector) window.renderInspector();
                     }
                     if (window.updateSelectionChrome) window.updateSelectionChrome();
                 }
@@ -44,7 +63,7 @@ pub const JS_CANVAS_DRAG: &str = r###"
                     window.removeEventListener("mousemove", onMouseMove);
                     window.removeEventListener("mouseup", onMouseUp);
 
-                    // Snap to breakpoints
+                    // Snap to canonical breakpoints when dropped near them
                     const finalWidth = artboard.offsetWidth;
                     if (Math.abs(finalWidth - 1200) < 24) {
                         if (window.setBreakpoint) window.setBreakpoint("desktop");

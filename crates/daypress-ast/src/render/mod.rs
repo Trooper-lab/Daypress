@@ -10,7 +10,7 @@ pub use sanitizer::{
     strip_editor_classes,
 };
 
-use crate::kit::ElementorKit;
+use crate::kit::DaystudioKit;
 use crate::schema::DaypressLayout;
 
 /// Compiles a complete DaypressLayout into pristine semantic HTML5 for public SSR
@@ -22,7 +22,7 @@ pub fn render_layout_to_html(layout: &DaypressLayout) -> String {
     // 1. Compile Global Styles Kit CSS
     if let Some(ref gs) = layout.global_styles {
         if gs.is_object() {
-            if let Ok(kit) = serde_json::from_value::<ElementorKit>(gs.clone()) {
+            if let Ok(kit) = serde_json::from_value::<DaystudioKit>(gs.clone()) {
                 output.push_str("<style id=\"daypress-kit-css\">\n");
                 output.push_str(&kit.compile_to_css());
                 output.push_str("</style>\n");

@@ -1,6 +1,6 @@
 //! Admin Shell HTML Markup and template rendering.
 
-use crate::models::WpSettingsResponse;
+use crate::models::DaypressSettingsResponse;
 use crate::templates::admin::layout::navigation::{render_cpt_navigation, NavState};
 use crate::templates::admin::layout::styles_components::get_styles_components;
 use crate::templates::admin::layout::styles_forms::get_styles_forms;
@@ -9,11 +9,11 @@ use crate::templates::admin::layout::styles_shell::{
 };
 use crate::templates::utils::escape_html;
 
-pub fn render_wp_admin_shell(
+pub fn render_admin_shell(
     current_tab: &str,
     page_title: &str,
     body_content: &str,
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
 ) -> String {
     let site_name = escape_html(if settings.title.is_empty() {
         "Daypress"
@@ -33,11 +33,24 @@ pub fn render_wp_admin_shell(
     } else {
         String::new()
     };
+    let updates_badge = if let Some(ref ver) = settings.update_available {
+        format!(
+            r#"<span class="nav-badge" title="Daypress v{} available">1</span>"#,
+            escape_html(ver)
+        )
+    } else {
+        String::new()
+    };
 
     let nav = NavState::compute(current_tab);
     let custom_post_types_nav = render_cpt_navigation(current_tab, &settings.custom_post_types);
     let styles_shell = get_styles_shell();
     let styles_comp = get_styles_components();
+    let admin_color = escape_html(
+        &crate::auth::current_admin()
+            .map(|a| a.admin_color)
+            .unwrap_or_else(|| "default".to_string()),
+    );
     let styles_forms = get_styles_forms();
     let rest_nonce: String = crate::auth::current_admin()
         .map(|a| a.nonce)
@@ -60,6 +73,14 @@ pub fn render_wp_admin_shell(
 {styles_shell}
 {styles_comp}
 {styles_forms}
+body[data-admin-color="light"] {{ --press: #04a4cc; --press-ink: #037c9a; --press-wash: rgba(4,164,204,0.10); }}
+body[data-admin-color="modern"] {{ --press: #3858e9; --press-ink: #2145e6; --press-wash: rgba(56,88,233,0.10); }}
+body[data-admin-color="blue"] {{ --press: #096484; --press-ink: #07526c; --press-wash: rgba(9,100,132,0.10); }}
+body[data-admin-color="coffee"] {{ --press: #c7a589; --press-ink: #59524c; --press-wash: rgba(199,165,137,0.14); }}
+body[data-admin-color="ectoplasm"] {{ --press: #a3b745; --press-ink: #523f6d; --press-wash: rgba(163,183,69,0.14); }}
+body[data-admin-color="midnight"] {{ --press: #e14d43; --press-ink: #363b3f; --press-wash: rgba(225,77,67,0.12); }}
+body[data-admin-color="ocean"] {{ --press: #9ebaa0; --press-ink: #627c83; --press-wash: rgba(158,186,160,0.14); }}
+body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --press-wash: rgba(221,130,59,0.14); }}
 	</style>
 	<script>
 		// Standard WordPress REST API settings & session initialization
@@ -70,7 +91,7 @@ pub fn render_wp_admin_shell(
 		}};
 	</script>
 </head>
-<body>
+<body data-admin-color="{admin_color}">
 <div id="day-app">
 	<!-- The desk: wordmark, search, navigation, account -->
 	<aside id="day-sidebar">
@@ -85,10 +106,11 @@ pub fn render_wp_admin_shell(
 				<a href="/d-admin/" class="nav-item {is_dash}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
 					<span>Dashboard</span>
+					{updates_badge}
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/" class="nav-subitem {sub_dash_home}">Home</a>
-					<a href="/d-admin/update-core" class="nav-subitem {sub_dash_updates}">Updates</a>
+					<a href="/d-admin/update-core" class="nav-subitem {sub_dash_updates}">Updates {updates_badge}</a>
 				</div>
 			</div>
 
@@ -136,6 +158,7 @@ pub fn render_wp_admin_shell(
 			<!-- 5b. DAYSTUDIO -->
 			<div class="nav-group">
 				<a href="/d-admin/builder" class="nav-item">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
 					<span>DayStudio</span>
 				</a>
 			</div>
@@ -474,6 +497,8 @@ pub fn render_wp_admin_shell(
         sub_set_perm = nav.sub_set_perm,
         sub_set_priv = nav.sub_set_priv,
         is_engine = nav.is_engine,
+        admin_color = admin_color,
+        updates_badge = updates_badge,
         body_content = body_content
     )
 }

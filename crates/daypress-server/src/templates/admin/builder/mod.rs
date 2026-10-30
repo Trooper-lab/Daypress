@@ -5,7 +5,7 @@ pub mod scripts;
 pub mod site_preview;
 pub mod styles;
 
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 use crate::theme_builder::models::ResolvedThemePartials;
 
@@ -24,19 +24,19 @@ pub fn synthesize_ast_from_post_html(_post_id: i64, html: &str) -> Option<serde_
 }
 
 /// Renders DayStudio for `post` with the default site chrome (no Theme Builder partials).
-pub fn render_wp_builder_view(
-    settings: &WpSettingsResponse,
-    post: &WpPostResponse,
+pub fn render_builder_view(
+    settings: &DaypressSettingsResponse,
+    post: &DaypressPostResponse,
     existing_layout_json: Option<&str>,
 ) -> String {
-    render_wp_builder_view_with_partials(settings, post, existing_layout_json, None)
+    render_builder_view_with_partials(settings, post, existing_layout_json, None)
 }
 
 /// Renders DayStudio for `post`, framing the artboard with the header, footer and theme CSS the
 /// public page resolves for it (Theme Builder `partials` included).
-pub fn render_wp_builder_view_with_partials(
-    settings: &WpSettingsResponse,
-    post: &WpPostResponse,
+pub fn render_builder_view_with_partials(
+    settings: &DaypressSettingsResponse,
+    post: &DaypressPostResponse,
     existing_layout_json: Option<&str>,
     partials: Option<&ResolvedThemePartials>,
 ) -> String {

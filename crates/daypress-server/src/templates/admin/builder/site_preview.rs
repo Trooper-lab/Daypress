@@ -5,7 +5,7 @@
 //! editor sees an exact copy of the live page without the site CSS touching the studio chrome.
 
 use super::scoping::scope_site_css;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::public::site_chrome;
 use crate::templates::utils::escape_html;
 use crate::theme_builder::models::ResolvedThemePartials;
@@ -19,7 +19,7 @@ pub struct SitePreview {
 }
 
 /// Templates that render the page without the global site header and footer.
-fn hides_site_chrome(post: &WpPostResponse) -> bool {
+fn hides_site_chrome(post: &DaypressPostResponse) -> bool {
     post.template == "page-template-blank.php"
         || post.template == "canvas"
         || post.template == "elementor_canvas"
@@ -29,8 +29,8 @@ fn hides_site_chrome(post: &WpPostResponse) -> bool {
 }
 
 pub fn build_site_preview(
-    settings: &WpSettingsResponse,
-    post: &WpPostResponse,
+    settings: &DaypressSettingsResponse,
+    post: &DaypressPostResponse,
     layout_json: &str,
     partials: Option<&ResolvedThemePartials>,
 ) -> SitePreview {
@@ -60,7 +60,7 @@ pub fn build_site_preview(
 
 /// The stylesheets of the public page in the order the public shell emits them.
 fn site_css(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     layout_json: &str,
     partials: Option<&ResolvedThemePartials>,
 ) -> String {
@@ -70,7 +70,7 @@ fn site_css(
     let brand = escape_html(site_chrome::brand_color(settings));
     let parts = [
         crate::templates::public::render_public_theme_css(&brand),
-        settings.elementor_kit_css.clone(),
+        settings.daystudio_kit_css.clone(),
         site_chrome::typography_css(settings).to_string(),
         settings.custom_css.clone(),
         partials

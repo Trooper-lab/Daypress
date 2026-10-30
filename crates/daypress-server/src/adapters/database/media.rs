@@ -19,7 +19,7 @@ impl Database {
         mime_type: &str,
         file_size: u64,
         url: &str,
-    ) -> Result<WpMediaResponse> {
+    ) -> Result<DaypressMediaResponse> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
@@ -63,11 +63,11 @@ impl Database {
             "file".to_string()
         };
 
-        Ok(WpMediaResponse {
+        Ok(DaypressMediaResponse {
             id,
             date: now.replace(' ', "T"),
             slug: file_name.to_string(),
-            title: WpRenderedText {
+            title: DaypressRenderedText {
                 rendered: title.to_string(),
                 protected: false,
             },
@@ -93,7 +93,7 @@ impl Database {
                LEFT JOIN postmeta m_alt ON m_alt.meta_id = (SELECT meta_id FROM postmeta WHERE post_id = p.ID AND meta_key = '_wp_attachment_image_alt' LIMIT 1)
                WHERE p.post_type = 'attachment'"#;
 
-    fn map_media_row(row: &rusqlite::Row<'_>) -> Result<WpMediaResponse> {
+    fn map_media_row(row: &rusqlite::Row<'_>) -> Result<DaypressMediaResponse> {
         let id: i64 = row.get(0)?;
         let date: String = row.get(1)?;
         let slug: String = row.get(2)?;
@@ -120,11 +120,11 @@ impl Database {
             "file".to_string()
         };
 
-        Ok(WpMediaResponse {
+        Ok(DaypressMediaResponse {
             id,
             date: date.replace(' ', "T"),
             slug,
-            title: WpRenderedText {
+            title: DaypressRenderedText {
                 rendered: title,
                 protected: false,
             },
@@ -134,11 +134,11 @@ impl Database {
             media_type,
             alt_text,
             media_details,
-            caption: WpRenderedText {
+            caption: DaypressRenderedText {
                 rendered: caption,
                 protected: false,
             },
-            description: WpRenderedText {
+            description: DaypressRenderedText {
                 rendered: description,
                 protected: false,
             },
@@ -146,7 +146,7 @@ impl Database {
         })
     }
 
-    pub fn get_media_attachments(&self) -> Result<Vec<WpMediaResponse>> {
+    pub fn get_media_attachments(&self) -> Result<Vec<DaypressMediaResponse>> {
         let conn = self.conn.lock().unwrap();
         let sql = format!(
             "{} ORDER BY p.post_date DESC, p.ID DESC",
@@ -162,7 +162,7 @@ impl Database {
         Ok(list)
     }
 
-    pub fn get_media_by_id(&self, id: i64) -> Result<Option<WpMediaResponse>> {
+    pub fn get_media_by_id(&self, id: i64) -> Result<Option<DaypressMediaResponse>> {
         let conn = self.conn.lock().unwrap();
         let sql = format!("{} AND p.ID = ?1", Self::MEDIA_SELECT_SQL);
         let mut stmt = conn.prepare(&sql)?;
@@ -177,7 +177,7 @@ impl Database {
         &self,
         id: i64,
         req: &UpdateMediaRequest,
-    ) -> Result<Option<WpMediaResponse>> {
+    ) -> Result<Option<DaypressMediaResponse>> {
         {
             let conn = self.conn.lock().unwrap();
             let exists: Option<i64> = conn

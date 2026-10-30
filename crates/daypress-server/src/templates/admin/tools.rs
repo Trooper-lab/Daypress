@@ -1,8 +1,8 @@
-use super::layout::render_wp_admin_shell;
-use crate::models::{DbStats, WpSettingsResponse};
+use super::layout::render_admin_shell;
+use crate::models::{DaypressSettingsResponse, DbStats};
 
 // 1. Available Tools (/d-admin/tools)
-pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> String {
+pub fn render_tools_view(settings: &DaypressSettingsResponse, stats: &DbStats) -> String {
     let body = format!(
         r##"
         <div class="page-header">
@@ -50,6 +50,21 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
                     <a href="/d-admin/erase-personal-data" class="btn btn-secondary" style="font-size: 12px; color: var(--oxide);">Erase Data</a>
                 </div>
             </div>
+            <div class="day-card" style="padding: 24px;">
+                <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Post Revisions Cleanup</h3>
+                <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 12px; line-height: 1.5;">
+                    Currently storing <strong id="toolsRevisionCount">{total_revisions}</strong> post/page revisions in SQLite. Prune older snapshots to keep your database lean.
+                </p>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <select id="revisionKeepCount" class="form-select" style="width: auto; font-size: 12.5px; height: 34px;">
+                        <option value="5">Keep latest 5 per post</option>
+                        <option value="3">Keep latest 3 per post</option>
+                        <option value="1">Keep latest 1 per post</option>
+                        <option value="0">Delete all revisions (keep 0)</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary" style="font-size: 12.5px;" onclick="cleanRevisions()">Clean Revisions</button>
+                </div>
+            </div>
         </div>
 
         <div class="day-card" style="padding: 24px; margin-top: 24px;">
@@ -64,6 +79,31 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
         </div>
 
         <script>
+            async function cleanRevisions() {{
+                const sel = document.getElementById('revisionKeepCount');
+                const keep = sel ? parseInt(sel.value, 10) : 0;
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/revisions/clean', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ keep_per_post: isNaN(keep) ? 0 : keep }})
+                    }});
+                    if (res.ok) {{
+                        const data = await res.json();
+                        const countEl = document.getElementById('toolsRevisionCount');
+                        const rem = typeof data.remaining_count === 'number' ? data.remaining_count : (data.remaining_revisions || 0);
+                        if (countEl) {{
+                            countEl.textContent = String(rem);
+                        }}
+                        showToast('✓ Deleted ' + (data.deleted_count || 0) + ' revisions (' + rem + ' remaining)');
+                    }} else {{
+                        showToast('Failed to clean revisions', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Failed to clean revisions: ' + e, true);
+                }}
+            }}
+
             async function runVacuum() {{
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/vacuum', {{ method: 'POST' }});
@@ -80,14 +120,15 @@ pub fn render_wp_tools_view(settings: &WpSettingsResponse, stats: &DbStats) -> S
         db_path = stats.db_path,
         db_size_kb = stats.file_size_bytes / 1024,
         page_count = stats.page_count,
-        journal = stats.journal_mode
+        journal = stats.journal_mode,
+        total_revisions = stats.total_revisions
     );
 
-    render_wp_admin_shell("tools", "Tools", &body, settings)
+    render_admin_shell("tools", "Tools", &body, settings)
 }
 
 // 2. Import (/d-admin/import)
-pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
+pub fn render_import_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -299,11 +340,11 @@ pub fn render_wp_import_view(settings: &WpSettingsResponse) -> String {
         </script>
     "##;
 
-    render_wp_admin_shell("import", "Import", body, settings)
+    render_admin_shell("import", "Import", body, settings)
 }
 
 // 3. Export (/d-admin/export)
-pub fn render_wp_export_view(settings: &WpSettingsResponse) -> String {
+pub fn render_export_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -357,11 +398,11 @@ pub fn render_wp_export_view(settings: &WpSettingsResponse) -> String {
         </script>
     "##;
 
-    render_wp_admin_shell("export", "Export", body, settings)
+    render_admin_shell("export", "Export", body, settings)
 }
 
 // 4. Site Health (/d-admin/site-health)
-pub fn render_wp_site_health_view(settings: &WpSettingsResponse, stats: &DbStats) -> String {
+pub fn render_site_health_view(settings: &DaypressSettingsResponse, stats: &DbStats) -> String {
     let body = format!(
         r##"
         <div class="page-header">
@@ -464,11 +505,11 @@ pub fn render_wp_site_health_view(settings: &WpSettingsResponse, stats: &DbStats
         options = stats.total_options
     );
 
-    render_wp_admin_shell("site-health", "Site Health", &body, settings)
+    render_admin_shell("site-health", "Site Health", &body, settings)
 }
 
 // 5. Export Personal Data (/d-admin/export-personal-data)
-pub fn render_wp_export_personal_data_view(settings: &WpSettingsResponse) -> String {
+pub fn render_export_personal_data_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -518,7 +559,7 @@ pub fn render_wp_export_personal_data_view(settings: &WpSettingsResponse) -> Str
         </script>
     "##;
 
-    render_wp_admin_shell(
+    render_admin_shell(
         "export-personal-data",
         "Export Personal Data",
         body,
@@ -527,7 +568,7 @@ pub fn render_wp_export_personal_data_view(settings: &WpSettingsResponse) -> Str
 }
 
 // 6. Erase Personal Data (/d-admin/erase-personal-data)
-pub fn render_wp_erase_personal_data_view(settings: &WpSettingsResponse) -> String {
+pub fn render_erase_personal_data_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -576,5 +617,5 @@ pub fn render_wp_erase_personal_data_view(settings: &WpSettingsResponse) -> Stri
         </script>
     "##;
 
-    render_wp_admin_shell("erase-personal-data", "Erase Personal Data", body, settings)
+    render_admin_shell("erase-personal-data", "Erase Personal Data", body, settings)
 }

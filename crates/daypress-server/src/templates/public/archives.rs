@@ -2,14 +2,14 @@
 
 use super::shell::{plain_text_excerpt, render_base_layout};
 use crate::auth::AuthUser;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 
 pub fn render_archive_page(
     archive_title: &str,
     archive_subtitle: &str,
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
@@ -29,8 +29,8 @@ pub fn render_archive_page(
 pub fn render_archive_page_paginated(
     archive_title: &str,
     archive_subtitle: &str,
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
     pagination_html: &str,
@@ -110,8 +110,8 @@ pub fn render_archive_page_paginated(
 
 pub fn render_search_page(
     query: &str,
-    posts: &[WpPostResponse],
-    settings: &WpSettingsResponse,
+    posts: &[DaypressPostResponse],
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
@@ -126,7 +126,7 @@ pub fn render_search_page(
 }
 
 pub fn render_not_found_page(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {

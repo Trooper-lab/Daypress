@@ -1,13 +1,13 @@
-use super::background::extract_elementor_background;
+use super::background::extract_daystudio_background;
 use super::box_model::{extract_border_config, extract_spacing_val, parse_spacing_obj};
-use super::typography::extract_elementor_typography;
-use crate::elementor::containers::append_css_class;
-use crate::elementor::context::ElementorContext;
+use super::typography::extract_daystudio_typography;
+use crate::daystudio::containers::append_css_class;
+use crate::daystudio::context::DaystudioContext;
 use crate::schema::StyleProperties;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
-pub(crate) fn partition_elementor_settings(settings: &Value) -> (Value, Value, Value, Value) {
+pub(crate) fn partition_daystudio_settings(settings: &Value) -> (Value, Value, Value, Value) {
     let mut desktop = Map::new();
     let mut tablet = Map::new();
     let mut mobile = Map::new();
@@ -39,30 +39,30 @@ pub(crate) fn partition_elementor_settings(settings: &Value) -> (Value, Value, V
     )
 }
 
-pub(crate) fn extract_elementor_styles(
+pub(crate) fn extract_daystudio_styles(
     settings: &Value,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> StyleProperties {
-    let (desktop, tablet, mobile, hover) = partition_elementor_settings(settings);
-    let mut styles = extract_elementor_single_state_styles(&desktop, ctx);
+    let (desktop, tablet, mobile, hover) = partition_daystudio_settings(settings);
+    let mut styles = extract_daystudio_single_state_styles(&desktop, ctx);
 
     if let Some(t_obj) = tablet.as_object() {
         if !t_obj.is_empty() {
-            let t_styles = extract_elementor_single_state_styles(&tablet, ctx);
+            let t_styles = extract_daystudio_single_state_styles(&tablet, ctx);
             styles.tablet = Some(Box::new(t_styles));
         }
     }
 
     if let Some(m_obj) = mobile.as_object() {
         if !m_obj.is_empty() {
-            let m_styles = extract_elementor_single_state_styles(&mobile, ctx);
+            let m_styles = extract_daystudio_single_state_styles(&mobile, ctx);
             styles.mobile = Some(Box::new(m_styles));
         }
     }
 
     if let Some(h_obj) = hover.as_object() {
         if !h_obj.is_empty() {
-            let h_styles = extract_elementor_single_state_styles(&hover, ctx);
+            let h_styles = extract_daystudio_single_state_styles(&hover, ctx);
             styles.hover = Some(Box::new(h_styles));
         }
     }
@@ -91,9 +91,9 @@ pub(crate) fn extract_elementor_styles(
     styles
 }
 
-pub(crate) fn extract_elementor_single_state_styles(
+pub(crate) fn extract_daystudio_single_state_styles(
     settings: &Value,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> StyleProperties {
     let mut styles = StyleProperties::default();
     let globals = settings.get("__globals__").and_then(|g| g.as_object());
@@ -117,10 +117,10 @@ pub(crate) fn extract_elementor_single_state_styles(
     }
 
     // Typography
-    extract_elementor_typography(settings, globals, &mut styles);
+    extract_daystudio_typography(settings, globals, &mut styles);
 
     // Background
-    extract_elementor_background(settings, globals, ctx, &mut styles);
+    extract_daystudio_background(settings, globals, ctx, &mut styles);
 
     // Border
     styles.border = extract_border_config(settings, globals);

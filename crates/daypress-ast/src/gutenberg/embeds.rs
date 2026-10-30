@@ -1,4 +1,4 @@
-use crate::elementor::normalize_video_embed_url;
+use crate::daystudio::normalize_video_embed_url;
 use crate::gutenberg::parser::GutenbergBlock;
 use crate::gutenberg::styles::{extract_attr_from_html, strip_html_tags};
 use crate::schema::NodeKind;

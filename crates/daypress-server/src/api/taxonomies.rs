@@ -22,16 +22,16 @@ use std::path::Path;
 
 pub(crate) async fn list_categories(
     State(db): State<Database>,
-) -> Result<(HeaderMap, Json<Vec<WpCategoryResponse>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressCategoryResponse>>), AppError> {
     let cats = db.get_terms("category")?;
     let total = cats.len() as i64;
-    Ok(wp_list_response(cats, total, total.max(10)))
+    Ok(rest_list_response(cats, total, total.max(10)))
 }
 
 pub(crate) async fn get_category_handler(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpCategoryResponse>, AppError> {
+) -> Result<Json<DaypressCategoryResponse>, AppError> {
     match db.get_term_by_id("category", id)? {
         Some(c) => Ok(Json(c)),
         None => Err(AppError::NotFound(format!("Category {} not found", id))),
@@ -42,7 +42,7 @@ pub(crate) async fn create_category_handler(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTermRequest>,
-) -> Result<(StatusCode, Json<WpCategoryResponse>), AppError> {
+) -> Result<(StatusCode, Json<DaypressCategoryResponse>), AppError> {
     let cat = db.create_category(&payload)?;
     Ok((StatusCode::CREATED, Json(cat)))
 }
@@ -52,7 +52,7 @@ pub(crate) async fn update_category_handler(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTermRequest>,
-) -> Result<Json<WpCategoryResponse>, AppError> {
+) -> Result<Json<DaypressCategoryResponse>, AppError> {
     match db.update_term("category", id, &payload)? {
         Some(c) => Ok(Json(c)),
         None => Err(AppError::NotFound(format!("Category {} not found", id))),
@@ -68,7 +68,7 @@ pub(crate) async fn delete_category_handler(
     if db.delete_term("category", id)? {
         Ok(Json(serde_json::json!({
             "deleted": true,
-            "previous": prev.unwrap_or_else(|| WpCategoryResponse {
+            "previous": prev.unwrap_or_else(|| DaypressCategoryResponse {
                 id,
                 count: 0,
                 description: String::new(),
@@ -86,16 +86,16 @@ pub(crate) async fn delete_category_handler(
 
 pub(crate) async fn list_tags(
     State(db): State<Database>,
-) -> Result<(HeaderMap, Json<Vec<WpCategoryResponse>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressCategoryResponse>>), AppError> {
     let tags = db.get_terms("post_tag")?;
     let total = tags.len() as i64;
-    Ok(wp_list_response(tags, total, total.max(10)))
+    Ok(rest_list_response(tags, total, total.max(10)))
 }
 
 pub(crate) async fn get_tag_handler(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpCategoryResponse>, AppError> {
+) -> Result<Json<DaypressCategoryResponse>, AppError> {
     match db.get_term_by_id("post_tag", id)? {
         Some(t) => Ok(Json(t)),
         None => Err(AppError::NotFound(format!("Tag {} not found", id))),
@@ -106,7 +106,7 @@ pub(crate) async fn create_tag_handler(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTermRequest>,
-) -> Result<(StatusCode, Json<WpCategoryResponse>), AppError> {
+) -> Result<(StatusCode, Json<DaypressCategoryResponse>), AppError> {
     let tag = db.create_tag(&payload)?;
     Ok((StatusCode::CREATED, Json(tag)))
 }
@@ -116,7 +116,7 @@ pub(crate) async fn update_tag_handler(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTermRequest>,
-) -> Result<Json<WpCategoryResponse>, AppError> {
+) -> Result<Json<DaypressCategoryResponse>, AppError> {
     match db.update_term("post_tag", id, &payload)? {
         Some(t) => Ok(Json(t)),
         None => Err(AppError::NotFound(format!("Tag {} not found", id))),
@@ -132,7 +132,7 @@ pub(crate) async fn delete_tag_handler(
     if db.delete_term("post_tag", id)? {
         Ok(Json(serde_json::json!({
             "deleted": true,
-            "previous": prev.unwrap_or_else(|| WpCategoryResponse {
+            "previous": prev.unwrap_or_else(|| DaypressCategoryResponse {
                 id,
                 count: 0,
                 description: String::new(),
@@ -307,7 +307,7 @@ pub(crate) async fn search_content_handler(
             })
         })
         .collect();
-    Ok(wp_list_response(results, total as i64, per_page))
+    Ok(rest_list_response(results, total as i64, per_page))
 }
 
 pub(crate) async fn get_post_types_handler() -> Json<Value> {

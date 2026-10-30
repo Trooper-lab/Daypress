@@ -122,11 +122,11 @@ pub fn execute_ast_pass2(
                     );
                 }
             } else {
-                let is_elementor_lib = p_type == "elementor_library"
+                let is_daystudio_lib = p_type == "elementor_library"
                     || meta.contains_key("_elementor_template_type")
                     || lib_type_opt.is_some();
 
-                if is_elementor_lib && (p_status == "publish" || p_status.is_empty()) {
+                if is_daystudio_lib && (p_status == "publish" || p_status.is_empty()) {
                     let raw_tpl_type = meta
                         .get("_elementor_template_type")
                         .map(|s| s.as_str())
@@ -140,7 +140,7 @@ pub fn execute_ast_pass2(
                     let raw_conds = meta.get("_elementor_conditions").map(|s| s.as_str());
                     let page_settings = meta.get("_elementor_page_settings").map(|s| s.as_str());
 
-                    let _ = crate::importer::templates::ingest_elementor_library_template(
+                    let _ = crate::importer::templates::ingest_daystudio_library_template(
                         tx,
                         p_title,
                         norm_type,

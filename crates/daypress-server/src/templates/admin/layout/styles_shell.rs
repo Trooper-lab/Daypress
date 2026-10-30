@@ -246,9 +246,20 @@ pub fn get_styles_shell() -> &'static str {
 			background: var(--desk-oxide);
 		}
 
-		/* The desk names things; it doesn't decorate them. */
+		/* Sidebar navigation icons */
 		.nav-icon {
-			display: none;
+			width: 16px;
+			height: 16px;
+			flex-shrink: 0;
+			color: var(--desk-muted);
+			opacity: 0.85;
+			transition: color 0.12s, opacity 0.12s;
+		}
+
+		.nav-item:hover .nav-icon,
+		.nav-item.active .nav-icon {
+			color: var(--desk-text-active);
+			opacity: 1;
 		}
 
 		.nav-badge {

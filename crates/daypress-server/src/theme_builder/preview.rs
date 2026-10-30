@@ -5,7 +5,7 @@ use super::repository::ThemeTemplateRepository;
 use super::ssr_injector::{HydrationContext, SsrInjector};
 use crate::adapters::database::Database;
 use crate::errors::AppError;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use axum::{
     extract::{Path as AxPath, State},
     response::Html,
@@ -22,33 +22,35 @@ pub async fn preview_template_handler(
         .get_by_id(id)?
         .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))?;
 
-    let settings = db.get_settings().unwrap_or_else(|_| WpSettingsResponse {
-        title: "Preview Site".to_string(),
-        description: "Visual Theme Builder Preview".to_string(),
-        url: "http://localhost:8090".to_string(),
-        ..Default::default()
-    });
+    let settings = db
+        .get_settings()
+        .unwrap_or_else(|_| DaypressSettingsResponse {
+            title: "Preview Site".to_string(),
+            description: "Visual Theme Builder Preview".to_string(),
+            url: "http://localhost:8090".to_string(),
+            ..Default::default()
+        });
 
-    let mock_post = WpPostResponse {
+    let mock_post = DaypressPostResponse {
         id: 999,
         date: "2026-10-23 12:00:00".to_string(),
         date_gmt: "2026-10-23 12:00:00".to_string(),
-        guid: crate::models::WpGuid { rendered: "http://localhost:8090/?p=999".to_string() },
+        guid: crate::models::DaypressGuid { rendered: "http://localhost:8090/?p=999".to_string() },
         modified: "2026-10-23 12:00:00".to_string(),
         modified_gmt: "2026-10-23 12:00:00".to_string(),
         slug: "sample-preview-post".to_string(),
         status: "publish".to_string(),
         post_type: "post".to_string(),
         link: "http://localhost:8090/sample-preview-post/".to_string(),
-        title: crate::models::WpRenderedText {
+        title: crate::models::DaypressRenderedText {
             rendered: "Designing for 2026: The New Web Architect Standard".to_string(),
             protected: false,
         },
-        content: crate::models::WpRenderedText {
+        content: crate::models::DaypressRenderedText {
             rendered: "<p>This is a live preview of how dynamic post content renders inside your custom Theme Builder template layout. Every element is generated server-side with zero client overhead.</p>".to_string(),
             protected: false,
         },
-        excerpt: crate::models::WpRenderedText {
+        excerpt: crate::models::DaypressRenderedText {
             rendered: "A live preview of dynamic content in Daypress Theme Builder.".to_string(),
             protected: false,
         },

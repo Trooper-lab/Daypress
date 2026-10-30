@@ -5,6 +5,7 @@ mod acf_render;
 mod actions;
 mod autosave;
 mod core;
+mod revisions;
 mod schedule;
 mod seo_studio;
 mod toolbar;
@@ -19,7 +20,7 @@ pub fn render_editor_scripts(
     known_tags_json: &str,
 ) -> String {
     format!(
-        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         core::render_core_script(site_title, initial_id, has_visual_layout, initial_mode),
         acf_render::JS_ACF_RENDER,
         acf_blocks::JS_ACF_BLOCKS,
@@ -27,6 +28,7 @@ pub fn render_editor_scripts(
         seo_studio::render_seo_script(type_singular),
         autosave::render_autosave_script(post_type),
         actions::render_actions_script(post_type, type_singular, known_tags_json),
+        revisions::render_revisions_script(type_singular),
         schedule::render_schedule_script(type_singular),
     )
 }

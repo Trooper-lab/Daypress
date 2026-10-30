@@ -1,7 +1,7 @@
 //! Universal CPT Archive page rendering and media/taxonomy resolution.
 
 use crate::db::Database;
-use crate::models::{self, WpPostResponse};
+use crate::models::{self, DaypressPostResponse};
 use crate::templates;
 use crate::templates::admin::layout::format_cpt_title;
 use crate::theme_builder::models::RequestContext;
@@ -10,7 +10,7 @@ use crate::theme_builder::ssr_injector::SsrInjector;
 pub fn render_cpt_archive(
     db: &Database,
     cpt_slug: &str,
-    settings: &models::WpSettingsResponse,
+    settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
 ) -> Option<String> {
     let posts = db
@@ -147,7 +147,7 @@ fn get_postmeta_value(db: &Database, post_id: i64, key: &str) -> String {
     }
 }
 
-fn resolve_cpt_card_media(db: &Database, post: &WpPostResponse) -> (String, String) {
+fn resolve_cpt_card_media(db: &Database, post: &DaypressPostResponse) -> (String, String) {
     if post.featured_media > 0 {
         if let Ok(Some(media_post)) = db.get_post_by_id(post.featured_media) {
             return (media_post.guid.rendered, media_post.title.rendered);

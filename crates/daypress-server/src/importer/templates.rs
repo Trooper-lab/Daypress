@@ -140,7 +140,7 @@ pub fn extract_condition_strings(raw: &str) -> Vec<String> {
 }
 
 /// Parses an Elementor condition rule string into typed (ConditionType, RuleTarget, target_id, priority).
-pub fn parse_elementor_condition_rule(
+pub fn parse_daystudio_condition_rule(
     rule_str: &str,
 ) -> Option<(ConditionType, RuleTarget, String, i32)> {
     let trimmed = rule_str.trim();
@@ -197,23 +197,23 @@ pub fn parse_elementor_condition_rule(
 }
 
 /// Parses raw condition string into a list of (ConditionType, RuleTarget, String target_id).
-pub fn parse_elementor_conditions(raw: &str) -> Vec<(ConditionType, RuleTarget, String)> {
+pub fn parse_daystudio_conditions(raw: &str) -> Vec<(ConditionType, RuleTarget, String)> {
     extract_condition_strings(raw)
         .into_iter()
-        .filter_map(|s| parse_elementor_condition_rule(&s))
+        .filter_map(|s| parse_daystudio_condition_rule(&s))
         .map(|(c, r, id, _)| (c, r, id))
         .collect()
 }
 
 /// Resolves conditions with sensible defaults if raw conditions are missing.
-pub fn resolve_elementor_conditions(
+pub fn resolve_daystudio_conditions(
     raw_conditions: Option<&str>,
     tpl_type: &str,
 ) -> Vec<(ConditionType, RuleTarget, String, i32)> {
     let mut conds = Vec::new();
     if let Some(raw) = raw_conditions {
         for rule_str in extract_condition_strings(raw) {
-            if let Some(c) = parse_elementor_condition_rule(&rule_str) {
+            if let Some(c) = parse_daystudio_condition_rule(&rule_str) {
                 conds.push(c);
             }
         }
@@ -234,7 +234,7 @@ pub fn resolve_elementor_conditions(
 
 /// Ingests an Elementor Library template and its display conditions into SQLite.
 #[allow(clippy::too_many_arguments)]
-pub fn ingest_elementor_library_template(
+pub fn ingest_daystudio_library_template(
     tx: &Transaction,
     title: &str,
     raw_type: &str,
@@ -247,7 +247,7 @@ pub fn ingest_elementor_library_template(
 ) -> Result<i64> {
     ensure_template_tables_exist(tx)?;
     let tpl_type = normalize_template_type(raw_type);
-    let conditions = resolve_elementor_conditions(raw_conditions, tpl_type);
+    let conditions = resolve_daystudio_conditions(raw_conditions, tpl_type);
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     let mut settings = TemplateSettings::default();
@@ -344,9 +344,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_elementor_conditions_php_serialized() {
+    fn test_parse_daystudio_conditions_php_serialized() {
         let raw = r#"a:2:{i:0;s:15:"include/general";i:1;s:24:"exclude/singular/page/42";}"#;
-        let conds = parse_elementor_conditions(raw);
+        let conds = parse_daystudio_conditions(raw);
         assert_eq!(conds.len(), 2);
         assert_eq!(
             conds[0],
@@ -363,9 +363,9 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_elementor_conditions_json() {
+    fn test_parse_daystudio_conditions_json() {
         let raw = r#"["include/general", "include/singular/front_page"]"#;
-        let conds = parse_elementor_conditions(raw);
+        let conds = parse_daystudio_conditions(raw);
         assert_eq!(conds.len(), 2);
         assert_eq!(
             conds[0],

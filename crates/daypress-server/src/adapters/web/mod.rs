@@ -4,7 +4,7 @@
 //! and exposes the WordPress REST API and Admin/Public SSR handlers.
 
 use crate::domain::errors::DomainError;
-use crate::errors::{AppError, WpErrorData, WpErrorResponse};
+use crate::errors::{AppError, DaypressErrorData, DaypressErrorResponse};
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -63,10 +63,10 @@ impl IntoResponse for AppError {
             }
         };
 
-        let body = Json(WpErrorResponse {
+        let body = Json(DaypressErrorResponse {
             code: code.to_string(),
             message,
-            data: WpErrorData {
+            data: DaypressErrorData {
                 status: status.as_u16(),
             },
         });

@@ -5,7 +5,7 @@ use super::conditions::{evaluate_condition, resolve_template_for_type, Condition
 use super::models::*;
 use super::repository::ThemeTemplateRepository;
 use crate::adapters::database::Database;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use chrono::Utc;
 use daypress_ast::{DaypressLayout, DaypressNode, NodeKind, StyleProperties};
 use rusqlite::{params, OptionalExtension, Result};
@@ -13,20 +13,20 @@ use std::collections::{HashMap, HashSet};
 
 /// Synchronizes legacy/migrated `daypress_elementor_header_html` and `daypress_elementor_footer_html`
 /// options into `daypress_templates` if no Header or Footer template exists yet.
-pub fn ensure_legacy_headers_footers_synced(db: &Database, settings: &WpSettingsResponse) {
+pub fn ensure_legacy_headers_footers_synced(db: &Database, settings: &DaypressSettingsResponse) {
     let repo = ThemeTemplateRepository::from_database(db);
     let existing = repo.list(&TemplateFilter::default()).unwrap_or_default();
 
     let has_header = existing
         .iter()
         .any(|t| t.template_type == TemplateType::Header);
-    if !has_header && !settings.elementor_header_html.trim().is_empty() {
+    if !has_header && !settings.daystudio_header_html.trim().is_empty() {
         let layout = DaypressLayout {
             version: 1,
             root: DaypressNode {
                 id: "migrated_header_root".to_string(),
                 kind: NodeKind::CustomHtml {
-                    raw: settings.elementor_header_html.clone(),
+                    raw: settings.daystudio_header_html.clone(),
                 },
                 styles: StyleProperties::default(),
                 children: Vec::new(),
@@ -55,13 +55,13 @@ pub fn ensure_legacy_headers_footers_synced(db: &Database, settings: &WpSettings
     let has_footer = existing
         .iter()
         .any(|t| t.template_type == TemplateType::Footer);
-    if !has_footer && !settings.elementor_footer_html.trim().is_empty() {
+    if !has_footer && !settings.daystudio_footer_html.trim().is_empty() {
         let layout = DaypressLayout {
             version: 1,
             root: DaypressNode {
                 id: "migrated_footer_root".to_string(),
                 kind: NodeKind::CustomHtml {
-                    raw: settings.elementor_footer_html.clone(),
+                    raw: settings.daystudio_footer_html.clone(),
                 },
                 styles: StyleProperties::default(),
                 children: Vec::new(),
@@ -88,11 +88,11 @@ pub fn ensure_legacy_headers_footers_synced(db: &Database, settings: &WpSettings
     }
 }
 
-/// Reads per-post slot override (`_np_header_override` or `_np_footer_override`) from `WpPostResponse.meta`
+/// Reads per-post slot override (`_np_header_override` or `_np_footer_override`) from `DaypressPostResponse.meta`
 /// or directly from `postmeta`.
 pub fn get_post_slot_override(
     db: &Database,
-    post: Option<&WpPostResponse>,
+    post: Option<&DaypressPostResponse>,
     slot: TemplateType,
 ) -> Option<String> {
     let key = match slot {
@@ -217,9 +217,9 @@ pub fn resolve_slot_status(
     slot: TemplateType,
     active_templates: &[ThemeTemplateRecord],
     ctx: &RequestContext,
-    post: Option<&WpPostResponse>,
+    post: Option<&DaypressPostResponse>,
     route_key: Option<&str>,
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
 ) -> ResolvedSlotStatus {
     let slot_label = if slot == TemplateType::Header {
         "Header"
@@ -361,9 +361,9 @@ pub fn resolve_slot_status(
     // 5. Fallback if no active template matched
     let has_any_tb_of_slot = active_templates.iter().any(|t| t.template_type == slot);
     let legacy_html = if slot == TemplateType::Header {
-        &settings.elementor_header_html
+        &settings.daystudio_header_html
     } else {
-        &settings.elementor_footer_html
+        &settings.daystudio_footer_html
     };
 
     if !has_any_tb_of_slot && !legacy_html.trim().is_empty() {
@@ -585,7 +585,7 @@ pub fn build_header_footer_matrix(db: &Database) -> HeaderFooterMatrixResponse {
     }
 
     // 2. Build Pages rows (ordered with Front Page first, then Main Menu, then Published)
-    let mut ordered_pages: Vec<&WpPostResponse> =
+    let mut ordered_pages: Vec<&DaypressPostResponse> =
         raw_pages.iter().filter(|p| p.status != "trash").collect();
     ordered_pages.sort_by(|a, b| {
         let a_front = a.id == settings.page_on_front;

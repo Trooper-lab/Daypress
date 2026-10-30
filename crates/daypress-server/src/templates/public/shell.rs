@@ -9,7 +9,7 @@ pub use super::head_meta::plain_text_excerpt;
 use super::head_meta::{render_head_meta, HeadMetaOutput};
 use super::site_chrome;
 use crate::auth::AuthUser;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::{escape_html, escape_json};
 use crate::theme_builder::models::ResolvedThemePartials;
 use daypress_ast::sanitize_ssr_html;
@@ -18,10 +18,10 @@ use daypress_ast::sanitize_ssr_html;
 /// dynamic Theme Builder partials, and Daypress AST element styles.
 pub fn render_base_layout(
     title: &str,
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     content: &str,
     current_user: Option<&AuthUser>,
-    current_post: Option<&WpPostResponse>,
+    current_post: Option<&DaypressPostResponse>,
     partials: Option<&ResolvedThemePartials>,
 ) -> String {
     let site_name = site_chrome::site_name(settings);
@@ -63,10 +63,10 @@ pub fn render_base_layout(
 
     let is_blank_template = site_chrome::is_blank_template(current_post);
 
-    let elementor_kit_css_block = if !settings.elementor_kit_css.trim().is_empty() {
+    let daystudio_kit_css_block = if !settings.daystudio_kit_css.trim().is_empty() {
         format!(
-            "\n\t<style id=\"daypress-elementor-kit-css\">\n{}\n\t</style>",
-            settings.elementor_kit_css
+            "\n\t<style id=\"daystudio-kit-css\">\n{}\n\t</style>",
+            settings.daystudio_kit_css
         )
     } else {
         String::new()
@@ -212,7 +212,7 @@ pub fn render_base_layout(
 
 	<style>
 		{public_theme_css}
-	</style>{elementor_kit_css_block}{custom_css_block}{theme_header_css}{theme_footer_css}{theme_head_assets}
+	</style>{daystudio_kit_css_block}{custom_css_block}{theme_header_css}{theme_footer_css}{theme_head_assets}
 </head>
 <body class="{full_body_class}">
 	{admin_bar_html}
@@ -228,7 +228,7 @@ pub fn render_base_layout(
 	<!-- Global Site Footer (100% Database-Driven) -->
 	{site_footer_html}
 
-	{elementor_popups_html}
+	{daystudio_popups_html}
 	<div id="dp-lightbox-modal" class="dp-lightbox-modal" role="dialog" aria-modal="true">
 		<div class="dp-lightbox-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
 		<button type="button" class="dp-lightbox-close" aria-label="Close" onclick="document.getElementById('dp-lightbox-modal').classList.remove('active')">&times;</button>
@@ -253,14 +253,14 @@ pub fn render_base_layout(
         title_json = escape_json(title),
         meta_desc_json = escape_json(&meta_desc),
         public_theme_css = super::styles::render_public_theme_css(&escape_html(brand_color)),
-        elementor_kit_css_block = elementor_kit_css_block,
+        daystudio_kit_css_block = daystudio_kit_css_block,
         custom_css_block = custom_css_block,
         theme_header_css = theme_header_css,
         theme_footer_css = theme_footer_css,
         theme_head_assets = theme_head_assets,
         site_header_html = site_header_html,
         site_footer_html = site_footer_html,
-        elementor_popups_html = settings.elementor_popups_html,
+        daystudio_popups_html = settings.daystudio_popups_html,
         content = content,
         full_body_class = full_body_class,
         admin_bar_html = admin_bar_html

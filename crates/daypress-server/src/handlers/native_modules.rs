@@ -94,7 +94,7 @@ pub async fn handle_admin_analytics(State(db): State<Database>) -> Html<String> 
         rows = top_pages_rows
     );
 
-    Html(templates::render_wp_admin_shell(
+    Html(templates::render_admin_shell(
         "analytics",
         "Cookieless Analytics",
         &content,
@@ -111,7 +111,7 @@ pub async fn handle_admin_seo(State(db): State<Database>) -> Html<String> {
     let seo = db.get_global_seo_settings().unwrap_or_default();
     let redirects = db.list_redirects().unwrap_or_default();
     let logs_404 = db.list_404_logs(100).unwrap_or_default();
-    Html(templates::render_wp_seo_view(
+    Html(templates::render_seo_view(
         &settings, &seo, &redirects, &logs_404,
     ))
 }
@@ -203,7 +203,7 @@ pub async fn handle_admin_forms(
     let entries = db
         .list_form_entries(params.form_id, 200)
         .unwrap_or_default();
-    Html(templates::render_wp_forms_view(
+    Html(templates::render_forms_view(
         &settings,
         &forms,
         &entries,
@@ -302,7 +302,7 @@ pub async fn handle_admin_forms_export_csv(
 pub async fn handle_admin_backups(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let snapshots = db.list_backup_snapshots().unwrap_or_default();
-    Html(templates::render_wp_backups_view(&settings, &snapshots))
+    Html(templates::render_backups_view(&settings, &snapshots))
 }
 
 #[derive(Debug, Deserialize)]
@@ -407,7 +407,7 @@ pub async fn handle_admin_plugin_settings(
     let settings = db.get_settings().unwrap_or_default();
     let slug = params.plugin.unwrap_or_else(|| "whatsapp-chat".to_string());
     let plugin = db.get_installed_plugin(&slug).ok().flatten();
-    Html(templates::render_wp_plugin_settings_view(
+    Html(templates::render_plugin_settings_view(
         &settings,
         plugin.as_ref(),
     ))

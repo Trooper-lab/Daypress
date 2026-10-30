@@ -1,4 +1,4 @@
-use crate::elementor::NavMenuItem;
+use crate::daystudio::NavMenuItem;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

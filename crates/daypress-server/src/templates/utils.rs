@@ -1,4 +1,4 @@
-pub fn clean_wp_content(raw: &str) -> String {
+pub fn clean_post_content(raw: &str) -> String {
     let Ok(re_blocks) = regex::Regex::new(r"<!--\s*/?wp:[^>]*-->") else {
         return raw.trim().to_string();
     };
@@ -67,7 +67,7 @@ pub fn clean_wp_content(raw: &str) -> String {
         s = re_unknown.replace_all(&s, "").into_owned();
     }
 
-    s.trim().to_string()
+    crate::legacy::rewrite_daystudio_style_prefixes(s.trim())
 }
 
 pub fn escape_html(s: &str) -> String {
@@ -156,16 +156,16 @@ mod tests {
     }
 
     #[test]
-    fn test_clean_wp_content() {
+    fn test_clean_post_content() {
         let raw = "<!-- wp:paragraph -->\n<p>Hello world</p>\n<!-- /wp:paragraph -->";
-        assert_eq!(clean_wp_content(raw), "<p>Hello world</p>");
+        assert_eq!(clean_post_content(raw), "<p>Hello world</p>");
     }
 
     #[test]
-    fn test_shortcodes_in_clean_wp_content() {
+    fn test_shortcodes_in_clean_post_content() {
         let raw =
             r#"[caption id="1"]<img src="a.jpg" /> Cute cat[/caption] [audio src="song.mp3"]"#;
-        let cleaned = clean_wp_content(raw);
+        let cleaned = clean_post_content(raw);
         assert!(
             cleaned.contains(r#"<figure class="wp-caption"><img src="a.jpg" /> Cute cat</figure>"#)
         );

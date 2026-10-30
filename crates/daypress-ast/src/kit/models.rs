@@ -74,7 +74,7 @@ where
     deserialize_u32_or_size(deserializer, default_widgets_space())
 }
 
-/// Represents a single global color token translated from Elementor's Global_Colors kit.
+/// Represents a single global color token in the DayStudio Design Kit.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GlobalColor {
     #[serde(alias = "_id")]
@@ -85,7 +85,7 @@ pub struct GlobalColor {
     pub color: String,
 }
 
-/// Represents a typography token translated from Elementor's Global_Typography kit.
+/// Represents a typography token in the DayStudio Design Kit.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GlobalTypography {
     #[serde(alias = "_id")]
@@ -124,9 +124,9 @@ pub(crate) fn default_font_family() -> String {
     "Roboto, sans-serif".to_string()
 }
 
-/// Elementor Kit Site Settings translated from Elementor Core PHP (elementor/core/kits/).
+/// DayStudio Global Design Kit settings (colors, typography, container width, and spacing).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ElementorKit {
+pub struct DaystudioKit {
     #[serde(default = "default_system_colors")]
     pub system_colors: Vec<GlobalColor>,
     #[serde(default)]
@@ -245,7 +245,7 @@ pub fn default_system_typography() -> Vec<GlobalTypography> {
     ]
 }
 
-impl Default for ElementorKit {
+impl Default for DaystudioKit {
     fn default() -> Self {
         Self {
             system_colors: default_system_colors(),

@@ -264,7 +264,7 @@ pub async fn handle_single_paged(
 /// One page of the blog index (`posts_per_page` posts), with older/newer links.
 fn blog_index_response(
     db: &Database,
-    settings: &models::WpSettingsResponse,
+    settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
     page: usize,
 ) -> Response {
@@ -290,9 +290,9 @@ fn blog_index_response(
 /// One page of the posts page archive, with older/newer links under `/{slug}/page/N/`.
 fn posts_page_response(
     db: &Database,
-    settings: &models::WpSettingsResponse,
+    settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
-    post: &models::WpPostResponse,
+    post: &models::DaypressPostResponse,
     page: usize,
 ) -> Response {
     let per_page = settings.posts_per_page.clamp(1, 100) as usize;
@@ -333,7 +333,7 @@ fn posts_page_response(
 
 fn not_found_response(
     db: &Database,
-    settings: &models::WpSettingsResponse,
+    settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
     path: &str,
 ) -> Response {
@@ -475,7 +475,7 @@ pub async fn handle_single(
 
 pub(crate) fn hydrate_post_terms(
     db: &Database,
-    post: &models::WpPostResponse,
+    post: &models::DaypressPostResponse,
 ) -> Vec<TaxonomyTermRef> {
     let mut terms = Vec::new();
     if let Ok(conn) = db.conn.lock() {

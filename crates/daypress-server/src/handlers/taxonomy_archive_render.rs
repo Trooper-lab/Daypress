@@ -2,7 +2,7 @@
 
 use crate::auth::AuthUser;
 use crate::db::Database;
-use crate::models::WpSettingsResponse;
+use crate::models::DaypressSettingsResponse;
 use crate::templates;
 use crate::templates::admin::layout::format_cpt_title;
 use crate::theme_builder::models::RequestContext;
@@ -18,7 +18,7 @@ pub fn try_handle_taxonomy_archive(
     db: &Database,
     taxonomy: &str,
     slug: &str,
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     user: Option<&AuthUser>,
 ) -> Option<Response> {
     let term = db.get_taxonomy_term(taxonomy, slug).ok()??;

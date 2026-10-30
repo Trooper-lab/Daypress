@@ -7,43 +7,144 @@ use crate::models::*;
 use base64::Engine;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+/// Computes a standard Gravatar URL (SHA-256 hex of trimmed lowercase email) with `identicon` fallback.
+pub fn gravatar_url_for_email(email: &str, size: u32) -> String {
+    let clean = email.trim().to_ascii_lowercase();
+    let hash = crate::auth::sha256_hex(clean.as_bytes());
+    format!(
+        "https://www.gravatar.com/avatar/{}?s={}&d=identicon",
+        hash, size
+    )
+}
+
+fn parse_bool_meta(val: Option<&String>, default: bool) -> bool {
+    match val.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+        Some("false" | "0" | "no" | "off") => false,
+        Some("true" | "1" | "yes" | "on") => true,
+        _ => default,
+    }
+}
+
 impl Database {
-    pub fn get_user_detail(&self, id: i64) -> Result<Option<WpUserDetail>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            r#"SELECT u.ID, u.user_login, u.display_name, u.user_email, u.user_url, u.user_registered,
-                      COALESCE((SELECT meta_value FROM usermeta WHERE user_id = u.ID AND meta_key = 'role'), 'Administrator') as role
-               FROM users u WHERE u.ID = ?1"#
-        )?;
-
-        let mut rows = stmt.query_map(params![id], |row| {
-            let id: i64 = row.get(0)?;
-            let username: String = row.get(1)?;
-            let display_name: String = row.get(2)?;
-            let email: String = row.get(3)?;
-            let url: String = row.get(4)?;
-            let registered: String = row.get(5)?;
-            let role: String = row.get(6)?;
-
-            Ok(WpUserDetail {
-                id,
-                username,
-                display_name,
-                email,
-                url,
-                registered: registered.replace(' ', "T"),
-                role,
-            })
-        })?;
-
-        match rows.next() {
-            Some(res) => Ok(Some(res?)),
-            None => Ok(None),
+    pub(crate) fn read_usermeta_map(conn: &Connection, user_id: i64) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        if let Ok(mut stmt) = conn.prepare_cached(
+            "SELECT meta_key, COALESCE(meta_value, '') FROM usermeta WHERE user_id = ?1",
+        ) {
+            if let Ok(rows) = stmt.query_map(params![user_id], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            }) {
+                for (k, v) in rows.flatten() {
+                    map.insert(k, v);
+                }
+            }
         }
+        map
+    }
+
+    pub(crate) fn upsert_usermeta(
+        conn: &Connection,
+        user_id: i64,
+        key: &str,
+        value: &str,
+    ) -> Result<()> {
+        conn.execute(
+            "DELETE FROM usermeta WHERE user_id = ?1 AND meta_key = ?2",
+            params![user_id, key],
+        )?;
+        conn.execute(
+            "INSERT INTO usermeta (user_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
+            params![user_id, key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_user_detail(&self, id: i64) -> Result<Option<DaypressUserDetail>> {
+        let conn = self.conn.lock().unwrap();
+        let base_row: Option<(i64, String, String, String, String, String)> = conn
+            .query_row(
+                "SELECT u.ID, u.user_login, u.display_name, u.user_email, u.user_url, u.user_registered FROM users u WHERE u.ID = ?1",
+                params![id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .ok();
+
+        let Some((id, username, display_name, email, url, registered)) = base_row else {
+            return Ok(None);
+        };
+
+        let meta = Self::read_usermeta_map(&conn, id);
+        let role = meta
+            .get("role")
+            .cloned()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "Administrator".to_string());
+        let first_name = meta.get("first_name").cloned().unwrap_or_default();
+        let last_name = meta.get("last_name").cloned().unwrap_or_default();
+        let nickname = meta
+            .get("nickname")
+            .cloned()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| username.clone());
+        let description = meta.get("description").cloned().unwrap_or_default();
+        let locale = meta.get("locale").cloned().unwrap_or_default();
+        let rich_editing = parse_bool_meta(meta.get("rich_editing"), true);
+        let syntax_highlighting = parse_bool_meta(meta.get("syntax_highlighting"), true);
+        let comment_shortcuts = parse_bool_meta(meta.get("comment_shortcuts"), false);
+        let admin_color = meta
+            .get("admin_color")
+            .cloned()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "default".to_string());
+        let show_admin_bar_front = parse_bool_meta(meta.get("show_admin_bar_front"), true);
+        let custom_avatar = meta.get("daypress_avatar_url").cloned().unwrap_or_default();
+        let avatar_url = if custom_avatar.trim().is_empty() {
+            gravatar_url_for_email(&email, 96)
+        } else {
+            custom_avatar
+        };
+        let session_ver = meta
+            .get("daypress_session_ver")
+            .and_then(|v| v.trim().parse::<i64>().ok())
+            .unwrap_or(0);
+
+        crate::auth::sync_user_ui_prefs(id, show_admin_bar_front, &avatar_url);
+
+        Ok(Some(DaypressUserDetail {
+            id,
+            username,
+            display_name,
+            email,
+            url,
+            registered: registered.replace(' ', "T"),
+            role,
+            first_name,
+            last_name,
+            nickname,
+            description,
+            locale,
+            rich_editing,
+            syntax_highlighting,
+            comment_shortcuts,
+            admin_color,
+            show_admin_bar_front,
+            avatar_url,
+            session_ver,
+        }))
     }
 
     pub fn get_all_users(&self) -> Result<Vec<UserListItem>> {
@@ -51,7 +152,8 @@ impl Database {
         let mut stmt = conn.prepare(
             r#"SELECT u.ID, u.user_login, u.display_name, u.user_email, u.user_url, u.user_registered,
                       COALESCE((SELECT meta_value FROM usermeta WHERE user_id = u.ID AND meta_key = 'role'), 'Administrator') as role,
-                      (SELECT count(*) FROM posts WHERE post_author = u.ID AND post_type = 'post' AND post_status = 'publish') as post_count
+                      (SELECT count(*) FROM posts WHERE post_author = u.ID AND post_type = 'post' AND post_status = 'publish') as post_count,
+                      COALESCE((SELECT meta_value FROM usermeta WHERE user_id = u.ID AND meta_key = 'daypress_avatar_url'), '') as avatar_url
                FROM users u
                ORDER BY u.ID ASC"#
         )?;
@@ -65,6 +167,12 @@ impl Database {
             let registered: String = row.get(5)?;
             let role: String = row.get(6)?;
             let post_count: i64 = row.get(7)?;
+            let raw_avatar: String = row.get(8)?;
+            let avatar_url = if raw_avatar.trim().is_empty() {
+                gravatar_url_for_email(&email, 64)
+            } else {
+                raw_avatar
+            };
 
             Ok(UserListItem {
                 id,
@@ -75,6 +183,7 @@ impl Database {
                 registered: registered.replace(' ', "T"),
                 role,
                 post_count,
+                avatar_url,
             })
         })?;
 
@@ -85,7 +194,7 @@ impl Database {
         Ok(list)
     }
 
-    pub fn create_user(&self, req: &CreateUserRequest) -> Result<WpUserDetail, AppError> {
+    pub fn create_user(&self, req: &CreateUserRequest) -> Result<DaypressUserDetail, AppError> {
         let username = req.username.trim();
         let email = req.email.trim();
         if username.is_empty() {
@@ -114,6 +223,7 @@ impl Database {
             .display_name
             .as_deref()
             .or(req.name.as_deref())
+            .filter(|s| !s.trim().is_empty())
             .unwrap_or(username);
         let nicename = generated_slugify::slugify(username);
         let url = req.url.as_deref().unwrap_or("");
@@ -130,35 +240,34 @@ impl Database {
 
         let id = tx.last_insert_rowid();
 
-        tx.execute(
-            "INSERT INTO usermeta (user_id, meta_key, meta_value) VALUES (?1, 'role', ?2)",
-            params![id, role],
+        Self::upsert_usermeta(&tx, id, "role", role)?;
+        Self::upsert_usermeta(
+            &tx,
+            id,
+            "nickname",
+            req.nickname
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(username),
         )?;
 
         if let Some(fn_str) = &req.first_name {
-            let _ = tx.execute(
-                "INSERT INTO usermeta (user_id, meta_key, meta_value) VALUES (?1, 'first_name', ?2)",
-                params![id, fn_str],
-            );
+            let _ = Self::upsert_usermeta(&tx, id, "first_name", fn_str.trim());
         }
         if let Some(ln_str) = &req.last_name {
-            let _ = tx.execute(
-                "INSERT INTO usermeta (user_id, meta_key, meta_value) VALUES (?1, 'last_name', ?2)",
-                params![id, ln_str],
-            );
+            let _ = Self::upsert_usermeta(&tx, id, "last_name", ln_str.trim());
+        }
+        if let Some(desc) = &req.description {
+            let _ = Self::upsert_usermeta(&tx, id, "description", desc.trim());
+        }
+        if let Some(loc) = &req.locale {
+            let _ = Self::upsert_usermeta(&tx, id, "locale", loc.trim());
         }
 
         tx.commit()?;
+        drop(conn);
 
-        Ok(WpUserDetail {
-            id,
-            username: username.to_string(),
-            display_name: display_name.to_string(),
-            email: email.to_string(),
-            url: url.to_string(),
-            registered: now.replace(' ', "T"),
-            role: role.to_string(),
-        })
+        Ok(self.get_user_detail(id)?.unwrap_or_default())
     }
 
     pub fn delete_user(&self, id: i64) -> Result<bool, AppError> {
@@ -192,25 +301,28 @@ impl Database {
         &self,
         id: i64,
         req: &UpdateUserRequest,
-    ) -> Result<Option<WpUserDetail>> {
+    ) -> Result<Option<DaypressUserDetail>> {
         let conn = self.conn.lock().unwrap();
 
         if let Some(display_name) = req.display_name.as_ref().or(req.name.as_ref()) {
-            conn.execute(
-                "UPDATE users SET display_name = ?1, user_nicename = ?2 WHERE ID = ?3",
-                params![display_name, generated_slugify::slugify(display_name), id],
-            )?;
+            let clean_dn = display_name.trim();
+            if !clean_dn.is_empty() {
+                conn.execute(
+                    "UPDATE users SET display_name = ?1 WHERE ID = ?2",
+                    params![clean_dn, id],
+                )?;
+            }
         }
         if let Some(email) = &req.email {
             conn.execute(
                 "UPDATE users SET user_email = ?1 WHERE ID = ?2",
-                params![email, id],
+                params![email.trim(), id],
             )?;
         }
         if let Some(url) = &req.url {
             conn.execute(
                 "UPDATE users SET user_url = ?1 WHERE ID = ?2",
-                params![url, id],
+                params![url.trim(), id],
             )?;
         }
         if let Some(pass) = &req.password {
@@ -224,19 +336,91 @@ impl Database {
         }
         if let Some(role) = &req.role {
             if !role.trim().is_empty() {
-                let _ = conn.execute(
-                    "DELETE FROM usermeta WHERE user_id = ?1 AND meta_key = 'role'",
-                    params![id],
-                );
-                let _ = conn.execute(
-                    "INSERT INTO usermeta (user_id, meta_key, meta_value) VALUES (?1, 'role', ?2)",
-                    params![id, role.trim()],
-                );
+                Self::upsert_usermeta(&conn, id, "role", role.trim())?;
             }
+        }
+        if let Some(first_name) = &req.first_name {
+            Self::upsert_usermeta(&conn, id, "first_name", first_name.trim())?;
+        }
+        if let Some(last_name) = &req.last_name {
+            Self::upsert_usermeta(&conn, id, "last_name", last_name.trim())?;
+        }
+        if let Some(nickname) = &req.nickname {
+            let clean_nick = nickname.trim();
+            if !clean_nick.is_empty() {
+                Self::upsert_usermeta(&conn, id, "nickname", clean_nick)?;
+            }
+        }
+        if let Some(description) = &req.description {
+            Self::upsert_usermeta(&conn, id, "description", description.trim())?;
+        }
+        if let Some(locale) = &req.locale {
+            Self::upsert_usermeta(&conn, id, "locale", locale.trim())?;
+        }
+        if let Some(rich) = req.rich_editing {
+            Self::upsert_usermeta(
+                &conn,
+                id,
+                "rich_editing",
+                if rich { "true" } else { "false" },
+            )?;
+        }
+        if let Some(syn) = req.syntax_highlighting {
+            Self::upsert_usermeta(
+                &conn,
+                id,
+                "syntax_highlighting",
+                if syn { "true" } else { "false" },
+            )?;
+        }
+        if let Some(sc) = req.comment_shortcuts {
+            Self::upsert_usermeta(
+                &conn,
+                id,
+                "comment_shortcuts",
+                if sc { "true" } else { "false" },
+            )?;
+        }
+        if let Some(color) = &req.admin_color {
+            let valid = match color.trim() {
+                "light" | "modern" | "blue" | "coffee" | "ectoplasm" | "midnight" | "ocean"
+                | "sunrise" => color.trim(),
+                _ => "default",
+            };
+            Self::upsert_usermeta(&conn, id, "admin_color", valid)?;
+        }
+        if let Some(bar) = req.show_admin_bar_front {
+            Self::upsert_usermeta(
+                &conn,
+                id,
+                "show_admin_bar_front",
+                if bar { "true" } else { "false" },
+            )?;
+        }
+        if let Some(avatar) = &req.avatar_url {
+            Self::upsert_usermeta(&conn, id, "daypress_avatar_url", avatar.trim())?;
         }
 
         drop(conn);
         self.get_user_detail(id)
+    }
+
+    /// Increments the user's `daypress_session_ver` in `usermeta`, invalidating all older session cookies
+    /// for this user ("Log Out Everywhere Else"). Returns the new session version.
+    pub fn bump_user_session_version(&self, user_id: i64) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let current: i64 = conn
+            .query_row(
+                "SELECT meta_value FROM usermeta WHERE user_id = ?1 AND meta_key = 'daypress_session_ver'",
+                params![user_id],
+                |r| r.get::<_, String>(0),
+            )
+            .ok()
+            .and_then(|v| v.trim().parse::<i64>().ok())
+            .unwrap_or(0);
+        let next = current + 1;
+        Self::upsert_usermeta(&conn, user_id, "daypress_session_ver", &next.to_string())?;
+        Ok(next)
     }
 
     // --- Authentication & Application Passwords ---
@@ -446,6 +630,15 @@ impl Database {
         Ok(rows > 0)
     }
 
+    pub fn delete_all_application_passwords(&self, user_id: i64) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "DELETE FROM application_passwords WHERE user_id = ?1",
+            params![user_id],
+        )?;
+        Ok(rows)
+    }
+
     pub fn export_personal_data(&self, identifier: &str) -> Result<serde_json::Value> {
         let conn = self.conn.lock().unwrap();
         let user: Option<(i64, String, String, String)> = conn
@@ -456,11 +649,11 @@ impl Database {
             )
             .ok();
 
-        let comments: Vec<WpCommentAdminItem> = conn
+        let comments: Vec<DaypressCommentAdminItem> = conn
             .prepare("SELECT c.comment_ID, c.comment_post_ID, COALESCE(p.post_title, 'Post'), c.comment_author, c.comment_author_email, c.comment_author_url, c.comment_author_IP, c.comment_content, c.comment_date, c.comment_approved FROM comments c LEFT JOIN posts p ON c.comment_post_ID = p.ID WHERE c.comment_author_email = ?1 OR c.comment_author = ?1")
             .and_then(|mut stmt| {
                 let rows = stmt.query_map(params![identifier], |r| {
-                    Ok(WpCommentAdminItem {
+                    Ok(DaypressCommentAdminItem {
                         id: r.get(0)?,
                         post_id: r.get(1)?,
                         post_title: r.get(2)?,

@@ -62,13 +62,13 @@ impl From<AppError> for DomainError {
 /// 1:1 WordPress REST API Error format:
 /// `{"code": "rest_...", "message": "...", "data": {"status": 404}}`
 #[derive(Debug, Serialize)]
-pub struct WpErrorResponse {
+pub struct DaypressErrorResponse {
     pub code: String,
     pub message: String,
-    pub data: WpErrorData,
+    pub data: DaypressErrorData,
 }
 
 #[derive(Debug, Serialize)]
-pub struct WpErrorData {
+pub struct DaypressErrorData {
     pub status: u16,
 }

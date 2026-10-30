@@ -264,7 +264,7 @@ pub fn render_modals() -> &'static str {
 </div>
 
 <!-- Toast Notification -->
-<div id="elementor-toast" class="daystudio-toast">
+<div id="daystudio-toast" class="daystudio-toast">
     <i class="fa-solid fa-circle-check toast-icon"></i>
     <span id="toast-text">Changes saved to SQLite</span>
 </div>"###

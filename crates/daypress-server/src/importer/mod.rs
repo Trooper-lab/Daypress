@@ -21,7 +21,7 @@ pub use urls::normalize_menu_url;
 
 use crate::errors::AppError;
 use crate::importer::assets::{
-    build_divi_global_css, persist_elementor_kit_styles, resolve_and_persist_theme_assets,
+    build_divi_global_css, persist_daystudio_kit_styles, resolve_and_persist_theme_assets,
 };
 use crate::importer::ast_pass::execute_ast_pass2;
 use crate::importer::forms::ingest_forms_and_spb;
@@ -169,7 +169,7 @@ pub fn import_wxr_stream<R: BufRead>(
     )?;
 
     if let Some(ref kit_raw) = pass1.detected_kit_raw_settings {
-        let _ = persist_elementor_kit_styles(&tx, kit_raw);
+        let _ = persist_daystudio_kit_styles(&tx, kit_raw);
     }
 
     if let Some(ref logo_url) = pass1.detected_logo_url {

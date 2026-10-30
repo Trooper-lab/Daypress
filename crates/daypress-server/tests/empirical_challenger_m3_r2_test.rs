@@ -135,7 +135,7 @@ async fn test_challenger_base_url_precedence_reverse_tag_order() {
 }
 
 #[tokio::test]
-async fn test_challenger_elementor_kit_css_full_token_injection() {
+async fn test_challenger_daystudio_kit_css_full_token_injection() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
 
     let wxr = r##"<?xml version="1.0" encoding="UTF-8" ?>
@@ -218,7 +218,7 @@ async fn test_challenger_elementor_kit_css_full_token_injection() {
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&body);
 
-    assert!(html.contains(r#"<style id="daypress-elementor-kit-css">"#));
+    assert!(html.contains(r#"<style id="daystudio-kit-css">"#));
     assert!(html.contains("--e-global-color-primary: #1e3a8a;"));
     assert!(html.contains("--e-global-typography-primary-font-family: Plus Jakarta Sans;"));
     assert!(html.contains("Welcome to our styled page"));

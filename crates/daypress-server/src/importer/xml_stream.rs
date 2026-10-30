@@ -112,7 +112,12 @@ fn process_xml_text(
                 "wp:post_name" => item.slug = text.to_string(),
                 "content:encoded" => item.content.push_str(text),
                 "excerpt:encoded" => item.excerpt.push_str(text),
-                "wp:post_date" | "wp:post_date_gmt" => {
+                "wp:post_date_gmt" => {
+                    if !text.trim().is_empty() && !text.trim().starts_with("0000") {
+                        item.post_date_gmt = text.to_string();
+                    }
+                }
+                "wp:post_date" => {
                     if item.post_date.is_empty() {
                         item.post_date = text.to_string();
                     }

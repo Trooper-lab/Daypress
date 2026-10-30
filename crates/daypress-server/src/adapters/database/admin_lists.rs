@@ -39,7 +39,10 @@ pub struct AdminPostListQuery {
 impl Database {
     /// Paged, filtered and sorted admin listing for a single post type.
     /// Returns the hydrated rows of the requested page plus the total matching row count.
-    pub fn admin_list_posts(&self, q: &AdminPostListQuery) -> Result<(Vec<WpPostResponse>, usize)> {
+    pub fn admin_list_posts(
+        &self,
+        q: &AdminPostListQuery,
+    ) -> Result<(Vec<DaypressPostResponse>, usize)> {
         let conn = self.conn.lock().unwrap();
         let base_url = Self::get_base_url_with_conn(&conn);
 

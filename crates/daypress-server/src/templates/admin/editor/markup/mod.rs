@@ -8,9 +8,10 @@ mod shell;
 mod sidebar;
 
 use crate::models::{
-    TaxonomyInfo, WpCategoryResponse, WpMediaResponse, WpPostResponse, WpSettingsResponse,
+    DaypressCategoryResponse, DaypressMediaResponse, DaypressPostResponse,
+    DaypressSettingsResponse, TaxonomyInfo,
 };
-use crate::templates::admin::layout::render_wp_admin_shell;
+use crate::templates::admin::layout::render_admin_shell;
 use crate::templates::utils::escape_html;
 use custom_fields::render_custom_fields_card;
 use meta::render_acf_fields_card;
@@ -20,14 +21,14 @@ use shell::{
 use sidebar::{render_editor_sidebar, SidebarParams};
 
 #[allow(clippy::too_many_arguments)]
-pub fn render_wp_post_new_view(
-    settings: &WpSettingsResponse,
+pub fn render_post_new_view(
+    settings: &DaypressSettingsResponse,
     post_type: &str,
-    existing: Option<&WpPostResponse>,
-    all_pages: &[WpPostResponse],
-    all_categories: &[WpCategoryResponse],
-    all_tags: &[WpCategoryResponse],
-    all_media: &[WpMediaResponse],
+    existing: Option<&DaypressPostResponse>,
+    all_pages: &[DaypressPostResponse],
+    all_categories: &[DaypressCategoryResponse],
+    all_tags: &[DaypressCategoryResponse],
+    all_media: &[DaypressMediaResponse],
     has_visual_layout: bool,
     taxonomies: &[TaxonomyInfo],
 ) -> String {
@@ -207,7 +208,18 @@ pub fn render_wp_post_new_view(
         String::new()
     };
     // Gutenberg/ACF content opens in the block inspector; everything else in the visual editor.
+    let rich_editing = crate::auth::current_admin()
+        .map(|a| a.rich_editing)
+        .unwrap_or(true);
     let initial_mode = if uses_acf || initial_content.contains("&lt;!-- wp:") {
+        "blocks"
+    } else if !rich_editing {
+        "html"
+    } else {
+        "visual"
+    };
+    if false {
+        let _ = "blocks";
         "blocks"
     } else {
         "visual"
@@ -384,5 +396,5 @@ pub fn render_wp_post_new_view(
         "post" => "posts",
         other => other,
     };
-    render_wp_admin_shell(tab, &title_label, &body, settings)
+    render_admin_shell(tab, &title_label, &body, settings)
 }

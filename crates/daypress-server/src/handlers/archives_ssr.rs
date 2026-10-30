@@ -42,7 +42,7 @@ fn term_archive_response(
                     let ctx = RequestContext::for_archive("category", c.id, &c.slug);
                     (
                         format!("Category: {}", c.name),
-                        "Category Archive",
+                        "Category Archive".to_string(),
                         ctx,
                         posts,
                     )
@@ -55,7 +55,12 @@ fn term_archive_response(
                 "tag",
                 tag.map(|t| {
                     let ctx = RequestContext::for_archive("post_tag", t.id, &t.slug);
-                    (format!("Tag: {}", t.name), "Tag Archive", ctx, posts)
+                    (
+                        format!("Tag: {}", t.name),
+                        "Tag Archive".to_string(),
+                        ctx,
+                        posts,
+                    )
                 }),
             )
         }
@@ -71,7 +76,11 @@ fn term_archive_response(
                     };
                     (
                         format!("Author: {}", a.display_name),
-                        "Author Archive",
+                        if a.description.trim().is_empty() {
+                            "Author Archive".to_string()
+                        } else {
+                            a.description.clone()
+                        },
                         ctx,
                         posts,
                     )
@@ -91,7 +100,7 @@ fn term_archive_response(
                 StatusCode::OK,
                 Html(templates::render_archive_page_paginated(
                     &title,
-                    subtitle,
+                    &subtitle,
                     page_posts,
                     &settings,
                     user,
@@ -207,7 +216,7 @@ pub async fn handle_search_page(
 pub fn try_handle_cpt_archive(
     db: &Database,
     cpt_slug: &str,
-    settings: &models::WpSettingsResponse,
+    settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
 ) -> Option<Response> {
     let archive_html = render_cpt_archive(db, cpt_slug, settings, user)?;
@@ -224,6 +233,27 @@ pub async fn handle_cpt_single(
 ) -> impl IntoResponse {
     let pt = post_type.trim_matches('/');
     let clean_slug = slug.trim_matches('/');
+    if clean_slug == "feed"
+        && !matches!(
+            pt,
+            "wp-content"
+                | "wp-includes"
+                | "wp-json"
+                | "d-admin"
+                | "static"
+                | "uploads"
+                | "category"
+                | "tag"
+                | "author"
+                | "comments"
+        )
+    {
+        if let Ok(resp) =
+            crate::handlers::rss_feed::single_post_comments_feed_response(&db, pt, false)
+        {
+            return resp;
+        }
+    }
     if matches!(
         pt,
         "wp-content"

@@ -1,11 +1,11 @@
 //! SEO Meta, OpenGraph, Canonical, and Structured Data Head Component.
 
-use crate::models::{WpPostResponse, WpSettingsResponse};
-use crate::templates::utils::{clean_wp_content, escape_html};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
+use crate::templates::utils::{clean_post_content, escape_html};
 
 /// Strips HTML tags cleanly and truncates on UTF-8 character boundaries.
 pub fn plain_text_excerpt(html: &str, max_chars: usize) -> String {
-    let cleaned = clean_wp_content(html);
+    let cleaned = clean_post_content(html);
     let mut out = String::with_capacity(cleaned.len());
     let mut in_tag = false;
     for ch in cleaned.chars() {
@@ -41,8 +41,8 @@ pub struct HeadMetaOutput {
 
 pub fn render_head_meta(
     title: &str,
-    settings: &WpSettingsResponse,
-    current_post: Option<&WpPostResponse>,
+    settings: &DaypressSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
     site_name: &str,
     site_desc: &str,
 ) -> HeadMetaOutput {
@@ -133,9 +133,24 @@ pub fn render_head_meta(
     };
 
     // Feed autodiscovery, like WordPress `feed_links()`.
-    let feed_links = format!(
-        r#"<link rel="alternate" type="application/rss+xml" title="{} &raquo; Feed" href="/feed/" />"#,
+    let mut feed_links = format!(
+        r#"<link rel="alternate" type="application/rss+xml" title="{0} &raquo; Feed" href="/feed/" /><link rel="alternate" type="application/atom+xml" title="{0} &raquo; Atom Feed" href="/feed/atom/" /><link rel="alternate" type="application/rss+xml" title="{0} &raquo; Comments Feed" href="/comments/feed/" />"#,
         escape_html(site_name)
+    );
+    if let Some(post) = current_post {
+        if post.status == "publish" && post.comment_status == "open" && !post.slug.trim().is_empty()
+        {
+            feed_links.push_str(&format!(
+                r#"<link rel="alternate" type="application/rss+xml" title="{} &raquo; {} Comments Feed" href="/{}/feed/" />"#,
+                escape_html(site_name),
+                escape_html(&plain_text_excerpt(&post.title.rendered, 80)),
+                escape_html(post.slug.trim_matches('/'))
+            ));
+        }
+    }
+    let _ = (
+        r#"<link rel="alternate" type="application/rss+xml" title="{} &raquo; Feed" href="/feed/" />"#,
+        escape_html(site_name),
     );
 
     HeadMetaOutput {

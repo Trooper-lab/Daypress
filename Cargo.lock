@@ -475,7 +475,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "daypress-ast"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "regex",
  "serde",
@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-server"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "axum",
@@ -493,6 +493,7 @@ dependencies = [
  "chrono",
  "clap",
  "daypress-ast",
+ "flate2",
  "generated_slugify",
  "getrandom 0.2.17",
  "hex",
@@ -501,7 +502,9 @@ dependencies = [
  "lettre",
  "quick-xml",
  "regex",
+ "reqwest",
  "rusqlite",
+ "semver",
  "serde",
  "serde_json",
  "sha2",
@@ -515,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-transpiler"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "clap",
  "regex",
@@ -776,7 +779,7 @@ dependencies = [
 
 [[package]]
 name = "generated_slugify"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "regex",
  "serde",

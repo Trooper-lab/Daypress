@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.1).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.2).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -21,24 +21,25 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 
 **Running it**
 - One binary built with Axum and Tokio, with an embedded SQLite database (WAL mode). Static assets are compiled into the binary.
+- Built-in self-updater (`/d-admin/updates` and `/d-admin/system?tab=updates`): 24-hour background GitHub release check, SHA-256 checksum verification, automatic pre-update SQLite snapshot, atomic executable hot-swap, manual `.tar.gz` / `.zip` archive upload, and 1-click rollback.
 - A release workflow builds binaries for Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon and Intel) for each version tag and attaches them, with SHA-256 checksums, to the GitHub release.
 - A `Dockerfile` and `docker-compose.yml` that keep the database, uploads, and backups in one volume.
 - CI builds and tests every change on Linux, Windows, and macOS.
 
 **Writing and managing content**
 - Posts, pages, categories, tags, and navigation menus.
-- A post editor with visual, block, and HTML source modes.
+- A post editor with visual, block, and HTML source modes, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
 - Media uploads, with thumbnail, medium, and WebP versions generated automatically.
 - Comments with moderation and discussion settings (who can comment, manual approval).
-- Users with application passwords, plus personal data export and erase tools.
+- Users with application passwords, per-user session sign-out ("Log Out Everywhere Else" on `/d-admin/profile`), plus personal data export and erase tools.
 - Blog index, category, tag, and author archives with pagination, plus site search.
-- Scheduled posts: publish with a future date, and the post stays off the site, the feeds, `sitemap.xml`, and the public REST API until that time.
-- RSS 2.0 feeds for the blog (`/feed/`) and for each category and tag (`/category/<slug>/feed/`, `/tag/<slug>/feed/`).
+- Scheduled posts and a configurable site time zone (`timezone_string` / `gmt_offset` under **Settings → General**, also applied to naive timestamps during WXR and JSON bundle imports): publish with a future date, and the post stays off the site, the feeds, `sitemap.xml`, and the public REST API until that time.
+- RSS 2.0 and Atom 1.0 feeds for the blog (`/feed/`, `/feed/atom/`), categories and tags (`/category/<slug>/feed/`, `/tag/<slug>/feed/`), site-wide comments (`/comments/feed/`, `/comments/feed/atom/`), and per-post comment feeds (`/<slug>/feed/`), with `<link rel="alternate">` discovery tags.
 - A new install starts with sample content you can edit or delete: a "Hello world!" post, a sample page, and a page built with DayStudio.
 
 **Designing the site**
 - **DayStudio**, a drag-and-drop page builder: sections, containers, grids, headings, text, buttons, images, video, and more. Layouts are stored as JSON and rendered on the server.
-- The DayStudio canvas loads the site's header, footer, and theme CSS, and lays out grids in columns, like the published page.
+- The DayStudio canvas loads the site's header, footer, and theme CSS, and matches the published page across desktop (`1200px`), tablet (`768px`), and mobile (`375px`) breakpoints, including root-level (`body`, `:root`, `html`) container queries and font-stack parity.
 - A header and footer manager with starter templates and per-page rules.
 - A customizer for colors, fonts, and custom CSS.
 
@@ -76,7 +77,7 @@ This list is long on purpose. If something here matters to you, an issue or pull
 **Installing and updating**
 - There is no installer, no distribution package, and no published Docker image (you build the image yourself with `docker compose`).
 - The binaries are not code-signed, so macOS Gatekeeper and Windows SmartScreen warn before running them.
-- There is no update checker or automatic update. To update, you replace the binary (or rebuild) and restart.
+- Built-in self-updater in `/d-admin/updates` (or manual `.tar.gz` / `.zip` archive upload) with automatic pre-update SQLite snapshot and 1-click rollback.
 - The database schema may still change before 1.0, so back up before upgrading.
 
 **WordPress compatibility**
@@ -91,16 +92,16 @@ This list is long on purpose. If something here matters to you, an issue or pull
 - Your [migration reports](https://github.com/Trooper-lab/daypress/issues/new/choose) are the fastest way to improve this.
 
 **Content and publishing**
-- No Atom feeds and no comments feed.
-- No revision history.
-- There is no site time zone setting: scheduled times are stored and compared in UTC. Posts imported from a WordPress site in another time zone can go live off by that site's UTC offset.
+- Atom 1.0 feeds (`/feed/atom/`), RSS 2.0 & Atom comments feeds (`/comments/feed/`, `/comments/feed/atom/`), per-post comment feeds (`/{slug}/feed/`), and `<link rel="alternate">` discovery tags are built in.
+- Post and page revision snapshots are saved automatically on edit, with restore/delete controls in the Post Editor and a bulk revision cleanup tool in `/d-admin/tools` (`/wp-json/daypress/v1/revisions/clean`).
+- Site time zone (`timezone_string` / `gmt_offset`) is configurable in **Settings &rarr; General** and applied to scheduled `future` posts as well as naive timestamps during WXR and JSON bundle imports.
 - No two-factor authentication.
-- You can't sign out a single user's sessions. `daypress reset-password --sign-out-everyone` signs out everyone.
+- Per-user session sign-out ("Log Out Everywhere Else") is available on `/d-admin/profile` (`/wp-json/daypress/v1/users/{id}/sessions/destroy-others`), alongside `daypress reset-password --sign-out-everyone`.
 - Roles are coarse: administrators manage everything, while editors, authors, and contributors can all edit and publish all content.
 - The admin is English-only, with no translation system yet.
 
 **Builder and design**
-- The DayStudio canvas is close to the published page but not identical. On desktop it is narrower than its 1200px label, so text wraps sooner; it uses the builder's Inter font where the public page falls back to the system font; and the tablet and mobile previews ignore breakpoint rules that style the whole page (`body`, `:root`).
+- The DayStudio canvas matches the published page across desktop (`1200px`), tablet (`768px`), and mobile (`375px`) breakpoints, including root-level (`body`, `:root`, `html`) container queries and font-stack parity.
 
 **Performance and security**
 - There are no published benchmarks yet, and no caching layer or CDN integration.
@@ -114,7 +115,7 @@ This list is long on purpose. If something here matters to you, an issue or pull
 ## Where help is wanted
 
 - Code-signed binaries, distribution packages, and a published Docker image
-- Revisions, Atom and comment feeds, and a site time zone setting
+- Automated benchmarks, caching layer, and CDN integration
 - Two-factor login
 - Real per-role permissions
 - Migration reports and fixes for real-world Elementor, Divi, and Gutenberg sites
@@ -297,7 +298,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 302 tests
+cargo test --workspace                                  # 313 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

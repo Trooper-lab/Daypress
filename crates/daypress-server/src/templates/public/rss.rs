@@ -3,8 +3,8 @@
 //! Every text value is XML-escaped after dropping characters XML 1.0 forbids; post HTML goes
 //! into `content:encoded` as CDATA with any `]]>` split so it cannot end the section early.
 
-use crate::models::WpPostResponse;
-use crate::templates::utils::clean_wp_content;
+use crate::models::DaypressPostResponse;
+use crate::templates::utils::clean_post_content;
 use chrono::{NaiveDateTime, Utc};
 use std::sync::LazyLock;
 
@@ -69,7 +69,7 @@ static ROOT_RELATIVE_URL_RE: LazyLock<Option<regex::Regex>> =
 /// Plain text of an HTML fragment: scripts, styles and tags removed, common entities decoded,
 /// whitespace collapsed.
 pub fn html_to_text(html: &str) -> String {
-    let cleaned = clean_wp_content(html);
+    let cleaned = clean_post_content(html);
     let without_code = match SCRIPT_STYLE_RE.as_ref() {
         Some(re) => re.replace_all(&cleaned, " ").into_owned(),
         None => cleaned,
@@ -198,7 +198,7 @@ fn rfc2822(primary: &str, fallback: &str) -> Option<String> {
         .map(|d| format_rfc2822(&d))
 }
 
-fn render_item(post: &WpPostResponse, site_url: &str) -> String {
+fn render_item(post: &DaypressPostResponse, site_url: &str) -> String {
     let mut xml = String::from("\t<item>\n");
     xml.push_str(&format!(
         "\t\t<title>{}</title>\n\t\t<link>{}</link>\n",
@@ -243,7 +243,7 @@ fn render_item(post: &WpPostResponse, site_url: &str) -> String {
         "\t\t<description>{}</description>\n",
         xml_escape(&description)
     ));
-    let content_html = clean_wp_content(&post.content.rendered);
+    let content_html = clean_post_content(&post.content.rendered);
     if !content_html.trim().is_empty() {
         xml.push_str(&format!(
             "\t\t<content:encoded>{}</content:encoded>\n",
@@ -255,7 +255,7 @@ fn render_item(post: &WpPostResponse, site_url: &str) -> String {
 }
 
 /// Renders the complete RSS 2.0 document for `posts` (already newest first).
-pub fn render_rss_feed(channel: &FeedChannel, posts: &[WpPostResponse]) -> String {
+pub fn render_rss_feed(channel: &FeedChannel, posts: &[DaypressPostResponse]) -> String {
     let last_build = posts
         .iter()
         .filter_map(|p| {
@@ -290,6 +290,218 @@ pub fn render_rss_feed(channel: &FeedChannel, posts: &[WpPostResponse]) -> Strin
         xml.push_str(&render_item(post, channel.site_url));
     }
     xml.push_str("</channel>\n</rss>\n");
+    xml
+}
+
+fn format_rfc3339(d: &NaiveDateTime) -> String {
+    d.format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
+fn rfc3339(primary: &str, fallback: &str) -> String {
+    parse_post_date(primary)
+        .or_else(|| parse_post_date(fallback))
+        .map(|d| format_rfc3339(&d))
+        .unwrap_or_else(|| format_rfc3339(&Utc::now().naive_utc()))
+}
+
+/// Renders an Atom 1.0 feed document (`/feed/atom/`, `/category/{slug}/feed/atom/`, `/tag/{slug}/feed/atom/`).
+pub fn render_atom_feed(channel: &FeedChannel, posts: &[DaypressPostResponse]) -> String {
+    let updated = posts
+        .iter()
+        .filter_map(|p| {
+            parse_post_date(&p.modified_gmt)
+                .or_else(|| parse_post_date(&p.date_gmt))
+                .or_else(|| parse_post_date(&p.date))
+        })
+        .max()
+        .unwrap_or_else(|| Utc::now().naive_utc());
+
+    let lang = channel.language.trim().replace('_', "-");
+    let lang_attr = if lang.is_empty() {
+        String::new()
+    } else {
+        format!(" xml:lang=\"{}\"", xml_escape(&lang))
+    };
+
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str(&format!(
+        "<feed xmlns=\"http://www.w3.org/2005/Atom\"{} >\n",
+        lang_attr
+    ));
+    xml.push_str(&format!(
+        "\t<title type=\"text\">{}</title>\n\t<subtitle type=\"text\">{}</subtitle>\n\t<updated>{}</updated>\n\t<link rel=\"alternate\" type=\"text/html\" href=\"{}\" />\n\t<id>{}</id>\n\t<link rel=\"self\" type=\"application/atom+xml\" href=\"{}\" />\n\t<generator uri=\"https://daypress.dev\">Daypress</generator>\n",
+        xml_escape(&html_to_text(channel.title)),
+        xml_escape(&html_to_text(channel.description)),
+        format_rfc3339(&updated),
+        xml_escape(channel.site_url),
+        xml_escape(channel.self_url),
+        xml_escape(channel.self_url),
+    ));
+
+    for post in posts {
+        let entry_id = if post.guid.rendered.trim().is_empty() {
+            &post.link
+        } else {
+            post.guid.rendered.trim()
+        };
+        let published = rfc3339(&post.date_gmt, &post.date);
+        let mod_time = rfc3339(&post.modified_gmt, &post.date_gmt);
+        let author = if post.author_name.trim().is_empty() {
+            "admin"
+        } else {
+            post.author_name.trim()
+        };
+        let manual_excerpt = html_to_text(&post.excerpt.rendered);
+        let content_text = html_to_text(&post.content.rendered);
+        let summary = if manual_excerpt.is_empty() {
+            trim_words(&content_text, EXCERPT_WORDS)
+        } else {
+            manual_excerpt
+        };
+        let content_html = clean_post_content(&post.content.rendered);
+
+        xml.push_str("\t<entry>\n");
+        xml.push_str(&format!(
+            "\t\t<author><name>{}</name></author>\n\t\t<title type=\"html\">{}</title>\n\t\t<link rel=\"alternate\" type=\"text/html\" href=\"{}\" />\n\t\t<id>{}</id>\n\t\t<updated>{}</updated>\n\t\t<published>{}</published>\n",
+            xml_escape(author),
+            cdata(&html_to_text(&post.title.rendered)),
+            xml_escape(&post.link),
+            xml_escape(entry_id),
+            mod_time,
+            published,
+        ));
+        for name in post.category_names.iter().chain(post.tag_names.iter()) {
+            xml.push_str(&format!(
+                "\t\t<category scheme=\"{}\" term=\"{}\" />\n",
+                xml_escape(channel.site_url),
+                xml_escape(&html_to_text(name))
+            ));
+        }
+        xml.push_str(&format!(
+            "\t\t<summary type=\"html\">{}</summary>\n",
+            cdata(&summary)
+        ));
+        if !content_html.trim().is_empty() {
+            xml.push_str(&format!(
+                "\t\t<content type=\"html\">{}</content>\n",
+                cdata(&absolutize_urls(&content_html, channel.site_url))
+            ));
+        }
+        xml.push_str("\t</entry>\n");
+    }
+
+    xml.push_str("</feed>\n");
+    xml
+}
+
+/// Renders an RSS 2.0 comments feed (`/comments/feed/` or `/{slug}/feed/`).
+pub fn render_comments_rss_feed(
+    channel: &FeedChannel,
+    comments: &[crate::adapters::database::feeds::FeedComment],
+    single_post: bool,
+) -> String {
+    let last_build = comments
+        .iter()
+        .filter_map(|c| parse_post_date(&c.date_gmt).or_else(|| parse_post_date(&c.date)))
+        .max()
+        .unwrap_or_else(|| Utc::now().naive_utc());
+
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str(
+        "<rss version=\"2.0\"\n\txmlns:content=\"http://purl.org/rss/1.0/modules/content/\"\n\txmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n\txmlns:atom=\"http://www.w3.org/2005/Atom\">\n<channel>\n",
+    );
+    xml.push_str(&format!(
+        "\t<title>{}</title>\n\t<atom:link href=\"{}\" rel=\"self\" type=\"application/rss+xml\" />\n\t<link>{}</link>\n\t<description>{}</description>\n\t<lastBuildDate>{}</lastBuildDate>\n",
+        xml_escape(&html_to_text(channel.title)),
+        xml_escape(channel.self_url),
+        xml_escape(channel.site_url),
+        xml_escape(&html_to_text(channel.description)),
+        format_rfc2822(&last_build),
+    ));
+    let language = channel.language.trim().replace('_', "-");
+    if !language.is_empty() {
+        xml.push_str(&format!(
+            "\t<language>{}</language>\n",
+            xml_escape(&language)
+        ));
+    }
+    xml.push_str("\t<generator>Daypress</generator>\n");
+
+    for c in comments {
+        let item_title = if single_post {
+            format!("By: {}", c.author)
+        } else {
+            format!("Comment on {} by {}", html_to_text(&c.post_title), c.author)
+        };
+        let text = html_to_text(&c.content);
+        xml.push_str("\t<item>\n");
+        xml.push_str(&format!(
+            "\t\t<title>{}</title>\n\t\t<link>{}</link>\n\t\t<dc:creator>{}</dc:creator>\n",
+            xml_escape(&item_title),
+            xml_escape(&c.link),
+            xml_escape(&c.author),
+        ));
+        if let Some(pub_date) = rfc2822(&c.date_gmt, &c.date) {
+            xml.push_str(&format!("\t\t<pubDate>{}</pubDate>\n", pub_date));
+        }
+        xml.push_str(&format!(
+            "\t\t<guid isPermaLink=\"false\">{}</guid>\n\t\t<description>{}</description>\n\t\t<content:encoded>{}</content:encoded>\n\t</item>\n",
+            xml_escape(&c.guid),
+            xml_escape(&trim_words(&text, EXCERPT_WORDS)),
+            cdata(&c.content),
+        ));
+    }
+
+    xml.push_str("</channel>\n</rss>\n");
+    xml
+}
+
+/// Renders an Atom 1.0 comments feed (`/comments/feed/atom/` or `/{slug}/feed/atom/`).
+pub fn render_comments_atom_feed(
+    channel: &FeedChannel,
+    comments: &[crate::adapters::database::feeds::FeedComment],
+    single_post: bool,
+) -> String {
+    let updated = comments
+        .iter()
+        .filter_map(|c| parse_post_date(&c.date_gmt).or_else(|| parse_post_date(&c.date)))
+        .max()
+        .unwrap_or_else(|| Utc::now().naive_utc());
+
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<feed xmlns=\"http://www.w3.org/2005/Atom\">\n");
+    xml.push_str(&format!(
+        "\t<title type=\"text\">{}</title>\n\t<subtitle type=\"text\">{}</subtitle>\n\t<updated>{}</updated>\n\t<link rel=\"alternate\" type=\"text/html\" href=\"{}\" />\n\t<id>{}</id>\n\t<link rel=\"self\" type=\"application/atom+xml\" href=\"{}\" />\n\t<generator uri=\"https://daypress.dev\">Daypress</generator>\n",
+        xml_escape(&html_to_text(channel.title)),
+        xml_escape(&html_to_text(channel.description)),
+        format_rfc3339(&updated),
+        xml_escape(channel.site_url),
+        xml_escape(channel.self_url),
+        xml_escape(channel.self_url),
+    ));
+
+    for c in comments {
+        let entry_title = if single_post {
+            format!("By: {}", c.author)
+        } else {
+            format!("Comment on {} by {}", html_to_text(&c.post_title), c.author)
+        };
+        let pub_str = rfc3339(&c.date_gmt, &c.date);
+        xml.push_str("\t<entry>\n");
+        xml.push_str(&format!(
+            "\t\t<title type=\"text\">{}</title>\n\t\t<link rel=\"alternate\" type=\"text/html\" href=\"{}\" />\n\t\t<author><name>{}</name></author>\n\t\t<id>{}</id>\n\t\t<updated>{}</updated>\n\t\t<published>{}</published>\n\t\t<content type=\"html\">{}</content>\n\t</entry>\n",
+            xml_escape(&entry_title),
+            xml_escape(&c.link),
+            xml_escape(&c.author),
+            xml_escape(&c.guid),
+            pub_str,
+            pub_str,
+            cdata(&c.content),
+        ));
+    }
+
+    xml.push_str("</feed>\n");
+    let _ = 0;
     xml
 }
 

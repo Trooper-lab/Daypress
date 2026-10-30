@@ -1,7 +1,7 @@
 //! Login screens sharing one card layout: `/login`, `/login/lost-password` and
 //! `/login/reset-password` (see [`crate::password_reset`]).
 
-use crate::models::WpSettingsResponse;
+use crate::models::DaypressSettingsResponse;
 use crate::password_reset::{LOST_PASSWORD_PATH, MIN_PASSWORD_LENGTH, RESET_PASSWORD_PATH};
 use crate::templates::admin::layout::{DESK_FONT_FACES, DESK_FOUNDATION};
 use crate::templates::utils::escape_html;
@@ -154,7 +154,7 @@ impl LoginNotice<'_> {
 
 /// Page skeleton shared by every login screen. `card_html` and `links_html` are trusted markup.
 fn render_login_shell(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     page_title: &str,
     card_html: &str,
     links_html: &str,
@@ -195,8 +195,8 @@ fn render_login_shell(
 }
 
 // 8d. Login View (/login)
-pub fn render_wp_login_view(
-    settings: &WpSettingsResponse,
+pub fn render_login_view(
+    settings: &DaypressSettingsResponse,
     error_message: Option<&str>,
     loggedout: bool,
     redirect_to: Option<&str>,
@@ -206,12 +206,12 @@ pub fn render_wp_login_view(
         (None, true) => LoginNotice::Info("You are now logged out."),
         (None, false) => LoginNotice::None,
     };
-    render_wp_login_view_with_notice(settings, notice, redirect_to)
+    render_login_view_with_notice(settings, notice, redirect_to)
 }
 
 /// The login form with any notice (for example "Your password has been reset").
-pub fn render_wp_login_view_with_notice(
-    settings: &WpSettingsResponse,
+pub fn render_login_view_with_notice(
+    settings: &DaypressSettingsResponse,
     notice: LoginNotice<'_>,
     redirect_to: Option<&str>,
 ) -> String {
@@ -238,7 +238,10 @@ pub fn render_wp_login_view_with_notice(
 }
 
 /// `/login/lost-password`: asks for a username or email address.
-pub fn render_lost_password_view(settings: &WpSettingsResponse, notice: LoginNotice<'_>) -> String {
+pub fn render_lost_password_view(
+    settings: &DaypressSettingsResponse,
+    notice: LoginNotice<'_>,
+) -> String {
     let card = format!(
         r#"{notice}
 		<p class="login-intro">Enter your username or email address. If it matches an account, we will email that account a link to choose a new password.</p>
@@ -261,7 +264,7 @@ pub fn render_lost_password_view(settings: &WpSettingsResponse, notice: LoginNot
 
 /// `/login/reset-password`: the new-password form behind a valid reset link.
 pub fn render_reset_password_view(
-    settings: &WpSettingsResponse,
+    settings: &DaypressSettingsResponse,
     token: &str,
     notice: LoginNotice<'_>,
 ) -> String {
@@ -290,7 +293,7 @@ pub fn render_reset_password_view(
 }
 
 /// `/login/reset-password` when the link is unknown, used or expired.
-pub fn render_reset_link_invalid_view(settings: &WpSettingsResponse) -> String {
+pub fn render_reset_link_invalid_view(settings: &DaypressSettingsResponse) -> String {
     let card = format!(
         r#"{notice}
 		<p class="login-intro">A reset link works once and expires one hour after it was sent. You can ask for a new one.</p>

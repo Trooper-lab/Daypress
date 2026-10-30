@@ -1,69 +1,69 @@
-//! Elementor Compatibility Stylesheet (`templates/public/styles/elementor.rs`).
+//! DayStudio Stylesheet (`templates/public/styles/daystudio.rs`).
 //!
-//! Provides styles for `html.elementor-theme-active` overrides,
+//! Provides styles for `html.daystudio-theme-active` overrides,
 //! boxed containers, iconlists, form grids, popup/lightbox modals,
 //! and responsive media query breakpoints.
 
-pub const CSS_ELEMENTOR: &str = r#"
+pub const CSS_DAYSTUDIO: &str = r#"
 		/* ==========================================================================
-		   Elementor Theme Builder, Flexbox Container, Menu, Form & Modal System
+		   Daystudio Theme Builder, Flexbox Container, Menu, Form & Modal System
 		   ========================================================================== */
-		html.elementor-theme-active body {
+		html.daystudio-theme-active body {
 			background-color: #ffffff;
 			color: var(--e-global-color-text, #1F1C17);
 		}
 
-		html.elementor-theme-active .dp-section {
+		html.daystudio-theme-active .dp-section {
 			border-bottom: none;
 		}
 
-		html.elementor-theme-active .dp-heading {
+		html.daystudio-theme-active .dp-heading {
 			color: var(--dp-color-heading, var(--e-global-color-secondary, #111827));
 			font-family: var(--dp-font-heading, var(--e-global-typography-primary-font-family, inherit));
 		}
 
-		html.elementor-theme-active .dp-text {
+		html.daystudio-theme-active .dp-text {
 			color: var(--dp-color-text, var(--e-global-color-text, #334155));
 			font-family: var(--dp-font-body, var(--e-global-typography-text-font-family, inherit));
 		}
 
-		html.elementor-theme-active .dp-button {
+		html.daystudio-theme-active .dp-button {
 			background: var(--e-button-bg, var(--e-global-color-primary, #2563eb));
 			color: var(--e-button-color, #ffffff);
 			border-radius: var(--e-button-border-radius, 6px);
 		}
 
-		html.elementor-theme-active .dp-price-table {
+		html.daystudio-theme-active .dp-price-table {
 			background: #ffffff;
 			color: var(--dp-color-text, #111827);
 			border-color: #e2e8f0;
 		}
 
-		html.elementor-theme-active .dp-price-val,
-		html.elementor-theme-active .dp-price-feature {
+		html.daystudio-theme-active .dp-price-val,
+		html.daystudio-theme-active .dp-price-feature {
 			color: inherit;
 		}
 
-		.dp-elementor-header {
+		.dp-daystudio-header {
 			width: 100%;
 			background: #ffffff;
 			position: relative;
 		}
 
-		.dp-elementor-footer {
+		.dp-daystudio-footer {
 			width: 100%;
 			position: relative;
 		}
 
-		.dp-elementor-footer section.dp-section {
+		.dp-daystudio-footer section.dp-section {
 			padding-left: max(24px, calc((100% - 960px) / 2)) !important;
 			padding-right: max(24px, calc((100% - 960px) / 2)) !important;
 			border-bottom: none;
 		}
 
 		.dp-visual-canvas .dp-container,
-		.dp-elementor-header .dp-container,
-		.dp-elementor-footer .dp-container,
+		.dp-daystudio-header .dp-container,
+		.dp-daystudio-footer .dp-container,
 		.dp-popup-modal .dp-container {
 			max-width: 100%;
 			margin: 0;
@@ -98,45 +98,45 @@ pub const CSS_ELEMENTOR: &str = r#"
 			min-width: 0;
 		}
 
-		html.elementor-theme-active .dp-image {
+		html.daystudio-theme-active .dp-image {
 			border-radius: 0;
 		}
 
-		html.elementor-theme-active .dp-imagebox,
-		html.elementor-theme-active .dp-iconbox {
+		html.daystudio-theme-active .dp-imagebox,
+		html.daystudio-theme-active .dp-iconbox {
 			background: transparent;
 			border: none;
 			border-radius: 0;
 			padding: 0;
 		}
 
-		html.elementor-theme-active .dp-imagebox-title,
-		html.elementor-theme-active .dp-iconbox-title {
+		html.daystudio-theme-active .dp-imagebox-title,
+		html.daystudio-theme-active .dp-iconbox-title {
 			color: inherit;
 			font-family: var(--dp-font-heading, var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif));
 		}
 
-		html.elementor-theme-active .dp-imagebox-desc,
-		html.elementor-theme-active .dp-iconbox-desc {
+		html.daystudio-theme-active .dp-imagebox-desc,
+		html.daystudio-theme-active .dp-iconbox-desc {
 			color: inherit;
 		}
 
-		html.elementor-theme-active .dp-divider {
+		html.daystudio-theme-active .dp-divider {
 			border-top-color: rgba(31, 28, 23, 0.15);
 		}
 
-		html.elementor-theme-active .dp-accordion-item {
+		html.daystudio-theme-active .dp-accordion-item {
 			background: #ffffff;
 			border: 1px solid #d4d4d8;
 			border-radius: 4px;
 		}
 
-		html.elementor-theme-active .dp-accordion-item summary {
+		html.daystudio-theme-active .dp-accordion-item summary {
 			color: var(--e-global-color-secondary, #3A3633);
 			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
 		}
 
-		html.elementor-theme-active .dp-accordion-body {
+		html.daystudio-theme-active .dp-accordion-body {
 			color: var(--e-global-color-text, #1F1C17);
 			font-family: var(--e-global-typography-text-font-family, 'Fira Sans', sans-serif);
 		}
@@ -185,45 +185,45 @@ pub const CSS_ELEMENTOR: &str = r#"
 			color: var(--e-global-color-primary, #9CC13C);
 		}
 
-		.dp-elementor-form-grid {
+		.dp-daystudio-form-grid {
 			display: flex;
 			flex-wrap: wrap;
 			gap: 16px;
 			width: 100%;
 		}
 
-		.dp-elementor-form-grid .dp-field-group {
+		.dp-daystudio-form-grid .dp-field-group {
 			display: flex;
 			flex-direction: column;
 			gap: 6px;
 		}
 
-		.dp-elementor-form-grid .dp-field-w100 {
+		.dp-daystudio-form-grid .dp-field-w100 {
 			width: 100%;
 		}
 
-		.dp-elementor-form-grid .dp-field-w50 {
+		.dp-daystudio-form-grid .dp-field-w50 {
 			width: calc(50% - 8px);
 		}
 
-		.dp-elementor-form-grid .dp-field-w33 {
+		.dp-daystudio-form-grid .dp-field-w33 {
 			width: calc(33.333% - 11px);
 		}
 
-		.dp-elementor-form-grid .dp-field-w25 {
+		.dp-daystudio-form-grid .dp-field-w25 {
 			width: calc(25% - 12px);
 		}
 
-		.dp-elementor-form-grid .dp-field-label {
+		.dp-daystudio-form-grid .dp-field-label {
 			font-family: var(--e-global-typography-primary-font-family, 'Fira Sans', sans-serif);
 			font-weight: 500;
 			font-size: 15px;
 			color: var(--e-global-color-secondary, #1F1C17);
 		}
 
-		.dp-elementor-form-grid .dp-input,
-		.dp-elementor-form-grid .dp-textarea,
-		.dp-elementor-form-grid .dp-form-input {
+		.dp-daystudio-form-grid .dp-input,
+		.dp-daystudio-form-grid .dp-textarea,
+		.dp-daystudio-form-grid .dp-form-input {
 			width: 100%;
 			padding: 12px 16px;
 			border: 1px solid #d4d4d8;
@@ -234,23 +234,23 @@ pub const CSS_ELEMENTOR: &str = r#"
 			font-size: 15px;
 		}
 
-		.dp-elementor-form-grid .dp-field-subgroup,
-		.dp-elementor-form-grid .dp-Subgroup {
+		.dp-daystudio-form-grid .dp-field-subgroup,
+		.dp-daystudio-form-grid .dp-Subgroup {
 			display: flex;
 			flex-direction: column;
 			gap: 8px;
 			padding: 6px 0;
 		}
 
-		.dp-elementor-form-grid .dp-field-subgroup.dp-Subgroup-inline,
-		.dp-elementor-form-grid .dp-Subgroup.dp-Subgroup-inline {
+		.dp-daystudio-form-grid .dp-field-subgroup.dp-Subgroup-inline,
+		.dp-daystudio-form-grid .dp-Subgroup.dp-Subgroup-inline {
 			flex-direction: row;
 			flex-wrap: wrap;
 			gap: 18px;
 		}
 
-		.dp-elementor-form-grid .dp-option-label,
-		.dp-elementor-form-grid .dp-checkbox-label {
+		.dp-daystudio-form-grid .dp-option-label,
+		.dp-daystudio-form-grid .dp-checkbox-label {
 			display: inline-flex;
 			align-items: center;
 			gap: 8px;
@@ -344,7 +344,7 @@ pub const CSS_ELEMENTOR: &str = r#"
 			.dp-hide-mobile {
 				display: none !important;
 			}
-			.dp-elementor-form-grid .dp-field-w50 {
+			.dp-daystudio-form-grid .dp-field-w50 {
 				width: 100%;
 			}
 			.dp-container[style*="flex-direction: row"],

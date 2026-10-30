@@ -1,9 +1,9 @@
 //! Dynamic Custom Fields (`postmeta`) card renderer (`markup/custom_fields.rs`).
 
-use crate::models::WpPostResponse;
+use crate::models::DaypressPostResponse;
 use crate::templates::utils::escape_html;
 
-pub fn render_custom_fields_card(existing: Option<&WpPostResponse>) -> String {
+pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> String {
     let mut rows_html = String::new();
 
     if let Some(post) = existing {

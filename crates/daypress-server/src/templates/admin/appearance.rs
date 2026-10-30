@@ -1,9 +1,9 @@
-use super::layout::render_wp_admin_shell;
-use crate::models::{WpPostResponse, WpSettingsResponse};
+use super::layout::render_admin_shell;
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::escape_html;
 
 // 1. Themes (/d-admin/themes)
-pub fn render_wp_themes_view(settings: &WpSettingsResponse) -> String {
+pub fn render_themes_view(settings: &DaypressSettingsResponse) -> String {
     let active_theme = if settings.active_theme.is_empty() {
         "Daypress Modern"
     } else {
@@ -131,11 +131,11 @@ pub fn render_wp_themes_view(settings: &WpSettingsResponse) -> String {
         cards_html = cards_html
     );
 
-    render_wp_admin_shell("themes", "Themes", &body, settings)
+    render_admin_shell("themes", "Themes", &body, settings)
 }
 
 // 2. Customize (/d-admin/customize)
-pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
+pub fn render_customize_view(settings: &DaypressSettingsResponse) -> String {
     let brand_color = if settings.brand_color.is_empty() {
         "#2563eb"
     } else {
@@ -192,7 +192,7 @@ pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
                 </div>
 
                 <div>
-                    <label class="form-label">Converged Daypress Theme Tokens (Divi / Elementor Kit)</label>
+                    <label class="form-label">Converged Daypress Theme Tokens (DayStudio Design Kit)</label>
                     <div style="padding: 10px 12px; background: var(--paper-raised); border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 12px; color: var(--ink-muted);">
                         <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">✓ Unified CSS Variable System Active</div>
                         <div>Global Colors (<code style="font-size:11px;">--dp-color-*</code> / <code style="font-size:11px;">--e-global-color-*</code>) &amp; Typography (<code style="font-size:11px;">--dp-font-*</code>) synced with Visual Studio Builder.</div>
@@ -270,11 +270,11 @@ pub fn render_wp_customize_view(settings: &WpSettingsResponse) -> String {
         url = escape_html(&settings.url)
     );
 
-    render_wp_admin_shell("customize", "Customize", &body, settings)
+    render_admin_shell("customize", "Customize", &body, settings)
 }
 
 // 3. Widgets (/d-admin/widgets)
-pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
+pub fn render_widgets_view(settings: &DaypressSettingsResponse) -> String {
     let default_val = serde_json::json!({
         "sidebar": ["Search Bar", "Recent Posts"],
         "footer": ["Categories List"]
@@ -435,11 +435,14 @@ pub fn render_wp_widgets_view(settings: &WpSettingsResponse) -> String {
         footer_html = footer_html
     );
 
-    render_wp_admin_shell("widgets", "Widgets", &body, settings)
+    render_admin_shell("widgets", "Widgets", &body, settings)
 }
 
 // 4. Menus (/d-admin/nav-menus)
-pub fn render_wp_nav_menus_view(settings: &WpSettingsResponse, pages: &[WpPostResponse]) -> String {
+pub fn render_nav_menus_view(
+    settings: &DaypressSettingsResponse,
+    pages: &[DaypressPostResponse],
+) -> String {
     let mut page_items = String::new();
     for p in pages {
         page_items.push_str(&format!(
@@ -597,11 +600,11 @@ pub fn render_wp_nav_menus_view(settings: &WpSettingsResponse, pages: &[WpPostRe
         existing_menu_cards = existing_menu_cards
     );
 
-    render_wp_admin_shell("menus", "Menus", &body, settings)
+    render_admin_shell("menus", "Menus", &body, settings)
 }
 
 // 5. Theme File Editor (/d-admin/theme-editor)
-pub fn render_wp_theme_editor_view(settings: &WpSettingsResponse) -> String {
+pub fn render_theme_editor_view(settings: &DaypressSettingsResponse) -> String {
     let body = r##"
         <div class="page-header">
             <div>
@@ -701,5 +704,5 @@ body {
         </script>
     "##;
 
-    render_wp_admin_shell("theme-editor", "Theme File Editor", body, settings)
+    render_admin_shell("theme-editor", "Theme File Editor", body, settings)
 }

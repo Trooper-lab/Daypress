@@ -63,12 +63,12 @@ pub async fn handle_api_delete_comment(
 // 4. Appearance Submenus
 pub async fn handle_admin_customize(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_customize_view(&settings))
+    Html(templates::render_customize_view(&settings))
 }
 
 pub async fn handle_admin_widgets(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_widgets_view(&settings))
+    Html(templates::render_widgets_view(&settings))
 }
 
 pub async fn handle_admin_nav_menus(State(db): State<Database>) -> Html<String> {
@@ -76,23 +76,23 @@ pub async fn handle_admin_nav_menus(State(db): State<Database>) -> Html<String> 
     let pages = db
         .get_posts("page", Some("any"), None, 50)
         .unwrap_or_default();
-    Html(templates::render_wp_nav_menus_view(&settings, &pages))
+    Html(templates::render_nav_menus_view(&settings, &pages))
 }
 
 pub async fn handle_admin_theme_editor(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_theme_editor_view(&settings))
+    Html(templates::render_theme_editor_view(&settings))
 }
 
 // 5. Plugins Submenus
 pub async fn handle_admin_plugin_install(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_plugin_install_view(&settings))
+    Html(templates::render_plugin_install_view(&settings))
 }
 
 pub async fn handle_admin_plugin_editor(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_plugin_editor_view(&settings))
+    Html(templates::render_plugin_editor_view(&settings))
 }
 
 #[derive(Debug, Deserialize)]
@@ -313,12 +313,12 @@ pub async fn handle_api_theme_file_save(
 // 6. Tools Submenus
 pub async fn handle_admin_import(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_import_view(&settings))
+    Html(templates::render_import_view(&settings))
 }
 
 pub async fn handle_admin_export(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_export_view(&settings))
+    Html(templates::render_export_view(&settings))
 }
 
 pub async fn handle_admin_export_wxr_download(State(db): State<Database>) -> impl IntoResponse {
@@ -369,17 +369,17 @@ pub async fn handle_admin_export_json_download(State(db): State<Database>) -> im
 pub async fn handle_admin_site_health(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_wp_site_health_view(&settings, &stats))
+    Html(templates::render_site_health_view(&settings, &stats))
 }
 
 pub async fn handle_admin_export_personal_data(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_export_personal_data_view(&settings))
+    Html(templates::render_export_personal_data_view(&settings))
 }
 
 pub async fn handle_admin_erase_personal_data(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    Html(templates::render_wp_erase_personal_data_view(&settings))
+    Html(templates::render_erase_personal_data_view(&settings))
 }
 
 pub async fn handle_api_export_personal_data(
@@ -427,7 +427,7 @@ pub async fn handle_admin_options_writing(State(db): State<Database>) -> Html<St
             mailserver_port: 110,
         });
     let categories = db.get_terms("category").unwrap_or_default();
-    Html(templates::render_wp_settings_writing_view(
+    Html(templates::render_settings_writing_view(
         &settings,
         &writing,
         &categories,
@@ -459,7 +459,7 @@ pub async fn handle_admin_options_reading(State(db): State<Database>) -> Html<St
     let pages = db
         .get_posts("page", Some("any"), None, 50)
         .unwrap_or_default();
-    Html(templates::render_wp_settings_reading_view(
+    Html(templates::render_settings_reading_view(
         &settings, &reading, &pages,
     ))
 }
@@ -491,7 +491,7 @@ pub async fn handle_admin_options_discussion(State(db): State<Database>) -> Html
             comment_previously_approved: true,
             show_avatars: true,
         });
-    Html(templates::render_wp_settings_discussion_view(
+    Html(templates::render_settings_discussion_view(
         &settings,
         &discussion,
     ))
@@ -519,7 +519,7 @@ pub async fn handle_admin_options_media(State(db): State<Database>) -> Html<Stri
         large_size_h: 1024,
         uploads_use_yearmonth_folders: true,
     });
-    Html(templates::render_wp_settings_media_view(&settings, &media))
+    Html(templates::render_settings_media_view(&settings, &media))
 }
 
 pub async fn handle_api_options_media_save(
@@ -541,7 +541,7 @@ pub async fn handle_admin_options_permalink(State(db): State<Database>) -> Html<
             category_base: "".to_string(),
             tag_base: "".to_string(),
         });
-    Html(templates::render_wp_settings_permalink_view(
+    Html(templates::render_settings_permalink_view(
         &settings,
         &permalinks,
     ))
@@ -567,7 +567,7 @@ pub async fn handle_admin_options_privacy(State(db): State<Database>) -> Html<St
     let pages = db
         .get_posts("page", Some("any"), None, 50)
         .unwrap_or_default();
-    Html(templates::render_wp_settings_privacy_view(
+    Html(templates::render_settings_privacy_view(
         &settings, &privacy, &pages,
     ))
 }

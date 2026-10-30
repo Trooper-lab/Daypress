@@ -23,7 +23,7 @@ use std::path::Path;
 pub(crate) async fn get_settings(
     _auth: crate::auth::AdminUser,
     State(db): State<Database>,
-) -> Result<Json<WpSettingsResponse>, AppError> {
+) -> Result<Json<DaypressSettingsResponse>, AppError> {
     let settings = db.get_settings()?;
     Ok(Json(settings))
 }
@@ -32,7 +32,7 @@ pub(crate) async fn update_settings(
     _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<UpdateSettingsRequest>,
-) -> Result<Json<WpSettingsResponse>, AppError> {
+) -> Result<Json<DaypressSettingsResponse>, AppError> {
     if let Some(title) = payload.title {
         db.set_option("blogname", &title)?;
     }
@@ -47,7 +47,16 @@ pub(crate) async fn update_settings(
         db.set_option("home", &url)?;
     }
     if let Some(tz) = payload.timezone_string.or(payload.timezone) {
-        db.set_option("timezone_string", &tz)?;
+        let tz_trimmed = tz.trim();
+        let tz_clean = if tz_trimmed.is_empty() {
+            "UTC"
+        } else {
+            tz_trimmed
+        };
+        db.set_option("timezone_string", tz_clean)?;
+        let gmt_offset =
+            crate::adapters::database::scheduling::timezone_to_gmt_offset_hours(tz_clean);
+        db.set_option("gmt_offset", &gmt_offset.to_string())?;
     }
     if let Some(df) = payload.date_format {
         db.set_option("date_format", &df)?;
@@ -139,16 +148,16 @@ pub(crate) async fn check_integrity(
 
 pub(crate) async fn list_media(
     State(db): State<Database>,
-) -> Result<(HeaderMap, Json<Vec<WpMediaResponse>>), AppError> {
+) -> Result<(HeaderMap, Json<Vec<DaypressMediaResponse>>), AppError> {
     let list = db.get_media_attachments()?;
     let total = list.len() as i64;
-    Ok(wp_list_response(list, total, total.max(10)))
+    Ok(rest_list_response(list, total, total.max(10)))
 }
 
 pub(crate) async fn get_media_item(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-) -> Result<Json<WpMediaResponse>, AppError> {
+) -> Result<Json<DaypressMediaResponse>, AppError> {
     match db.get_media_by_id(id)? {
         Some(m) => Ok(Json(m)),
         None => Err(AppError::NotFound(format!("Media {} not found", id))),
@@ -160,7 +169,7 @@ pub(crate) async fn update_media_item(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateMediaRequest>,
-) -> Result<Json<WpMediaResponse>, AppError> {
+) -> Result<Json<DaypressMediaResponse>, AppError> {
     match db.update_media_attachment(id, &payload)? {
         Some(m) => Ok(Json(m)),
         None => Err(AppError::NotFound(format!("Media {} not found", id))),
@@ -171,13 +180,13 @@ pub(crate) async fn upload_media(
     _auth: crate::auth::EditorUser,
     State(db): State<Database>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<WpMediaResponse>), AppError> {
+) -> Result<(StatusCode, Json<DaypressMediaResponse>), AppError> {
     let uploads_dir = Path::new("uploads");
     if !uploads_dir.exists() {
         fs::create_dir_all(uploads_dir)?;
     }
 
-    let mut saved_media: Option<WpMediaResponse> = None;
+    let mut saved_media: Option<DaypressMediaResponse> = None;
 
     while let Some(field) = multipart
         .next_field()

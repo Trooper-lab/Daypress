@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::common::NavMenuItemDto;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WpSettingsResponse {
+pub struct DaypressSettingsResponse {
     pub title: String,
     pub description: String,
     pub url: String,
@@ -45,14 +45,14 @@ pub struct WpSettingsResponse {
     /// Page chosen under Settings → Privacy (`wp_page_for_privacy_policy`); 0 when unset.
     #[serde(default)]
     pub privacy_policy_page_id: i64,
-    #[serde(default)]
-    pub elementor_kit_css: String,
-    #[serde(default)]
-    pub elementor_header_html: String,
-    #[serde(default)]
-    pub elementor_footer_html: String,
-    #[serde(default)]
-    pub elementor_popups_html: String,
+    #[serde(default, alias = "elementor_kit_css")]
+    pub daystudio_kit_css: String,
+    #[serde(default, alias = "elementor_header_html")]
+    pub daystudio_header_html: String,
+    #[serde(default, alias = "elementor_footer_html")]
+    pub daystudio_footer_html: String,
+    #[serde(default, alias = "elementor_popups_html")]
+    pub daystudio_popups_html: String,
     #[serde(default)]
     pub site_logo_url: String,
     #[serde(default)]
@@ -61,6 +61,8 @@ pub struct WpSettingsResponse {
     pub custom_post_types: Vec<String>,
     #[serde(default)]
     pub theme_assets_html: String,
+    #[serde(default)]
+    pub update_available: Option<String>,
 }
 
 pub fn default_show_on_front() -> String {
@@ -83,7 +85,7 @@ pub fn default_typography_scale() -> String {
     "Inter (Modern Default)".to_string()
 }
 
-impl Default for WpSettingsResponse {
+impl Default for DaypressSettingsResponse {
     fn default() -> Self {
         Self {
             title: "Daypress".to_string(),
@@ -119,14 +121,15 @@ impl Default for WpSettingsResponse {
             pending_comments_count: 0,
             blog_public: true,
             privacy_policy_page_id: 0,
-            elementor_kit_css: String::new(),
-            elementor_header_html: String::new(),
-            elementor_footer_html: String::new(),
-            elementor_popups_html: String::new(),
+            daystudio_kit_css: String::new(),
+            daystudio_header_html: String::new(),
+            daystudio_footer_html: String::new(),
+            daystudio_popups_html: String::new(),
             site_logo_url: String::new(),
             site_favicon_url: String::new(),
             custom_post_types: Vec::new(),
             theme_assets_html: String::new(),
+            update_available: None,
         }
     }
 }

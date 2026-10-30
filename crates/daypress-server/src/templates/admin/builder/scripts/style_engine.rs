@@ -208,6 +208,15 @@ pub const JS_STYLE_ENGINE: &str = r###"
             return out;
         }
         if (node.type === "Column" && !own.some(([p]) => p === "flex" || p === "flex-basis")) return [["flex", "1"]];
+        if ((node.type === "Section" || node.type === "Container") && Array.isArray(node.children)) {
+            const colCount = node.children.filter(c => c && c.type === "Column").length;
+            if (colCount > 1 && !own.some(([p]) => p === "display")) {
+                const out = [["display", "flex"]];
+                if (!own.some(([p]) => p === "flex-direction")) out.push(["flex-direction", "row"]);
+                if (!own.some(([p]) => p === "gap")) out.push(["gap", "24px"]);
+                return out;
+            }
+        }
         return [];
     }
     window.DayStyle.layoutDeclarations = layoutDeclarations;

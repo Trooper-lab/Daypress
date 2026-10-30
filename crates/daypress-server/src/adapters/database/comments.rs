@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 impl Database {
     // --- Comments Management ---
 
-    pub fn create_comment(&self, req: &CreateCommentRequest) -> Result<WpCommentResponse> {
+    pub fn create_comment(&self, req: &CreateCommentRequest) -> Result<DaypressCommentResponse> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let author_name = req
@@ -49,7 +49,7 @@ impl Database {
         let cid = conn.last_insert_rowid();
         let base_url = Self::get_base_url_with_conn(&conn);
 
-        Ok(WpCommentResponse {
+        Ok(DaypressCommentResponse {
             id: cid,
             post: req.post,
             parent,
@@ -58,7 +58,7 @@ impl Database {
             author_url: author_url.to_string(),
             date: now.replace(' ', "T"),
             date_gmt: now.replace(' ', "T"),
-            content: WpRenderedText {
+            content: DaypressRenderedText {
                 rendered: req.content.clone(),
                 protected: false,
             },
@@ -81,7 +81,7 @@ impl Database {
         &self,
         status_filter: Option<&str>,
         limit: i64,
-    ) -> Result<Vec<WpCommentAdminItem>> {
+    ) -> Result<Vec<DaypressCommentAdminItem>> {
         let conn = self.conn.lock().unwrap();
         let query = match status_filter {
             Some("approved") | Some("approve") | Some("1") => {
@@ -117,7 +117,7 @@ impl Database {
 
         let mut stmt = conn.prepare(query)?;
         let rows = stmt.query_map(params![limit], |r| {
-            Ok(WpCommentAdminItem {
+            Ok(DaypressCommentAdminItem {
                 id: r.get(0)?,
                 post_id: r.get(1)?,
                 post_title: r.get(2)?,
@@ -152,7 +152,7 @@ impl Database {
         Ok(n > 0)
     }
 
-    pub fn get_comment_by_id(&self, id: i64) -> Result<Option<WpCommentAdminItem>> {
+    pub fn get_comment_by_id(&self, id: i64) -> Result<Option<DaypressCommentAdminItem>> {
         let comments = self.get_comments(None, 5000)?;
         Ok(comments.into_iter().find(|c| c.id == id))
     }
@@ -161,7 +161,7 @@ impl Database {
         &self,
         id: i64,
         req: &UpdateCommentRequest,
-    ) -> Result<Option<WpCommentAdminItem>> {
+    ) -> Result<Option<DaypressCommentAdminItem>> {
         {
             let conn = self.conn.lock().unwrap();
             let exists: Option<i64> = conn
@@ -277,17 +277,17 @@ impl crate::ports::output::CommentRepository for Database {
         _post_id: Option<i64>,
         status: Option<&str>,
         limit: i64,
-    ) -> DomainResult<Vec<WpCommentAdminItem>> {
+    ) -> DomainResult<Vec<DaypressCommentAdminItem>> {
         self.get_comments(status, limit)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn find_comment_by_id(&self, id: i64) -> DomainResult<Option<WpCommentAdminItem>> {
+    fn find_comment_by_id(&self, id: i64) -> DomainResult<Option<DaypressCommentAdminItem>> {
         self.get_comment_by_id(id)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
-    fn create_comment(&self, req: &CreateCommentRequest) -> DomainResult<WpCommentResponse> {
+    fn create_comment(&self, req: &CreateCommentRequest) -> DomainResult<DaypressCommentResponse> {
         Database::create_comment(self, req).map_err(|e| DomainError::Storage(e.to_string()))
     }
 
@@ -295,7 +295,7 @@ impl crate::ports::output::CommentRepository for Database {
         &self,
         id: i64,
         req: &UpdateCommentRequest,
-    ) -> DomainResult<Option<WpCommentAdminItem>> {
+    ) -> DomainResult<Option<DaypressCommentAdminItem>> {
         Database::update_comment(self, id, req).map_err(|e| DomainError::Storage(e.to_string()))
     }
 

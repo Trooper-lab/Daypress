@@ -1,9 +1,9 @@
 //! Custom ACF and CPT metadata card renderer (`markup/meta.rs`).
 
-use crate::models::WpPostResponse;
+use crate::models::DaypressPostResponse;
 use crate::templates::utils::escape_html;
 
-pub fn get_meta_value(existing: Option<&WpPostResponse>, key: &str) -> String {
+pub fn get_meta_value(existing: Option<&DaypressPostResponse>, key: &str) -> String {
     existing
         .and_then(|p| p.meta.as_object())
         .and_then(|m| m.get(key))
@@ -26,7 +26,7 @@ const ACF_CARD_META_KEYS: [&str; 7] = [
 /// Whether a post carries ACF data: ACF blocks in its content, ACF field references
 /// (`_field` meta values like `field_6123abc`), or the meta keys this card edits.
 /// New posts and plain sites never show the ACF tooling.
-pub fn post_uses_acf(existing: Option<&WpPostResponse>) -> bool {
+pub fn post_uses_acf(existing: Option<&DaypressPostResponse>) -> bool {
     let Some(post) = existing else {
         return false;
     };
@@ -41,7 +41,7 @@ pub fn post_uses_acf(existing: Option<&WpPostResponse>) -> bool {
     })
 }
 
-pub fn render_acf_fields_card(existing: Option<&WpPostResponse>, post_type: &str) -> String {
+pub fn render_acf_fields_card(existing: Option<&DaypressPostResponse>, post_type: &str) -> String {
     let get_meta = |key: &str| get_meta_value(existing, key);
 
     let header_height = {

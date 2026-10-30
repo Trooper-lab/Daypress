@@ -388,7 +388,7 @@ fn test_comments_moderation_crud() {
 }
 
 #[test]
-fn test_all_wp_settings_sections() {
+fn test_all_settings_sections() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
 
     // 1. Writing Settings

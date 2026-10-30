@@ -12,21 +12,21 @@ pub(crate) use dynamic::map_dynamic_widget;
 pub(crate) use forms::map_form_widget;
 pub(crate) use pro::map_pro_widget;
 
-pub(crate) use crate::elementor::containers::escape_html_attr;
-pub(crate) use crate::elementor::context::resolve_setting_link;
-pub(crate) use crate::elementor::styles::extract_spacing_val;
+pub(crate) use crate::daystudio::containers::escape_html_attr;
+pub(crate) use crate::daystudio::context::resolve_setting_link;
+pub(crate) use crate::daystudio::styles::extract_spacing_val;
 
-use crate::elementor::context::ElementorContext;
-use crate::elementor::styles::parse_spacing_obj;
+use crate::daystudio::context::DaystudioContext;
+use crate::daystudio::styles::parse_spacing_obj;
 use crate::schema::{DaypressNode, NodeKind, StyleProperties};
 use serde_json::Value;
 
-pub(crate) fn map_elementor_widget(
+pub(crate) fn map_daystudio_widget(
     widget_type: &str,
     settings: &Value,
     styles: &mut StyleProperties,
     children: &mut Vec<DaypressNode>,
-    ctx: &ElementorContext,
+    ctx: &DaystudioContext,
 ) -> Option<NodeKind> {
     if widget_type == "form" {
         return map_form_widget(settings, styles, children, ctx);

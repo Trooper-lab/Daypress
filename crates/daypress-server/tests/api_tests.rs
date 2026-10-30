@@ -836,7 +836,7 @@ async fn test_user_auth_login_logout_and_management() {
 }
 
 #[tokio::test]
-async fn test_all_wp_admin_menu_routes_rendering() {
+async fn test_all_admin_menu_routes_rendering() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
     let app = create_app(db);
 
@@ -1250,7 +1250,7 @@ async fn test_admin_interactive_apis_and_tools() {
 }
 
 #[tokio::test]
-async fn test_wp_admin_redirects_compatibility() {
+async fn test_admin_redirects_compatibility() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
     let app = create_app(db);
 
@@ -1535,7 +1535,7 @@ async fn test_cookieless_analytics_endpoints() {
 }
 
 #[tokio::test]
-async fn test_wxr_page_builder_transpilation_elementor_and_divi() {
+async fn test_wxr_page_builder_transpilation_daystudio_and_divi() {
     let db = Database::new_in_memory().unwrap();
     let app = create_app(db.clone());
     let admin_auth = format!(
@@ -1773,7 +1773,7 @@ async fn test_native_subsystems_seo_sitemap_and_email_api() {
 }
 
 #[tokio::test]
-async fn test_wp_rest_v2_completeness_admin_persistence_and_public_archives() {
+async fn test_rest_v2_completeness_admin_persistence_and_public_archives() {
     let db = Database::new_in_memory().unwrap();
     let app = create_app(db.clone());
     let admin_auth = format!(

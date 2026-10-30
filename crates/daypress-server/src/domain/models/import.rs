@@ -213,8 +213,8 @@ pub struct ImportBundleRequest {
     pub users: Vec<ImportUser>,
     #[serde(default)]
     pub widgets: Option<serde_json::Value>,
-    #[serde(default)]
-    pub elementor_kit: Option<serde_json::Value>,
+    #[serde(default, alias = "elementor_kit")]
+    pub daystudio_kit: Option<serde_json::Value>,
     #[serde(default)]
     pub plugin_options: std::collections::HashMap<String, serde_json::Value>,
     #[serde(default)]

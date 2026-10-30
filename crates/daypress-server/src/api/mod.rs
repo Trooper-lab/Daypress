@@ -2,16 +2,16 @@
 //!
 //! Modularized into 5 focused domain route groups:
 //! * [`posts`]: `/wp/v2/posts` & `/wp/v2/pages` CRUD.
-//! * [`wp_taxonomies`]: `/wp/v2/categories`, `/tags`, `/menus`, `/widgets`, `/themes`, `/plugins`, `/search`, `/types`, `/statuses`, `/taxonomies`.
-//! * [`wp_users_comments`]: `/wp/v2/users`, `/comments`, Application Passwords, Nonces, and JWT tokens.
-//! * [`wp_media_settings`]: `/wp/v2/settings`, `/wp/v2/media` multipart uploads, and SQLite health/vacuum.
+//! * [`taxonomies`]: `/wp/v2/categories`, `/tags`, `/menus`, `/widgets`, `/themes`, `/plugins`, `/search`, `/types`, `/statuses`, `/taxonomies`.
+//! * [`users_comments`]: `/wp/v2/users`, `/comments`, Application Passwords, Nonces, and JWT tokens.
+//! * [`media_settings`]: `/wp/v2/settings`, `/wp/v2/media` multipart uploads, and SQLite health/vacuum.
 //! * [`daypress_v1`]: `/daypress/v1/import`, `/import-wxr`, `/layout/{id}`, `/forms/{id}/submit`, `/analytics/*`, and `/email/send`.
 
 pub mod daypress_v1;
-pub mod wp_media_settings;
-pub mod wp_posts;
-pub mod wp_taxonomies;
-pub mod wp_users_comments;
+pub mod media_settings;
+pub mod posts;
+pub mod taxonomies;
+pub mod users_comments;
 
 use crate::db::Database;
 use axum::{
@@ -25,10 +25,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub(crate) use daypress_v1::*;
-pub(crate) use wp_media_settings::*;
-pub(crate) use wp_posts::*;
-pub(crate) use wp_taxonomies::*;
-pub(crate) use wp_users_comments::*;
+pub(crate) use media_settings::*;
+pub(crate) use posts::*;
+pub(crate) use taxonomies::*;
+pub(crate) use users_comments::*;
 
 #[derive(Debug, Deserialize, Default)]
 pub struct PostQueryParams {
@@ -67,7 +67,7 @@ pub struct SearchQueryParams {
     pub subtype: Option<String>,
 }
 
-pub(crate) fn wp_list_response<T: Serialize>(
+pub(crate) fn rest_list_response<T: Serialize>(
     items: Vec<T>,
     total: i64,
     per_page: i64,
@@ -103,6 +103,20 @@ pub fn api_routes() -> Router<Database> {
     Router::new()
         // Core WordPress REST API v2
         .route("/wp/v2/posts", get(list_posts).post(create_post))
+        .route("/wp/v2/posts/{id}/revisions", get(list_post_revisions))
+        .route(
+            "/wp/v2/posts/{id}/revisions/{rev_id}",
+            get(get_post_revision)
+                .post(restore_post_revision_handler)
+                .delete(delete_post_revision_handler),
+        )
+        .route("/wp/v2/pages/{id}/revisions", get(list_post_revisions))
+        .route(
+            "/wp/v2/pages/{id}/revisions/{rev_id}",
+            get(get_post_revision)
+                .post(restore_post_revision_handler)
+                .delete(delete_post_revision_handler),
+        )
         .route(
             "/wp/v2/posts/{id}",
             get(get_post)
@@ -202,7 +216,9 @@ pub fn api_routes() -> Router<Database> {
         // Application Passwords API (WordPress 5.6+ standard)
         .route(
             "/wp/v2/users/{id}/application-passwords",
-            get(list_app_passwords).post(create_app_password),
+            get(list_app_passwords)
+                .post(create_app_password)
+                .delete(delete_all_app_passwords),
         )
         .route(
             "/wp/v2/users/{id}/application-passwords/{uuid}",
@@ -253,6 +269,18 @@ fn daypress_v1_routes() -> Router<Database> {
         )
         // Always-On Core Utility: 1-Click Duplicate Post / Page
         .route(
+            "/revisions/{rev_id}/restore",
+            axum::routing::post(restore_revision_v1_handler),
+        )
+        .route(
+            "/revisions/clean",
+            axum::routing::post(clean_revisions_v1_handler),
+        )
+        .route(
+            "/users/{id}/sessions/destroy-others",
+            axum::routing::post(destroy_other_sessions_handler),
+        )
+        .route(
             "/posts/{id}/duplicate",
             axum::routing::post(duplicate_post_handler),
         )
@@ -269,11 +297,31 @@ fn daypress_v1_routes() -> Router<Database> {
         .route("/analytics/summary", get(get_analytics_summary_handler))
         // Native Subsystem: Transactional Email Dispatcher
         .route("/email/send", axum::routing::post(send_email_handler))
+        // Native Subsystem: Self-Updater & Release Lifecycle
+        .route("/update/status", get(get_update_status_handler))
+        .route("/update/check", axum::routing::post(check_update_handler))
+        .route(
+            "/update/settings",
+            axum::routing::post(save_update_settings_handler),
+        )
+        .route(
+            "/update/apply",
+            axum::routing::post(apply_github_update_handler),
+        )
+        .route(
+            "/update/upload",
+            axum::routing::post(upload_update_archive_handler)
+                .layer(axum::extract::DefaultBodyLimit::max(250 * 1024 * 1024)),
+        )
+        .route(
+            "/update/rollback",
+            axum::routing::post(rollback_update_handler),
+        )
         // Theme Template Builder REST API
         .merge(crate::theme_builder::routes::theme_builder_routes())
 }
 
-pub async fn wp_json_root(State(db): State<Database>) -> Json<Value> {
+pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {
     let settings = db.get_settings().unwrap_or_default();
 
     Json(serde_json::json!({
@@ -281,7 +329,7 @@ pub async fn wp_json_root(State(db): State<Database>) -> Json<Value> {
         "description": settings.description,
         "url": settings.url,
         "home": settings.url,
-        "gmt_offset": "0",
+        "gmt_offset": crate::adapters::database::scheduling::timezone_to_gmt_offset_hours(&settings.timezone),
         "timezone_string": settings.timezone,
         "namespaces": [
             "wp/v2",
@@ -308,6 +356,8 @@ pub async fn wp_json_root(State(db): State<Database>) -> Json<Value> {
             "/": { "namespace": "", "methods": ["GET"] },
             "/wp/v2/posts": { "namespace": "wp/v2", "methods": ["GET", "POST"] },
             "/wp/v2/posts/(?P<id>[\\d]+)": { "namespace": "wp/v2", "methods": ["GET", "PUT", "POST", "PATCH", "DELETE"] },
+            "/wp/v2/posts/(?P<parent>[\\d]+)/revisions": { "namespace": "wp/v2", "methods": ["GET"] },
+            "/wp/v2/posts/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)": { "namespace": "wp/v2", "methods": ["GET", "POST", "DELETE"] },
             "/wp/v2/pages": { "namespace": "wp/v2", "methods": ["GET", "POST"] },
             "/wp/v2/pages/(?P<id>[\\d]+)": { "namespace": "wp/v2", "methods": ["GET", "PUT", "POST", "PATCH", "DELETE"] },
             "/wp/v2/media": { "namespace": "wp/v2", "methods": ["GET", "POST"] },

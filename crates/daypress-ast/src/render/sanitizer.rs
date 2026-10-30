@@ -66,8 +66,28 @@ pub fn resolve_semantic_tag<'a>(requested: Option<&'a str>, default_tag: &'a str
     }
 }
 
+/// True for public-facing `daystudio-*` layout/theme classes that must survive SSR sanitization.
+fn is_public_daystudio_class(token: &str) -> bool {
+    let lower = token.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        "daystudio-theme-active"
+            | "daystudio-kit"
+            | "daystudio-button"
+            | "daystudio-column"
+            | "daystudio-header"
+            | "daystudio-footer"
+            | "daystudio-form-grid"
+            | "daystudio-ssr-header"
+            | "daystudio-ssr-footer"
+    ) || lower.starts_with("daystudio-typography-")
+}
+
 /// True for class names that only the Elementor, Divi, jQuery UI or DayStudio editors add.
 fn is_editor_class(token: &str) -> bool {
+    if is_public_daystudio_class(token) {
+        return false;
+    }
     EDITOR_CLASS_RE
         .get_or_init(|| {
             Regex::new(r#"(?i)^(?:elementor-grid-handle|elementor-element-edit-mode|elementor-editor-active|ui-(?:resizable|draggable|sortable)(?:-[a-z0-9_\-]+)?|active-element|et_pb_element_editing|visual-builder-active|daystudio(?:-[a-z0-9_\-]+)?)$"#).unwrap()

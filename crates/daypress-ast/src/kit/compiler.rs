@@ -1,4 +1,4 @@
-use super::models::{ButtonStyle, ElementorKit, GlobalColor, GlobalTypography};
+use super::models::{ButtonStyle, DaystudioKit, GlobalColor, GlobalTypography};
 use super::php::parse_php_serialized_to_json;
 
 fn is_generic_font(fam: &str) -> bool {
@@ -27,22 +27,22 @@ fn is_generic_font(fam: &str) -> bool {
     )
 }
 
-impl ElementorKit {
-    /// Parses an `ElementorKit` from either a JSON string or a PHP-serialized `_elementor_page_settings` string.
+impl DaystudioKit {
+    /// Parses a `DaystudioKit` from either a JSON string or a serialized kit settings string.
     pub fn from_raw_settings(raw: &str) -> Option<Self> {
         let trimmed = raw.trim();
         if trimmed.is_empty() {
             return None;
         }
-        if let Ok(kit) = serde_json::from_str::<ElementorKit>(trimmed) {
+        if let Ok(kit) = serde_json::from_str::<DaystudioKit>(trimmed) {
             return Some(kit);
         }
         if let Some(json_val) = parse_php_serialized_to_json(trimmed) {
-            if let Ok(kit) = serde_json::from_value::<ElementorKit>(json_val.clone()) {
+            if let Ok(kit) = serde_json::from_value::<DaystudioKit>(json_val.clone()) {
                 return Some(kit);
             }
             if let Some(settings) = json_val.get("settings") {
-                if let Ok(kit) = serde_json::from_value::<ElementorKit>(settings.clone()) {
+                if let Ok(kit) = serde_json::from_value::<DaystudioKit>(settings.clone()) {
                     return Some(kit);
                 }
             }
@@ -202,7 +202,7 @@ impl ElementorKit {
             .chain(self.custom_typography.iter())
         {
             css.push_str(&format!(
-                ".elementor-typography-{} {{\n  font-family: var(--e-global-typography-{}-font-family);\n",
+                ".daystudio-typography-{} {{\n  font-family: var(--e-global-typography-{}-font-family);\n",
                 t.id, t.id
             ));
             if t.font_size.is_some() {
@@ -241,13 +241,13 @@ impl ElementorKit {
         }
 
         // 5. Zero-Specificity Base Element Styles (:where(...))
-        css.push_str("\n:where(body.elementor-theme-active, .elementor-kit) {\n  font-family: var(--e-global-typography-text-font-family, inherit);\n  color: var(--e-global-color-text, inherit);\n}\n");
+        css.push_str("\n:where(body.daystudio-theme-active, .daystudio-kit) {\n  font-family: var(--e-global-typography-text-font-family, inherit);\n  color: var(--e-global-color-text, inherit);\n}\n");
         css.push_str(":where(h1, h2, h3, h4, h5, h6) {\n  font-family: var(--e-global-typography-primary-font-family, inherit);\n  color: var(--e-global-color-secondary, var(--e-global-color-primary, inherit));\n}\n");
-        css.push_str(":where(.elementor-button, .dp-button) {\n  background-color: var(--e-button-bg, var(--e-global-color-accent, #3b82f6));\n  color: var(--e-button-color, #ffffff);\n  border-radius: var(--e-button-border-radius, 4px);\n}\n");
+        css.push_str(":where(.daystudio-button, .dp-button) {\n  background-color: var(--e-button-bg, var(--e-global-color-accent, #3b82f6));\n  color: var(--e-button-color, #ffffff);\n  border-radius: var(--e-button-border-radius, 4px);\n}\n");
 
         if let Some(ref custom_css) = self.custom_css {
             if !custom_css.trim().is_empty() {
-                css.push_str("\n/* Elementor Custom CSS */\n");
+                css.push_str("\n/* Daystudio Custom CSS */\n");
                 css.push_str(custom_css);
                 css.push('\n');
             }
@@ -256,7 +256,7 @@ impl ElementorKit {
         css
     }
 
-    /// Synthesizes a converged `ElementorKit` (Daypress Styling System) from Divi global colors (`gcid-*`),
+    /// Synthesizes a converged `DaystudioKit` (Daypress Styling System) from Divi global colors (`gcid-*`),
     /// enqueued Google Fonts (`et_enqueued_post_fonts`), custom CSS, and detected brand palette.
     #[allow(clippy::too_many_arguments)]
     pub fn from_divi_theme(

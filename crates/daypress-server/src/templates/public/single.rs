@@ -2,13 +2,13 @@
 
 use super::shell::render_base_layout;
 use crate::auth::AuthUser;
-use crate::models::{WpPostResponse, WpSettingsResponse};
-use crate::templates::utils::{clean_wp_content, escape_html, sanitize_comment_html};
+use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
+use crate::templates::utils::{clean_post_content, escape_html, sanitize_comment_html};
 use daypress_ast::DaypressLayout;
 
 pub fn render_single_post(
-    post: &WpPostResponse,
-    settings: &WpSettingsResponse,
+    post: &DaypressPostResponse,
+    settings: &DaypressSettingsResponse,
     current_user: Option<&AuthUser>,
     layout_json: Option<&str>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
@@ -28,7 +28,7 @@ pub fn render_single_post(
         .unwrap_or_default();
 
     let has_ast_layout = ast_rendered.is_some();
-    let clean_content = ast_rendered.unwrap_or_else(|| clean_wp_content(&post.content.rendered));
+    let clean_content = ast_rendered.unwrap_or_else(|| clean_post_content(&post.content.rendered));
     let is_page = post.post_type == "page";
     let site_name = if settings.title.trim().is_empty() {
         "Home"
@@ -56,9 +56,9 @@ pub fn render_single_post(
                 || post.template == "canvas"
                 || post.template == "full-width"));
 
-    let has_elementor_theme = !settings.elementor_kit_css.trim().is_empty()
-        || !settings.elementor_header_html.trim().is_empty()
-        || !settings.elementor_footer_html.trim().is_empty();
+    let has_daystudio_theme = !settings.daystudio_kit_css.trim().is_empty()
+        || !settings.daystudio_header_html.trim().is_empty()
+        || !settings.daystudio_footer_html.trim().is_empty();
 
     let is_section_layout = clean_content.trim_start().starts_with("<section")
         || clean_content.contains("<section class=\"pageheader")
@@ -76,7 +76,7 @@ pub fn render_single_post(
             "##,
             body = clean_content
         )
-    } else if is_page && has_elementor_theme {
+    } else if is_page && has_daystudio_theme {
         format!(
             r##"
             <section class="dp-section" style="border-bottom: none; padding: 48px 24px;">

@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Daypress Core Team"]
 license = "AGPL-3.0-or-later"
@@ -55,6 +55,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # AI / Transpiler Pipeline
 rig-core = { version = "0.45.0", features = ["rustls"] }
+
+# Self-Updater (HTTP over rustls + archive decompression + SemVer)
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+flate2 = "1.1"
+semver = "1.0"
 
 # Password hashing (argon2id) is deliberately expensive; optimize it even in dev/test builds
 # so logins and Basic-auth requests stay fast while developing and in CI.

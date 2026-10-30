@@ -181,7 +181,7 @@ fn test_divi4_quad_margins_and_paddings_varied_units() {
 // =========================================================================
 
 #[test]
-fn test_elementor_css_grid_track_templates_and_spans() {
+fn test_daystudio_css_grid_track_templates_and_spans() {
     let grid_json = r#"[
         {
             "id": "grid_parent",

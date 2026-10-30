@@ -87,19 +87,19 @@ impl ContentUseCase for CmsService {
         status: Option<&str>,
         search: Option<&str>,
         limit: i64,
-    ) -> DomainResult<Vec<WpPostResponse>> {
+    ) -> DomainResult<Vec<DaypressPostResponse>> {
         let clamped_limit = limit.clamp(1, 500);
         self.posts
             .list_posts(post_type, status, search, clamped_limit)
     }
 
-    fn get_content_by_id(&self, id: i64) -> DomainResult<WpPostResponse> {
+    fn get_content_by_id(&self, id: i64) -> DomainResult<DaypressPostResponse> {
         self.posts
             .find_post_by_id(id)?
             .ok_or_else(|| DomainError::NotFound(format!("Post #{id} not found")))
     }
 
-    fn get_content_by_slug(&self, slug: &str) -> DomainResult<WpPostResponse> {
+    fn get_content_by_slug(&self, slug: &str) -> DomainResult<DaypressPostResponse> {
         let normalized = slug.trim();
         if normalized.is_empty() {
             return Err(DomainError::Validation("Post slug cannot be empty".into()));
@@ -109,7 +109,7 @@ impl ContentUseCase for CmsService {
         })
     }
 
-    fn publish_content(&self, mut req: CreatePostRequest) -> DomainResult<WpPostResponse> {
+    fn publish_content(&self, mut req: CreatePostRequest) -> DomainResult<DaypressPostResponse> {
         if req.title.trim().is_empty() && req.content.trim().is_empty() {
             return Err(DomainError::Validation(
                 "A post must include a non-empty title or content".into(),
@@ -127,7 +127,7 @@ impl ContentUseCase for CmsService {
         self.posts.create_post(&req)
     }
 
-    fn edit_content(&self, id: i64, req: UpdatePostRequest) -> DomainResult<WpPostResponse> {
+    fn edit_content(&self, id: i64, req: UpdatePostRequest) -> DomainResult<DaypressPostResponse> {
         self.posts
             .update_post(id, &req)?
             .ok_or_else(|| DomainError::NotFound(format!("Post #{id} not found")))
@@ -151,7 +151,7 @@ impl ContentUseCase for CmsService {
                 DomainError::Validation(format!("Invalid DaypressLayout AST JSON: {e}"))
             })?;
         if let Some(ref gs_val) = layout.global_styles {
-            if let Ok(kit) = serde_json::from_value::<daypress_ast::ElementorKit>(gs_val.clone()) {
+            if let Ok(kit) = serde_json::from_value::<daypress_ast::DaystudioKit>(gs_val.clone()) {
                 let kit_css = kit.compile_to_css();
                 let _ = self.options.set_option("elementor_kit_css", &kit_css);
             }
@@ -163,7 +163,7 @@ impl ContentUseCase for CmsService {
             .save_post_layout(post_id, &canonical_json, Some(&compiled_html))
     }
 
-    fn list_taxonomies(&self, taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>> {
+    fn list_taxonomies(&self, taxonomy: &str) -> DomainResult<Vec<DaypressCategoryResponse>> {
         self.taxonomies.list_terms(taxonomy)
     }
 
@@ -171,7 +171,7 @@ impl ContentUseCase for CmsService {
         &self,
         taxonomy: &str,
         req: CreateTermRequest,
-    ) -> DomainResult<WpCategoryResponse> {
+    ) -> DomainResult<DaypressCategoryResponse> {
         if req.name.trim().is_empty() {
             return Err(DomainError::Validation("Term name is required".into()));
         }
@@ -200,7 +200,7 @@ impl MigrationUseCase for CmsService {
 }
 
 impl SettingsUseCase for CmsService {
-    fn get_site_settings(&self) -> DomainResult<WpSettingsResponse> {
+    fn get_site_settings(&self) -> DomainResult<DaypressSettingsResponse> {
         self.options.get_settings()
     }
 
@@ -231,7 +231,7 @@ mod tests {
     /// Pure in-memory mock repository proving `CmsService` is 100% decoupled from SQLite and Axum.
     #[derive(Default)]
     struct MockRepo {
-        posts: Mutex<Vec<WpPostResponse>>,
+        posts: Mutex<Vec<DaypressPostResponse>>,
     }
 
     impl PostRepository for MockRepo {
@@ -241,11 +241,11 @@ mod tests {
             _status: Option<&str>,
             _search: Option<&str>,
             _limit: i64,
-        ) -> DomainResult<Vec<WpPostResponse>> {
+        ) -> DomainResult<Vec<DaypressPostResponse>> {
             Ok(self.posts.lock().unwrap().clone())
         }
 
-        fn find_post_by_id(&self, id: i64) -> DomainResult<Option<WpPostResponse>> {
+        fn find_post_by_id(&self, id: i64) -> DomainResult<Option<DaypressPostResponse>> {
             Ok(self
                 .posts
                 .lock()
@@ -255,7 +255,7 @@ mod tests {
                 .cloned())
         }
 
-        fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<WpPostResponse>> {
+        fn find_post_by_slug(&self, slug: &str) -> DomainResult<Option<DaypressPostResponse>> {
             Ok(self
                 .posts
                 .lock()
@@ -265,18 +265,18 @@ mod tests {
                 .cloned())
         }
 
-        fn create_post(&self, req: &CreatePostRequest) -> DomainResult<WpPostResponse> {
+        fn create_post(&self, req: &CreatePostRequest) -> DomainResult<DaypressPostResponse> {
             let mut guard = self.posts.lock().unwrap();
             let id = (guard.len() as i64) + 1;
             let slug = req
                 .slug
                 .clone()
                 .unwrap_or_else(|| generated_slugify::slugify(&req.title));
-            let post = WpPostResponse {
+            let post = DaypressPostResponse {
                 id,
                 date: "2026-10-22T00:00:00".into(),
                 date_gmt: "2026-10-22T00:00:00".into(),
-                guid: WpGuid {
+                guid: DaypressGuid {
                     rendered: format!("http://localhost:8090/?p={id}"),
                 },
                 modified: "2026-10-22T00:00:00".into(),
@@ -285,15 +285,15 @@ mod tests {
                 status: req.status.clone(),
                 post_type: req.post_type.clone(),
                 link: format!("http://localhost:8090/?p={id}"),
-                title: WpRenderedText {
+                title: DaypressRenderedText {
                     rendered: req.title.clone(),
                     protected: false,
                 },
-                content: WpRenderedText {
+                content: DaypressRenderedText {
                     rendered: req.content.clone(),
                     protected: false,
                 },
-                excerpt: WpRenderedText {
+                excerpt: DaypressRenderedText {
                     rendered: req.excerpt.clone().unwrap_or_default(),
                     protected: false,
                 },
@@ -330,15 +330,15 @@ mod tests {
             &self,
             _id: i64,
             _req: &UpdatePostRequest,
-        ) -> DomainResult<Option<WpPostResponse>> {
+        ) -> DomainResult<Option<DaypressPostResponse>> {
             Ok(None)
         }
 
-        fn duplicate_post(&self, _source_id: i64) -> DomainResult<Option<WpPostResponse>> {
+        fn duplicate_post(&self, _source_id: i64) -> DomainResult<Option<DaypressPostResponse>> {
             Ok(None)
         }
 
-        fn trash_post(&self, _id: i64) -> DomainResult<Option<WpPostResponse>> {
+        fn trash_post(&self, _id: i64) -> DomainResult<Option<DaypressPostResponse>> {
             Ok(None)
         }
 
@@ -365,21 +365,21 @@ mod tests {
     }
 
     impl TaxonomyRepository for MockRepo {
-        fn list_terms(&self, _taxonomy: &str) -> DomainResult<Vec<WpCategoryResponse>> {
+        fn list_terms(&self, _taxonomy: &str) -> DomainResult<Vec<DaypressCategoryResponse>> {
             Ok(vec![])
         }
         fn find_term_by_id(
             &self,
             _taxonomy: &str,
             _id: i64,
-        ) -> DomainResult<Option<WpCategoryResponse>> {
+        ) -> DomainResult<Option<DaypressCategoryResponse>> {
             Ok(None)
         }
         fn create_term(
             &self,
             _taxonomy: &str,
             _req: &CreateTermRequest,
-        ) -> DomainResult<WpCategoryResponse> {
+        ) -> DomainResult<DaypressCategoryResponse> {
             Err(DomainError::NotFound("mock".into()))
         }
         fn update_term(
@@ -387,7 +387,7 @@ mod tests {
             _taxonomy: &str,
             _id: i64,
             _req: &UpdateTermRequest,
-        ) -> DomainResult<Option<WpCategoryResponse>> {
+        ) -> DomainResult<Option<DaypressCategoryResponse>> {
             Ok(None)
         }
         fn delete_term(&self, _taxonomy: &str, _id: i64) -> DomainResult<bool> {
@@ -402,8 +402,8 @@ mod tests {
         fn set_option(&self, _name: &str, _value: &str) -> DomainResult<()> {
             Ok(())
         }
-        fn get_settings(&self) -> DomainResult<WpSettingsResponse> {
-            Ok(WpSettingsResponse::default())
+        fn get_settings(&self) -> DomainResult<DaypressSettingsResponse> {
+            Ok(DaypressSettingsResponse::default())
         }
         fn get_stats(&self) -> DomainResult<DbStats> {
             Err(DomainError::NotFound("mock".into()))
@@ -416,20 +416,23 @@ mod tests {
             _post_id: Option<i64>,
             _status: Option<&str>,
             _limit: i64,
-        ) -> DomainResult<Vec<WpCommentAdminItem>> {
+        ) -> DomainResult<Vec<DaypressCommentAdminItem>> {
             Ok(vec![])
         }
-        fn find_comment_by_id(&self, _id: i64) -> DomainResult<Option<WpCommentAdminItem>> {
+        fn find_comment_by_id(&self, _id: i64) -> DomainResult<Option<DaypressCommentAdminItem>> {
             Ok(None)
         }
-        fn create_comment(&self, _req: &CreateCommentRequest) -> DomainResult<WpCommentResponse> {
+        fn create_comment(
+            &self,
+            _req: &CreateCommentRequest,
+        ) -> DomainResult<DaypressCommentResponse> {
             Err(DomainError::NotFound("mock".into()))
         }
         fn update_comment(
             &self,
             _id: i64,
             _req: &UpdateCommentRequest,
-        ) -> DomainResult<Option<WpCommentAdminItem>> {
+        ) -> DomainResult<Option<DaypressCommentAdminItem>> {
             Ok(None)
         }
         fn delete_comment(&self, _id: i64) -> DomainResult<bool> {

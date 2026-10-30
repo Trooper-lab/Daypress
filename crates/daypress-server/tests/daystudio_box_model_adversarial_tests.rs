@@ -9,7 +9,7 @@
 use daypress_server::adapters::database::Database;
 use daypress_server::templates::admin::builder::scripts;
 use daypress_server::templates::admin::builder::styles;
-use daypress_server::templates::render_wp_builder_view;
+use daypress_server::templates::render_builder_view;
 
 #[test]
 fn test_cad_tokens_rigorous_verification() {
@@ -196,7 +196,7 @@ fn test_builder_rendered_view_contains_all_components_and_zero_leaks() {
     let posts = db.get_posts("post", None, None, 1).unwrap();
     let post = &posts[0];
 
-    let html = render_wp_builder_view(&settings, post, None);
+    let html = render_builder_view(&settings, post, None);
 
     // Verify template interpolation without unresolved template tags
     assert!(!html.contains("__STYLES__"));
