@@ -4,8 +4,9 @@ use super::params::CommentQueryParams;
 use crate::models;
 use crate::templates;
 use crate::Database;
-use axum::extract::{Query, State};
-use axum::response::Html;
+use axum::extract::{Form, Query, State};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{Html, IntoResponse};
 
 /// 1. Dashboard Updates
 pub async fn handle_admin_updates(State(db): State<Database>) -> Html<String> {
@@ -182,5 +183,68 @@ pub(crate) fn placeholder_builder_post() -> models::DaypressPostResponse {
         seo_noindex: false,
         seo_schema_type: "WebPage".to_string(),
         seo_og_image: String::new(),
+    }
+}
+
+pub async fn handle_setup_page(State(db): State<Database>) -> impl IntoResponse {
+    if !db.needs_onboarding() {
+        return axum::response::Redirect::to("/d-admin/").into_response();
+    }
+    let settings = db.get_settings().unwrap_or_default();
+    Html(templates::render_onboarding_view(&settings, None, None)).into_response()
+}
+
+pub async fn handle_setup_submit(
+    State(db): State<Database>,
+    Form(form): Form<crate::db::OnboardingSetupRequest>,
+) -> impl IntoResponse {
+    if !db.needs_onboarding() {
+        return axum::response::Redirect::to("/login").into_response();
+    }
+
+    match db.complete_onboarding(&form) {
+        Ok(user) => {
+            let mut headers = HeaderMap::new();
+            let secret = db.get_auth_secret().unwrap_or_default();
+            let ver = db
+                .get_user_detail(user.user_id)
+                .ok()
+                .flatten()
+                .map(|u| u.session_ver)
+                .unwrap_or(1);
+            let cookie_val =
+                crate::auth::session_cookie_header_with_version(user.user_id, &secret, true, ver);
+            if let Ok(val) = cookie_val.parse() {
+                headers.insert(header::SET_COOKIE, val);
+            }
+            let target = if form.starter_mode.trim().eq_ignore_ascii_case("migrate") {
+                "/d-admin/import?welcome=1"
+            } else {
+                "/d-admin/?welcome=1"
+            };
+            if let Ok(loc) = target.parse() {
+                headers.insert(header::LOCATION, loc);
+            }
+            (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
+        }
+        Err(err) => {
+            let settings = db.get_settings().unwrap_or_default();
+            let msg = match err {
+                crate::AppError::BadRequest(m)
+                | crate::AppError::Forbidden(m)
+                | crate::AppError::NotFound(m)
+                | crate::AppError::Unauthorized(m) => m,
+                other => other.to_string(),
+            };
+            (
+                StatusCode::BAD_REQUEST,
+                Html(templates::render_onboarding_view(
+                    &settings,
+                    Some(&form),
+                    Some(&msg),
+                )),
+            )
+                .into_response()
+        }
     }
 }

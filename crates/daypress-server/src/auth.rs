@@ -750,7 +750,10 @@ fn path_requires_admin_session(path: &str) -> bool {
     if path != "/d-admin" && !path.starts_with("/d-admin/") {
         return false;
     }
-    !matches!(path, "/d-admin/login" | "/d-admin/logout")
+    !matches!(
+        path,
+        "/d-admin/login" | "/d-admin/logout" | "/d-admin/install" | "/d-admin/setup"
+    )
 }
 
 fn is_admin_machine_endpoint(path: &str) -> bool {
@@ -832,6 +835,9 @@ pub async fn admin_session_gate(
                     })),
                 )
                     .into_response();
+            }
+            if db.needs_onboarding() {
+                return axum::response::Redirect::to("/setup").into_response();
             }
             let target = match req.uri().query() {
                 Some(q) => format!("{}?{}", path, q),

@@ -108,7 +108,8 @@ pub async fn handle_api_theme_save(
     let theme = payload
         .theme
         .or(payload.active_theme)
-        .unwrap_or_else(|| "Daypress Modern".to_string());
+        .unwrap_or_else(|| "Daypress Daylight".to_string());
+    let _ = db.set_option("stylesheet", &theme);
     match db.set_option("daypress_active_theme", &theme) {
         Ok(_) => (
             StatusCode::OK,
@@ -125,6 +126,7 @@ pub async fn handle_api_theme_save(
 
 #[derive(Debug, Deserialize)]
 pub struct CustomizerSavePayload {
+    pub active_theme: Option<String>,
     pub title: Option<String>,
     pub description: Option<String>,
     pub brand_color: Option<String>,
@@ -136,6 +138,12 @@ pub async fn handle_api_customizer_save(
     State(db): State<Database>,
     axum::Json(payload): axum::Json<CustomizerSavePayload>,
 ) -> impl IntoResponse {
+    if let Some(ref th) = payload.active_theme {
+        if !th.trim().is_empty() {
+            let _ = db.set_option("daypress_active_theme", th.trim());
+            let _ = db.set_option("stylesheet", th.trim());
+        }
+    }
     if let Some(ref t) = payload.title {
         let _ = db.set_option("blogname", t);
     }

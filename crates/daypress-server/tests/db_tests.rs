@@ -519,14 +519,14 @@ fn test_wxr_export_and_privacy_tools() {
 
     // 2. Personal Data Export
     let personal = db
-        .export_personal_data("wapuu@wordpress.example")
+        .export_personal_data("commenter@example.com")
         .expect("Personal data export failed");
-    assert_eq!(personal["requested_identifier"], "wapuu@wordpress.example");
+    assert_eq!(personal["requested_identifier"], "commenter@example.com");
     assert!(!personal["comments"].as_array().unwrap().is_empty());
 
     // 3. Personal Data Erase
     let scrubbed = db
-        .erase_personal_data("wapuu@wordpress.example")
+        .erase_personal_data("commenter@example.com")
         .expect("Personal data erase failed");
     assert_eq!(scrubbed, 1);
 

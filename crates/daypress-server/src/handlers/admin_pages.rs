@@ -247,6 +247,9 @@ pub async fn handle_login_page(
     if params.action.as_deref() == Some("logout") {
         return handle_logout().await.into_response();
     }
+    if db.needs_onboarding() {
+        return axum::response::Redirect::to("/setup").into_response();
+    }
 
     let settings = db.get_settings().unwrap_or_default();
     let loggedout =

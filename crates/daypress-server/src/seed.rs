@@ -1,5 +1,5 @@
 //! Starter content for a new install: a first post with a comment, a sample page, and one
-//! page built with DayStudio, in the spirit of WordPress's sample content.
+//! page built with DayStudio, styled with the default Daypress theme.
 
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
@@ -20,7 +20,8 @@ pub fn seed_starter_site(conn: &Connection) -> Result<()> {
         "#,
     )?;
 
-    // 2. Site options
+    // 2. Site options & default Daypress theme configuration
+    let default_menu = r#"[{"id":1,"title":"Home","url":"/","parent_id":0,"order":0},{"id":2,"title":"Hello world!","url":"/hello-world/","parent_id":0,"order":1},{"id":3,"title":"Sample Page","url":"/sample-page/","parent_id":0,"order":2},{"id":4,"title":"DayStudio","url":"/daystudio-sample/","parent_id":0,"order":3}]"#;
     let options = [
         ("blogname", "Daypress"),
         ("blogdescription", "A self-hosted CMS written in Rust."),
@@ -30,6 +31,11 @@ pub fn seed_starter_site(conn: &Connection) -> Result<()> {
         ("posts_per_page", "10"),
         ("date_format", "F j, Y"),
         ("time_format", "g:i a"),
+        ("daypress_active_theme", "Daypress Daylight"),
+        ("stylesheet", "Daypress Daylight"),
+        ("daypress_brand_color", "#a8401b"),
+        ("daypress_typography_scale", "serif"),
+        ("daypress_nav_menu_items", default_menu),
     ];
 
     for (name, val) in options {
@@ -39,8 +45,8 @@ pub fn seed_starter_site(conn: &Connection) -> Result<()> {
         )?;
     }
 
-    // 3. Ensure admin user. The placeholder hash matches no password; `ensure_admin_credentials`
-    // replaces it with a generated one on startup.
+    // 3. Ensure admin user. The placeholder hash matches no password; first-run onboarding (`/setup`)
+    // or `DAYPRESS_ADMIN_PASSWORD` sets a real password.
     conn.execute(
         r#"INSERT OR IGNORE INTO users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
            VALUES (1, 'admin', ?2, 'admin', 'admin@example.com', ?1, 'admin');"#,
@@ -89,7 +95,30 @@ fn insert_post(
 }
 
 fn insert_hello_world(conn: &Connection, now: &str) -> Result<()> {
-    let content = "<!-- wp:paragraph -->\n<p>Welcome to Daypress. This is your first post. Edit or delete it, then start writing!</p>\n<!-- /wp:paragraph -->";
+    let content = r#"<!-- wp:paragraph -->
+<p>Welcome to Daypress. This is your first post. Edit or delete it, then start writing!</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Daypress is a self-hosted publishing platform written in Rust with an embedded SQLite database. Your posts, pages, media, and theme templates live together in a single portable database file on disk.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2>First steps for your new site</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul>
+<li><strong>Write and publish:</strong> Open the <a href="/d-admin/edit">Posts screen</a> in the admin desk to write new articles, organize categories and tags, or edit this post.</li>
+<li><strong>Design pages visually:</strong> Open <a href="/d-admin/builder?post=3">DayStudio</a> to arrange sections, grids, and blocks directly on the canvas.</li>
+<li><strong>Shape your theme:</strong> Visit the <a href="/d-admin/customize">Theme Customizer</a> or <a href="/d-admin/headers-footers">Headers &amp; Footers</a> to adjust your site title, brand accent color, typography, and navigation menus.</li>
+<li><strong>Bring an existing site:</strong> Moving from WordPress? Open <a href="/d-admin/import">Tools &rarr; Import</a> to import a WXR XML file or a site bundle.</li>
+</ul>
+<!-- /wp:list -->
+
+<!-- wp:quote -->
+<blockquote class="wp-block-quote"><p>Good publishing software stays out of the way so your words, ideas, and design take center stage.</p></blockquote>
+<!-- /wp:quote -->"#;
     insert_post(
         conn,
         1,
@@ -160,16 +189,16 @@ pub const DAYSTUDIO_SAMPLE_LAYOUT: &str = r##"{
       {
         "id": "sec_sample_intro",
         "type": "Section",
-        "styles": { "background_color": "#f1f5f9", "text_color": "#0f172a", "padding_top": "64px", "padding_bottom": "64px", "text_align": "center" },
+        "styles": { "background_color": "#fbf8f2", "text_color": "#16171a", "padding_top": "72px", "padding_bottom": "72px", "text_align": "center" },
         "children": [
           {
             "id": "cont_sample_intro",
             "type": "Container",
             "styles": {},
             "children": [
-              { "id": "h_sample_title", "type": "Heading", "data": { "text": "A page built with DayStudio", "level": 1 }, "styles": { "font_size": "40px", "margin_bottom": "16px" } },
-              { "id": "p_sample_intro", "type": "Text", "data": { "content_html": "<p>This sample page was made with DayStudio, the visual builder. Open it in the builder to see how it is put together, then change it or delete it.</p>" }, "styles": { "font_size": "18px", "text_color": "#475569", "margin_bottom": "28px" } },
-              { "id": "btn_sample_edit", "type": "Button", "data": { "text": "Edit this page in DayStudio", "url": "/d-admin/builder?post=3" }, "styles": { "background_color": "#2271b1", "text_color": "#ffffff", "padding_top": "12px", "padding_bottom": "12px", "padding_left": "28px", "padding_right": "28px", "border_radius": "6px" } }
+              { "id": "h_sample_title", "type": "Heading", "data": { "text": "A page built with DayStudio", "level": 1 }, "styles": { "font_size": "42px", "margin_bottom": "16px" } },
+              { "id": "p_sample_intro", "type": "Text", "data": { "content_html": "<p>This sample page was made with DayStudio, the visual builder. Open it in the builder to see how it is put together, then change it or delete it.</p>" }, "styles": { "font_size": "18px", "text_color": "#5a5852", "margin_bottom": "28px" } },
+              { "id": "btn_sample_edit", "type": "Button", "data": { "text": "Edit this page in DayStudio", "url": "/d-admin/builder?post=3" }, "styles": { "background_color": "#a8401b", "text_color": "#fff8f0", "padding_top": "12px", "padding_bottom": "12px", "padding_left": "28px", "padding_right": "28px", "border_radius": "6px" } }
             ]
           }
         ]
@@ -177,7 +206,7 @@ pub const DAYSTUDIO_SAMPLE_LAYOUT: &str = r##"{
       {
         "id": "sec_sample_grid",
         "type": "Section",
-        "styles": { "background_color": "#ffffff", "padding_top": "56px", "padding_bottom": "56px" },
+        "styles": { "background_color": "#f3eee4", "padding_top": "56px", "padding_bottom": "64px" },
         "children": [
           {
             "id": "cont_sample_grid",
@@ -193,28 +222,28 @@ pub const DAYSTUDIO_SAMPLE_LAYOUT: &str = r##"{
                   {
                     "id": "card_sample_sections",
                     "type": "Container",
-                    "styles": { "background_color": "#f8fafc", "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "8px", "border": "1px solid #e2e8f0" },
+                    "styles": { "background_color": "#fbf8f2", "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "6px", "border": "1px solid #d4cdc0" },
                     "children": [
-                      { "id": "h_card_sections", "type": "Heading", "data": { "text": "Sections", "level": 3 }, "styles": { "font_size": "20px" } },
-                      { "id": "p_card_sections", "type": "Text", "data": { "content_html": "<p>Sections run across the full width of the page. The containers inside them hold your content.</p>" }, "styles": { "font_size": "15px", "text_color": "#475569", "margin_top": "8px" } }
+                      { "id": "h_card_sections", "type": "Heading", "data": { "text": "Sections", "level": 3 }, "styles": { "font_size": "20px", "text_color": "#16171a" } },
+                      { "id": "p_card_sections", "type": "Text", "data": { "content_html": "<p>Sections run across the full width of the page. The containers inside them hold your content.</p>" }, "styles": { "font_size": "15px", "text_color": "#5a5852", "margin_top": "8px" } }
                     ]
                   },
                   {
                     "id": "card_sample_grids",
                     "type": "Container",
-                    "styles": { "background_color": "#f8fafc", "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "8px", "border": "1px solid #e2e8f0" },
+                    "styles": { "background_color": "#fbf8f2", "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "6px", "border": "1px solid #d4cdc0" },
                     "children": [
-                      { "id": "h_card_grids", "type": "Heading", "data": { "text": "Grids", "level": 3 }, "styles": { "font_size": "20px" } },
-                      { "id": "p_card_grids", "type": "Text", "data": { "content_html": "<p>These three cards sit in a grid with three columns. Change the number of columns in the builder.</p>" }, "styles": { "font_size": "15px", "text_color": "#475569", "margin_top": "8px" } }
+                      { "id": "h_card_grids", "type": "Heading", "data": { "text": "Grids", "level": 3 }, "styles": { "font_size": "20px", "text_color": "#16171a" } },
+                      { "id": "p_card_grids", "type": "Text", "data": { "content_html": "<p>These three cards sit in a grid with three columns. Change the number of columns in the builder.</p>" }, "styles": { "font_size": "15px", "text_color": "#5a5852", "margin_top": "8px" } }
                     ]
                   },
                   {
                     "id": "card_sample_widgets",
                     "type": "Container",
-                    "styles": { "background_color": "#f8fafc", "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "8px", "border": "1px solid #e2e8f0" },
+                    "styles": { "background_color": "#fbf8f2", "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "6px", "border": "1px solid #d4cdc0" },
                     "children": [
-                      { "id": "h_card_widgets", "type": "Heading", "data": { "text": "Widgets", "level": 3 }, "styles": { "font_size": "20px" } },
-                      { "id": "p_card_widgets", "type": "Text", "data": { "content_html": "<p>Headings, text, buttons, images, video and more. Drag them onto the page and edit them in place.</p>" }, "styles": { "font_size": "15px", "text_color": "#475569", "margin_top": "8px" } }
+                      { "id": "h_card_widgets", "type": "Heading", "data": { "text": "Widgets", "level": 3 }, "styles": { "font_size": "20px", "text_color": "#16171a" } },
+                      { "id": "p_card_widgets", "type": "Text", "data": { "content_html": "<p>Headings, text, buttons, images, video and more. Drag them onto the page and edit them in place.</p>" }, "styles": { "font_size": "15px", "text_color": "#5a5852", "margin_top": "8px" } }
                     ]
                   }
                 ]

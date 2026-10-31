@@ -121,9 +121,21 @@ impl Database {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0),
             active_theme: self
-                .get_option("stylesheet")?
-                .or_else(|| self.get_option("daypress_imported_theme").ok().flatten())
-                .unwrap_or_else(|| "twentytwentyfour".to_string()),
+                .get_option("daypress_active_theme")?
+                .filter(|s| !s.trim().is_empty())
+                .or_else(|| {
+                    self.get_option("stylesheet")
+                        .ok()
+                        .flatten()
+                        .filter(|s| !s.trim().is_empty())
+                })
+                .or_else(|| {
+                    self.get_option("daypress_imported_theme")
+                        .ok()
+                        .flatten()
+                        .filter(|s| !s.trim().is_empty())
+                })
+                .unwrap_or_else(|| "Daypress Daylight".to_string()),
             custom_css: crate::legacy::rewrite_daystudio_style_prefixes(
                 &self
                     .get_option("custom_css")?
@@ -132,10 +144,12 @@ impl Database {
             ),
             brand_color: self
                 .get_option("daypress_brand_color")?
-                .unwrap_or_else(|| "#2271b1".to_string()),
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| "#a8401b".to_string()),
             typography_scale: self
                 .get_option("daypress_typography_scale")?
-                .unwrap_or_else(|| "Inter (Modern Default)".to_string()),
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| "serif".to_string()),
             nav_menu_items: self
                 .get_option("daypress_nav_menu_items")?
                 .and_then(|s| serde_json::from_str(&s).ok())

@@ -6,10 +6,39 @@ use crate::errors::AppError;
 use crate::models::*;
 use base64::Engine;
 use chrono::Utc;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, TransactionBehavior};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+
+/// Payload submitted by the First-Time Onboarding Wizard (`POST /setup`).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct OnboardingSetupRequest {
+    #[serde(default)]
+    pub site_title: String,
+    #[serde(default)]
+    pub tagline: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub email: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
+    pub confirm_password: String,
+    #[serde(default)]
+    pub theme: String,
+    #[serde(default)]
+    pub brand_color: String,
+    #[serde(default)]
+    pub typography_scale: String,
+    /// `"starter"` (default Daypress sample content), `"blank"` (empty site), or `"migrate"` (1-Click WP Import).
+    #[serde(default)]
+    pub starter_mode: String,
+}
 
 impl Database {
     pub fn new(path: &Path) -> Result<Self> {
@@ -43,15 +72,23 @@ impl Database {
                         |_| Ok(true),
                     )
                     .unwrap_or(false);
+                let has_legacy_neopress_pack: bool = conn
+                    .query_row(
+                        "SELECT 1 FROM posts WHERE post_name = 'about-us' AND post_title = 'About Neopress Foundation' LIMIT 1;",
+                        [],
+                        |_| Ok(true),
+                    )
+                    .unwrap_or(false);
                 let post_count: i64 = conn
                     .query_row("SELECT COUNT(*) FROM posts;", [], |r| r.get(0))
                     .unwrap_or(0);
                 let user_count: i64 = conn
                     .query_row("SELECT COUNT(*) FROM users;", [], |r| r.get(0))
                     .unwrap_or(0);
-                // Only a brand-new (or completely empty) database gets the starter site.
-                // Deleting every post on a live site must never trigger a reseed.
-                !is_migrated && (is_new || (post_count == 0 && user_count == 0))
+                // Only a brand-new (or completely empty) database, or an untouched legacy Neopress
+                // marketing pack, gets the starter site. Deleting every post on a live site never triggers a reseed.
+                !is_migrated
+                    && (is_new || (post_count == 0 && user_count == 0) || has_legacy_neopress_pack)
             };
 
             if needs_starter_content {
@@ -65,11 +102,214 @@ impl Database {
         Ok(db)
     }
 
-    /// Guarantees the install has an administrator who can log in, without a shared default.
+    /// Whether a stored `user_pass` value is a usable Daypress password hash (not the seed placeholder).
+    pub(crate) fn is_usable_password_hash(stored_pass: &str) -> bool {
+        let trimmed = stored_pass.trim();
+        if trimmed.is_empty() || trimmed == crate::auth::LEGACY_SEED_PASSWORD_HASH {
+            return false;
+        }
+        trimmed.starts_with("$argon2")
+            || trimmed.starts_with("$daypress$sha256$")
+            || (trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()))
+    }
+
+    /// Returns `true` when this Daypress install has not completed first-time setup yet
+    /// (no administrator has a usable password set and `daypress_setup_completed` is not `'1'`).
+    pub fn needs_onboarding(&self) -> bool {
+        let Ok(conn) = self.conn.lock() else {
+            return false;
+        };
+        let setup_done: bool = conn
+            .query_row(
+                "SELECT 1 FROM options WHERE option_name IN ('daypress_setup_completed', 'daypress_site_migrated') AND option_value = '1' LIMIT 1;",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+        if setup_done {
+            return false;
+        }
+        let mut stmt = match conn.prepare("SELECT COALESCE(user_pass, '') FROM users;") {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        let hashes: Vec<String> = match stmt.query_map([], |r| r.get::<_, String>(0)) {
+            Ok(rows) => rows.flatten().collect(),
+            Err(_) => return false,
+        };
+        !hashes.iter().any(|h| Self::is_usable_password_hash(h))
+    }
+
+    /// Completes the First-Time Onboarding Wizard (`/setup`), creating/updating the primary
+    /// administrator account and persisting site identity, theme, and starter content choices.
+    pub fn complete_onboarding(&self, req: &OnboardingSetupRequest) -> Result<AuthUser, AppError> {
+        if !self.needs_onboarding() {
+            return Err(AppError::Forbidden(
+                "This Daypress site has already been set up. Please log in.".to_string(),
+            ));
+        }
+
+        let username = req.username.trim();
+        if username.chars().count() < 2 || username.chars().count() > 60 {
+            return Err(AppError::BadRequest(
+                "Username must be between 2 and 60 characters.".to_string(),
+            ));
+        }
+        if !username
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '@'))
+        {
+            return Err(AppError::BadRequest(
+                "Username may only contain letters, numbers, underscores, hyphens, dots, or @."
+                    .to_string(),
+            ));
+        }
+
+        let email = req.email.trim();
+        if email.is_empty()
+            || !email.contains('@')
+            || !email.contains('.')
+            || email.contains([' ', ',', ';'])
+        {
+            return Err(AppError::BadRequest(
+                "Please enter a valid administrator email address.".to_string(),
+            ));
+        }
+
+        let confirm = if req.confirm_password.is_empty() {
+            req.password.as_str()
+        } else {
+            req.confirm_password.as_str()
+        };
+        crate::password_reset::validate_new_password(&req.password, confirm)
+            .map_err(AppError::BadRequest)?;
+
+        let display_name = if req.display_name.trim().is_empty() {
+            username.to_string()
+        } else {
+            req.display_name.trim().to_string()
+        };
+        let site_title = if req.site_title.trim().is_empty() {
+            "Daypress".to_string()
+        } else {
+            req.site_title.trim().to_string()
+        };
+        let tagline = if req.tagline.trim().is_empty() {
+            "A self-hosted CMS written in Rust.".to_string()
+        } else {
+            req.tagline.trim().to_string()
+        };
+        let theme = match req.theme.trim() {
+            "Daypress Daylight"
+            | "Daypress Night"
+            | "Daypress Modern"
+            | "Editorial Minimalist"
+            | "Twenty Twenty-Five" => req.theme.trim().to_string(),
+            _ => "Daypress Daylight".to_string(),
+        };
+        let brand_color = {
+            let c = req.brand_color.trim();
+            if c.starts_with('#')
+                && (c.len() == 4 || c.len() == 7)
+                && c[1..].chars().all(|ch| ch.is_ascii_hexdigit())
+            {
+                c.to_string()
+            } else {
+                "#a8401b".to_string()
+            }
+        };
+        let typography_scale = match req.typography_scale.trim() {
+            "serif" | "system" | "mono" => req.typography_scale.trim().to_string(),
+            _ => "serif".to_string(),
+        };
+
+        // Hash with Argon2id before taking the SQLite write lock.
+        let pass_hash = crate::auth::hash_user_password(&req.password);
+        let nicename = generated_slugify::slugify(username);
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| AppError::Internal("Database connection lock poisoned".to_string()))?;
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+
+        // Re-verify inside the transaction so concurrent requests cannot race.
+        let already_done: bool = tx
+            .query_row(
+                "SELECT 1 FROM options WHERE option_name = 'daypress_setup_completed' AND option_value = '1' LIMIT 1;",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+        if already_done {
+            return Err(AppError::Forbidden(
+                "This Daypress site has already been set up. Please log in.".to_string(),
+            ));
+        }
+
+        tx.execute(
+            r#"INSERT INTO users (ID, user_login, user_pass, user_nicename, user_email, user_url, user_registered, display_name)
+               VALUES (1, ?1, ?2, ?3, ?4, '', ?5, ?6)
+               ON CONFLICT(ID) DO UPDATE SET
+                   user_login = excluded.user_login,
+                   user_pass = excluded.user_pass,
+                   user_nicename = excluded.user_nicename,
+                   user_email = excluded.user_email,
+                   display_name = excluded.display_name;"#,
+            params![username, pass_hash, nicename, email, now, display_name],
+        )?;
+
+        Self::upsert_usermeta(&tx, 1, "role", "Administrator")?;
+        Self::upsert_usermeta(&tx, 1, "nickname", &display_name)?;
+
+        let options = [
+            ("blogname", site_title.as_str()),
+            ("blogdescription", tagline.as_str()),
+            ("admin_email", email),
+            ("daypress_active_theme", theme.as_str()),
+            ("stylesheet", theme.as_str()),
+            ("daypress_brand_color", brand_color.as_str()),
+            ("daypress_typography_scale", typography_scale.as_str()),
+            ("daypress_setup_completed", "1"),
+        ];
+        for (k, v) in options {
+            tx.execute(
+                r#"INSERT INTO options (option_name, option_value) VALUES (?1, ?2)
+                   ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;"#,
+                params![k, v],
+            )?;
+        }
+
+        if matches!(req.starter_mode.trim(), "blank" | "migrate") {
+            tx.execute_batch(
+                r#"
+                DELETE FROM posts;
+                DELETE FROM postmeta;
+                DELETE FROM comments;
+                DELETE FROM term_relationships;
+                DELETE FROM options WHERE option_name = 'daypress_nav_menu_items';
+                UPDATE term_taxonomy SET count = 0 WHERE term_taxonomy_id = 1;
+                "#,
+            )?;
+        }
+
+        tx.commit()?;
+
+        Ok(AuthUser {
+            user_id: 1,
+            username: username.to_string(),
+            role: "Administrator".to_string(),
+        })
+    }
+
+    /// Guarantees the install has an administrator account row.
     ///
-    /// Accounts still carrying the old seed placeholder (or no hash) get a fresh password:
-    /// `DAYPRESS_ADMIN_PASSWORD` when set, otherwise a random one printed once to stderr.
-    /// An install with no users at all gets an `admin` account the same way.
+    /// - When `DAYPRESS_ADMIN_PASSWORD` is set in the environment, sets that password immediately
+    ///   and marks first-time setup complete.
+    /// - When a migrated database has accounts without a Daypress password hash, generates one.
+    /// - On a fresh un-migrated install without `DAYPRESS_ADMIN_PASSWORD`, leaves the account in
+    ///   first-run onboarding mode (`/setup`) so the user can create their admin account in the browser.
     pub fn ensure_admin_credentials(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM users;", [], |r| r.get(0))?;
@@ -77,10 +317,18 @@ impl Database {
             let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
             conn.execute(
                 r#"INSERT INTO users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
-                   VALUES (1, 'admin', ?1, 'admin', '', ?2, 'admin');"#,
+                   VALUES (1, 'admin', ?1, 'admin', 'admin@example.com', ?2, 'admin');"#,
                 params![crate::auth::LEGACY_SEED_PASSWORD_HASH, now],
             )?;
         }
+
+        let is_migrated: bool = conn
+            .query_row(
+                "SELECT 1 FROM options WHERE option_name = 'daypress_site_migrated' AND option_value = '1' LIMIT 1;",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
 
         let pending: Vec<(i64, String)> = {
             let mut stmt = conn.prepare(
@@ -92,8 +340,22 @@ impl Database {
             rows.collect::<Result<Vec<_>>>()?
         };
 
+        if pending.is_empty() {
+            return Ok(());
+        }
+
         let env_password =
             crate::legacy::env_var("DAYPRESS_ADMIN_PASSWORD").filter(|p| !p.trim().is_empty());
+
+        if env_password.is_none() && !is_migrated {
+            eprintln!("============================================================");
+            eprintln!("✨ First-Time Setup Ready:");
+            eprintln!("   Open /setup (or /d-admin/) in your browser to create your");
+            eprintln!("   administrator account and choose your Daypress theme.");
+            eprintln!("============================================================");
+            return Ok(());
+        }
+
         for (index, (user_id, login)) in pending.into_iter().enumerate() {
             let from_env = index == 0 && env_password.is_some();
             let password = match (&env_password, from_env) {
@@ -104,6 +366,13 @@ impl Database {
                 "UPDATE users SET user_pass = ?1 WHERE ID = ?2;",
                 params![crate::auth::hash_user_password(&password), user_id],
             )?;
+            if from_env {
+                conn.execute(
+                    r#"INSERT INTO options (option_name, option_value) VALUES ('daypress_setup_completed', '1')
+                       ON CONFLICT(option_name) DO UPDATE SET option_value = '1';"#,
+                    [],
+                )?;
+            }
             // stderr, so `--mcp-stdio` keeps a clean JSON-RPC stdout.
             eprintln!("============================================================");
             if from_env {
@@ -207,44 +476,7 @@ impl Database {
     pub fn seed_data(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
 
-        // 1. Check if schemas/wordpress-core.sqlite exists and attach to import (skipped for in-memory test databases)
-        let ref_sqlite = Path::new("schemas/wordpress-core.sqlite");
-        if self.db_path != Path::new(":memory:") && ref_sqlite.exists() {
-            eprintln!("📥 Found reference database at schemas/wordpress-core.sqlite, importing core records...");
-            let ref_path_str = ref_sqlite.to_string_lossy().replace('\\', "/");
-            let _ = conn.execute(
-                &format!("ATTACH DATABASE 'file:{}?mode=ro' AS ref_db;", ref_path_str),
-                [],
-            );
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO options SELECT * FROM ref_db.wp_options;",
-                [],
-            );
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO posts SELECT * FROM ref_db.wp_posts;",
-                [],
-            );
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO users SELECT * FROM ref_db.wp_users;",
-                [],
-            );
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO terms SELECT * FROM ref_db.wp_terms;",
-                [],
-            );
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO term_taxonomy SELECT * FROM ref_db.wp_term_taxonomy;",
-                [],
-            );
-            let _ = conn.execute("INSERT OR IGNORE INTO term_relationships SELECT * FROM ref_db.wp_term_relationships;", []);
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO comments SELECT * FROM ref_db.wp_comments;",
-                [],
-            );
-            let _ = conn.execute("DETACH DATABASE ref_db;", []);
-        }
-
-        // 2. Ensure essential default options are present
+        // 1. Ensure essential default options are present
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
         let default_options = [
@@ -265,7 +497,7 @@ impl Database {
             )?;
         }
 
-        // 3. Ensure admin user exists. In-memory databases are test fixtures, so they use the
+        // 2. Ensure admin user exists. In-memory databases are test fixtures, so they use the
         // well-known admin/admin login; file databases never do (see `ensure_admin_credentials`).
         conn.execute(
             r#"INSERT OR IGNORE INTO users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
@@ -273,10 +505,10 @@ impl Database {
             params![now, crate::auth::hash_user_password("admin")],
         )?;
 
-        // 4. Ensure reference posts exist
+        // 3. Ensure reference posts exist
         conn.execute(
             r#"INSERT OR IGNORE INTO posts (ID, post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, post_name, post_modified, post_modified_gmt, guid, post_type)
-               VALUES (1, 1, ?1, ?1, '<!-- wp:paragraph -->\n<p>Welcome to WordPress. This is your first post. Edit or delete it, then start writing!</p>\n<!-- /wp:paragraph -->', 'Hello world!', '<p>Welcome to WordPress. This is your first post. Edit or delete it, then start writing!</p>', 'publish', 'hello-world', ?1, ?1, 'http://localhost:8090/?p=1', 'post');"#,
+               VALUES (1, 1, ?1, ?1, '<!-- wp:paragraph -->\n<p>Welcome to Daypress. This is your first post. Edit or delete it, then start writing!</p>\n<!-- /wp:paragraph -->', 'Hello world!', '<p>Welcome to Daypress. This is your first post. Edit or delete it, then start writing!</p>', 'publish', 'hello-world', ?1, ?1, 'http://localhost:8090/?p=1', 'post');"#,
             params![now],
         )?;
 
@@ -292,7 +524,7 @@ impl Database {
             params![now],
         )?;
 
-        // 5. Ensure Uncategorized category exists
+        // 4. Ensure Uncategorized category exists
         conn.execute(
             "INSERT OR IGNORE INTO terms (term_id, name, slug) VALUES (1, 'Uncategorized', 'uncategorized');",
             [],
@@ -306,14 +538,14 @@ impl Database {
             [],
         )?;
 
-        // 6. Ensure standard default comment exists
+        // 5. Ensure standard default comment exists
         conn.execute(
             r#"INSERT OR IGNORE INTO comments (comment_ID, comment_post_ID, comment_author, comment_author_email, comment_author_url, comment_author_IP, comment_date, comment_date_gmt, comment_content, comment_karma, comment_approved, comment_agent, comment_type, comment_parent, user_id)
-               VALUES (1, 1, 'A WordPress Commenter', 'wapuu@wordpress.example', 'https://wordpress.org/', '127.0.0.1', ?1, ?1, 'Hi, this is a comment.\nTo get started with moderating, editing, and deleting comments, please visit the Comments screen in the dashboard.\nCommenter avatars come from Gravatar.', 0, '1', '', 'comment', 0, 0);"#,
+               VALUES (1, 1, 'A Daypress Commenter', 'commenter@example.com', 'https://wordpress.org/', '127.0.0.1', ?1, ?1, 'Hi, this is a comment.\nTo get started with moderating, editing, and deleting comments, please visit the Comments screen in the dashboard.\nCommenter avatars come from Gravatar.', 0, '1', '', 'comment', 0, 0);"#,
             params![now],
         )?;
 
-        // 7. Seed First-Party Toggleable Modules & Built-in Plugins Catalog
+        // 6. Seed First-Party Toggleable Modules & Built-in Plugins Catalog
         for manifest in crate::plugins::builtin_plugins_catalog() {
             let mut default_cfg = std::collections::HashMap::new();
             for field in &manifest.settings_schema {
@@ -341,7 +573,7 @@ impl Database {
             );
         }
 
-        // 8. Seed a default Contact Form if daypress_forms is empty
+        // 7. Seed a default Contact Form if daypress_forms is empty
         let form_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM daypress_forms", [], |r| r.get(0))
             .unwrap_or(0);

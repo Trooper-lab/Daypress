@@ -165,6 +165,7 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Initialize Concrete Storage Adapter
     let database = Database::new(&args.db)?;
+    let needs_onboarding = database.needs_onboarding();
 
     // 2. Wire Output Ports into Application Service via Arc<dyn Trait>
     let repo = Arc::new(database.clone());
@@ -183,6 +184,9 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
         args.port
     );
     println!("------------------------------------------------------------");
+    if needs_onboarding {
+        println!("✨ First-Time Setup:  http://localhost:{}/setup", args.port);
+    }
     println!("🌐 Public Website:    http://localhost:{}/", args.port);
     println!(
         "⚙️ Admin Dashboard:   http://localhost:{}/d-admin/",

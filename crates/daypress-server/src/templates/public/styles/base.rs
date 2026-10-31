@@ -1,32 +1,95 @@
 //! Public SSR Base & Reset Stylesheet (`templates/public/styles/base.rs`).
 //!
 //! Renders CSS variables, reset, body, global header, global footer,
-//! and WordPress live admin bar.
+//! and WordPress live admin bar across Daypress Daylight (default), Daypress Modern,
+//! and Daypress Night themes.
 
 /// Renders the base CSS rules interpolated with the site's active `brand_color`.
 pub fn render_base_css(brand_color: &str) -> String {
     format!(
         r##"
+		@font-face {{ font-family: "Newsreader"; src: url("/static/fonts/Newsreader-Variable.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: swap; }}
+		@font-face {{ font-family: "Newsreader"; src: url("/static/fonts/Newsreader-Italic-Variable.woff2") format("woff2"); font-weight: 200 800; font-style: italic; font-display: swap; }}
+		@font-face {{ font-family: "Schibsted Grotesk"; src: url("/static/fonts/SchibstedGrotesk-Variable.woff2") format("woff2"); font-weight: 400 900; font-style: normal; font-display: swap; }}
+		@font-face {{ font-family: "IBM Plex Mono"; src: url("/static/fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }}
+		@font-face {{ font-family: "IBM Plex Mono"; src: url("/static/fonts/IBMPlexMono-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }}
+
 		:root {{
-			--bg-base: #07090e;
-			--bg-panel: #0b0f19;
-			--bg-card: #111827;
-			--bg-card-hover: #1e293b;
-			--border: #1e293b;
-			--border-subtle: #162032;
+			--bg-base: #f3eee4;
+			--bg-panel: #fbf8f2;
+			--bg-card: #fbf8f2;
+			--bg-card-hover: #e7e0d1;
+			--header-bg: rgba(251, 248, 242, 0.92);
+			--footer-bg: #1a1c1f;
+			--footer-text: #efe9de;
+			--footer-muted: #a7a297;
+			--footer-border: rgba(239, 233, 222, 0.16);
+			--border: #d4cdc0;
+			--border-subtle: #e2dacb;
 			--border-focus: {brand_color};
+			--text-main: #16171a;
+			--text-muted: #5a5852;
+			--text-dim: #78756e;
+			--accent: {brand_color};
+			--accent-hover: #2a3bd0;
+			--accent-glow: rgba(168, 64, 27, 0.16);
+			--dp-color-heading: #16171a;
+			--dp-color-text: #2c2b28;
+			--dp-font-heading: "Newsreader", Georgia, "Times New Roman", serif;
+			--dp-font-body: "Schibsted Grotesk", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			--dp-heading-weight: 500;
+			--dp-button-bg: {brand_color};
+			--dp-button-color: #fff8f0;
+			--dp-button-hover-bg: #16171a;
+			--e-global-color-primary: {brand_color};
+			--e-global-color-secondary: #16171a;
+			--e-global-color-text: #2c2b28;
+			--e-global-color-accent: #2a3bd0;
+			--font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			--font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		}}
+
+		html.daypress-modern {{
+			--bg-base: #f8fafc;
+			--bg-panel: #ffffff;
+			--bg-card: #ffffff;
+			--bg-card-hover: #f1f5f9;
+			--header-bg: rgba(255, 255, 255, 0.92);
+			--footer-bg: #0f172a;
+			--footer-text: #f8fafc;
+			--footer-muted: #94a3b8;
+			--footer-border: #1e293b;
+			--border: #e2e8f0;
+			--border-subtle: #f1f5f9;
+			--text-main: #0f172a;
+			--text-muted: #475569;
+			--text-dim: #64748b;
+			--dp-color-heading: #0f172a;
+			--dp-color-text: #334155;
+			--dp-font-heading: "Schibsted Grotesk", system-ui, -apple-system, sans-serif;
+			--dp-heading-weight: 700;
+		}}
+
+		html.dark {{
+			--bg-base: #0b0d12;
+			--bg-panel: #11151d;
+			--bg-card: #151a24;
+			--bg-card-hover: #1e2533;
+			--header-bg: rgba(17, 21, 29, 0.9);
+			--footer-bg: #07090d;
+			--footer-text: #f8fafc;
+			--footer-muted: #94a3b8;
+			--footer-border: #1e293b;
+			--border: #232b3a;
+			--border-subtle: #1a202c;
 			--text-main: #f8fafc;
 			--text-muted: #94a3b8;
 			--text-dim: #64748b;
-			--accent: {brand_color};
-			--accent-hover: #3b82f6;
-			--accent-glow: rgba(37, 99, 235, 0.25);
-			--e-global-color-primary: #2563eb;
-			--e-global-color-secondary: #0f172a;
-			--e-global-color-text: #e2e8f0;
-			--e-global-color-accent: #ff4f00;
-			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+			--dp-color-heading: #f8fafc;
+			--dp-color-text: #cbd5e1;
+			--dp-font-heading: "Newsreader", Georgia, serif;
+			--dp-heading-weight: 500;
 		}}
 
 		*, *::before, *::after {{
@@ -59,7 +122,7 @@ pub fn render_base_css(brand_color: &str) -> String {
 			position: sticky;
 			top: 0;
 			z-index: 1000;
-			background: rgba(11, 15, 25, 0.9);
+			background: var(--header-bg);
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
 			border-bottom: 1px solid var(--border);
@@ -83,21 +146,23 @@ pub fn render_base_css(brand_color: &str) -> String {
 			display: inline-flex;
 			align-items: center;
 			gap: 10px;
-			font-weight: 800;
-			font-size: 17px;
+			font-family: var(--font-serif);
+			font-weight: 600;
+			font-size: 20px;
 			letter-spacing: -0.02em;
-			color: #ffffff;
+			color: var(--text-main);
 			white-space: nowrap;
 		}}
 
 		.logo-brand .badge-day {{
-			background: linear-gradient(135deg, #2563eb 0%, #ff4f00 100%);
-			color: #ffffff;
+			background: var(--accent);
+			color: #fff8f0;
+			font-family: var(--font-mono);
 			font-size: 10px;
-			font-weight: 800;
+			font-weight: 600;
 			padding: 3px 7px;
 			border-radius: 4px;
-			letter-spacing: 0.05em;
+			letter-spacing: 0.06em;
 			text-transform: uppercase;
 		}}
 
@@ -109,14 +174,14 @@ pub fn render_base_css(brand_color: &str) -> String {
 		}}
 
 		.nav-link {{
-			font-size: 13.5px;
+			font-size: 14px;
 			font-weight: 500;
 			color: var(--text-muted);
 			transition: color 0.15s ease;
 		}}
 
 		.nav-link:hover {{
-			color: #ffffff;
+			color: var(--text-main);
 		}}
 
 		.header-actions {{
@@ -131,14 +196,14 @@ pub fn render_base_css(brand_color: &str) -> String {
 			background: var(--bg-card);
 			border: 1px solid var(--border);
 			border-radius: 6px;
-			padding: 4px 10px;
+			padding: 5px 10px;
 		}}
 
 		.header-search input {{
 			background: transparent;
 			border: none;
-			color: #ffffff;
-			font-size: 12.5px;
+			color: var(--text-main);
+			font-size: 13px;
 			width: 140px;
 			outline: none;
 		}}
@@ -146,15 +211,17 @@ pub fn render_base_css(brand_color: &str) -> String {
 		.btn-login {{
 			font-size: 13px;
 			font-weight: 600;
-			color: var(--text-muted);
-			padding: 6px 12px;
+			color: var(--text-main);
+			background: var(--bg-card);
+			padding: 6px 13px;
 			border-radius: 6px;
 			border: 1px solid var(--border);
 		}}
 
 		.btn-login:hover {{
-			color: #ffffff;
-			border-color: #475569;
+			color: #fff8f0;
+			background: var(--accent);
+			border-color: var(--accent);
 		}}
 
 		@media (max-width: 768px) {{
@@ -173,11 +240,15 @@ pub fn render_base_css(brand_color: &str) -> String {
 
 		/* Global Footer */
 		footer.day-footer {{
-			background: #04060b;
+			background: var(--footer-bg);
 			border-top: 1px solid var(--border);
 			padding: 56px 0 36px 0;
-			color: var(--text-muted);
+			color: var(--footer-muted);
 			font-size: 13.5px;
+		}}
+
+		footer.day-footer .logo-brand {{
+			color: var(--footer-text);
 		}}
 
 		.footer-grid {{
@@ -191,18 +262,18 @@ pub fn render_base_css(brand_color: &str) -> String {
 		}}
 
 		.footer-brand p {{
-			color: var(--text-dim);
+			color: var(--footer-muted);
 			margin-top: 12px;
 			max-width: 420px;
 			line-height: 1.6;
 		}}
 
 		.footer-col-title {{
-			color: #ffffff;
-			font-size: 12px;
+			color: var(--footer-text);
+			font-size: 11.5px;
 			font-weight: 700;
 			text-transform: uppercase;
-			letter-spacing: 0.06em;
+			letter-spacing: 0.08em;
 			margin-bottom: 16px;
 		}}
 
@@ -213,34 +284,34 @@ pub fn render_base_css(brand_color: &str) -> String {
 		}}
 
 		.footer-links a {{
-			color: var(--text-muted);
+			color: var(--footer-muted);
 		}}
 
 		.footer-links a:hover {{
-			color: #ffffff;
+			color: var(--footer-text);
 		}}
 
 		.footer-bottom {{
 			max-width: 1200px;
 			margin: 0 auto;
 			padding: 24px 24px 0 24px;
-			border-top: 1px solid var(--border-subtle);
+			border-top: 1px solid var(--footer-border);
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
 			font-size: 12.5px;
-			color: var(--text-dim);
+			color: var(--footer-muted);
 		}}
 
 		.engine-chip {{
 			display: inline-flex;
 			align-items: center;
 			gap: 6px;
-			background: #0c1220;
-			border: 1px solid #1e293b;
+			background: rgba(255, 255, 255, 0.05);
+			border: 1px solid var(--footer-border);
 			padding: 3px 10px;
 			border-radius: 4px;
-			color: #38bdf8;
+			color: var(--footer-text);
 			font-family: var(--font-mono);
 			font-size: 11px;
 		}}
@@ -349,7 +420,7 @@ pub fn render_base_css(brand_color: &str) -> String {
 			right: 0;
 			left: auto;
 		}}
-"##,
+		"##,
         brand_color = brand_color
     )
 }

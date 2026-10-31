@@ -99,6 +99,15 @@ pub fn create_app(database: Database) -> Router {
             get(media::handle_serve_media),
         )
         .route("/login", get(handle_login_page).post(handle_login_submit))
+        .route("/setup", get(handle_setup_page).post(handle_setup_submit))
+        .route(
+            "/d-admin/install",
+            get(handle_setup_page).post(handle_setup_submit),
+        )
+        .route(
+            "/d-admin/setup",
+            get(handle_setup_page).post(handle_setup_submit),
+        )
         .route(
             "/login/lost-password",
             get(handle_lost_password_page).post(handle_lost_password_submit),

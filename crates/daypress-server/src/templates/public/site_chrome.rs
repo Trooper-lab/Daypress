@@ -27,10 +27,10 @@ pub fn site_description(settings: &DaypressSettingsResponse) -> &str {
     }
 }
 
-/// Customizer brand color, falling back to the Daypress orange.
+/// Customizer brand color, falling back to the Daypress oxide accent.
 pub fn brand_color(settings: &DaypressSettingsResponse) -> &str {
     if settings.brand_color.trim().is_empty() {
-        "#ff4f00"
+        "#a8401b"
     } else {
         settings.brand_color.trim()
     }
@@ -47,7 +47,8 @@ pub fn is_blank_template(post: Option<&DaypressPostResponse>) -> bool {
 }
 
 /// Class the public shell puts on `<html>`: `daystudio-theme-active` for imported Elementor/Divi
-/// sites and blank templates, `dark` for the native Daypress theme.
+/// sites and blank templates, or the active Daypress theme class (`daypress-daylight`,
+/// `daypress-modern`, or `dark`).
 pub fn html_theme_class(
     settings: &DaypressSettingsResponse,
     content: &str,
@@ -59,9 +60,15 @@ pub fn html_theme_class(
         || is_blank_template
         || content.contains("divi_section_");
     if has_daystudio_theme {
-        "daystudio-theme-active"
-    } else {
+        return "daystudio-theme-active";
+    }
+    let active = settings.active_theme.trim().to_ascii_lowercase();
+    if active.contains("night") || active == "dark" {
         "dark"
+    } else if active.contains("modern") {
+        "daypress-modern"
+    } else {
+        "daypress-daylight"
     }
 }
 

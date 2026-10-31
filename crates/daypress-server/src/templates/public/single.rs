@@ -167,17 +167,17 @@ pub fn render_single_post(
                     let c_date: String = c.date.chars().take(10).collect();
                     let c_body = sanitize_comment_html(&c.content.rendered);
                     let indent_style = if c.parent > 0 {
-                        "margin-left: 32px; border-left: 3px solid #2563eb;"
+                        "margin-left: 32px; border-left: 3px solid var(--accent, #a8401b);"
                     } else {
                         ""
                     };
                     comment_items.push_str(&format!(
                         r##"<div class="comment-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 14px; {indent}">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <strong style="color: #ffffff; font-size: 14px;">{author}</strong>
+                                <strong style="color: var(--text-main); font-size: 14px;">{author}</strong>
                                 <span style="color: var(--text-dim); font-size: 12px; font-family: var(--font-mono);">{date}</span>
                             </div>
-                            <div style="color: #d4d4d8; font-size: 14.5px; line-height: 1.6;">{body}</div>
+                            <div style="color: var(--text-muted); font-size: 14.5px; line-height: 1.6;">{body}</div>
                         </div>"##,
                         indent = indent_style,
                         author = c_author,
@@ -194,13 +194,13 @@ pub fn render_single_post(
                         {comment_items}
                     </div>
                     <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-top: 24px;">
-                        <h4 style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 16px;">Leave a Comment</h4>
+                        <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 16px;">Leave a Comment</h4>
                         <form id="comment-form" onsubmit="submitPublicComment(event)" style="display: flex; flex-direction: column; gap: 14px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-                                <input type="text" id="comment-author" placeholder="Your Name *" required style="background: #09090b; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: #ffffff; font-size: 14px;" />
-                                <input type="email" id="comment-email" placeholder="Your Email *" required style="background: #09090b; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: #ffffff; font-size: 14px;" />
+                                <input type="text" id="comment-author" placeholder="Your Name *" required style="background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: var(--text-main); font-size: 14px;" />
+                                <input type="email" id="comment-email" placeholder="Your Email *" required style="background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: var(--text-main); font-size: 14px;" />
                             </div>
-                            <textarea id="comment-content" rows="4" placeholder="Share your thoughts..." required style="background: #09090b; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: #ffffff; font-size: 14px; font-family: inherit;"></textarea>
+                            <textarea id="comment-content" rows="4" placeholder="Share your thoughts..." required style="background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; color: var(--text-main); font-size: 14px; font-family: inherit;"></textarea>
                             <div>
                                 <button type="submit" id="comment-submit-btn" class="dp-button">Post Comment</button>
                             </div>
@@ -260,7 +260,7 @@ pub fn render_single_post(
             <section class="dp-section">
                 <div class="dp-container" style="max-width: 880px;">
                     <div style="margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px;">
-                        <a href="/" style="font-size: 13px; font-weight: 600; color: #60a5fa; display: inline-block; margin-bottom: 16px;">&larr; {site_name}</a>
+                        <a href="/" style="font-size: 13px; font-weight: 600; color: var(--accent, #a8401b); display: inline-block; margin-bottom: 16px;">&larr; {site_name}</a>
                         <div class="dp-card-meta">
                             <span class="dp-badge">{post_type}</span>
                             <span>&bull;</span>

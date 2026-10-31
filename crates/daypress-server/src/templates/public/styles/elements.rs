@@ -246,7 +246,7 @@ pub const CSS_ELEMENTS: &str = r#"
 			padding: 16px 20px;
 			font-weight: 700;
 			font-size: 15px;
-			color: #ffffff;
+			color: var(--text-main, #16171a);
 			cursor: pointer;
 			list-style: none;
 		}
@@ -270,7 +270,7 @@ pub const CSS_ELEMENTS: &str = r#"
 		}
 
 		.dp-card:hover {
-			border-color: #3b82f6;
+			border-color: var(--accent, #a8401b);
 			transform: translateY(-2px);
 		}
 
@@ -278,7 +278,7 @@ pub const CSS_ELEMENTS: &str = r#"
 			width: 100%;
 			height: 200px;
 			overflow: hidden;
-			background: #0f172a;
+			background: var(--bg-card-hover, #e7e0d1);
 			border-bottom: 1px solid var(--border);
 		}
 
@@ -307,8 +307,8 @@ pub const CSS_ELEMENTS: &str = r#"
 		}
 
 		.dp-badge {
-			background: rgba(37, 99, 235, 0.18);
-			color: #60a5fa;
+			background: color-mix(in srgb, var(--accent, #a8401b) 12%, transparent);
+			color: var(--accent, #a8401b);
 			padding: 2px 8px;
 			border-radius: 4px;
 			font-weight: 700;
@@ -318,8 +318,9 @@ pub const CSS_ELEMENTS: &str = r#"
 
 		.dp-card-title {
 			font-size: 20px;
-			font-weight: 700;
-			color: #ffffff;
+			font-family: var(--dp-font-heading, inherit);
+			font-weight: 600;
+			color: var(--text-main, #16171a);
 			line-height: 1.35;
 			margin-bottom: 10px;
 		}
@@ -335,7 +336,7 @@ pub const CSS_ELEMENTS: &str = r#"
 		.dp-card-link {
 			font-size: 13px;
 			font-weight: 600;
-			color: #60a5fa;
+			color: var(--accent, #a8401b);
 		}
 
 		/* Dropdown & Recursive Nav Menus (.theme-nav, .day-nav) */

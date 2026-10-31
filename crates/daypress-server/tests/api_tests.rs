@@ -217,7 +217,7 @@ async fn test_public_ssr_rendering() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let html = String::from_utf8_lossy(&body);
-    assert!(html.contains("Welcome to WordPress"));
+    assert!(html.contains("Welcome to Daypress"));
     assert!(!html.contains("id=\"wpadminbar\""));
     assert!(html.contains("Log In"));
 

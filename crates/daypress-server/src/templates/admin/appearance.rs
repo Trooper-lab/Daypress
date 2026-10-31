@@ -5,35 +5,35 @@ use crate::templates::utils::escape_html;
 // 1. Themes (/d-admin/themes)
 pub fn render_themes_view(settings: &DaypressSettingsResponse) -> String {
     let active_theme = if settings.active_theme.is_empty() {
-        "Daypress Modern"
+        "Daypress Daylight"
     } else {
         &settings.active_theme
     };
 
     let themes = [
         (
+            "Daypress Daylight",
+            "Daypress Daylight",
+            "Warm Editorial Paper & Ink (Default)",
+            "1.0.0",
+            "linear-gradient(135deg, #fbf8f2 0%, #eae3d5 100%)",
+            "#a8401b",
+        ),
+        (
             "Daypress Modern",
-            "Daypress 2026",
-            "Sub-millisecond SSR Engine",
+            "Daypress Modern",
+            "Clean Studio Alabaster & Indigo",
+            "1.0.0",
+            "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+            "#2563eb",
+        ),
+        (
+            "Daypress Night",
+            "Daypress Night",
+            "High-Contrast Obsidian Dark Mode",
             "1.0.0",
             "linear-gradient(135deg, #090d16 0%, #1e293b 100%)",
             "#38bdf8",
-        ),
-        (
-            "Twenty Twenty-Five",
-            "Twenty Twenty-Five",
-            "Universal Block Foundation",
-            "1.0",
-            "linear-gradient(135deg, #1e293b 0%, #475569 100%)",
-            "#cbd5e1",
-        ),
-        (
-            "Editorial Minimalist",
-            "Editorial Minimalist",
-            "Distraction-free Typography",
-            "2.1",
-            "linear-gradient(135deg, #0f172a 0%, #1e1e24 100%)",
-            "#94a3b8",
         ),
     ];
 
@@ -137,22 +137,37 @@ pub fn render_themes_view(settings: &DaypressSettingsResponse) -> String {
 // 2. Customize (/d-admin/customize)
 pub fn render_customize_view(settings: &DaypressSettingsResponse) -> String {
     let brand_color = if settings.brand_color.is_empty() {
-        "#2563eb"
+        "#a8401b"
     } else {
         &settings.brand_color
     };
     let active_theme = if settings.active_theme.is_empty() {
-        "Daypress Modern"
+        "Daypress Daylight"
     } else {
         &settings.active_theme
     };
-    let scale = settings.typography_scale.as_str();
-    let sel_system = if scale.is_empty() || scale == "system" {
+    let sel_theme_daylight = if active_theme.eq_ignore_ascii_case("Daypress Daylight") {
         "selected"
     } else {
         ""
     };
-    let sel_serif = if scale == "serif" { "selected" } else { "" };
+    let sel_theme_modern = if active_theme.eq_ignore_ascii_case("Daypress Modern") {
+        "selected"
+    } else {
+        ""
+    };
+    let sel_theme_night = if active_theme.eq_ignore_ascii_case("Daypress Night") {
+        "selected"
+    } else {
+        ""
+    };
+    let scale = settings.typography_scale.as_str();
+    let sel_system = if scale == "system" { "selected" } else { "" };
+    let sel_serif = if scale.is_empty() || scale == "serif" {
+        "selected"
+    } else {
+        ""
+    };
     let sel_mono = if scale == "mono" { "selected" } else { "" };
 
     let body = format!(
@@ -172,6 +187,15 @@ pub fn render_customize_view(settings: &DaypressSettingsResponse) -> String {
             <!-- Left Controls Panel -->
             <div class="day-card" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px;">
                 <h3 style="font-size: 15px; font-weight: 700; color: var(--ink); padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">Active Theme: {active_theme}</h3>
+
+                <div>
+                    <label class="form-label">Daypress Theme Preset</label>
+                    <select id="custTheme" class="form-select" onchange="updateLivePreview()">
+                        <option value="Daypress Daylight" {sel_theme_daylight}>Daypress Daylight (Warm Editorial Paper &amp; Ink)</option>
+                        <option value="Daypress Modern" {sel_theme_modern}>Daypress Modern (Clean Studio Alabaster &amp; Indigo)</option>
+                        <option value="Daypress Night" {sel_theme_night}>Daypress Night (Obsidian Dark Slate)</option>
+                    </select>
+                </div>
 
                 <div>
                     <label class="form-label">Site Title</label>
@@ -202,9 +226,9 @@ pub fn render_customize_view(settings: &DaypressSettingsResponse) -> String {
                 <div>
                     <label class="form-label">Typography Scale</label>
                     <select id="custFont" class="form-select" onchange="updateLivePreview()">
-                        <option value="system" {sel_system}>Modern System (Inter / Plus Jakarta)</option>
-                        <option value="serif" {sel_serif}>Editorial Serif (Newsreader / Georgia)</option>
-                        <option value="mono" {sel_mono}>Technical Monospace (JetBrains Mono)</option>
+                        <option value="serif" {sel_serif}>Editorial Serif (Newsreader + Schibsted Grotesk)</option>
+                        <option value="system" {sel_system}>Modern System (Schibsted Grotesk / System UI)</option>
+                        <option value="mono" {sel_mono}>Technical Monospace (IBM Plex Mono)</option>
                     </select>
                 </div>
 
@@ -235,6 +259,7 @@ pub fn render_customize_view(settings: &DaypressSettingsResponse) -> String {
                 }} catch (e) {{}}
             }}
             async function saveCustomizer() {{
+                const active_theme = document.getElementById('custTheme').value;
                 const title = document.getElementById('custTitle').value;
                 const description = document.getElementById('custTagline').value;
                 const brand_color = document.getElementById('custColor').value;
@@ -244,7 +269,7 @@ pub fn render_customize_view(settings: &DaypressSettingsResponse) -> String {
                     const res = await fetch('/d-admin/api/customizer', {{
                         method: 'POST',
                         headers: {{ 'Content-Type': 'application/json' }},
-                        body: JSON.stringify({{ title, description, brand_color, typography_scale, custom_css }})
+                        body: JSON.stringify({{ active_theme, title, description, brand_color, typography_scale, custom_css }})
                     }});
                     if (res.ok) {{
                         showToast('✓ Customizer changes published to SQLite!');

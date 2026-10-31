@@ -46,3 +46,4 @@ impl Database {
 
 /// Alias for explicit Hexagonal Adapter naming (`SqliteDatabase`).
 pub type SqliteDatabase = Database;
+pub use schema::OnboardingSetupRequest;
