@@ -42,6 +42,10 @@ impl Database {
     pub fn theme_templates(&self) -> crate::theme_builder::repository::ThemeTemplateRepository {
         crate::theme_builder::repository::ThemeTemplateRepository::from_database(self)
     }
+
+    pub fn db_path_display(&self) -> String {
+        self.db_path.display().to_string()
+    }
 }
 
 /// Alias for explicit Hexagonal Adapter naming (`SqliteDatabase`).

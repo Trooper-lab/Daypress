@@ -317,6 +317,29 @@ fn daypress_v1_routes() -> Router<Database> {
             "/update/rollback",
             axum::routing::post(rollback_update_handler),
         )
+        // Native Subsystem: Static Edge Publisher & Domain Manager
+        .route("/publish/status", get(get_publish_status_handler))
+        .route(
+            "/publish/settings",
+            axum::routing::post(save_publish_settings_handler),
+        )
+        .route("/publish/run", axum::routing::post(run_publish_handler))
+        .route(
+            "/publish/rollback/{id}",
+            axum::routing::post(rollback_publish_handler),
+        )
+        .route(
+            "/publish/deployments/{id}/download",
+            get(download_deployment_zip_handler),
+        )
+        .route(
+            "/publish/domain/configure",
+            axum::routing::post(configure_publish_domain_handler),
+        )
+        .route(
+            "/publish/domain/verify",
+            axum::routing::post(verify_publish_domain_handler),
+        )
         // Theme Template Builder REST API
         .merge(crate::theme_builder::routes::theme_builder_routes())
 }

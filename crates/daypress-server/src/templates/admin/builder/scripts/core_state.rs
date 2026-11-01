@@ -183,10 +183,20 @@ pub const JS_CORE_STATE: &str = r###"
         const btnLive = document.getElementById("btn-view-live");
         const badge = document.getElementById("badge-template-type");
         const lblTitle = document.getElementById("lbl-template-title");
+        const ssrHeader = document.getElementById("daystudio-ssr-header");
+        const ssrFooter = document.getElementById("daystudio-ssr-footer");
         const ctx = state.currentContext || {};
 
         if (badge) badge.textContent = ctx.type === "template" ? (ctx.templateType || "Template") : (ctx.postType || "Page");
         if (lblTitle && ctx.title) lblTitle.textContent = ctx.title;
+
+        // Hide the static SSR header/footer preview shells when editing a Header or Footer template
+        // so the header/footer is never rendered twice on the artboard.
+        const isHeaderOrFooterTpl = (ctx.type === "template" && (ctx.templateType === "header" || ctx.templateType === "footer"))
+            || state.postType === "template:header"
+            || state.postType === "template:footer";
+        if (ssrHeader) ssrHeader.style.display = isHeaderOrFooterTpl ? "none" : "";
+        if (ssrFooter) ssrFooter.style.display = isHeaderOrFooterTpl ? "none" : "";
 
         if (btnLive) {
             if (ctx.type === "template") {
@@ -201,6 +211,7 @@ pub const JS_CORE_STATE: &str = r###"
         }
     }
     window.updateViewLiveLink = updateViewLiveLink;
+    document.addEventListener("DOMContentLoaded", updateViewLiveLink);
 
     // Push initial snapshot
     setTimeout(() => {

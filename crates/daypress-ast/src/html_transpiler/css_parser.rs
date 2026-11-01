@@ -557,21 +557,25 @@ pub fn build_daystudio_kit(
             id: "primary".to_string(),
             title: "Primary Brand".to_string(),
             color: primary_color.clone(),
+            dark_color: None,
         },
         GlobalColor {
             id: "secondary".to_string(),
             title: "Secondary / Ink".to_string(),
             color: secondary_color,
+            dark_color: None,
         },
         GlobalColor {
             id: "text".to_string(),
             title: "Body Text".to_string(),
             color: text_color,
+            dark_color: None,
         },
         GlobalColor {
             id: "accent".to_string(),
             title: "Accent".to_string(),
             color: accent_color,
+            dark_color: None,
         },
     ];
 
@@ -579,10 +583,17 @@ pub fn build_daystudio_kit(
     for (k, v) in &color_vars {
         let id = sanitize_token_id(k);
         if !matches!(id.as_str(), "primary" | "secondary" | "text" | "accent") {
+            let dark_color = sheet
+                .dark_vars
+                .iter()
+                .find(|(dk, _)| dk == k)
+                .map(|(_, dv)| dv.trim().to_string())
+                .filter(|dv| is_color_value(dv));
             custom_colors.push(GlobalColor {
                 id: id.clone(),
                 title: humanize_token_title(k),
                 color: v.clone(),
+                dark_color,
             });
         }
     }
@@ -597,6 +608,7 @@ pub fn build_daystudio_kit(
                     id: dark_id,
                     title: format!("Dark {}", humanize_token_title(clean_k)),
                     color: v.trim().to_string(),
+                    dark_color: None,
                 });
             }
         }

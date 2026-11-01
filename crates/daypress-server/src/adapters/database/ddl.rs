@@ -250,6 +250,24 @@ CREATE TABLE IF NOT EXISTS daypress_plugins (
     config_json TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Native Subsystems: Static Edge Publishing & Deployment Ledger
+CREATE TABLE IF NOT EXISTS daypress_deployments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL DEFAULT 'zip',
+    target_url TEXT NOT NULL DEFAULT '',
+    deployment_external_id TEXT DEFAULT NULL,
+    status TEXT NOT NULL DEFAULT 'live',
+    commit_message TEXT NOT NULL DEFAULT '',
+    pages_count INTEGER NOT NULL DEFAULT 0,
+    assets_count INTEGER NOT NULL DEFAULT 0,
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    manifest_json TEXT NOT NULL DEFAULT '{}',
+    bundle_path TEXT DEFAULT NULL,
+    error_message TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    duration_ms INTEGER NOT NULL DEFAULT 0
+);
 "#;
 
 /// Single-use "Lost your password?" links. Only the SHA-256 of each token is stored, so a

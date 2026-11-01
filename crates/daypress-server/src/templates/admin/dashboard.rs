@@ -699,24 +699,36 @@ pub fn render_updates_view_with_status(
                 if (b) b.style.width = pct + '%';
             }}
 
-            async function waitForServerRestart() {{
+            const CURRENT_RUNNING_VERSION = '{version}';
+
+            async function waitForServerRestart(targetVersion) {{
                 showProgress('Restarting Daypress Server...', '3/4 Waiting for the updated Daypress binary to bind port and pass health check...', 75);
+                const expectedClean = targetVersion ? String(targetVersion).replace(/^v/, '') : null;
+                await new Promise(r => setTimeout(r, 1200));
                 for (let attempt = 0; attempt < 30; attempt++) {{
-                    await new Promise(r => setTimeout(r, 900));
                     try {{
                         const ping = await fetch('/wp-json/daypress/v1/update/status', {{
                             headers: apiHeaders(),
                             cache: 'no-store'
                         }});
                         if (ping.ok) {{
-                            showProgress('Update Complete!', '4/4 Daypress is back online! Reloading dashboard...', 100);
-                            showToast('✓ Daypress updated and restarted!');
-                            setTimeout(() => window.location.reload(), 600);
-                            return;
+                            const statusData = await ping.json().catch(() => ({{}}));
+                            const liveVer = statusData && statusData.environment && statusData.environment.current_version;
+                            const versionChanged = liveVer && (
+                                (expectedClean && expectedClean !== 'custom' && expectedClean !== 'previous' && liveVer === expectedClean) ||
+                                liveVer !== CURRENT_RUNNING_VERSION
+                            );
+                            if (versionChanged || attempt >= 8) {{
+                                showProgress('Update Complete!', '4/4 Daypress ' + (liveVer || '') + ' is back online! Reloading dashboard...', 100);
+                                showToast('✓ Daypress updated and restarted!');
+                                setTimeout(() => window.location.reload(), 600);
+                                return;
+                            }}
                         }}
                     }} catch (_) {{
                         // Server is mid-restart; continue polling
                     }}
+                    await new Promise(r => setTimeout(r, 900));
                 }}
                 showToast('Update applied. Reloading page...', false);
                 window.location.reload();
@@ -734,7 +746,7 @@ pub fn render_updates_view_with_status(
                     const data = await res.json().catch(() => ({{}}));
                     if (res.ok) {{
                         showProgress('Activating New Binary...', '2/4 Backup created (' + (data.backup_filename || 'ok') + '). Swapping executable...', 65);
-                        await waitForServerRestart();
+                        await waitForServerRestart(data.to_version);
                     }} else {{
                         if (btn) btn.disabled = false;
                         document.getElementById('update-progress-panel').style.display = 'none';
@@ -773,7 +785,7 @@ pub fn render_updates_view_with_status(
                     const data = await res.json().catch(() => ({{}}));
                     if (res.ok) {{
                         showProgress('Activating Uploaded Binary...', '2/4 Pre-update backup saved (' + (data.backup_filename || 'ok') + '). Restarting...', 70);
-                        await waitForServerRestart();
+                        await waitForServerRestart(data.to_version);
                     }} else {{
                         if (btn) btn.disabled = false;
                         document.getElementById('update-progress-panel').style.display = 'none';
@@ -796,7 +808,7 @@ pub fn render_updates_view_with_status(
                     }});
                     const data = await res.json().catch(() => ({{}}));
                     if (res.ok) {{
-                        await waitForServerRestart();
+                        await waitForServerRestart(data.to_version);
                     }} else {{
                         document.getElementById('update-progress-panel').style.display = 'none';
                         showToast(data.message || data.error || 'Rollback failed', true);
@@ -866,4 +878,412 @@ pub fn render_updates_view_with_status(
     );
 
     render_admin_shell("updates", "Updates", &body, settings)
+}
+
+/// 1-Time Backend "Get Started" & AI Agent Connection Launchpad (`/d-admin/getting-started`).
+pub fn render_getting_started_view(
+    settings: &DaypressSettingsResponse,
+    _stats: &DbStats,
+    db_path_display: &str,
+) -> String {
+    use crate::templates::utils::escape_html;
+
+    let site_title = escape_html(if settings.title.is_empty() {
+        "Daypress"
+    } else {
+        &settings.title
+    });
+    let site_url = escape_html(if settings.url.is_empty() {
+        "http://localhost:8090"
+    } else {
+        settings.url.trim_end_matches('/')
+    });
+    let admin_user = escape_html(
+        &crate::auth::current_admin()
+            .map(|a| a.username)
+            .unwrap_or_else(|| "admin".to_string()),
+    );
+    let front_id = if settings.page_on_front > 0 {
+        settings.page_on_front
+    } else {
+        3
+    };
+    let exe_path = std::env::current_exe()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "daypress".to_string());
+    let exe_escaped = escape_html(&exe_path);
+    let db_escaped = escape_html(db_path_display);
+
+    let body = format!(
+        r##"
+        <style>
+            .gs-hero {{
+                position: relative;
+                overflow: hidden;
+                background: var(--paper-raised);
+                border: 1px solid var(--rule-strong);
+                border-radius: var(--radius-md);
+                padding: 28px 32px;
+                margin-bottom: 24px;
+            }}
+            .gs-hero-glow {{
+                position: absolute;
+                top: -80px;
+                right: -60px;
+                width: 320px;
+                height: 320px;
+                border-radius: 999px;
+                background: radial-gradient(circle, rgba(168, 64, 27, 0.14) 0%, transparent 70%);
+                pointer-events: none;
+            }}
+            .gs-badge {{
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font: 600 11px/16px var(--font-mono);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--oxide);
+                background: var(--oxide-wash);
+                padding: 4px 10px;
+                border-radius: 999px;
+                margin-bottom: 10px;
+            }}
+            .gs-agent-card {{
+                background: var(--paper-raised);
+                border: 1.5px solid var(--oxide);
+                border-radius: var(--radius-md);
+                padding: 26px 28px;
+                margin-bottom: 24px;
+                box-shadow: 0 12px 32px rgba(22, 23, 26, 0.05);
+            }}
+            .gs-tabs {{
+                display: flex;
+                gap: 8px;
+                border-bottom: 1px solid var(--rule);
+                padding-bottom: 10px;
+                margin-top: 18px;
+                margin-bottom: 16px;
+                flex-wrap: wrap;
+            }}
+            .gs-tab-btn {{
+                background: var(--paper);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                padding: 7px 13px;
+                border-radius: var(--radius-sm);
+                font: 600 12.5px/16px var(--font-sans);
+                cursor: pointer;
+                transition: all 0.12s;
+            }}
+            .gs-tab-btn.active {{
+                background: var(--ink);
+                color: var(--paper);
+                border-color: var(--ink);
+            }}
+            .gs-tab-pane {{
+                display: none;
+            }}
+            .gs-tab-pane.active {{
+                display: block;
+            }}
+            .gs-code-box {{
+                position: relative;
+                background: #111318;
+                color: #f3eee4;
+                border-radius: var(--radius-sm);
+                padding: 16px 18px;
+                font: 400 12.5px/1.6 var(--font-mono);
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-break: break-word;
+                border: 1px solid #272b35;
+            }}
+            .gs-wizard-grid {{
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }}
+            @media (max-width: 960px) {{
+                .gs-wizard-grid {{ grid-template-columns: 1fr; }}
+            }}
+            .gs-wizard-card {{
+                background: var(--paper-raised);
+                border: 1px solid var(--rule-strong);
+                border-radius: var(--radius-md);
+                padding: 22px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                gap: 14px;
+            }}
+        </style>
+
+        <div class="gs-hero">
+            <div class="gs-hero-glow"></div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1;">
+                <div>
+                    <div class="gs-badge">&#10024; Welcome to {site_title} &bull; First-Time Launchpad</div>
+                    <h1 style="font: 460 32px/1.15 var(--font-serif); color: var(--ink); margin: 4px 0 8px;">Your site is live. Now let your AI agent do the heavy lifting.</h1>
+                    <p style="font-size: 15px; color: var(--ink-muted); max-width: 680px; margin: 0;">
+                        Daypress includes a built-in Model Context Protocol (<strong>MCP</strong>) server and WordPress REST API. Connect <strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Cursor</strong>, or <strong>Antigravity</strong> below in one click so your agent can design pages, write articles, or migrate content for you.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <a href="/" target="_blank" class="btn btn-secondary">View Live Homepage &nearr;</a>
+                    <button type="button" class="btn btn-primary" onclick="dismissGettingStarted()">Skip to Dashboard &rarr;</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- WIZARD 1: Connect Your AI Agent (Primary Hero Wizard) -->
+        <div class="gs-agent-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <div>
+                    <div style="font: 600 11.5px/16px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--oxide);">Wizard 01 &bull; AI Agent Connection (MCP + REST v2)</div>
+                    <h2 style="font: 600 21px/1.25 var(--font-sans); color: var(--ink); margin: 4px 0;">Connect Claude Code, Codex, Cursor, or Antigravity</h2>
+                    <p style="font-size: 13.5px; color: var(--ink-muted); margin: 0;">Generate a dedicated AI Agent Application Key stored in SQLite, then copy the starter prompt or MCP config for your agent.</p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <span id="agent-key-status" style="font: 500 12px/16px var(--font-mono); color: var(--moss); display: none;">&#10003; Key active</span>
+                    <button type="button" class="btn btn-primary" id="gen-agent-key-btn" onclick="generateAgentKey()" style="padding: 10px 18px; font-size: 13.5px;">
+                        ⚡ Generate AI Agent Key &amp; Config
+                    </button>
+                </div>
+            </div>
+
+            <div class="gs-tabs" role="tablist">
+                <button type="button" class="gs-tab-btn active" onclick="switchGsTab('prompt', this)">1. Copy Starter Prompt (Any AI Agent)</button>
+                <button type="button" class="gs-tab-btn" onclick="switchGsTab('claude', this)">2. Claude Code CLI</button>
+                <button type="button" class="gs-tab-btn" onclick="switchGsTab('mcpjson', this)">3. Cursor / Antigravity / Claude Desktop (mcp.json)</button>
+                <button type="button" class="gs-tab-btn" onclick="switchGsTab('codex', this)">4. OpenAI Codex / HTTP MCP</button>
+            </div>
+
+            <!-- Tab 1: Universal Starter Prompt -->
+            <div class="gs-tab-pane active" id="gs-tab-prompt">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 13px; color: var(--ink-muted);">Paste this directly into <strong>Codex</strong>, <strong>Claude Code</strong>, <strong>Cursor</strong>, or <strong>Antigravity</strong>:</span>
+                    <button type="button" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;" onclick="copyCodeBlock('gs-prompt-code')">Copy Starter Prompt</button>
+                </div>
+                <pre class="gs-code-box" id="gs-prompt-code">You are connected to my local Daypress CMS site ("{site_title}") running at {site_url}.
+
+Connection details:
+- HTTP MCP JSON-RPC 2.0 Endpoint: POST {site_url}/mcp
+- WordPress REST API v2 Root: {site_url}/wp-json/wp/v2/
+- Admin Username: {admin_user}
+- Application Password: <CLICK "Generate AI Agent Key & Config" ABOVE TO INSERT KEY>
+- Basic Auth Header: Authorization: Basic <BASE64_TOKEN>
+- Or local Stdio MCP: "{exe_escaped}" --mcp-stdio --db "{db_escaped}"
+
+Available MCP tools (via JSON-RPC `tools/call` on POST {site_url}/mcp):
+- `daypress_list_posts`, `daypress_get_post`, `daypress_create_post`, `daypress_update_post`
+- `daypress_import_html_design` (converts full HTML/CSS pages into native DayStudio Visual Builder AST layouts and sets the front page)
+- `daypress_get_layout_ast`, `daypress_save_layout_ast`
+- `daypress_get_settings`, `daypress_update_option`
+- `daypress_publish_site`, `daypress_get_publish_status` (compiles the site to a static edge bundle and deploys to Cloudflare Pages, Netlify, or local .ZIP)
+
+Please inspect the current site via `daypress_get_settings` and `daypress_list_posts`, and help me design and build my website.</pre>
+            </div>
+
+            <!-- Tab 2: Claude Code CLI -->
+            <div class="gs-tab-pane" id="gs-tab-claude">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 13px; color: var(--ink-muted);">Run this command in your terminal to register Daypress with <strong>Claude Code</strong>:</span>
+                    <button type="button" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;" onclick="copyCodeBlock('gs-claude-code')">Copy Command</button>
+                </div>
+                <pre class="gs-code-box" id="gs-claude-code"># Option A: Direct local stdio MCP (zero auth required on same machine)
+claude mcp add daypress -- "{exe_escaped}" --mcp-stdio --db "{db_escaped}"
+
+# Option B: HTTP MCP over localhost/network (click "Generate AI Agent Key" first)
+claude mcp add --transport http daypress {site_url}/mcp --header "Authorization: Basic &lt;GENERATE_KEY_ABOVE&gt;"</pre>
+            </div>
+
+            <!-- Tab 3: mcp.json (Cursor / Antigravity / Claude Desktop) -->
+            <div class="gs-tab-pane" id="gs-tab-mcpjson">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 13px; color: var(--ink-muted);">Add this block to your <code>.cursor/mcp.json</code>, Antigravity MCP config, or <code>claude_desktop_config.json</code>:</span>
+                    <button type="button" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;" onclick="copyCodeBlock('gs-mcpjson-code')">Copy JSON</button>
+                </div>
+                <pre class="gs-code-box" id="gs-mcpjson-code">{{
+  "mcpServers": {{
+    "daypress": {{
+      "command": "{exe_escaped}",
+      "args": ["--mcp-stdio", "--db", "{db_escaped}"]
+    }}
+  }}
+}}</pre>
+            </div>
+
+            <!-- Tab 4: OpenAI Codex / HTTP JSON-RPC -->
+            <div class="gs-tab-pane" id="gs-tab-codex">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 13px; color: var(--ink-muted);">Use HTTP MCP or WordPress REST v2 from <strong>Codex</strong> or any script:</span>
+                    <button type="button" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;" onclick="copyCodeBlock('gs-codex-code')">Copy Snippet</button>
+                </div>
+                <pre class="gs-code-box" id="gs-codex-code"># Call Daypress MCP over HTTP JSON-RPC 2.0:
+curl -X POST {site_url}/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic &lt;GENERATE_KEY_ABOVE&gt;" \
+  -d '{{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{{}}}}'</pre>
+            </div>
+        </div>
+
+        <!-- WIZARDS 2, 3, 4 -->
+        <div class="gs-wizard-grid">
+            <div class="gs-wizard-card">
+                <div>
+                    <div style="font: 600 11px/16px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--oxide); margin-bottom: 6px;">Wizard 02 &bull; Visual Builder</div>
+                    <h3 style="font: 600 17px/1.3 var(--font-sans); color: var(--ink); margin: 0 0 8px;">Design in DayStudio</h3>
+                    <p style="font-size: 13.5px; color: var(--ink-muted); margin: 0; line-height: 1.5;">
+                        Edit your Front Page visually on the responsive canvas, drag sections and grids into place, or import raw HTML into native DayStudio blocks.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="/d-admin/builder?post={front_id}" class="btn btn-primary" style="font-size: 12.5px;">Open Homepage in DayStudio &rarr;</a>
+                    <a href="/d-admin/headers-footers" class="btn btn-secondary" style="font-size: 12.5px;">Headers &amp; Footers</a>
+                </div>
+            </div>
+
+            <div class="gs-wizard-card">
+                <div>
+                    <div style="font: 600 11px/16px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--oxide); margin-bottom: 6px;">Wizard 03 &bull; 1-Click Migration</div>
+                    <h3 style="font: 600 17px/1.3 var(--font-sans); color: var(--ink); margin: 0 0 8px;">Import a WordPress Site</h3>
+                    <p style="font-size: 13.5px; color: var(--ink-muted); margin: 0; line-height: 1.5;">
+                        Moving from Elementor, Divi, Gutenberg, or Classic WordPress? Upload a WXR <code>.xml</code> or download our 1-Click Exporter plugin.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="/d-admin/import" class="btn btn-secondary" style="font-size: 12.5px;">Open 1-Click Importer &rarr;</a>
+                    <a href="/d-admin/api/download-migrator-plugin" class="btn btn-secondary" style="font-size: 12.5px;">Download WP Plugin (.zip)</a>
+                </div>
+            </div>
+
+            <div class="gs-wizard-card">
+                <div>
+                    <div style="font: 600 11px/16px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--oxide); margin-bottom: 6px;">Wizard 04 &bull; Theme &amp; Identity</div>
+                    <h3 style="font: 600 17px/1.3 var(--font-sans); color: var(--ink); margin: 0 0 8px;">Theme, Menus &amp; SEO</h3>
+                    <p style="font-size: 13.5px; color: var(--ink-muted); margin: 0; line-height: 1.5;">
+                        Switch between <em>Daypress Daylight</em>, <em>Modern</em>, and <em>Night</em>, adjust your brand colors and typography, or configure XML sitemaps.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="/d-admin/customize" class="btn btn-secondary" style="font-size: 12.5px;">Theme Customizer &rarr;</a>
+                    <a href="/d-admin/nav-menus" class="btn btn-secondary" style="font-size: 12.5px;">Menus</a>
+                    <a href="/d-admin/seo" class="btn btn-secondary" style="font-size: 12.5px;">SEO</a>
+                </div>
+            </div>
+
+            <div class="gs-wizard-card">
+                <div>
+                    <div style="font: 600 11px/16px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--oxide); margin-bottom: 6px;">Wizard 05 &bull; Static Edge Publishing</div>
+                    <h3 style="font: 600 17px/1.3 var(--font-sans); color: var(--ink); margin: 0 0 8px;">Publish to Cloudflare, Netlify, or .ZIP</h3>
+                    <p style="font-size: 13.5px; color: var(--ink-muted); margin: 0; line-height: 1.5;">
+                        Connect your custom domain and push a pre-rendered static edge build directly to Cloudflare Pages (with 1-Click Auto-DNS), Netlify, or a local <code>.zip</code> archive.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="/d-admin/publish" class="btn btn-primary" style="font-size: 12.5px;">Open Publish &amp; Hosting &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function switchGsTab(tabId, btn) {{
+                document.querySelectorAll('.gs-tab-pane').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.gs-tab-btn').forEach(b => b.classList.remove('active'));
+                const target = document.getElementById('gs-tab-' + tabId);
+                if (target) target.classList.add('active');
+                if (btn) btn.classList.add('active');
+            }}
+            function copyCodeBlock(id) {{
+                const el = document.getElementById(id);
+                if (!el) return;
+                navigator.clipboard.writeText(el.textContent).then(() => {{
+                    showToast('✓ Copied to clipboard!');
+                }});
+            }}
+            async function generateAgentKey() {{
+                const btn = document.getElementById('gen-agent-key-btn');
+                if (btn) btn.disabled = true;
+                try {{
+                    const res = await fetch('/d-admin/api/getting-started/agent-key', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ name: 'AI Agent (MCP & REST)' }})
+                    }});
+                    const data = await res.json();
+                    if (res.ok && data.password) {{
+                        const basicToken = btoa(data.username + ':' + data.password);
+                        const siteUrl = window.location.origin;
+
+                        document.getElementById('gs-prompt-code').textContent =
+`You are connected to my local Daypress CMS site ("{site_title}") running at ${{siteUrl}}.
+
+Connection details:
+- HTTP MCP JSON-RPC 2.0 Endpoint: POST ${{siteUrl}}/mcp
+- WordPress REST API v2 Root: ${{siteUrl}}/wp-json/wp/v2/
+- Admin Username: ${{data.username}}
+- Application Password: ${{data.password}}
+- Basic Auth Header: Authorization: Basic ${{basicToken}}
+- Or local Stdio MCP: "{exe_escaped}" --mcp-stdio --db "{db_escaped}"
+
+Available MCP tools (via JSON-RPC \`tools/call\` on POST ${{siteUrl}}/mcp):
+- \`daypress_list_posts\`, \`daypress_get_post\`, \`daypress_create_post\`, \`daypress_update_post\`
+- \`daypress_import_html_design\` (converts full HTML/CSS pages into native DayStudio Visual Builder AST layouts and sets the front page)
+- \`daypress_get_layout_ast\`, \`daypress_save_layout_ast\`
+- \`daypress_get_settings\`, \`daypress_update_option\`
+
+Please inspect the current site via \`daypress_get_settings\` and \`daypress_list_posts\`, and help me design and build my website.`;
+
+                        document.getElementById('gs-claude-code').textContent =
+`# Option A: Direct local stdio MCP (zero auth required on same machine)
+claude mcp add daypress -- "{exe_escaped}" --mcp-stdio --db "{db_escaped}"
+
+# Option B: HTTP MCP with your newly generated AI Agent Key
+claude mcp add --transport http daypress ${{siteUrl}}/mcp --header "Authorization: Basic ${{basicToken}}"`;
+
+                        document.getElementById('gs-codex-code').textContent =
+`# Call Daypress MCP over HTTP JSON-RPC 2.0:
+curl -X POST ${{siteUrl}}/mcp \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Basic ${{basicToken}}" \\
+  -d '{{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{{}}}}'`;
+
+                        const status = document.getElementById('agent-key-status');
+                        if (status) {{
+                            status.style.display = 'inline';
+                            status.textContent = '✓ Key generated: ' + data.password;
+                        }}
+                        if (btn) {{
+                            btn.textContent = '✓ AI Agent Key Embedded Below';
+                            btn.disabled = false;
+                        }}
+                        showToast('✓ AI Agent Application Password created in SQLite & injected into snippets!');
+                    }} else {{
+                        if (btn) btn.disabled = false;
+                        showToast(data.error || 'Could not generate AI Agent Key', true);
+                    }}
+                }} catch (e) {{
+                    if (btn) btn.disabled = false;
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+            async function dismissGettingStarted() {{
+                try {{
+                    await fetch('/d-admin/api/getting-started/dismiss', {{ method: 'POST' }});
+                }} catch (e) {{}}
+                window.location.href = '/d-admin/?skip_welcome=1';
+            }}
+        </script>
+        "##,
+        site_title = site_title,
+        site_url = site_url,
+        admin_user = admin_user,
+        front_id = front_id,
+        exe_escaped = exe_escaped,
+        db_escaped = db_escaped,
+    );
+
+    render_admin_shell("getting-started", "Get Started", &body, settings)
 }

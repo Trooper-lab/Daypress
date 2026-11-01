@@ -91,8 +91,10 @@ pub const JS_THEME_DRAWER: &str = r###"
             state.currentContext = { type: "template", id: template.id, title: template.title, templateType: template.template_type };
             state.pageAst = window.normalizeAst(template.layout);
             state.activeElementId = null;
+            if (window.history && window.history.pushState) window.history.pushState({}, "", `/d-admin/builder?template_id=${template.id}`);
 
             if (window.updateViewLiveLink) window.updateViewLiveLink();
+            if (window.syncGlobalTokensCss) window.syncGlobalTokensCss();
 
             window.markDirty(false);
             window.renderCanvas();

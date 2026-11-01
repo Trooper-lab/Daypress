@@ -1,6 +1,7 @@
 //! Core WordPress Admin SSR Screen & Authentication Handlers.
 
 #![allow(unused_imports)]
+pub use super::admin_onboarding::*;
 use super::*;
 use crate::auth::OptionalAuthUser;
 use crate::db::Database;
@@ -14,7 +15,10 @@ use axum::{
 use serde::Deserialize;
 
 // Admin Handlers
-pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> {
+pub async fn handle_admin_dashboard(State(db): State<Database>) -> impl IntoResponse {
+    if db.should_redirect_to_getting_started() {
+        return axum::response::Redirect::to("/d-admin/getting-started").into_response();
+    }
     let settings = db.get_settings().unwrap_or_default();
     let mut posts: Vec<models::DaypressPostResponse> = db
         .get_posts("any", Some("publish"), None, 120)
@@ -40,7 +44,7 @@ pub async fn handle_admin_dashboard(State(db): State<Database>) -> Html<String> 
     }
     let stats = db.get_stats().unwrap_or_default();
 
-    Html(templates::render_dashboard_view(&posts, &settings, &stats))
+    Html(templates::render_dashboard_view(&posts, &settings, &stats)).into_response()
 }
 
 pub async fn handle_admin_posts(
@@ -240,116 +244,6 @@ pub async fn handle_admin_user_new_submit(
     }
 }
 
-pub async fn handle_login_page(
-    State(db): State<Database>,
-    Query(params): Query<LoginQueryParams>,
-) -> impl IntoResponse {
-    if params.action.as_deref() == Some("logout") {
-        return handle_logout().await.into_response();
-    }
-    if db.needs_onboarding() {
-        return axum::response::Redirect::to("/setup").into_response();
-    }
-
-    let settings = db.get_settings().unwrap_or_default();
-    let loggedout =
-        params.loggedout.as_deref() == Some("true") || params.loggedout.as_deref() == Some("1");
-    let error_msg = params.error.as_deref();
-    let redirect_to = params.redirect_to.as_deref();
-    if params.action.as_deref() == Some("resetpass") && error_msg.is_none() {
-        let notice =
-            templates::LoginNotice::Info("Your password has been reset. You can now log in.");
-        let html = templates::render_login_view_with_notice(&settings, notice, redirect_to);
-        return Html(html).into_response();
-    }
-
-    Html(templates::render_login_view(
-        &settings,
-        error_msg,
-        loggedout,
-        redirect_to,
-    ))
-    .into_response()
-}
-
-pub async fn handle_login_submit(
-    State(db): State<Database>,
-    crate::auth::ClientIp(client): crate::auth::ClientIp,
-    Form(form): Form<LoginForm>,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-    let redirect_owned = crate::auth::sanitize_redirect_target(form.redirect_to.as_deref());
-    let redirect_to = redirect_owned.as_str();
-    let username = form.log.as_deref().unwrap_or("").trim();
-    let password = form.pwd.as_deref().unwrap_or("");
-
-    if username.is_empty() || password.is_empty() {
-        return Html(templates::render_login_view(
-            &settings,
-            Some("The username or password field is empty."),
-            false,
-            Some(redirect_to),
-        ))
-        .into_response();
-    }
-
-    match db.attempt_login(username, password, client.as_deref()) {
-        Ok(crate::auth::LoginAttempt::Throttled { retry_after_secs }) => (
-            StatusCode::TOO_MANY_REQUESTS,
-            Html(templates::render_login_view(
-                &settings,
-                Some(&format!(
-                    "Too many failed login attempts. Please try again in {} minutes.",
-                    (retry_after_secs + 59) / 60
-                )),
-                false,
-                Some(redirect_to),
-            )),
-        )
-            .into_response(),
-        Ok(crate::auth::LoginAttempt::Success(user)) => {
-            let mut headers = HeaderMap::new();
-            let secret = db.get_auth_secret().unwrap_or_default();
-            let cookie_val = crate::auth::session_cookie_header(
-                user.user_id,
-                &secret,
-                form.rememberme.is_some(),
-            );
-            if let Ok(val) = cookie_val.parse() {
-                headers.insert(header::SET_COOKIE, val);
-            }
-            if let Ok(loc) = redirect_to.parse() {
-                headers.insert(header::LOCATION, loc);
-            } else {
-                headers.insert(
-                    header::LOCATION,
-                    header::HeaderValue::from_static("/d-admin/"),
-                );
-            }
-            (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
-        }
-        _ => Html(templates::render_login_view(
-            &settings,
-            Some("Unknown username or incorrect password."),
-            false,
-            Some(redirect_to),
-        ))
-        .into_response(),
-    }
-}
-
-pub async fn handle_logout() -> impl IntoResponse {
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::SET_COOKIE,
-        "daypress_admin=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly"
-            .parse()
-            .unwrap(),
-    );
-    headers.insert(header::LOCATION, "/login?loggedout=true".parse().unwrap());
-    (StatusCode::SEE_OTHER, headers, Html(String::new()))
-}
-
 pub async fn handle_admin_tools(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
@@ -380,4 +274,10 @@ pub async fn handle_admin_engine(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
     Html(templates::render_engine_view(&settings, &stats))
+}
+
+pub async fn handle_admin_publish(State(db): State<Database>) -> Html<String> {
+    let settings = db.get_settings().unwrap_or_default();
+    let status = db.compute_publish_status();
+    Html(templates::render_publish_view(&settings, &status))
 }

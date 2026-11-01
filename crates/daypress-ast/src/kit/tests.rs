@@ -23,6 +23,7 @@ fn test_daystudio_kit_custom_colors_and_css() {
         id: "brand-purple".to_string(),
         title: "Brand Purple".to_string(),
         color: "#8b5cf6".to_string(),
+        dark_color: None,
     });
     kit.custom_css = Some(".custom-banner { padding: 40px; }".to_string());
 

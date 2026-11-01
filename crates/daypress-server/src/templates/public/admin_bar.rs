@@ -168,6 +168,44 @@ pub fn render_admin_bar(
                     background: #141923 !important;
                     color: #60a5fa !important;
                 }}
+                #daypress-welcome-dock {{
+                    position: fixed;
+                    bottom: 24px;
+                    right: 24px;
+                    z-index: 999998;
+                    max-width: 410px;
+                    background: #16171a;
+                    color: #f3eee4;
+                    border: 1px solid #3c3a34;
+                    border-radius: 10px;
+                    padding: 18px 20px;
+                    box-shadow: 0 20px 48px rgba(0,0,0,0.28);
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    display: none;
+                }}
+                #daypress-welcome-dock .dock-btn-primary {{
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    background: #a8401b;
+                    color: #fff8f0 !important;
+                    text-decoration: none !important;
+                    padding: 8px 14px;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 600;
+                }}
+                #daypress-welcome-dock .dock-btn-secondary {{
+                    display: inline-flex;
+                    align-items: center;
+                    background: rgba(255,255,255,0.08);
+                    color: #f3eee4 !important;
+                    text-decoration: none !important;
+                    padding: 8px 12px;
+                    border-radius: 6px;
+                    font-size: 12.5px;
+                    font-weight: 500;
+                }}
             </style>
             <div id="wpadminbar" class="nojq">
                 <div class="ab-top-menu-wrap" id="wp-toolbar" role="navigation" aria-label="Toolbar">
@@ -178,6 +216,7 @@ pub fn render_admin_bar(
                             </a>
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
+                                    <li><a class="ab-item" href="/d-admin/getting-started">✨ Get Started &amp; Connect AI</a></li>
                                     <li><a class="ab-item" href="/d-admin/">About Daypress</a></li>
                                     <li><a class="ab-item" href="/d-admin/site-health">Site Health</a></li>
                                     <li><a class="ab-item" href="/d-admin/daypress-engine">Engine Telemetry</a></li>
@@ -192,10 +231,21 @@ pub fn render_admin_bar(
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
                                     <li><a class="ab-item" href="/d-admin/">Dashboard</a></li>
+                                    <li><a class="ab-item" href="/d-admin/getting-started">✨ Get Started &amp; AI</a></li>
                                     <li><a class="ab-item" href="/d-admin/nav-menus">Menus</a></li>
                                     <li><a class="ab-item" href="/d-admin/customize">Customize</a></li>
                                 </ul>
                             </div>
+                        </li>
+                        <li>
+                            <a class="ab-item" href="/d-admin/getting-started" style="color: #fbbf24 !important; font-weight: 600 !important;">
+                                <span>✨ Connect AI Agent</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="ab-item" href="/d-admin/publish" style="color: #34d399 !important; font-weight: 600 !important;" title="Publish to Cloudflare Pages, Netlify, or .ZIP">
+                                <span>&#128640; Publish</span>
+                            </a>
                         </li>
                         <li>
                             <a class="ab-item" href="/d-admin/update-core" title="Updates">
@@ -247,6 +297,26 @@ pub fn render_admin_bar(
                     </ul>
                 </div>
             </div>
+            <div id="daypress-welcome-dock" role="region" aria-label="Welcome to Daypress">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#f59e0b;">✨ Your new homepage is live</span>
+                    <button type="button" onclick="document.getElementById('daypress-welcome-dock').style.display='none'" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:15px;">&times;</button>
+                </div>
+                <div style="font-size:14px;line-height:1.45;color:#e5e7eb;margin-bottom:14px;">
+                    Welcome to <strong>{site_name}</strong>! Open your Admin Launchpad to connect your AI agent (Claude Code, Codex, or Cursor) in one click.
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <a href="/d-admin/getting-started" class="dock-btn-primary">Open Admin &amp; Connect AI &rarr;</a>
+                    <a href="/d-admin/publish" class="dock-btn-secondary">Publish Site</a>
+                    <a href="/d-admin/customize" class="dock-btn-secondary">Customize Theme</a>
+                </div>
+            </div>
+            <script>
+                if (window.location.search.includes('welcome=1')) {{
+                    const dock = document.getElementById('daypress-welcome-dock');
+                    if (dock) dock.style.display = 'block';
+                }}
+            </script>
             "##,
             site_name = escape_html(site_name),
             pending_comments = settings.pending_comments_count,

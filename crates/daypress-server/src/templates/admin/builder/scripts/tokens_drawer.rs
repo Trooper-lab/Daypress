@@ -76,10 +76,14 @@ pub const JS_TOKENS_DRAWER: &str = r###"
         const allColors = [...(gs.system_colors || []), ...(gs.custom_colors || [])];
         allColors.forEach(c => {
             if (!c || !c.id || !c.color) return;
-            lines.push(`  --e-global-color-${c.id}: ${c.color};`);
-            lines.push(`  --dp-color-${c.id}: ${c.color};`);
-            lines.push(`  --${c.id}: ${c.color};`);
-            if (c.id === "secondary") lines.push(`  --dp-color-heading: ${c.color};`);
+            const selfRef = `var(--${c.id})`.toLowerCase();
+            const valLower = String(c.color).trim().toLowerCase();
+            if (valLower !== selfRef) {
+                lines.push(`  --e-global-color-${c.id}: ${c.color};`);
+                lines.push(`  --dp-color-${c.id}: ${c.color};`);
+                lines.push(`  --${c.id}: ${c.color};`);
+                if (c.id === "secondary") lines.push(`  --dp-color-heading: ${c.color};`);
+            }
         });
 
         const allTypo = [...(gs.system_typography || []), ...(gs.custom_typography || [])];
@@ -108,6 +112,22 @@ pub const JS_TOKENS_DRAWER: &str = r###"
             }
         }
         lines.push("}");
+
+        const darkColors = allColors.filter(c => c && c.id && c.dark_color && String(c.dark_color).trim());
+        if (darkColors.length > 0) {
+            lines.push('#daystudio-artboard[data-theme="dark"], #daystudio-canvas[data-theme="dark"] {');
+            darkColors.forEach(c => {
+                const dc = String(c.dark_color).trim();
+                const selfRef = `var(--${c.id})`.toLowerCase();
+                if (dc.toLowerCase() !== selfRef) {
+                    lines.push(`  --e-global-color-${c.id}: ${dc};`);
+                    lines.push(`  --dp-color-${c.id}: ${dc};`);
+                    lines.push(`  --${c.id}: ${dc};`);
+                    if (c.id === "secondary") lines.push(`  --dp-color-heading: ${dc};`);
+                }
+            });
+            lines.push("}");
+        }
         if (gs.custom_css && String(gs.custom_css).trim()) {
             const scopedCustom = String(gs.custom_css)
                 .replace(/(^|[},;\s])(?:html|body|:root)(?=\s*[,{])/g, "$1:scope")
@@ -138,11 +158,20 @@ pub const JS_TOKENS_DRAWER: &str = r###"
         syncGlobalTokensCss();
 
         const renderColorRow = (c, idx, isCustom) => `
-            <div class="cad-row" style="gap:6px;margin-bottom:6px;" data-color-group="${isCustom ? 'custom' : 'system'}" data-idx="${idx}">
-                <input type="color" class="tok-color-picker" value="${toHexPickerValue(c.color)}" style="width:24px;height:24px;padding:0;border:1px solid var(--day-border);background:none;cursor:pointer;flex-shrink:0;">
-                <input type="text" class="cad-input tok-color-title" value="${escAttr(c.title || c.id)}" placeholder="Token Name" style="flex:1;min-width:0;font-size:11px;">
-                <input type="text" class="cad-input font-mono tok-color-val" value="${escAttr(c.color)}" style="width:82px;font-size:11px;">
-                ${isCustom ? `<button type="button" class="cad-btn secondary tok-color-del" title="Delete Token" style="padding:2px 6px;font-size:10px;">✕</button>` : ""}
+            <div style="border:1px solid var(--day-border);border-radius:4px;padding:6px 8px;margin-bottom:6px;background:rgba(255,255,255,0.02);" data-color-group="${isCustom ? 'custom' : 'system'}" data-idx="${idx}">
+                <div class="cad-row" style="gap:6px;margin-bottom:5px;justify-content:space-between;">
+                    <input type="text" class="cad-input tok-color-title" value="${escAttr(c.title || c.id)}" placeholder="Token Name" style="flex:1;min-width:0;font-size:11px;font-weight:600;">
+                    <code style="font-size:9.5px;color:var(--day-muted);">--${escAttr(c.id)}</code>
+                    ${isCustom ? `<button type="button" class="cad-btn secondary tok-color-del" title="Delete Token" style="padding:2px 6px;font-size:10px;">✕</button>` : ""}
+                </div>
+                <div class="cad-row" style="gap:6px;">
+                    <span title="Light Mode Color" style="font-size:10px;color:var(--day-muted);width:14px;text-align:center;"><i class="fa-solid fa-sun"></i></span>
+                    <input type="color" class="tok-color-picker" value="${toHexPickerValue(c.color)}" style="width:20px;height:20px;padding:0;border:1px solid var(--day-border);background:none;cursor:pointer;flex-shrink:0;">
+                    <input type="text" class="cad-input font-mono tok-color-val" value="${escAttr(c.color)}" placeholder="Light hex" style="flex:1;min-width:0;font-size:10.5px;">
+                    <span title="Dark Mode Color (Optional)" style="font-size:10px;color:var(--day-muted);width:14px;text-align:center;"><i class="fa-solid fa-moon"></i></span>
+                    <input type="color" class="tok-dark-color-picker" value="${toHexPickerValue(c.dark_color || c.color)}" style="width:20px;height:20px;padding:0;border:1px solid var(--day-border);background:none;cursor:pointer;flex-shrink:0;">
+                    <input type="text" class="cad-input font-mono tok-dark-color-val" value="${escAttr(c.dark_color || '')}" placeholder="Dark hex" style="flex:1;min-width:0;font-size:10.5px;">
+                </div>
             </div>
         `;
 
@@ -172,6 +201,13 @@ pub const JS_TOKENS_DRAWER: &str = r###"
                 <button type="button" class="cad-btn primary" id="tok-save-top-btn" style="padding:4px 10px;font-size:11px;"><i class="fa-solid fa-floppy-disk"></i> Save</button>
             </div>
             <div class="drawer-scroll-body" style="padding:12px;">
+                <div style="margin-bottom:14px;padding:8px;border:1px solid var(--day-border);border-radius:6px;background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <span style="font-size:11px;font-weight:600;color:var(--day-ink);">Canvas Theme Preview</span>
+                    <div style="display:flex;gap:4px;">
+                        <button type="button" class="cad-btn ${(window.DayStudioState.canvasTheme || 'light') === 'light' ? 'primary' : 'secondary'}" id="tok-preview-light-btn" style="padding:3px 8px;font-size:10.5px;"><i class="fa-solid fa-sun"></i> Light</button>
+                        <button type="button" class="cad-btn ${window.DayStudioState.canvasTheme === 'dark' ? 'primary' : 'secondary'}" id="tok-preview-dark-btn" style="padding:3px 8px;font-size:10.5px;"><i class="fa-solid fa-moon"></i> Dark</button>
+                    </div>
+                </div>
                 <div style="margin-bottom:16px;">
                     <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--day-muted);margin-bottom:8px;font-weight:700;">System Color Tokens</div>
                     <div id="tok-sys-colors">${gs.system_colors.map((c, i) => renderColorRow(c, i, false)).join("")}</div>
@@ -240,6 +276,8 @@ pub const JS_TOKENS_DRAWER: &str = r###"
             const picker = row.querySelector(".tok-color-picker");
             const titleInp = row.querySelector(".tok-color-title");
             const valInp = row.querySelector(".tok-color-val");
+            const darkPicker = row.querySelector(".tok-dark-color-picker");
+            const darkValInp = row.querySelector(".tok-dark-color-val");
             const delBtn = row.querySelector(".tok-color-del");
 
             if (picker) {
@@ -253,6 +291,21 @@ pub const JS_TOKENS_DRAWER: &str = r###"
                 valInp.oninput = () => {
                     item.color = valInp.value.trim();
                     if (picker && /^#[0-9a-fA-F]{6}$/.test(item.color)) picker.value = item.color;
+                    onMutate();
+                };
+            }
+            if (darkPicker) {
+                darkPicker.oninput = () => {
+                    item.dark_color = darkPicker.value;
+                    if (darkValInp) darkValInp.value = darkPicker.value;
+                    onMutate();
+                };
+            }
+            if (darkValInp) {
+                darkValInp.oninput = () => {
+                    const v = darkValInp.value.trim();
+                    item.dark_color = v || undefined;
+                    if (darkPicker && /^#[0-9a-fA-F]{6}$/.test(v)) darkPicker.value = v;
                     onMutate();
                 };
             }
@@ -270,6 +323,21 @@ pub const JS_TOKENS_DRAWER: &str = r###"
                 };
             }
         });
+
+        const btnLight = container.querySelector("#tok-preview-light-btn");
+        const btnDark = container.querySelector("#tok-preview-dark-btn");
+        if (btnLight) {
+            btnLight.onclick = () => {
+                if (window.setCanvasTheme) window.setCanvasTheme("light");
+                renderTokensDrawer(container);
+            };
+        }
+        if (btnDark) {
+            btnDark.onclick = () => {
+                if (window.setCanvasTheme) window.setCanvasTheme("dark");
+                renderTokensDrawer(container);
+            };
+        }
 
         const addColorBtn = container.querySelector("#tok-add-color-btn");
         if (addColorBtn) {

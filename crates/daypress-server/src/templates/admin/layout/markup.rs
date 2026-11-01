@@ -110,6 +110,7 @@ body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --pr
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/" class="nav-subitem {sub_dash_home}">Home</a>
+					<a href="/d-admin/getting-started" class="nav-subitem {sub_dash_gs}">Get Started &amp; AI</a>
 					<a href="/d-admin/update-core" class="nav-subitem {sub_dash_updates}">Updates {updates_badge}</a>
 				</div>
 			</div>
@@ -253,6 +254,14 @@ body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --pr
 				</div>
 			</div>
 
+			<!-- 11b. PUBLISH & HOSTING -->
+			<div class="nav-group">
+				<a href="/d-admin/publish" class="nav-item {is_publish}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+					<span>Publish</span>
+				</a>
+			</div>
+
 			<!-- SYSTEM TELEMETRY -->
 			<div class="nav-group">
 				<a href="/d-admin/daypress-engine" class="nav-item {is_engine}">
@@ -308,6 +317,7 @@ body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --pr
 		['Writing Settings', '/d-admin/options-writing'], ['Reading Settings', '/d-admin/options-reading'],
 		['Discussion Settings', '/d-admin/options-discussion'], ['Media Settings', '/d-admin/options-media'],
 		['Permalink Settings', '/d-admin/options-permalink'], ['Privacy Settings', '/d-admin/options-privacy'],
+		['Publish & Hosting', '/d-admin/publish'],
 		['Engine Telemetry', '/d-admin/daypress-engine'], ['Analytics', '/d-admin/analytics']
 	];
 	let dayQsItems = [];
@@ -445,6 +455,7 @@ body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --pr
         is_dash = nav.is_dash,
         is_dash_open = nav.is_dash_open,
         sub_dash_home = nav.sub_dash_home,
+        sub_dash_gs = nav.sub_dash_gs,
         sub_dash_updates = nav.sub_dash_updates,
         is_posts = nav.is_posts,
         is_posts_open = nav.is_posts_open,
@@ -496,6 +507,7 @@ body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --pr
         sub_set_media = nav.sub_set_media,
         sub_set_perm = nav.sub_set_perm,
         sub_set_priv = nav.sub_set_priv,
+        is_publish = nav.is_publish,
         is_engine = nav.is_engine,
         admin_color = admin_color,
         updates_badge = updates_badge,

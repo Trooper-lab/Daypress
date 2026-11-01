@@ -60,6 +60,7 @@ pub struct NavState {
     pub is_dash: &'static str,
     pub is_dash_open: &'static str,
     pub sub_dash_home: &'static str,
+    pub sub_dash_gs: &'static str,
     pub sub_dash_updates: &'static str,
     pub is_posts: &'static str,
     pub is_posts_open: &'static str,
@@ -114,18 +115,27 @@ pub struct NavState {
     pub sub_set_media: &'static str,
     pub sub_set_perm: &'static str,
     pub sub_set_priv: &'static str,
+    pub is_publish: &'static str,
     pub is_engine: &'static str,
 }
 
 impl NavState {
     pub fn compute(current_tab: &str) -> Self {
-        let is_dash = if current_tab == "dashboard" || current_tab == "updates" {
+        let is_dash = if current_tab == "dashboard"
+            || current_tab == "updates"
+            || current_tab == "getting-started"
+        {
             "active"
         } else {
             ""
         };
         let is_dash_open = if !is_dash.is_empty() { "open" } else { "" };
         let sub_dash_home = if current_tab == "dashboard" || current_tab == "home" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_dash_gs = if current_tab == "getting-started" {
             "active"
         } else {
             ""
@@ -382,6 +392,12 @@ impl NavState {
             ""
         };
 
+        let is_publish = if current_tab == "publish" {
+            "active"
+        } else {
+            ""
+        };
+
         let is_engine = if current_tab == "engine" {
             "active"
         } else {
@@ -392,6 +408,7 @@ impl NavState {
             is_dash,
             is_dash_open,
             sub_dash_home,
+            sub_dash_gs,
             sub_dash_updates,
             is_posts,
             is_posts_open,
@@ -446,6 +463,7 @@ impl NavState {
             sub_set_media,
             sub_set_perm,
             sub_set_priv,
+            is_publish,
             is_engine,
         }
     }

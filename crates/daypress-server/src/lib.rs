@@ -22,6 +22,7 @@ pub mod media;
 pub mod models;
 pub mod password_reset;
 pub mod plugins;
+pub mod publisher;
 pub mod seed;
 pub mod static_assets;
 pub mod templates;
@@ -44,6 +45,7 @@ pub use media::*;
 pub use models::*;
 pub use plugins::*;
 pub use ports::*;
+pub use publisher::*;
 pub use seed::*;
 pub use theme::*;
 pub use theme_builder::*;
@@ -101,6 +103,10 @@ pub fn create_app(database: Database) -> Router {
         .route("/login", get(handle_login_page).post(handle_login_submit))
         .route("/setup", get(handle_setup_page).post(handle_setup_submit))
         .route(
+            "/setup/network-permission",
+            post(handle_setup_network_permission),
+        )
+        .route(
             "/d-admin/install",
             get(handle_setup_page).post(handle_setup_submit),
         )
@@ -129,7 +135,20 @@ pub fn create_app(database: Database) -> Router {
         )
         .route("/d-admin/", get(handle_admin_dashboard))
         .route("/d-admin/index", get(handle_admin_dashboard))
+        .route(
+            "/d-admin/getting-started",
+            get(handle_admin_getting_started),
+        )
+        .route(
+            "/d-admin/api/getting-started/dismiss",
+            post(handle_api_getting_started_dismiss),
+        )
+        .route(
+            "/d-admin/api/getting-started/agent-key",
+            post(handle_api_getting_started_agent_key),
+        )
         .route("/d-admin/update-core", get(handle_admin_updates))
+        .route("/d-admin/updates", get(handle_admin_updates))
         // 2. Posts & Pages (both utilize edit and post-new with post_type query parameters)
         .route("/d-admin/edit", get(handle_admin_posts))
         .route("/d-admin/post-new", get(handle_admin_post_new))
@@ -302,6 +321,7 @@ pub fn create_app(database: Database) -> Router {
             post(handle_api_options_privacy_save),
         )
         // Daypress Extensions & Native Subsystems
+        .route("/d-admin/publish", get(handle_admin_publish))
         .route("/d-admin/daypress-engine", get(handle_admin_engine))
         .route("/d-admin/analytics", get(handle_admin_analytics))
         .route("/sitemap.xml", get(handle_sitemap_xml))

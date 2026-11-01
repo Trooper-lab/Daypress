@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.2.1).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.2.2).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -21,7 +21,8 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 
 **Running it**
 - One binary built with Axum and Tokio, with an embedded SQLite database (WAL mode). Static assets are compiled into the binary.
-- First-time browser onboarding wizard (/setup, /d-admin/install, /d-admin/setup): configure your site title, tagline, administrator account, starter theme (Daypress Daylight, Daypress Night, or Daypress Modern), accent color, typography scale, and starter mode (sample content, blank site, or 1-click WordPress import) in one screen.
+- First-time browser onboarding wizard (`/setup`, `/d-admin/install`, `/d-admin/setup`) and AI Agent Getting Started screen (`/d-admin/getting-started`): configure your site title, tagline, administrator account, starter theme (`Daypress Daylight`, `Daypress Night`, or `Daypress Modern`), accent color, typography scale, and starter mode (sample content, blank site, or 1-click WordPress import), plus generate a 1-click MCP Application Password for Claude Code, Codex, Cursor, or Antigravity.
+- Static Edge Publisher (`/d-admin/publish`): compile your local Daypress site into a self-contained static build (`_redirects`, `sitemap.xml`, `robots.txt`, `feed/index.xml`, `404.html`, and client-side `search-index.json`) and deploy in 1 click to **Cloudflare Pages**, **Netlify**, or a local directory / `.zip` bundle with deployment history and rollback.
 - Built-in self-updater (`/d-admin/updates` and `/d-admin/system?tab=updates`): 24-hour background GitHub release check, SHA-256 checksum verification, automatic pre-update SQLite snapshot, atomic executable hot-swap, manual `.tar.gz` / `.zip` archive upload, and 1-click rollback.
 - A release workflow builds binaries for Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon and Intel) for each version tag and attaches them, with SHA-256 checksums, to the GitHub release.
 - A `Dockerfile` and `docker-compose.yml` that keep the database, uploads, and backups in one volume.
@@ -272,6 +273,8 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_get_settings` | Read site settings |
 | `daypress_update_option` | Change a site option, such as the title or tagline |
 | `daypress_import_wp_bundle` | Import a WordPress JSON bundle |
+| `daypress_get_publish_status` | Read static edge publishing config and published route count |
+| `daypress_publish_site` | Configure or trigger a static edge deployment (Cloudflare Pages, Netlify, or local folder) |
 
 ---
 
@@ -299,7 +302,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 314 tests
+cargo test --workspace                                  # 322 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

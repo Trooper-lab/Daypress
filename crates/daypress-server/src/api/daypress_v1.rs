@@ -626,9 +626,7 @@ pub(crate) async fn upload_update_archive_handler(
         AppError::BadRequest("Missing `archive` file field in multipart upload.".into())
     })?;
     let ver = target_version.unwrap_or_else(|| "custom".to_string());
-    let exe_path = std::env::current_exe().map_err(|e| {
-        AppError::Internal(format!("Could not determine current executable path: {e}"))
-    })?;
+    let exe_path = crate::updater::canonical_executable_path()?;
 
     let report = crate::updater::apply_binary_update_to_path(
         &db,
@@ -651,12 +649,136 @@ pub(crate) async fn rollback_update_handler(
     State(db): State<Database>,
     payload: Option<Json<RollbackUpdatePayload>>,
 ) -> Result<Json<crate::updater::UpdateApplyReport>, AppError> {
-    let exe_path = std::env::current_exe().map_err(|e| {
-        AppError::Internal(format!("Could not determine current executable path: {e}"))
-    })?;
+    let exe_path = crate::updater::canonical_executable_path()?;
     let restore_file = payload
         .as_ref()
         .and_then(|p| p.restore_backup_filename.as_deref());
     let report = crate::updater::rollback_binary_at_path(&db, &exe_path, restore_file)?;
     Ok(Json(report))
+}
+
+// --- Native Subsystems: Static Edge Publishing & Domain Manager ---
+
+pub(crate) async fn get_publish_status_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::publisher::PublishStatusResponse>, AppError> {
+    Ok(Json(db.compute_publish_status()))
+}
+
+pub(crate) async fn save_publish_settings_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    Json(payload): Json<crate::publisher::PublishSettingsUpdateRequest>,
+) -> Result<Json<Value>, AppError> {
+    let saved = db.save_publish_settings(&payload)?;
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "settings": saved.redacted()
+    })))
+}
+
+pub(crate) async fn run_publish_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    payload: Option<Json<crate::publisher::PublishRunRequest>>,
+) -> Result<Json<Value>, AppError> {
+    let req = payload.map(|Json(p)| p).unwrap_or_default();
+    let dep = crate::publisher::execute_publish(&db, &req).await?;
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "deployment": dep
+    })))
+}
+
+pub(crate) async fn rollback_publish_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    AxPath(id): AxPath<i64>,
+) -> Result<Json<Value>, AppError> {
+    let dep = crate::publisher::execute_rollback(&db, id).await?;
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "deployment": dep
+    })))
+}
+
+pub(crate) async fn download_deployment_zip_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    AxPath(id): AxPath<i64>,
+) -> Result<axum::response::Response, AppError> {
+    use axum::response::IntoResponse;
+    let (dep, _) = db
+        .get_deployment_with_manifest(id)
+        .ok_or_else(|| AppError::NotFound(format!("Deployment #{id} not found")))?;
+    let path = dep.bundle_path.ok_or_else(|| {
+        AppError::NotFound(format!("Deployment #{id} has no saved .zip snapshot"))
+    })?;
+    let bytes = std::fs::read(&path)
+        .map_err(|e| AppError::NotFound(format!("Snapshot archive not found on disk: {e}")))?;
+
+    let filename = format!("daypress-static-deploy-{id}.zip");
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/zip"),
+    );
+    if let Ok(disp) = format!("attachment; filename=\"{filename}\"").parse() {
+        headers.insert(header::CONTENT_DISPOSITION, disp);
+    }
+    Ok((axum::http::StatusCode::OK, headers, bytes).into_response())
+}
+
+pub(crate) async fn configure_publish_domain_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    payload: Option<Json<crate::publisher::DomainActionRequest>>,
+) -> Result<Json<crate::publisher::DomainConfigResult>, AppError> {
+    let req = payload.map(|Json(p)| p).unwrap_or_default();
+    let mut settings = db.get_publish_settings();
+    if let Some(ref prov) = req.provider {
+        if !prov.trim().is_empty() {
+            settings.provider = prov.trim().to_ascii_lowercase();
+            let _ = db.set_option("daypress_publish_provider", &settings.provider);
+        }
+    }
+    if let Some(ref dom) = req.domain {
+        let clean = dom
+            .trim()
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_end_matches('/');
+        if !clean.is_empty() {
+            if settings.provider == "cloudflare" {
+                let _ = db.set_option("daypress_cf_custom_domain", clean);
+                settings.cf_custom_domain = clean.to_string();
+            } else if settings.provider == "netlify" {
+                let _ = db.set_option("daypress_netlify_custom_domain", clean);
+                settings.netlify_custom_domain = clean.to_string();
+            }
+            if settings.production_url.trim().is_empty() {
+                let prod = format!("https://{clean}");
+                let _ = db.set_option("daypress_publish_production_url", &prod);
+                settings.production_url = prod;
+            }
+        }
+    }
+    let res =
+        crate::publisher::providers::configure_custom_domain(&settings, req.domain.as_deref())
+            .await
+            .map_err(AppError::BadRequest)?;
+    Ok(Json(res))
+}
+
+pub(crate) async fn verify_publish_domain_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    payload: Option<Json<crate::publisher::DomainActionRequest>>,
+) -> Result<Json<crate::publisher::DomainVerifyResult>, AppError> {
+    let req = payload.map(|Json(p)| p).unwrap_or_default();
+    let settings = db.get_publish_settings();
+    let res =
+        crate::publisher::providers::verify_domain_status(&settings, req.domain.as_deref()).await;
+    Ok(Json(res))
 }

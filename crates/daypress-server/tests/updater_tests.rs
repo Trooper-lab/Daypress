@@ -330,23 +330,44 @@ async fn test_update_api_routes_and_admin_updates_screen() {
     assert!(!loaded_settings.auto_check_enabled);
     assert_eq!(loaded_settings.channel, "prerelease");
 
-    // 3. GET /d-admin/update-core renders the new release card, sidebar badge, and manual upload form
-    let res_html = app
-        .oneshot(
-            Request::builder()
-                .uri("/d-admin/update-core")
-                .header("Authorization", ADMIN_AUTH)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res_html.status(), StatusCode::OK);
-    let html_bytes = to_bytes(res_html.into_body(), usize::MAX).await.unwrap();
-    let html = String::from_utf8_lossy(&html_bytes);
-    assert!(html.contains("Daypress v9.9.0 is ready"));
-    assert!(html.contains("Instant in-app self-updater"));
-    assert!(html.contains("Manual Release Archive Upload"));
-    assert!(html.contains("Daypress v9.9.0 available"));
+    // 3. GET /d-admin/update-core and /d-admin/updates render the new release card, sidebar badge, and manual upload form
+    for uri in ["/d-admin/update-core", "/d-admin/updates"] {
+        let res_html = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .header("Authorization", ADMIN_AUTH)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_html.status(), StatusCode::OK);
+        let html_bytes = to_bytes(res_html.into_body(), usize::MAX).await.unwrap();
+        let html = String::from_utf8_lossy(&html_bytes);
+        assert!(html.contains("Daypress v9.9.0 is ready"));
+        assert!(html.contains("Instant in-app self-updater"));
+        assert!(html.contains("Manual Release Archive Upload"));
+        assert!(html.contains("Daypress v9.9.0 available"));
+    }
     assert!(load_update_state(&db).latest_version.as_deref() == Some("9.9.0"));
+
+    // 4. Verify Linux /proc/self/exe path normalization strips .prev / .rolledback / (deleted)
+    use daypress_server::updater::normalize_running_exe_path;
+    use std::path::Path;
+    assert_eq!(
+        normalize_running_exe_path(Path::new("/var/lib/neopress/bin/daypress.prev")),
+        Path::new("/var/lib/neopress/bin/daypress")
+    );
+    assert_eq!(
+        normalize_running_exe_path(Path::new("/var/lib/neopress/bin/daypress.prev.prev")),
+        Path::new("/var/lib/neopress/bin/daypress")
+    );
+    assert_eq!(
+        normalize_running_exe_path(Path::new(
+            "/var/lib/neopress/bin/daypress.rolledback (deleted)"
+        )),
+        Path::new("/var/lib/neopress/bin/daypress")
+    );
 }

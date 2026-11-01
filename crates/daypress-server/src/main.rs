@@ -21,6 +21,10 @@ pub struct Cli {
     #[arg(short, long, env = "PORT", default_value_t = 8090)]
     pub port: u16,
 
+    /// Host IP to bind (defaults to 127.0.0.1 on desktop to avoid OS firewall popups, or 0.0.0.0 when LAN mode / Docker is active)
+    #[arg(long, env = "HOST")]
+    pub host: Option<String>,
+
     /// Path to SQLite database file (overridable via DATABASE_PATH env var)
     #[arg(
         long,
@@ -99,7 +103,7 @@ async fn main() {
         .init();
 
     if let Err(err) = run(args).await {
-        eprintln!("CRITICAL SERVER ERROR: {err:?}");
+        eprintln!("CRITICAL SERVER ERROR: {err}");
         std::process::exit(1);
     }
 }
@@ -153,7 +157,43 @@ fn run_mcp_stdio(args: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
+fn format_bind_error(port: u16, err: &std::io::Error) -> String {
+    if err.kind() == std::io::ErrorKind::AddrInUse {
+        format!(
+            "Port {port} is already in use ({err}). Stop the process using port {port} or choose another port with `--port <PORT>`."
+        )
+    } else {
+        format!(
+            "Failed to bind TCP listener on port {port} (0.0.0.0:{port}): {err}. Try choosing another port with `--port <PORT>`."
+        )
+    }
+}
+
+async fn bind_http_listener(addr: SocketAddr) -> Result<tokio::net::TcpListener, String> {
+    // Only retry binding when spawned by an in-app self-update handoff while the old process exits.
+    let restart_handoff = std::env::var("DAYPRESS_RESTART_HANDOFF")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    let max_retries = if restart_handoff { 12u8 } else { 0u8 };
+    let mut bind_attempt = 0u8;
+    loop {
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(listener) => return Ok(listener),
+            Err(_) if bind_attempt < max_retries => {
+                bind_attempt += 1;
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            }
+            Err(e) => return Err(format_bind_error(addr.port(), &e)),
+        }
+    }
+}
+
+fn print_startup_banner(
+    db_path: &Path,
+    bound_port: u16,
+    bound_addr: SocketAddr,
+    needs_onboarding: bool,
+) {
     println!("============================================================");
     println!("           🦀 Daypress: The All-in-One Rust CMS             ");
     println!("============================================================");
@@ -161,63 +201,121 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ License:            AGPLv3 + Commercial Dual-License");
     println!("✓ Engine:             Native Rust (Axum + Tokio)");
     println!("✓ Storage Adapter:    Embedded Rusqlite (Zero SQL Server Required)");
-    println!("✓ Database Path:      {}", args.db.display());
+    println!("✓ Database Path:      {}", db_path.display());
+    println!(
+        "✓ Status:             Listening on http://localhost:{}/",
+        bound_port
+    );
+    println!("------------------------------------------------------------");
+    if needs_onboarding {
+        println!(
+            "✨ First-Time Setup:  http://localhost:{}/setup",
+            bound_port
+        );
+    }
+    println!("🌐 Public Website:    http://localhost:{}/", bound_port);
+    println!(
+        "⚙️ Admin Dashboard:   http://localhost:{}/d-admin/",
+        bound_port
+    );
+    println!(
+        "📡 REST API Root:     http://localhost:{}/wp-json/",
+        bound_port
+    );
+    println!(
+        "🤖 Claude MCP RPC:    http://localhost:{}/mcp (or `daypress --mcp-stdio`)",
+        bound_port
+    );
+    println!("============================================================");
+    println!("[SERVER] TcpListener bound to {bound_addr}");
+}
 
-    // 1. Initialize Concrete Storage Adapter
+fn maybe_open_browser_on_first_run(port: u16) {
+    if std::env::var_os("CI").is_some() || std::env::var_os("DAYPRESS_NO_BROWSER").is_some() {
+        return;
+    }
+    let url = format!("http://localhost:{port}/setup");
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg(&url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(&url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+}
+
+async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Initialize Concrete Storage Adapter first so we know onboarding state and saved network bind preference.
     let database = Database::new(&args.db)?;
     let needs_onboarding = database.needs_onboarding();
 
-    // 2. Wire Output Ports into Application Service via Arc<dyn Trait>
+    // Resolve bind address:
+    // - Explicit `--host` / `HOST` env var wins.
+    // - Inside Docker (`/.dockerenv`) or when the user enabled LAN mode (`daypress_network_bind_mode = "lan"`), bind `0.0.0.0`.
+    // - Otherwise default to `127.0.0.1` (loopback) so Windows/macOS never show unexpected Public/Private network firewall popups on launch.
+    let bind_ip: std::net::IpAddr = if let Some(ref h) = args.host {
+        h.trim()
+            .parse()
+            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+    } else if Path::new("/.dockerenv").exists()
+        || std::env::var_os("KUBERNETES_SERVICE_HOST").is_some()
+    {
+        std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+    } else {
+        let saved_mode = database
+            .get_option("daypress_network_bind_mode")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "localhost".to_string());
+        if saved_mode.eq_ignore_ascii_case("lan") || saved_mode == "0.0.0.0" {
+            std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+        } else {
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+        }
+    };
+
+    // 2. Bind the TCP port before printing the listening banner
+    let addr = SocketAddr::new(bind_ip, args.port);
+    let listener = bind_http_listener(addr).await?;
+    let bound_addr = listener.local_addr().unwrap_or(addr);
+    let bound_port = bound_addr.port();
+
+    // 3. Wire Output Ports into Application Service via Arc<dyn Trait>
     let repo = Arc::new(database.clone());
     let _cms_service =
         CmsService::new(repo.clone(), repo.clone(), repo.clone(), repo.clone(), repo);
 
-    // 3. Spawn non-blocking 24-hour release update checker (persisted in SQLite)
+    // 4. Spawn non-blocking 24-hour release update checker (persisted in SQLite)
     daypress_server::updater::spawn_background_update_checker(database.clone());
 
-    // 4. Hand wired state to Primary Web & MCP Adapter
+    // 5. Hand wired state to Primary Web & MCP Adapter
     let app = create_app(database);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
-    println!(
-        "✓ Status:             Listening on http://localhost:{}/",
-        args.port
-    );
-    println!("------------------------------------------------------------");
+    // 6. Print listening banner only after TCP listener and application state are ready
+    print_startup_banner(&args.db, bound_port, bound_addr, needs_onboarding);
     if needs_onboarding {
-        println!("✨ First-Time Setup:  http://localhost:{}/setup", args.port);
+        maybe_open_browser_on_first_run(bound_port);
     }
-    println!("🌐 Public Website:    http://localhost:{}/", args.port);
-    println!(
-        "⚙️ Admin Dashboard:   http://localhost:{}/d-admin/",
-        args.port
-    );
-    println!(
-        "📡 REST API Root:     http://localhost:{}/wp-json/",
-        args.port
-    );
-    println!(
-        "🤖 Claude MCP RPC:    http://localhost:{}/mcp (or `daypress --mcp-stdio`)",
-        args.port
-    );
-    println!("============================================================");
-
-    // Retry binding briefly in case an in-app self-update just exited and the OS is releasing the port.
-    let mut bind_attempt = 0u8;
-    let listener = loop {
-        match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => break l,
-            Err(e) if bind_attempt < 12 => {
-                bind_attempt += 1;
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-                if bind_attempt == 12 {
-                    return Err(e.into());
-                }
-            }
-            Err(e) => return Err(e.into()),
-        }
-    };
-    println!("[SERVER] TcpListener bound to {addr}");
 
     // Connect info gives handlers the client socket address (used by the login throttle).
     let res = axum::serve(
@@ -235,5 +333,42 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("[SERVER] Axum serve error: {e:?}");
             Err(e.into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_bind_error_identifies_port_and_suggests_port_flag() {
+        let err = std::io::Error::new(std::io::ErrorKind::AddrInUse, "address in use");
+        let msg = format_bind_error(8090, &err);
+        assert!(msg.contains("8090"), "expected port in error: {msg}");
+        assert!(
+            msg.contains("--port"),
+            "expected --port hint in error: {msg}"
+        );
+        assert!(
+            msg.contains("already in use"),
+            "expected 'already in use' in error: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn bind_http_listener_fails_with_clear_message_when_port_is_in_use() {
+        let occupied = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .expect("bind ephemeral port");
+        let port = occupied.local_addr().expect("local addr").port();
+
+        let err = bind_http_listener(SocketAddr::from(([127, 0, 0, 1], port)))
+            .await
+            .expect_err("second bind on same port must fail");
+        assert!(
+            err.contains(&port.to_string()),
+            "error must name port {port}: {err}"
+        );
+        assert!(err.contains("--port"), "error must suggest --port: {err}");
     }
 }

@@ -36,6 +36,7 @@ pub const JS_TOPBAR_SWITCHER: &str = r###"
                 window.history.pushState({}, "", `/d-admin/builder?post=${post.id}`);
             }
             if (window.updateViewLiveLink) window.updateViewLiveLink();
+            if (window.syncGlobalTokensCss) window.syncGlobalTokensCss();
             window.markDirty(false);
             window.pushHistorySnapshot();
             window.markDirty(false);

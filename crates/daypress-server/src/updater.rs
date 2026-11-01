@@ -163,9 +163,42 @@ pub fn is_newer_version(current: &str, candidate: &str) -> bool {
     }
 }
 
+/// Normalizes a path returned by `std::env::current_exe()` so that Linux `/proc/self/exe`
+/// suffixes added after an in-place rename (`.prev`, `.rolledback`, or ` (deleted)`) are
+/// stripped back to the canonical binary path on disk.
+pub fn normalize_running_exe_path(path: &Path) -> PathBuf {
+    let mut raw = path.to_string_lossy().into_owned();
+    if let Some(stripped) = raw.strip_suffix(" (deleted)") {
+        raw = stripped.to_string();
+    }
+    while let Some(stripped) = raw
+        .strip_suffix(".prev")
+        .or_else(|| raw.strip_suffix(".rolledback"))
+    {
+        raw = stripped.to_string();
+    }
+    PathBuf::from(raw)
+}
+
+/// Returns the canonical path of the currently running Daypress binary.
+pub fn canonical_executable_path() -> Result<PathBuf, AppError> {
+    let exe = std::env::current_exe().map_err(|e| {
+        AppError::Internal(format!("Could not determine current executable path: {e}"))
+    })?;
+    Ok(normalize_running_exe_path(&exe))
+}
+
+fn is_current_process_executable(exe_path: &Path) -> bool {
+    let Ok(current_exe) = std::env::current_exe() else {
+        return false;
+    };
+    let target_norm = normalize_running_exe_path(exe_path);
+    current_exe == exe_path || normalize_running_exe_path(&current_exe) == target_norm
+}
+
 /// Detects whether Daypress is running inside a container or on a read-only binary path.
 pub fn inspect_environment(db: &Database) -> UpdateEnvironment {
-    let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("daypress"));
+    let exe_path = canonical_executable_path().unwrap_or_else(|_| PathBuf::from("daypress"));
     inspect_environment_for_path(db, &exe_path)
 }
 
@@ -542,9 +575,11 @@ pub fn spawn_background_update_checker(db: Database) {
         // Initial delay so server startup is completely unaffected
         tokio::time::sleep(Duration::from_secs(15)).await;
         loop {
-            let settings = load_update_settings(&db);
-            if settings.auto_check_enabled && should_run_scheduled_check(&db) {
-                let _ = check_for_updates_now(&db).await;
+            if !db.needs_onboarding() {
+                let settings = load_update_settings(&db);
+                if settings.auto_check_enabled && should_run_scheduled_check(&db) {
+                    let _ = check_for_updates_now(&db).await;
+                }
             }
             tokio::time::sleep(Duration::from_secs(3600)).await;
         }
@@ -793,6 +828,7 @@ pub fn apply_binary_update_to_path(
     target_version: &str,
     action_kind: &str,
 ) -> Result<UpdateApplyReport, AppError> {
+    let is_running_exe = is_current_process_executable(exe_path);
     let env = inspect_environment_for_path(db, exe_path);
     if !env.can_self_update {
         return Err(AppError::BadRequest(format!(
@@ -868,7 +904,7 @@ pub fn apply_binary_update_to_path(
     };
     append_update_history(db, history_entry)?;
 
-    let restart_scheduled = schedule_process_restart(exe_path);
+    let restart_scheduled = schedule_process_restart(exe_path, is_running_exe);
 
     Ok(UpdateApplyReport {
         success: true,
@@ -890,6 +926,7 @@ pub fn rollback_binary_at_path(
     exe_path: &Path,
     restore_backup_filename: Option<&str>,
 ) -> Result<UpdateApplyReport, AppError> {
+    let is_running_exe = is_current_process_executable(exe_path);
     let prev_path = previous_binary_path(exe_path);
     if !prev_path.exists() {
         return Err(AppError::NotFound(
@@ -957,7 +994,7 @@ pub fn rollback_binary_at_path(
     };
     append_update_history(db, entry)?;
 
-    let restart_scheduled = schedule_process_restart(exe_path);
+    let restart_scheduled = schedule_process_restart(exe_path, is_running_exe);
 
     Ok(UpdateApplyReport {
         success: true,
@@ -1012,9 +1049,7 @@ pub async fn download_and_apply_github_update(
         .await
         .map_err(|e| AppError::BadRequest(format!("Interrupted release archive download: {e}")))?;
 
-    let exe_path = std::env::current_exe().map_err(|e| {
-        AppError::Internal(format!("Could not resolve current executable path: {e}"))
-    })?;
+    let exe_path = canonical_executable_path()?;
 
     apply_binary_update_to_path(
         db,
@@ -1069,12 +1104,9 @@ fn run_binary_smoke_test(binary_path: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-fn schedule_process_restart(exe_path: &Path) -> bool {
-    let Ok(current_exe) = std::env::current_exe() else {
-        return false;
-    };
+fn schedule_process_restart(exe_path: &Path, is_running_exe: bool) -> bool {
     // Never restart the process if we updated a test fixture path rather than the actual running binary
-    if current_exe != exe_path {
+    if !is_running_exe {
         return false;
     }
     if std::env::var("DAYPRESS_DISABLE_RESTART_ON_UPDATE")
@@ -1090,8 +1122,23 @@ fn schedule_process_restart(exe_path: &Path) -> bool {
     tokio::spawn(async move {
         // Give Axum 750ms to flush the HTTP 200 OK JSON response to the browser
         tokio::time::sleep(Duration::from_millis(750)).await;
-        let _ = Command::new(&exe_owned).args(&args).spawn();
-        std::process::exit(0);
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let _ = Command::new(&exe_owned)
+                .args(&args)
+                .env("DAYPRESS_RESTART_HANDOFF", "1")
+                .exec();
+            std::process::exit(0);
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = Command::new(&exe_owned)
+                .args(&args)
+                .env("DAYPRESS_RESTART_HANDOFF", "1")
+                .spawn();
+            std::process::exit(0);
+        }
     });
 
     true

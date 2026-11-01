@@ -67,6 +67,12 @@ pub fn render_shell() -> &'static str {
         </div>
 
         <div class="topbar-right">
+            <!-- Canvas Light / Dark Theme Preview Toggle -->
+            <button class="topbar-tool-btn" id="btn-toggle-canvas-theme" title="Toggle Artboard Light / Dark Mode Preview">
+                <i class="fa-solid fa-sun" id="icon-canvas-theme"></i>
+                <span id="lbl-canvas-theme">Light</span>
+            </button>
+
             <!-- X-Ray Wireframe Mode Toggle -->
             <button class="topbar-tool-btn" id="btn-toggle-xray" title="Toggle Structural X-Ray Mode (Ctrl+Shift+X)">
                 <i class="fa-solid fa-border-all"></i>
@@ -94,6 +100,10 @@ pub fn render_shell() -> &'static str {
                 <i class="fa-solid fa-code"></i>
             </button>
 
+            <a href="/d-admin/publish" class="topbar-tool-btn" id="btn-deploy-edge" title="Publish Static Site to Cloudflare Pages / Netlify / .ZIP" style="text-decoration: none;">
+                <i class="fa-solid fa-rocket"></i>
+                <span>Deploy</span>
+            </a>
             <!-- View Live Frontend Page -->
             <a href="/__POST_SLUG__/" target="_blank" class="topbar-tool-btn" id="btn-view-live" title="View Live Page on Frontend (Opens in New Tab)" style="text-decoration: none;">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
@@ -162,12 +172,12 @@ pub fn render_shell() -> &'static str {
                 <div class="artboard-handle artboard-handle-left" id="handle-artboard-left" title="Drag to Resize Viewport Width">
                     <span class="handle-grip"></span>
                 </div>
-                <div id="daystudio-artboard" class="artboard-desktop">
+                <div id="daystudio-artboard" class="artboard-desktop" data-theme="light">
                     <!-- SSR Public Site Header Preview -->
                     <div id="daystudio-ssr-header">__PREVIEW_HEADER_HTML__</div>
 
                     <!-- Interactive Editable Canvas -->
-                    <main id="daystudio-canvas" class="dp-visual-canvas"></main>
+                    <main id="daystudio-canvas" class="dp-visual-canvas day-main" data-theme="light"></main>
 
                     <!-- Bottom Add Section Preset Dropzone -->
                     <div class="daystudio-add-section-area" id="daystudio-bottom-dropzone">

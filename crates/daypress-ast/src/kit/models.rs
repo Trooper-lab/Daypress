@@ -83,6 +83,8 @@ pub struct GlobalColor {
     pub title: String,
     #[serde(default)]
     pub color: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dark_color: Option<String>,
 }
 
 /// Represents a typography token in the DayStudio Design Kit.
@@ -185,21 +187,25 @@ pub fn default_system_colors() -> Vec<GlobalColor> {
             id: "primary".to_string(),
             title: "Primary".to_string(),
             color: "#6EC1E4".to_string(),
+            dark_color: None,
         },
         GlobalColor {
             id: "secondary".to_string(),
             title: "Secondary".to_string(),
             color: "#54595F".to_string(),
+            dark_color: None,
         },
         GlobalColor {
             id: "text".to_string(),
             title: "Text".to_string(),
             color: "#7A7A7A".to_string(),
+            dark_color: None,
         },
         GlobalColor {
             id: "accent".to_string(),
             title: "Accent".to_string(),
             color: "#61CE70".to_string(),
+            dark_color: None,
         },
     ]
 }

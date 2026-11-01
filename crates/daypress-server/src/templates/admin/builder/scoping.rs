@@ -131,20 +131,30 @@ fn rewrite_rules(
     out
 }
 
-fn is_root_compound(compound: &str, html_class: Option<&str>) -> bool {
+fn rewrite_root_compound(compound: &str, html_class: Option<&str>) -> Option<String> {
     let c = compound.to_ascii_lowercase();
     if matches!(c.as_str(), "html" | ":root" | "html:root") {
-        return true;
+        return Some(":scope".to_string());
     }
-    html_class
+    if html_class
         .map(|cls| c == format!("html.{}", cls.to_ascii_lowercase()))
         .unwrap_or(false)
+    {
+        return Some(":scope".to_string());
+    }
+    if c.starts_with(":root[") || c.starts_with(":root:") {
+        return Some(format!(":scope{}", &compound[5..]));
+    }
+    if c.starts_with("html[") || c.starts_with("html:") {
+        return Some(format!(":scope{}", &compound[4..]));
+    }
+    None
 }
 
 /// Maps a selector whose subject chain starts at the document root onto `:scope`.
 fn rewrite_selector(sel: &str, html_class: Option<&str>) -> Option<String> {
     let (first, rest) = split_first_compound(sel);
-    if is_root_compound(first, html_class) {
+    if let Some(scope_head) = rewrite_root_compound(first, html_class) {
         let after = rest.trim_start();
         let after = after
             .strip_prefix('>')
@@ -152,9 +162,9 @@ fn rewrite_selector(sel: &str, html_class: Option<&str>) -> Option<String> {
             .unwrap_or(after);
         let (second, rest2) = split_first_compound(after);
         if second.eq_ignore_ascii_case("body") {
-            return Some(format!(":scope{rest2}"));
+            return Some(format!("{scope_head}{rest2}"));
         }
-        return Some(format!(":scope{rest}"));
+        return Some(format!("{scope_head}{rest}"));
     }
     if first.eq_ignore_ascii_case("body") {
         return Some(format!(":scope{rest}"));

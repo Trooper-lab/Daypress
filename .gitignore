@@ -18,6 +18,9 @@ crates/daypress-server/static/themes/
 
 # Agent teamwork & test artifacts
 .agents/teamwork/
+.agents/rules/
+.agents/workflows/
+graphify-out/
 tests/screenshots/
 tests/__pycache__/
 __pycache__/

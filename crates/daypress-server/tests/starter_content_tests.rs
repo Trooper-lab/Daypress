@@ -220,16 +220,89 @@ async fn first_time_onboarding_flow_creates_admin_sets_theme_and_locks_setup() {
             res.headers()
                 .get(header::LOCATION)
                 .and_then(|v| v.to_str().ok()),
-            Some("/d-admin/?welcome=1")
+            Some("/?welcome=1")
         );
-        let cookie = res
+        let set_cookie = res
             .headers()
             .get(header::SET_COOKIE)
             .and_then(|v| v.to_str().ok())
-            .expect("session cookie issued");
-        assert!(cookie.starts_with("daypress_admin="));
+            .expect("session cookie issued")
+            .to_string();
+        assert!(set_cookie.starts_with("daypress_admin="));
+        let cookie_kv = set_cookie.split(';').next().unwrap().to_string();
 
-        // 4. Onboarding is now complete and locked against re-running.
+        // 4. First visit to /d-admin/ redirects once to /d-admin/getting-started
+        let res_admin_first = create_app(db.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/d-admin/")
+                    .header(header::COOKIE, &cookie_kv)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_admin_first.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            res_admin_first
+                .headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some("/d-admin/getting-started")
+        );
+
+        // Visiting /d-admin/getting-started renders the AI Agent wizard and marks the 1-time redirect seen
+        let res_gs = create_app(db.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/d-admin/getting-started")
+                    .header(header::COOKIE, &cookie_kv)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_gs.status(), StatusCode::OK);
+        let gs_html =
+            String::from_utf8_lossy(&to_bytes(res_gs.into_body(), usize::MAX).await.unwrap())
+                .into_owned();
+        assert!(gs_html.contains("Connect Claude Code, Codex, Cursor, or Antigravity"));
+
+        // Generating an AI Agent Key creates a real Application Password in SQLite
+        let res_key = create_app(db.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/d-admin/api/getting-started/agent-key")
+                    .header(header::COOKIE, &cookie_kv)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"name":"Codex Agent"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_key.status(), StatusCode::OK);
+        let key_json: serde_json::Value =
+            serde_json::from_slice(&to_bytes(res_key.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(key_json["success"], true);
+        assert_eq!(key_json["username"], "founder");
+        assert!(!key_json["password"].as_str().unwrap_or("").is_empty());
+
+        // Subsequent visit to /d-admin/ opens the regular dashboard (200 OK)
+        let res_admin_second = create_app(db.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/d-admin/")
+                    .header(header::COOKIE, &cookie_kv)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res_admin_second.status(), StatusCode::OK);
+
+        // 5. Onboarding is now complete and locked against re-running.
         assert!(!db.needs_onboarding());
         let settings = db.get_settings().unwrap();
         assert_eq!(settings.title, "The Daily Press");

@@ -38,6 +38,15 @@ pub struct OnboardingSetupRequest {
     /// `"starter"` (default Daypress sample content), `"blank"` (empty site), or `"migrate"` (1-Click WP Import).
     #[serde(default)]
     pub starter_mode: String,
+    /// Optional inline WordPress WXR XML or Daypress JSON bundle uploaded directly during Step 3 of `/setup`.
+    #[serde(default)]
+    pub import_payload: String,
+    /// `"wxr"` or `"json"` when `import_payload` is present.
+    #[serde(default)]
+    pub import_format: String,
+    /// `"localhost"` (127.0.0.1 loopback only, zero firewall prompts) or `"lan"` (0.0.0.0 Private/Public network access).
+    #[serde(default)]
+    pub network_bind_mode: String,
 }
 
 impl Database {
@@ -263,6 +272,12 @@ impl Database {
         Self::upsert_usermeta(&tx, 1, "role", "Administrator")?;
         Self::upsert_usermeta(&tx, 1, "nickname", &display_name)?;
 
+        let network_bind_mode = if req.network_bind_mode.trim().eq_ignore_ascii_case("lan") {
+            "lan"
+        } else {
+            "localhost"
+        };
+
         let options = [
             ("blogname", site_title.as_str()),
             ("blogdescription", tagline.as_str()),
@@ -271,7 +286,9 @@ impl Database {
             ("stylesheet", theme.as_str()),
             ("daypress_brand_color", brand_color.as_str()),
             ("daypress_typography_scale", typography_scale.as_str()),
+            ("daypress_network_bind_mode", network_bind_mode),
             ("daypress_setup_completed", "1"),
+            ("daypress_show_getting_started", "1"),
         ];
         for (k, v) in options {
             tx.execute(
@@ -281,18 +298,14 @@ impl Database {
             )?;
         }
 
-        if matches!(req.starter_mode.trim(), "blank" | "migrate") {
-            tx.execute_batch(
-                r#"
-                DELETE FROM posts;
-                DELETE FROM postmeta;
-                DELETE FROM comments;
-                DELETE FROM term_relationships;
-                DELETE FROM options WHERE option_name = 'daypress_nav_menu_items';
-                UPDATE term_taxonomy SET count = 0 WHERE term_taxonomy_id = 1;
-                "#,
-            )?;
-        }
+        crate::seed::apply_onboarding_site_pack(
+            &tx,
+            &req.starter_mode,
+            &site_title,
+            &tagline,
+            &theme,
+            &brand_color,
+        )?;
 
         tx.commit()?;
 
@@ -301,6 +314,29 @@ impl Database {
             username: username.to_string(),
             role: "Administrator".to_string(),
         })
+    }
+
+    /// Returns `true` when the admin has just completed interactive `/setup` and has not yet
+    /// visited or dismissed the 1-time `/d-admin/getting-started` AI & Site Launchpad.
+    pub fn should_redirect_to_getting_started(&self) -> bool {
+        let show = self
+            .get_option("daypress_show_getting_started")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let dismissed = self
+            .get_option("daypress_getting_started_dismissed")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        show == "1" && dismissed != "1"
+    }
+
+    /// Marks the 1-time `/d-admin/getting-started` launchpad as seen/dismissed in SQLite.
+    pub fn dismiss_getting_started(&self) -> Result<()> {
+        self.set_option("daypress_getting_started_dismissed", "1")?;
+        self.set_option("daypress_show_getting_started", "0")?;
+        Ok(())
     }
 
     /// Guarantees the install has an administrator account row.

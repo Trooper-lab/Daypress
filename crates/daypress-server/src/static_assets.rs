@@ -45,6 +45,11 @@ pub fn embedded_asset(path: &str) -> Option<&'static [u8]> {
         .map(|(_, bytes)| *bytes)
 }
 
+/// Returns all embedded static assets (`(relative_path, bytes)`).
+pub fn all_embedded_assets() -> &'static [(&'static str, &'static [u8])] {
+    ASSETS
+}
+
 fn content_type(path: &str) -> &'static str {
     match path.rsplit('.').next().unwrap_or("") {
         "svg" => "image/svg+xml",

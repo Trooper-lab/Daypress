@@ -109,6 +109,42 @@ pub const JS_TOPBAR: &str = r###"
     }
 
     // -------------------------------------------------------------
+    // ARTBOARD LIGHT / DARK THEME PREVIEW TOGGLE
+    // -------------------------------------------------------------
+    function initCanvasThemeToggle() {
+        const btnTheme = document.getElementById("btn-toggle-canvas-theme");
+        const iconTheme = document.getElementById("icon-canvas-theme");
+        const lblTheme = document.getElementById("lbl-canvas-theme");
+        const artboard = document.getElementById("daystudio-artboard");
+        const canvas = document.getElementById("daystudio-canvas");
+
+        function setCanvasTheme(mode) {
+            const next = mode === "dark" ? "dark" : "light";
+            window.DayStudioState.canvasTheme = next;
+            if (artboard) artboard.setAttribute("data-theme", next);
+            if (canvas) canvas.setAttribute("data-theme", next);
+            document.documentElement.setAttribute("data-theme", next);
+            if (btnTheme) btnTheme.classList.toggle("active", next === "dark");
+            if (iconTheme) iconTheme.className = next === "dark" ? "fa-solid fa-moon" : "fa-solid fa-sun";
+            if (lblTheme) lblTheme.textContent = next === "dark" ? "Dark" : "Light";
+            document.querySelectorAll("#daystudio-artboard .tt button[data-t]").forEach(b => {
+                b.setAttribute("aria-pressed", b.dataset.t === next ? "true" : "false");
+            });
+        }
+
+        // Default artboard preview to Light mode on initial load so site background is always visible
+        setCanvasTheme("light");
+
+        if (btnTheme) {
+            btnTheme.onclick = () => {
+                const cur = window.DayStudioState.canvasTheme || "light";
+                setCanvasTheme(cur === "dark" ? "light" : "dark");
+            };
+        }
+        window.setCanvasTheme = setCanvasTheme;
+    }
+
+    // -------------------------------------------------------------
     // TOPBAR ACTIONS & HOTKEYS
     // -------------------------------------------------------------
     function initTopbarActions() {
@@ -162,6 +198,7 @@ pub const JS_TOPBAR: &str = r###"
         initBreakpointSwitcher();
         initZoomEngine();
         initXrayToggle();
+        initCanvasThemeToggle();
         initTopbarActions();
     });
 })();

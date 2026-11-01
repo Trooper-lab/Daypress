@@ -195,6 +195,26 @@ pub fn mcp_tools_manifest() -> Value {
                         "bundle": { "type": "object", "description": "ImportBundleRequest JSON payload" }
                     }
                 }
+            },
+            {
+                "name": "daypress_get_publish_status",
+                "description": "Retrieve static edge publishing configuration (Cloudflare Pages, Netlify, or Local/ZIP), published page count, and unpublished change queue.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "daypress_publish_site",
+                "description": "Configure or trigger a static edge deployment of the local Daypress site to Cloudflare Pages, Netlify, or a local static export directory.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "provider": { "type": "string", "description": "Optional target override ('local', 'cloudflare', or 'netlify')" },
+                        "production_url": { "type": "string", "description": "Optional canonical production URL (e.g. 'https://example.com')" },
+                        "local_export_dir": { "type": "string", "description": "Optional local export folder path when provider is 'local'" }
+                    }
+                }
             }
         ]
     })
@@ -520,6 +540,62 @@ fn dispatch_tool_call(
             let res = service.migrate_wordpress_bundle(bundle)?;
             Ok(serde_json::to_value(res).unwrap_or(Value::Null))
         }
+        "daypress_get_publish_status" => {
+            let provider = service
+                .options_repo()
+                .get_option("daypress_publish_provider")?
+                .unwrap_or_else(|| "zip".to_string());
+            let production_url = service
+                .options_repo()
+                .get_option("daypress_publish_production_url")?
+                .unwrap_or_default();
+            let local_export_dir = service
+                .options_repo()
+                .get_option("daypress_publish_export_dir")?
+                .unwrap_or_else(|| "data/static-export".to_string());
+            let published_posts = service.list_content("any", Some("publish"), None, 500)?;
+            Ok(json!({
+                "provider": provider,
+                "production_url": production_url,
+                "local_export_dir": local_export_dir,
+                "published_routes_count": published_posts.len(),
+                "publish_portal_url": "/d-admin/publish",
+                "publish_api_endpoint": "/wp-json/daypress/v1/publish/run"
+            }))
+        }
+        "daypress_publish_site" => {
+            if let Some(p) = args.get("provider").and_then(Value::as_str) {
+                service.update_site_option("daypress_publish_provider", p.trim())?;
+            }
+            if let Some(u) = args.get("production_url").and_then(Value::as_str) {
+                service.update_site_option("daypress_publish_production_url", u.trim())?;
+            }
+            if let Some(d) = args.get("local_export_dir").and_then(Value::as_str) {
+                service.update_site_option("daypress_publish_export_dir", d.trim())?;
+            }
+            let provider = service
+                .options_repo()
+                .get_option("daypress_publish_provider")?
+                .unwrap_or_else(|| "zip".to_string());
+            let production_url = service
+                .options_repo()
+                .get_option("daypress_publish_production_url")?
+                .unwrap_or_default();
+            let local_export_dir = service
+                .options_repo()
+                .get_option("daypress_publish_export_dir")?
+                .unwrap_or_else(|| "data/static-export".to_string());
+            let published_posts = service.list_content("any", Some("publish"), None, 500)?;
+            Ok(json!({
+                "status": "configured",
+                "provider": provider,
+                "production_url": production_url,
+                "local_export_dir": local_export_dir,
+                "published_routes_ready": published_posts.len(),
+                "trigger_endpoint": "POST /wp-json/daypress/v1/publish/run",
+                "admin_ui": "/d-admin/publish"
+            }))
+        }
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"
         ))),
@@ -615,7 +691,7 @@ mod tests {
             .as_array()
             .unwrap()
             .clone();
-        assert!(tools.len() >= 12);
+        assert!(tools.len() >= 14);
 
         // 3. tools/call -> daypress_create_post
         let create_resp = handle_mcp_rpc(

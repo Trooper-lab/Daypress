@@ -195,6 +195,35 @@ impl DaystudioKit {
 
         css.push_str("}\n\n");
 
+        // 2b. Dark Mode CSS Custom Properties (:root[data-theme="dark"]) when dark_color is defined
+        let dark_colors: Vec<(&str, &str)> = self
+            .system_colors
+            .iter()
+            .chain(self.custom_colors.iter())
+            .filter_map(|c| {
+                c.dark_color
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(|dc| (c.id.as_str(), dc))
+            })
+            .collect();
+        if !dark_colors.is_empty() {
+            css.push_str(":root[data-theme=\"dark\"] {\n");
+            for (id, dc) in &dark_colors {
+                css.push_str(&format!("  --e-global-color-{id}: {dc};\n"));
+                css.push_str(&format!("  --dp-color-{id}: {dc};\n"));
+                let self_ref = format!("var(--{id})");
+                if !dc.eq_ignore_ascii_case(&self_ref) {
+                    css.push_str(&format!("  --{id}: {dc};\n"));
+                }
+                if *id == "secondary" {
+                    css.push_str(&format!("  --dp-color-heading: {dc};\n"));
+                }
+            }
+            css.push_str("}\n\n");
+        }
+
         // 3. Utility Classes for Typography
         for t in self
             .system_typography
@@ -278,21 +307,25 @@ impl DaystudioKit {
                     id: "primary".to_string(),
                     title: "Primary (Divi Brand)".to_string(),
                     color: primary_color.to_string(),
+                    dark_color: None,
                 },
                 GlobalColor {
                     id: "secondary".to_string(),
                     title: "Secondary (Divi Dark/Heading)".to_string(),
                     color: secondary_color.to_string(),
+                    dark_color: None,
                 },
                 GlobalColor {
                     id: "text".to_string(),
                     title: "Body Text".to_string(),
                     color: text_color.to_string(),
+                    dark_color: None,
                 },
                 GlobalColor {
                     id: "accent".to_string(),
                     title: "Accent / CTA".to_string(),
                     color: accent_color.to_string(),
+                    dark_color: None,
                 },
             ],
             custom_colors,
