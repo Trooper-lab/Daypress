@@ -1,4 +1,5 @@
 use crate::daystudio::context::{resolve_setting_link, DaystudioContext};
+use crate::daystudio::resolve_dynamic_tag;
 use crate::daystudio::styles::extract_global_color;
 use crate::daystudio::widgets::parse_spacing_obj;
 use crate::schema::{NodeKind, StyleProperties};
@@ -14,20 +15,36 @@ pub(crate) fn map_basic_text_widget(
     let globals = settings.get("__globals__").and_then(|g| g.as_object());
 
     match widget_type {
-        "heading" => {
-            let text = settings
+        "heading"
+        | "theme-post-title"
+        | "page-title"
+        | "archive-title"
+        | "theme-site-title"
+        | "woocommerce-product-title" => {
+            let mut text = settings
                 .get("title")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .trim()
                 .to_string();
 
+            if text.is_empty() {
+                if let Some(dyn_title) = settings
+                    .get("__dynamic__")
+                    .and_then(|d| d.get("title"))
+                    .and_then(|v| v.as_str())
+                    .and_then(|tag| resolve_dynamic_tag(tag, ctx))
+                {
+                    text = dyn_title;
+                }
+            }
+
             let level = settings
                 .get("header_size")
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.strip_prefix('h'))
                 .and_then(|s| s.parse::<u8>().ok())
-                .unwrap_or(2);
+                .unwrap_or(if widget_type == "heading" { 2 } else { 1 });
 
             if let Some(color) = globals
                 .and_then(|g| extract_global_color(g, "title_color"))
@@ -54,19 +71,32 @@ pub(crate) fn map_basic_text_widget(
 
             Some(NodeKind::Heading { text, level })
         }
-        "text-editor" => {
+        "text-editor"
+        | "theme-post-excerpt"
+        | "theme-post-content"
+        | "woocommerce-product-short-description"
+        | "text-path" => {
             let raw_html = settings
                 .get("editor")
+                .or_else(|| settings.get("text"))
+                .or_else(|| settings.get("excerpt"))
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
             let content_html = ctx.normalize_html(raw_html);
             Some(NodeKind::Text { content_html })
         }
-        "button" => {
+        "button" | "read-more" => {
+            let default_label = if widget_type == "read-more" {
+                "Read More"
+            } else {
+                "Click Here"
+            };
             let text = settings
                 .get("text")
+                .or_else(|| settings.get("link_text"))
                 .and_then(|v| v.as_str())
-                .unwrap_or("Click Here")
+                .filter(|s| !s.is_empty())
+                .unwrap_or(default_label)
                 .to_string();
 
             let url =

@@ -380,6 +380,50 @@ pub(crate) fn map_pro_widget(
                 color_type,
             })
         }
+        "author-box" => {
+            let title = settings
+                .get("author_name")
+                .or_else(|| settings.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Author")
+                .to_string();
+            let description = settings
+                .get("author_bio")
+                .or_else(|| settings.get("biography"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let image_url = settings
+                .get("author_avatar")
+                .and_then(|img| img.get("url"))
+                .and_then(|v| v.as_str())
+                .map(|u| ctx.normalize_url(u))
+                .unwrap_or_default();
+            let link = resolve_setting_link(settings, "author_website", ctx)
+                .or_else(|| resolve_setting_link(settings, "link", ctx));
+            Some(NodeKind::ImageBox {
+                image_url,
+                title,
+                description,
+                link,
+            })
+        }
+        "code-highlight" => {
+            let code = settings
+                .get("code")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let language = settings
+                .get("language")
+                .and_then(|v| v.as_str())
+                .unwrap_or("plaintext");
+            let raw = format!(
+                "<pre class=\"dp-code-highlight language-{}\"><code>{}</code></pre>",
+                escape_html_attr(language),
+                escape_html_attr(code)
+            );
+            Some(NodeKind::CustomHtml { raw })
+        }
         _ => None,
     }
 }

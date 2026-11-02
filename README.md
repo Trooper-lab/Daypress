@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.2.2).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.3.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -24,8 +24,8 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - First-time browser onboarding wizard (`/setup`, `/d-admin/install`, `/d-admin/setup`) and AI Agent Getting Started screen (`/d-admin/getting-started`): configure your site title, tagline, administrator account, starter theme (`Daypress Daylight`, `Daypress Night`, or `Daypress Modern`), accent color, typography scale, and starter mode (sample content, blank site, or 1-click WordPress import), plus generate a 1-click MCP Application Password for Claude Code, Codex, Cursor, or Antigravity.
 - Static Edge Publisher (`/d-admin/publish`): compile your local Daypress site into a self-contained static build (`_redirects`, `sitemap.xml`, `robots.txt`, `feed/index.xml`, `404.html`, and client-side `search-index.json`) and deploy in 1 click to **Cloudflare Pages**, **Netlify**, or a local directory / `.zip` bundle with deployment history and rollback.
 - Built-in self-updater (`/d-admin/updates` and `/d-admin/system?tab=updates`): 24-hour background GitHub release check, SHA-256 checksum verification, automatic pre-update SQLite snapshot, atomic executable hot-swap, manual `.tar.gz` / `.zip` archive upload, and 1-click rollback.
-- A release workflow builds binaries for Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon and Intel) for each version tag and attaches them, with SHA-256 checksums, to the GitHub release.
-- A `Dockerfile` and `docker-compose.yml` that keep the database, uploads, and backups in one volume.
+- A release workflow builds binaries for Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon and Intel) for each version tag and attaches them, with SHA-256 checksums, to the GitHub release, and publishes multi-arch (`linux/amd64`, `linux/arm64`) Docker images to `ghcr.io/trooper-lab/daypress`.
+- A `Dockerfile` and `docker-compose.yml` that pull `ghcr.io/trooper-lab/daypress:latest` (or build locally) and keep the database, uploads, and backups in one volume.
 - CI builds and tests every change on Linux, Windows, and macOS.
 
 **Writing and managing content**
@@ -33,7 +33,7 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - A post editor with visual, block, and HTML source modes, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
 - Media uploads, with thumbnail, medium, and WebP versions generated automatically.
 - Comments with moderation and discussion settings (who can comment, manual approval).
-- Users with application passwords, per-user session sign-out ("Log Out Everywhere Else" on `/d-admin/profile`), plus personal data export and erase tools.
+- Users with application passwords, Two-Factor Authentication (RFC 6238 TOTP authenticator app + single-use backup recovery codes on `/d-admin/profile`), fine-grained WordPress-parity role capabilities (`Administrator`, `Editor`, `Author`, `Contributor`, `Subscriber`), per-user session sign-out ("Log Out Everywhere Else" on `/d-admin/profile`), plus personal data export and erase tools.
 - Blog index, category, tag, and author archives with pagination, plus site search.
 - Scheduled posts and a configurable site time zone (`timezone_string` / `gmt_offset` under **Settings → General**, also applied to naive timestamps during WXR and JSON bundle imports): publish with a future date, and the post stays off the site, the feeds, `sitemap.xml`, and the public REST API until that time.
 - RSS 2.0 and Atom 1.0 feeds for the blog (`/feed/`, `/feed/atom/`), categories and tags (`/category/<slug>/feed/`, `/tag/<slug>/feed/`), site-wide comments (`/comments/feed/`, `/comments/feed/atom/`), and per-post comment feeds (`/<slug>/feed/`), with `<link rel="alternate">` discovery tags.
@@ -54,8 +54,9 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 **Security basics**
 - No default password: the first start generates one (or uses `DAYPRESS_ADMIN_PASSWORD`).
 - Passwords are hashed with argon2id, and failed logins are rate-limited.
-- A "Lost your password?" email flow with single-use reset links that expire after an hour, plus a `daypress reset-password` command for when email isn't set up.
-- The admin area and the write APIs require authentication: a session cookie, an application password (Basic auth), or a JWT.
+- A "Lost your password?" email flow with single-use reset links that expire after an hour, plus a `daypress reset-password <user> [--sign-out-everyone] [--disable-2fa]` command for when email isn't set up or a 2FA device is lost.
+- Two-Factor Authentication (2FA) via RFC 6238 TOTP authenticator apps and 8 single-use recovery codes, enforced across `/login` (`/login/2fa`), JWT token issuance, and primary-password Basic Auth (`X-Daypress-OTP`).
+- The admin area and the write APIs require authentication (a session cookie, an application password, or a JWT) and enforce per-role WordPress capability checks across `/d-admin/*`, `/wp-json/wp/v2/*`, and `/wp-json/daypress/v1/*`.
 
 **APIs**
 - A subset of the WordPress REST API (`/wp-json/wp/v2/`): posts, pages, media, categories, tags, comments, users, settings, menus, search, and more.
@@ -65,7 +66,8 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 **Migration from WordPress (experimental)**
 - A WordPress plugin (`daypress-migrator.zip`, downloadable from **Tools → Import**) that exports content, menus, media, theme CSS, and Elementor or Divi global styles as one JSON bundle.
 - An importer for standard WordPress export files (WXR), up to 500 MB.
-- Elementor, Divi, and Gutenberg layouts are converted into DayStudio layouts, and old post and term IDs are remapped, so parents, menus, featured images, and comments stay linked.
+- Elementor (including 3.16+ `nested-tabs` / `nested-accordion`, theme builder widgets, Lottie, hotspots, author boxes), Divi (`et_pb_team_member`, `et_pb_gallery`, `et_pb_shop`, `et_pb_post_nav`, etc.), and Gutenberg (`core/details`, `core/query`, `core/navigation`, `core/search`, `core/social-links`, `core/audio`, etc.) layouts are converted into DayStudio layouts, and old post and term IDs are remapped, so parents, menus, featured images, and comments stay linked.
+- Built-in Migration Fidelity Analyzer (`POST /wp-json/daypress/v1/import/analyze` and the **Analyze Migration Fidelity** scorecard in `/d-admin/import`) scores native vs. fallback AST nodes and lists unresolved shortcodes or third-party widgets per post/page before or after import.
 - Data from Yoast SEO, Rank Math, Contact Form 7, WPForms, Redirection, and Joinchat is converted into the matching built-in features.
 
 ![The Daypress admin dashboard](docs/screenshots/admin-dashboard.png)
@@ -77,8 +79,8 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 This list is long on purpose. If something here matters to you, an issue or pull request is very welcome.
 
 **Installing and updating**
-- There is no installer, no distribution package, and no published Docker image (you build the image yourself with `docker compose`).
-- The binaries are not code-signed, so macOS Gatekeeper and Windows SmartScreen warn before running them.
+- There is no OS installer or distribution package yet (`.deb`, `.rpm`, Homebrew); multi-arch Docker images are published at `ghcr.io/trooper-lab/daypress`.
+- The binaries are not code-signed yet, so macOS Gatekeeper and Windows SmartScreen warn before running them.
 - Built-in self-updater in `/d-admin/updates` (or manual `.tar.gz` / `.zip` archive upload) with automatic pre-update SQLite snapshot and 1-click rollback.
 - The database schema may still change before 1.0, so back up before upgrading.
 
@@ -97,9 +99,9 @@ This list is long on purpose. If something here matters to you, an issue or pull
 - Atom 1.0 feeds (`/feed/atom/`), RSS 2.0 & Atom comments feeds (`/comments/feed/`, `/comments/feed/atom/`), per-post comment feeds (`/{slug}/feed/`), and `<link rel="alternate">` discovery tags are built in.
 - Post and page revision snapshots are saved automatically on edit, with restore/delete controls in the Post Editor and a bulk revision cleanup tool in `/d-admin/tools` (`/wp-json/daypress/v1/revisions/clean`).
 - Site time zone (`timezone_string` / `gmt_offset`) is configurable in **Settings &rarr; General** and applied to scheduled `future` posts as well as naive timestamps during WXR and JSON bundle imports.
-- No two-factor authentication.
+- Two-Factor Authentication (RFC 6238 TOTP + single-use recovery codes) is built into `/d-admin/profile` and `/login/2fa`, with CLI recovery via `daypress reset-password <user> --disable-2fa`.
 - Per-user session sign-out ("Log Out Everywhere Else") is available on `/d-admin/profile` (`/wp-json/daypress/v1/users/{id}/sessions/destroy-others`), alongside `daypress reset-password --sign-out-everyone`.
-- Roles are coarse: administrators manage everything, while editors, authors, and contributors can all edit and publish all content.
+- Fine-grained per-role capabilities are enforced for `Administrator`, `Editor`, `Author`, `Contributor`, and `Subscriber` across both `/d-admin/*` and `/wp-json/*` (e.g., Contributors can draft posts for review without publishing or uploading media; Authors manage and publish only their own posts).
 - The admin is English-only, with no translation system yet.
 
 **Builder and design**
@@ -116,10 +118,8 @@ This list is long on purpose. If something here matters to you, an issue or pull
 
 ## Where help is wanted
 
-- Code-signed binaries, distribution packages, and a published Docker image
+- Code-signed binaries (Apple Developer ID & Windows Authenticode) and OS distribution packages
 - Automated benchmarks, caching layer, and CDN integration
-- Two-factor login
-- Real per-role permissions
 - Migration reports and fixes for real-world Elementor, Divi, and Gutenberg sites
 - Translations for the admin
 
@@ -143,12 +143,12 @@ tar -xzf daypress-<version>-x86_64-unknown-linux-gnu.tar.gz
 
 On Windows, unzip the `.zip` file and run `daypress.exe`. The binaries are not code-signed: on macOS, clear the download quarantine with `xattr -d com.apple.quarantine daypress` before the first start.
 
-**Docker.** There is no published image yet, so Compose builds it from the source (this takes a few minutes the first time):
+**Docker.** Pull the published multi-arch image (`linux/amd64`, `linux/arm64`) from GitHub Container Registry, or build from source with `--build`:
 
 ```bash
 git clone https://github.com/Trooper-lab/daypress.git
 cd daypress
-docker compose up -d --build
+docker compose up -d
 docker compose logs daypress
 ```
 
@@ -188,7 +188,7 @@ Repeated failed logins from the same address are throttled (5 attempts per 15 mi
 daypress reset-password admin --db data/daypress.sqlite
 ```
 
-This prints a new generated password once. To choose it yourself, set `DAYPRESS_NEW_PASSWORD` first. Existing logins stay valid until they expire; add `--sign-out-everyone` to end every session (application passwords keep working). With Docker, run `docker compose exec daypress daypress reset-password admin`.
+This prints a new generated password once. To choose it yourself, set `DAYPRESS_NEW_PASSWORD` first. Existing logins stay valid until they expire; add `--sign-out-everyone` to end every session (application passwords keep working), or `--disable-2fa` if the user lost access to their authenticator device and backup recovery codes. With Docker, run `docker compose exec daypress daypress reset-password admin`.
 
 ### 3. Email (SMTP)
 
@@ -302,7 +302,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 322 tests
+cargo test --workspace                                  # 333 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

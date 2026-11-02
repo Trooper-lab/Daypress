@@ -260,6 +260,11 @@ fn daypress_v1_routes() -> Router<Database> {
             axum::routing::post(import_wxr_handler)
                 .layer(axum::extract::DefaultBodyLimit::max(500 * 1024 * 1024)),
         )
+        .route(
+            "/import/analyze",
+            axum::routing::post(analyze_import_handler)
+                .layer(axum::extract::DefaultBodyLimit::max(200 * 1024 * 1024)),
+        )
         // Visual Builder Layout API (Hybrid Wasm / JSON schema)
         .route(
             "/layout/{id}",
@@ -279,6 +284,23 @@ fn daypress_v1_routes() -> Router<Database> {
         .route(
             "/users/{id}/sessions/destroy-others",
             axum::routing::post(destroy_other_sessions_handler),
+        )
+        .route("/users/{id}/2fa/status", get(get_user_2fa_status_handler))
+        .route(
+            "/users/{id}/2fa/setup",
+            axum::routing::post(setup_user_2fa_handler),
+        )
+        .route(
+            "/users/{id}/2fa/enable",
+            axum::routing::post(enable_user_2fa_handler),
+        )
+        .route(
+            "/users/{id}/2fa/recovery-codes",
+            axum::routing::post(regenerate_user_2fa_recovery_codes_handler),
+        )
+        .route(
+            "/users/{id}/2fa/disable",
+            axum::routing::post(disable_user_2fa_handler),
         )
         .route(
             "/posts/{id}/duplicate",

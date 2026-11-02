@@ -28,6 +28,7 @@ pub mod static_assets;
 pub mod templates;
 pub mod theme;
 pub mod theme_builder;
+pub mod totp;
 pub mod updater;
 pub mod wxr;
 
@@ -101,6 +102,10 @@ pub fn create_app(database: Database) -> Router {
             get(media::handle_serve_media),
         )
         .route("/login", get(handle_login_page).post(handle_login_submit))
+        .route(
+            "/login/2fa",
+            get(handle_login_2fa_page).post(handle_login_2fa_submit),
+        )
         .route("/setup", get(handle_setup_page).post(handle_setup_submit))
         .route(
             "/setup/network-permission",
@@ -126,6 +131,10 @@ pub fn create_app(database: Database) -> Router {
         .route(
             "/d-admin/login",
             get(handle_login_page).post(handle_login_submit),
+        )
+        .route(
+            "/d-admin/login/2fa",
+            get(handle_login_2fa_page).post(handle_login_2fa_submit),
         )
         .route("/d-admin/logout", get(handle_logout))
         // 1. Dashboard

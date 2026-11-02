@@ -55,6 +55,13 @@ pub struct LoginForm {
 }
 
 #[derive(Debug, Deserialize, Default)]
+pub struct LoginTwoFactorForm {
+    #[serde(alias = "code", alias = "totp_code")]
+    pub authcode: Option<String>,
+    pub redirect_to: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
 pub struct AdminEditQueryParams {
     pub post_type: Option<String>,
     pub id: Option<i64>,

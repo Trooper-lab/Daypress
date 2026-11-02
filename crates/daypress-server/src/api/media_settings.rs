@@ -165,11 +165,16 @@ pub(crate) async fn get_media_item(
 }
 
 pub(crate) async fn update_media_item(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateMediaRequest>,
 ) -> Result<Json<DaypressMediaResponse>, AppError> {
+    if !user.can_upload_files() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to edit media items.".to_string(),
+        ));
+    }
     match db.update_media_attachment(id, &payload)? {
         Some(m) => Ok(Json(m)),
         None => Err(AppError::NotFound(format!("Media {} not found", id))),
@@ -177,10 +182,15 @@ pub(crate) async fn update_media_item(
 }
 
 pub(crate) async fn upload_media(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<DaypressMediaResponse>), AppError> {
+    if !user.can_upload_files() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to upload files.".to_string(),
+        ));
+    }
     let uploads_dir = Path::new("uploads");
     if !uploads_dir.exists() {
         fs::create_dir_all(uploads_dir)?;
@@ -241,10 +251,15 @@ pub(crate) async fn upload_media(
 }
 
 pub(crate) async fn delete_media(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    if !user.can_upload_files() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to delete media items.".to_string(),
+        ));
+    }
     match db.delete_media_attachment(id)? {
         Some(url) => {
             if let Some(file_name) = url.strip_prefix("/uploads/") {

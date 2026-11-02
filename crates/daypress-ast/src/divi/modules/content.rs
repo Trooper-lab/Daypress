@@ -19,7 +19,7 @@ pub fn map_content_module(
             let content_html = ctx.normalize_html(&raw_html);
             Some(NodeKind::Text { content_html })
         }
-        "et_pb_heading" | "et_pb_title" | "et_pb_post_title" => {
+        "et_pb_heading" | "et_pb_title" | "et_pb_post_title" | "et_pb_fullwidth_post_title" => {
             let text = divi
                 .attributes
                 .get("title")
@@ -177,6 +177,39 @@ pub fn map_content_module(
                 title,
                 description,
                 link,
+            })
+        }
+        "et_pb_team_member" => {
+            let name = divi
+                .attributes
+                .get("name")
+                .cloned()
+                .unwrap_or_else(|| "Team Member".to_string());
+            let position = divi
+                .attributes
+                .get("position")
+                .filter(|s| !s.trim().is_empty())
+                .cloned();
+            let bio = ctx.normalize_html(divi.inner_text.trim());
+            let description = match (position, bio.is_empty()) {
+                (Some(pos), false) => format!("{} — {}", pos, bio),
+                (Some(pos), true) => pos,
+                (None, _) => bio,
+            };
+            let image_url = divi
+                .attributes
+                .get("image_url")
+                .or_else(|| divi.attributes.get("src"))
+                .filter(|s| !s.trim().is_empty())
+                .map(|u| ctx.resolve_divi_attr(u))
+                .unwrap_or_default();
+
+            children.clear();
+            Some(NodeKind::ImageBox {
+                image_url,
+                title: name,
+                description,
+                link: None,
             })
         }
         "et_pb_icon" => {

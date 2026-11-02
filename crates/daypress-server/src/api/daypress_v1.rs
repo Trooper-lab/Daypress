@@ -193,6 +193,63 @@ pub(crate) async fn import_wxr_handler(
     }
 }
 
+pub(crate) async fn analyze_import_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    request: Request,
+) -> Result<Json<MigrationFidelitySummary>, AppError> {
+    let (parts, body) = request.into_parts();
+    let content_type = parts
+        .headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    let mut raw_bytes = to_bytes(body, 200 * 1024 * 1024)
+        .await
+        .map_err(|e| AppError::BadRequest(format!("Failed to read request body: {}", e)))?;
+
+    if content_type.starts_with("multipart/form-data") {
+        let req_with_body = Request::from_parts(parts, axum::body::Body::from(raw_bytes));
+        let mut multipart = Multipart::from_request(req_with_body, &db)
+            .await
+            .map_err(|e| AppError::BadRequest(format!("Multipart parse error: {}", e)))?;
+        if let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(|e| AppError::BadRequest(e.to_string()))?
+        {
+            raw_bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+        } else {
+            return Err(AppError::BadRequest(
+                "No file found in multipart upload".to_string(),
+            ));
+        }
+    }
+
+    let text = String::from_utf8_lossy(&raw_bytes);
+    let trimmed = text.trim_start();
+    if trimmed.starts_with('<') {
+        let summary = crate::wxr::analyze_wxr_xml(trimmed)?;
+        return Ok(Json(summary));
+    }
+
+    let raw_json: Value = serde_json::from_slice(&raw_bytes).map_err(|e| {
+        AppError::BadRequest(format!("Expected JSON bundle or WXR XML payload: {}", e))
+    })?;
+    if let Some(wxr_str) = raw_json.get("wxr_xml").and_then(|v| v.as_str()) {
+        let summary = crate::wxr::analyze_wxr_xml(wxr_str)?;
+        return Ok(Json(summary));
+    }
+
+    let bundle = normalize_import_bundle_payload(raw_json)?;
+    Ok(Json(MigrationFidelitySummary::analyze_bundle(&bundle)))
+}
+
 // --- Visual Page Builder Layout API (Hybrid Wasm & JSON Layout Schema) ---
 
 pub(crate) async fn get_layout_handler(
@@ -246,11 +303,18 @@ pub(crate) async fn get_layout_handler(
 }
 
 pub(crate) async fn save_layout_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<DaypressLayoutPayload>,
 ) -> Result<Json<Value>, AppError> {
+    if let Some(existing) = db.get_post_by_id(id)? {
+        if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to edit the layout of this post.".to_string(),
+            ));
+        }
+    }
     let layout_str = serde_json::to_string(&payload.layout)
         .map_err(|e| AppError::BadRequest(format!("Invalid layout JSON: {}", e)))?;
 
@@ -294,10 +358,17 @@ pub(crate) async fn save_layout_handler(
 }
 
 pub(crate) async fn delete_layout_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    if let Some(existing) = db.get_post_by_id(id)? {
+        if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to delete the layout of this post.".to_string(),
+            ));
+        }
+    }
     db.delete_post_layout(id)?;
     Ok(Json(serde_json::json!({
         "success": true,
@@ -308,10 +379,23 @@ pub(crate) async fn delete_layout_handler(
 }
 
 pub(crate) async fn duplicate_post_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
+    let existing = db
+        .get_post_by_id(id)?
+        .ok_or_else(|| AppError::NotFound(format!("Post {} not found", id)))?;
+    if existing.post_type.eq_ignore_ascii_case("page") && !user.can_edit_pages() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to duplicate pages.".to_string(),
+        ));
+    }
+    if !user.is_editor_or_above() && existing.author != user.user_id {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to duplicate another user's post.".to_string(),
+        ));
+    }
     match db.duplicate_post(id)? {
         Some(cloned) => Ok(Json(cloned)),
         None => Err(AppError::NotFound(format!("Post {} not found", id))),
@@ -319,10 +403,15 @@ pub(crate) async fn duplicate_post_handler(
 }
 
 pub(crate) async fn restore_revision_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(rev_id): AxPath<i64>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
+    if !user.is_editor_or_above() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to restore revisions directly.".to_string(),
+        ));
+    }
     match db.restore_revision_by_id(rev_id)? {
         Some(restored) => Ok(Json(restored)),
         None => Err(AppError::NotFound(format!("Revision {} not found", rev_id))),

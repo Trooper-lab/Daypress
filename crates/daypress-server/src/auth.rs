@@ -271,10 +271,78 @@ impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
 /// Name of the signed admin session cookie.
 pub const SESSION_COOKIE: &str = "daypress_admin";
 
+/// Name of the short-lived (5-minute) signed 2FA challenge cookie set after step-1 password verification.
+pub const CHALLENGE_2FA_COOKIE: &str = "daypress_2fa_challenge";
+/// Lifetime of the 2FA challenge cookie (5 minutes).
+pub const CHALLENGE_2FA_TTL_SECS: i64 = 5 * 60;
+
 /// Session lifetime when "Remember Me" is ticked (14 days, WordPress parity).
 pub const SESSION_TTL_REMEMBER_SECS: i64 = 14 * 86400;
 /// Session lifetime for a regular login (2 days, WordPress parity).
 pub const SESSION_TTL_DEFAULT_SECS: i64 = 2 * 86400;
+
+/// Creates a signed 5-minute 2FA challenge token `<user_id>.<exp>.<1_or_0>.<hmac_hex>`.
+pub fn create_2fa_challenge_token(user_id: i64, remember: bool, secret: &str) -> String {
+    let exp = Utc::now().timestamp() + CHALLENGE_2FA_TTL_SECS;
+    let rem_flag = if remember { 1 } else { 0 };
+    let payload = format!("{}.{}.{}", user_id, exp, rem_flag);
+    let sig = hex::encode(hmac_sha256(
+        secret.as_bytes(),
+        format!("2fa_challenge|{}", payload).as_bytes(),
+    ));
+    format!("{}.{}", payload, sig)
+}
+
+/// Verifies a 2FA challenge token and returns `(user_id, remember)`.
+pub fn verify_2fa_challenge_token(token: &str, secret: &str) -> Option<(i64, bool)> {
+    let parts: Vec<&str> = token.trim().split('.').collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    let uid: i64 = parts[0].parse().ok()?;
+    let exp: i64 = parts[1].parse().ok()?;
+    let rem_flag: i64 = parts[2].parse().ok()?;
+    if exp < Utc::now().timestamp() {
+        return None;
+    }
+    let expected = hex::encode(hmac_sha256(
+        secret.as_bytes(),
+        format!("2fa_challenge|{}.{}.{}", parts[0], parts[1], parts[2]).as_bytes(),
+    ));
+    if constant_time_eq(expected.as_bytes(), parts[3].as_bytes()) {
+        Some((uid, rem_flag != 0))
+    } else {
+        None
+    }
+}
+
+pub fn challenge_2fa_cookie_header(user_id: i64, remember: bool, secret: &str) -> String {
+    let token = create_2fa_challenge_token(user_id, remember, secret);
+    format!(
+        "{}={}; Path=/; Max-Age={}; SameSite=Lax; HttpOnly",
+        CHALLENGE_2FA_COOKIE, token, CHALLENGE_2FA_TTL_SECS
+    )
+}
+
+pub fn clear_2fa_challenge_cookie_header() -> &'static str {
+    "daypress_2fa_challenge=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly"
+}
+
+pub fn extract_2fa_challenge_from_cookie_header(
+    cookie_header: &str,
+    secret: &str,
+) -> Option<(i64, bool)> {
+    let prefix = format!("{}=", CHALLENGE_2FA_COOKIE);
+    for item in cookie_header.split(';') {
+        let trimmed = item.trim();
+        if let Some(val) = trimmed.strip_prefix(&prefix) {
+            if let Some(res) = verify_2fa_challenge_token(val, secret) {
+                return Some(res);
+            }
+        }
+    }
+    None
+}
 
 /// Creates a tamper-proof session token: `<user_id>.<expires_unix>.<hmac_hex>`.
 pub fn create_versioned_session_token(
@@ -363,7 +431,7 @@ pub fn verify_session_token(token: &str, secret: &str) -> Option<i64> {
     }
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -466,17 +534,85 @@ pub fn session_user_from_cookie_header(cookie_header: &str, db: &Database) -> Op
 }
 
 impl AuthUser {
-    /// Full site management: settings, users, plugins, imports, theme templates.
-    pub fn is_admin(&self) -> bool {
-        self.role.trim().eq_ignore_ascii_case("administrator")
+    fn normalized_role(&self) -> String {
+        self.role.trim().to_ascii_lowercase()
     }
 
-    /// Content management: posts, pages, media, terms, comments, and layouts.
+    /// Full site management: settings, users, plugins, imports, theme templates.
+    pub fn is_admin(&self) -> bool {
+        self.normalized_role() == "administrator"
+    }
+
+    /// Editors and Administrators (`edit_others_posts`, `edit_pages`, `manage_categories`, `moderate_comments`).
+    pub fn is_editor_or_above(&self) -> bool {
+        matches!(self.normalized_role().as_str(), "administrator" | "editor")
+    }
+
+    /// Authors, Editors, and Administrators (`publish_posts`, `upload_files`, `edit_published_posts`).
+    pub fn is_author_or_above(&self) -> bool {
+        matches!(
+            self.normalized_role().as_str(),
+            "administrator" | "editor" | "author"
+        )
+    }
+
+    /// Content management (`edit_posts`): Administrator, Editor, Author, and Contributor.
     pub fn can_edit_content(&self) -> bool {
         matches!(
-            self.role.trim().to_ascii_lowercase().as_str(),
+            self.normalized_role().as_str(),
             "administrator" | "editor" | "author" | "contributor"
         )
+    }
+
+    /// WordPress `edit_pages` / `publish_pages` capability (Administrator & Editor).
+    pub fn can_edit_pages(&self) -> bool {
+        self.is_editor_or_above()
+    }
+
+    /// WordPress `publish_posts` capability (Administrator, Editor, Author).
+    pub fn can_publish_posts(&self) -> bool {
+        self.is_author_or_above()
+    }
+
+    /// WordPress `upload_files` capability (Administrator, Editor, Author).
+    pub fn can_upload_files(&self) -> bool {
+        self.is_author_or_above()
+    }
+
+    /// WordPress `manage_categories` capability (Administrator, Editor).
+    pub fn can_manage_categories(&self) -> bool {
+        self.is_editor_or_above()
+    }
+
+    /// WordPress `moderate_comments` capability (Administrator, Editor).
+    pub fn can_moderate_comments(&self) -> bool {
+        self.is_editor_or_above()
+    }
+
+    /// Checks whether this user may edit a specific post/page record given its author, status, and post_type.
+    pub fn can_edit_post(&self, post_author: i64, post_status: &str, post_type: &str) -> bool {
+        if self.is_editor_or_above() {
+            return true;
+        }
+        if post_type.eq_ignore_ascii_case("page") {
+            return false;
+        }
+        if post_author != self.user_id {
+            return false;
+        }
+        match self.normalized_role().as_str() {
+            "author" => true,
+            "contributor" => !matches!(
+                post_status.trim().to_ascii_lowercase().as_str(),
+                "publish" | "future" | "private"
+            ),
+            _ => false,
+        }
+    }
+
+    /// Checks whether this user may delete a specific post/page record given its author, status, and post_type.
+    pub fn can_delete_post(&self, post_author: i64, post_status: &str, post_type: &str) -> bool {
+        self.can_edit_post(post_author, post_status, post_type)
     }
 }
 
@@ -647,15 +783,40 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
                     if let Ok(cred_str) = String::from_utf8(decoded) {
                         if let Some((user, pass)) = cred_str.split_once(':') {
                             let client = client_ip(parts);
-                            match db.attempt_login(user.trim(), pass.trim(), client.as_deref())? {
-                                LoginAttempt::Success(auth_user) => return Ok(auth_user),
-                                LoginAttempt::Throttled { retry_after_secs } => {
+                            match db.attempt_login_with_method(
+                                user.trim(),
+                                pass.trim(),
+                                client.as_deref(),
+                            )? {
+                                (LoginAttempt::Success(auth_user), used_app_password) => {
+                                    if !used_app_password
+                                        && db
+                                            .is_user_2fa_enabled(auth_user.user_id)
+                                            .unwrap_or(false)
+                                    {
+                                        let otp = parts
+                                            .headers
+                                            .get("x-daypress-otp")
+                                            .and_then(|v| v.to_str().ok())
+                                            .unwrap_or("");
+                                        if !db
+                                            .verify_user_2fa_code(auth_user.user_id, otp)
+                                            .unwrap_or(false)
+                                        {
+                                            return Err(AppError::Unauthorized(
+                                                "Two-factor authentication code required (provide X-Daypress-OTP header or use an Application Password).".to_string(),
+                                            ));
+                                        }
+                                    }
+                                    return Ok(auth_user);
+                                }
+                                (LoginAttempt::Throttled { retry_after_secs }, _) => {
                                     return Err(AppError::TooManyRequests(format!(
                                         "Too many failed login attempts. Try again in {} minutes.",
                                         (retry_after_secs + 59) / 60
                                     )))
                                 }
-                                LoginAttempt::Invalid => {}
+                                (LoginAttempt::Invalid, _) => {}
                             }
                         }
                     }
@@ -752,7 +913,11 @@ fn path_requires_admin_session(path: &str) -> bool {
     }
     !matches!(
         path,
-        "/d-admin/login" | "/d-admin/logout" | "/d-admin/install" | "/d-admin/setup"
+        "/d-admin/login"
+            | "/d-admin/login/2fa"
+            | "/d-admin/logout"
+            | "/d-admin/install"
+            | "/d-admin/setup"
     )
 }
 
@@ -761,7 +926,8 @@ fn is_admin_machine_endpoint(path: &str) -> bool {
 }
 
 /// Admin screens a role may open. Administrators reach everything; content roles reach the
-/// content screens; everyone else (subscribers, unknown roles) only their own profile.
+/// content screens permitted for their role; everyone else (subscribers, unknown roles) only
+/// their own profile.
 fn admin_path_allowed(path: &str, user: &AuthUser) -> bool {
     if user.is_admin() {
         return true;
@@ -770,22 +936,14 @@ fn admin_path_allowed(path: &str, user: &AuthUser) -> bool {
     if path == "/d-admin/profile" {
         return true;
     }
-    user.can_edit_content()
-        && matches!(
-            path,
-            "/d-admin"
-                | "/d-admin/index"
-                | "/d-admin/edit"
-                | "/d-admin/post-new"
-                | "/d-admin/post"
-                | "/d-admin/builder"
-                | "/d-admin/studio"
-                | "/studio"
-                | "/d-admin/upload"
-                | "/d-admin/media-new"
-                | "/d-admin/edit-tags"
-                | "/d-admin/edit-comments"
-        )
+    match path {
+        "/d-admin/upload" | "/d-admin/media-new" => user.can_upload_files(),
+        "/d-admin/edit-tags" => user.can_manage_categories(),
+        "/d-admin/edit-comments" => user.can_moderate_comments(),
+        "/d-admin" | "/d-admin/index" | "/d-admin/edit" | "/d-admin/post-new" | "/d-admin/post"
+        | "/d-admin/builder" | "/d-admin/studio" | "/studio" => user.can_edit_content(),
+        _ => false,
+    }
 }
 
 fn url_encode_component(raw: &str) -> String {

@@ -274,10 +274,41 @@ pub async fn handle_login_submit(
         Ok(crate::auth::LoginAttempt::Success(user)) => {
             let mut headers = HeaderMap::new();
             let secret = db.get_auth_secret().unwrap_or_default();
-            let cookie_val = crate::auth::session_cookie_header(
+            let remember = form.rememberme.is_some();
+
+            if db.is_user_2fa_enabled(user.user_id).unwrap_or(false) {
+                let challenge_cookie =
+                    crate::auth::challenge_2fa_cookie_header(user.user_id, remember, &secret);
+                if let Ok(val) = challenge_cookie.parse() {
+                    headers.insert(header::SET_COOKIE, val);
+                }
+                let loc_str = if redirect_to == "/d-admin/" {
+                    "/login/2fa".to_string()
+                } else {
+                    format!("/login/2fa?redirect_to={}", redirect_to)
+                };
+                if let Ok(loc) = loc_str.parse() {
+                    headers.insert(header::LOCATION, loc);
+                } else {
+                    headers.insert(
+                        header::LOCATION,
+                        header::HeaderValue::from_static("/login/2fa"),
+                    );
+                }
+                return (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response();
+            }
+
+            let ver = db
+                .get_user_detail(user.user_id)
+                .ok()
+                .flatten()
+                .map(|u| u.session_ver)
+                .unwrap_or(0);
+            let cookie_val = crate::auth::session_cookie_header_with_version(
                 user.user_id,
                 &secret,
-                form.rememberme.is_some(),
+                remember,
+                ver,
             );
             if let Ok(val) = cookie_val.parse() {
                 headers.insert(header::SET_COOKIE, val);
@@ -299,6 +330,116 @@ pub async fn handle_login_submit(
             Some(redirect_to),
         ))
         .into_response(),
+    }
+}
+
+pub async fn handle_login_2fa_page(
+    State(db): State<Database>,
+    headers: HeaderMap,
+    Query(params): Query<LoginQueryParams>,
+) -> impl IntoResponse {
+    let settings = db.get_settings().unwrap_or_default();
+    let secret = db.get_auth_secret().unwrap_or_default();
+    let cookie_str = headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if crate::auth::extract_2fa_challenge_from_cookie_header(cookie_str, &secret).is_none() {
+        return axum::response::Redirect::to("/login").into_response();
+    }
+    Html(templates::render_login_2fa_view(
+        &settings,
+        params.error.as_deref(),
+        params.redirect_to.as_deref(),
+    ))
+    .into_response()
+}
+
+pub async fn handle_login_2fa_submit(
+    State(db): State<Database>,
+    crate::auth::ClientIp(client): crate::auth::ClientIp,
+    req_headers: HeaderMap,
+    Form(form): Form<LoginTwoFactorForm>,
+) -> impl IntoResponse {
+    let settings = db.get_settings().unwrap_or_default();
+    let redirect_owned = crate::auth::sanitize_redirect_target(form.redirect_to.as_deref());
+    let redirect_to = redirect_owned.as_str();
+    let secret = db.get_auth_secret().unwrap_or_default();
+    let cookie_str = req_headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    let Some((user_id, remember)) =
+        crate::auth::extract_2fa_challenge_from_cookie_header(cookie_str, &secret)
+    else {
+        return axum::response::Redirect::to("/login").into_response();
+    };
+
+    let throttle_key =
+        crate::auth::LoginThrottle::key(client.as_deref(), &format!("2fa:{user_id}"));
+    if let Some(retry_after_secs) = db.login_throttle.retry_after(&throttle_key) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Html(templates::render_login_2fa_view(
+                &settings,
+                Some(&format!(
+                    "Too many failed verification attempts. Please try again in {} minutes.",
+                    (retry_after_secs + 59) / 60
+                )),
+                Some(redirect_to),
+            )),
+        )
+            .into_response();
+    }
+
+    let code = form.authcode.as_deref().unwrap_or("").trim();
+    if code.is_empty() {
+        return Html(templates::render_login_2fa_view(
+            &settings,
+            Some("Please enter a 6-digit authentication code or recovery code."),
+            Some(redirect_to),
+        ))
+        .into_response();
+    }
+
+    if db.verify_user_2fa_code(user_id, code).unwrap_or(false) {
+        db.login_throttle.record_success(&throttle_key);
+        let mut headers = HeaderMap::new();
+        let ver = db
+            .get_user_detail(user_id)
+            .ok()
+            .flatten()
+            .map(|u| u.session_ver)
+            .unwrap_or(0);
+        let session_cookie =
+            crate::auth::session_cookie_header_with_version(user_id, &secret, remember, ver);
+        if let Ok(val) = session_cookie.parse() {
+            headers.append(header::SET_COOKIE, val);
+        }
+        if let Ok(val) = crate::auth::clear_2fa_challenge_cookie_header().parse() {
+            headers.append(header::SET_COOKIE, val);
+        }
+        if let Ok(loc) = redirect_to.parse() {
+            headers.insert(header::LOCATION, loc);
+        } else {
+            headers.insert(
+                header::LOCATION,
+                header::HeaderValue::from_static("/d-admin/"),
+            );
+        }
+        (StatusCode::SEE_OTHER, headers, Html(String::new())).into_response()
+    } else {
+        db.login_throttle.record_failure(&throttle_key);
+        (
+            StatusCode::UNAUTHORIZED,
+            Html(templates::render_login_2fa_view(
+                &settings,
+                Some("Invalid authentication code or recovery code."),
+                Some(redirect_to),
+            )),
+        )
+            .into_response()
     }
 }
 

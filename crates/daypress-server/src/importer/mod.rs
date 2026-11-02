@@ -33,7 +33,7 @@ use crate::importer::templates::{
 use crate::importer::terms::ingest_terms;
 use crate::importer::urls::remap_post_thumbnails;
 use crate::importer::xml_stream::parse_wxr_stream;
-use crate::models::WxrImportResponse;
+use crate::models::{MigrationFidelitySummary, PostFidelityItem, WxrImportResponse};
 use rusqlite::{params, Connection};
 use std::io::{BufRead, Cursor};
 
@@ -46,6 +46,35 @@ pub fn import_wxr_xml(xml: &str, conn: &mut Connection) -> Result<WxrImportRespo
         .filter(|&b| b >= 0x20 || b == b'\t' || b == b'\n' || b == b'\r')
         .collect();
     import_wxr_stream(Cursor::new(cleaned), conn)
+}
+
+/// Pre-flight analyzer for a WXR XML export without mutating SQLite storage.
+pub fn analyze_wxr_xml(xml: &str) -> Result<MigrationFidelitySummary, AppError> {
+    let cleaned: Vec<u8> = xml
+        .as_bytes()
+        .iter()
+        .copied()
+        .filter(|&b| b >= 0x20 || b == b'\t' || b == b'\n' || b == b'\r')
+        .collect();
+    let (_, _, _, _, _, posts_to_insert) = parse_wxr_stream(Cursor::new(cleaned))?;
+    let mut items = Vec::new();
+    for item in posts_to_insert {
+        if !matches!(item.post_type.as_str(), "post" | "page") {
+            continue;
+        }
+        let report = daypress_ast::analyze_post_fidelity(&item.content, &item.postmeta, None);
+        items.push(PostFidelityItem {
+            title: item.title,
+            post_type: item.post_type,
+            builder_detected: report.builder_detected,
+            total_nodes: report.total_nodes,
+            native_nodes: report.native_nodes,
+            fallback_html_nodes: report.fallback_html_nodes,
+            unresolved_shortcodes: report.unresolved_shortcodes,
+            fidelity_score_pct: report.fidelity_score_pct,
+        });
+    }
+    Ok(MigrationFidelitySummary::from_items(items))
 }
 
 /// Ingests a streaming WordPress XML (WXR) export into SQLite storage.
@@ -219,6 +248,7 @@ pub fn import_wxr_stream<R: BufRead>(
 
     let mut header_html = ast_res.header_html;
     let mut footer_html = ast_res.footer_html;
+    let fidelity = MigrationFidelitySummary::from_items(ast_res.fidelity_items);
 
     if header_html.is_empty() && !menus_by_slug.is_empty() {
         header_html = build_universal_theme_header_html(
@@ -297,6 +327,7 @@ pub fn import_wxr_stream<R: BufRead>(
         imported_categories: cat_count,
         imported_tags: tag_count,
         imported_comments: pass1.comment_count,
+        fidelity: Some(fidelity),
         message: format!(
             "Successfully imported {} posts, {} pages, {} media items, {} categories, and {} comments.",
             pass1.post_count, pass1.page_count, pass1.media_count, cat_count, pass1.comment_count

@@ -11,7 +11,7 @@ pub(crate) fn map_basic_media_widget(
     ctx: &DaystudioContext,
 ) -> Option<NodeKind> {
     match widget_type {
-        "image" | "theme-site-logo" => {
+        "image" | "theme-site-logo" | "theme-post-featured-image" => {
             let src = settings
                 .get("__dynamic__")
                 .and_then(|d| d.get("image"))
@@ -66,6 +66,45 @@ pub(crate) fn map_basic_media_widget(
                 width,
                 height: None,
                 link,
+            })
+        }
+        "lottie" => {
+            let src = settings
+                .get("source_json")
+                .and_then(|j| j.get("url"))
+                .or_else(|| settings.get("external_url").and_then(|u| u.get("url")))
+                .and_then(|v| v.as_str())
+                .map(|u| ctx.normalize_url(u))
+                .unwrap_or_default();
+            let link = resolve_setting_link(settings, "custom_link", ctx)
+                .or_else(|| resolve_setting_link(settings, "link", ctx));
+            Some(NodeKind::Image {
+                src,
+                alt: "Lottie Animation".to_string(),
+                width: None,
+                height: None,
+                link,
+            })
+        }
+        "hotspot" | "image-hotspot" => {
+            let src = settings
+                .get("image")
+                .and_then(|img| img.get("url"))
+                .and_then(|v| v.as_str())
+                .map(|u| ctx.normalize_url(u))
+                .unwrap_or_default();
+            let alt = settings
+                .get("image")
+                .and_then(|img| img.get("alt"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Hotspot Image")
+                .to_string();
+            Some(NodeKind::Image {
+                src,
+                alt,
+                width: None,
+                height: None,
+                link: None,
             })
         }
         "accordion" => {

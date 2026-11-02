@@ -62,6 +62,8 @@ pub struct DaypressUserDetail {
     pub avatar_url: String,
     #[serde(default)]
     pub session_ver: i64,
+    #[serde(default)]
+    pub totp_enabled: bool,
 }
 
 impl Default for DaypressUserDetail {
@@ -86,6 +88,7 @@ impl Default for DaypressUserDetail {
             show_admin_bar_front: true,
             avatar_url: String::new(),
             session_ver: 0,
+            totp_enabled: false,
         }
     }
 }

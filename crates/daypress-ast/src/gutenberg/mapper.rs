@@ -6,7 +6,10 @@ use crate::gutenberg::styles::{
     detect_heading_level, extract_attr_from_html, extract_gutenberg_styles, strip_html_tags,
     strip_outer_heading_tag,
 };
-use crate::schema::{BackgroundConfig, DaypressNode, NodeKind, Spacing, StyleProperties};
+use crate::schema::{
+    AccordionItem, BackgroundConfig, DaypressNode, NavMenuItem, NodeKind, SocialIconItem, Spacing,
+    StyleProperties,
+};
 
 pub(crate) fn map_gutenberg_block(
     block: &GutenbergBlock,
@@ -183,7 +186,7 @@ pub(crate) fn map_gutenberg_block(
                 basis: None,
             }
         }
-        "button" => {
+        "button" | "read-more" => {
             let url = extract_attr_from_html(&block.inner_html, "href")
                 .or_else(|| {
                     block
@@ -196,9 +199,20 @@ pub(crate) fn map_gutenberg_block(
             let target = extract_attr_from_html(&block.inner_html, "target")
                 .unwrap_or_else(|| "_self".to_string());
             let text = strip_html_tags(&block.inner_html);
+            let default_text = if norm_name == "read-more" {
+                "Read More"
+            } else {
+                "Click Here"
+            };
             NodeKind::Button {
                 text: if text.is_empty() {
-                    "Click Here".to_string()
+                    block
+                        .attrs
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(default_text)
+                        .to_string()
                 } else {
                     text
                 },
@@ -206,20 +220,29 @@ pub(crate) fn map_gutenberg_block(
                 target,
             }
         }
-        "heading" => {
+        "heading" | "site-title" | "post-title" | "query-title" => {
             let level = block
                 .attrs
                 .get("level")
                 .and_then(|v| v.as_u64())
                 .map(|l| l as u8)
                 .or_else(|| detect_heading_level(&block.inner_html))
-                .unwrap_or(2);
-            let text = strip_outer_heading_tag(&block.inner_html);
+                .unwrap_or(if norm_name == "heading" { 2 } else { 1 });
+            let mut text = strip_outer_heading_tag(&block.inner_html);
+            if text.is_empty() {
+                text = block
+                    .attrs
+                    .get("title")
+                    .or_else(|| block.attrs.get("content"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+            }
             NodeKind::Heading { text, level }
         }
-        "paragraph" | "freeform" => {
+        "paragraph" | "freeform" | "post-excerpt" | "post-content" => {
             let content_html = block.inner_html.trim().to_string();
-            if content_html.is_empty() {
+            if content_html.is_empty() && norm_name == "paragraph" {
                 return None;
             }
             NodeKind::Text { content_html }
@@ -228,7 +251,7 @@ pub(crate) fn map_gutenberg_block(
             children.clear();
             map_gutenberg_list(block)
         }
-        "image" => {
+        "image" | "site-logo" | "post-featured-image" => {
             let src = block
                 .attrs
                 .get("url")
@@ -242,7 +265,13 @@ pub(crate) fn map_gutenberg_block(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .or_else(|| extract_attr_from_html(&block.inner_html, "alt"))
-                .unwrap_or_default();
+                .unwrap_or_else(|| {
+                    if norm_name == "site-logo" {
+                        "Site Logo".to_string()
+                    } else {
+                        String::new()
+                    }
+                });
             let width = block
                 .attrs
                 .get("width")
@@ -257,7 +286,14 @@ pub(crate) fn map_gutenberg_block(
                 .attrs
                 .get("href")
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    if norm_name == "site-logo" {
+                        Some("/".to_string())
+                    } else {
+                        None
+                    }
+                });
             NodeKind::Image {
                 src,
                 alt,
@@ -265,6 +301,199 @@ pub(crate) fn map_gutenberg_block(
                 height,
                 link,
             }
+        }
+        "details" => {
+            let mut title = block
+                .attrs
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            if title.is_empty() {
+                if let Some(start) = block.inner_html.find("<summary") {
+                    if let Some(gt) = block.inner_html[start..].find('>') {
+                        let content_start = start + gt + 1;
+                        if let Some(end) = block.inner_html[content_start..].find("</summary>") {
+                            title = strip_html_tags(
+                                &block.inner_html[content_start..content_start + end],
+                            );
+                        }
+                    }
+                }
+            }
+            if title.is_empty() {
+                title = "Details".to_string();
+            }
+            let content_html = if !children.is_empty() {
+                let html = children
+                    .iter()
+                    .map(crate::render_node_to_html)
+                    .collect::<Vec<_>>()
+                    .join("");
+                children.clear();
+                html
+            } else {
+                let mut rest = block.inner_html.clone();
+                if let Some(end_sum) = rest.find("</summary>") {
+                    rest = rest[end_sum + "</summary>".len()..].to_string();
+                }
+                rest.trim()
+                    .trim_end_matches("</details>")
+                    .trim()
+                    .to_string()
+            };
+            NodeKind::Accordion {
+                items: vec![AccordionItem {
+                    title,
+                    content_html,
+                }],
+            }
+        }
+        "query" | "latest-posts" => {
+            let query_obj = block.attrs.get("query");
+            let post_type = query_obj
+                .and_then(|q| q.get("postType"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("post")
+                .to_string();
+            let posts_per_page = query_obj
+                .and_then(|q| q.get("perPage"))
+                .or_else(|| block.attrs.get("postsToShow"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(6) as u32;
+            let columns = block
+                .attrs
+                .get("displayLayout")
+                .and_then(|d| d.get("columns"))
+                .or_else(|| block.attrs.get("columns"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(3)
+                .clamp(1, 6) as u8;
+            let show_excerpt = block
+                .attrs
+                .get("displayPostContent")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            let show_thumbnail = block
+                .attrs
+                .get("displayFeaturedImage")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            children.clear();
+            NodeKind::LoopGrid {
+                post_type,
+                posts_per_page,
+                columns,
+                show_thumbnail,
+                show_excerpt,
+                show_meta: true,
+                show_pagination: true,
+                taxonomy: None,
+            }
+        }
+        "navigation" => {
+            let mut items = Vec::new();
+            for (idx, child) in block.children.iter().enumerate() {
+                let label = child
+                    .attrs
+                    .get("label")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| strip_html_tags(&child.inner_html));
+                let url = child
+                    .attrs
+                    .get("url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| extract_attr_from_html(&child.inner_html, "href"))
+                    .unwrap_or_else(|| "#".to_string());
+                if !label.is_empty() {
+                    items.push(NavMenuItem {
+                        id: (idx + 1) as i64,
+                        title: label,
+                        url,
+                        target: String::new(),
+                        parent: 0,
+                        order: (idx + 1) as i64,
+                        children: Vec::new(),
+                    });
+                }
+            }
+            children.clear();
+            NodeKind::NavMenu {
+                menu_slug: "primary".to_string(),
+                layout: "horizontal".to_string(),
+                align: "left".to_string(),
+                mobile_hamburger: true,
+                items,
+            }
+        }
+        "search" => {
+            let placeholder = block
+                .attrs
+                .get("placeholder")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Search...")
+                .to_string();
+            let button_text = block
+                .attrs
+                .get("buttonText")
+                .or_else(|| block.attrs.get("label"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Search")
+                .to_string();
+            children.clear();
+            NodeKind::SearchForm {
+                placeholder,
+                button_text,
+                endpoint: "/".to_string(),
+            }
+        }
+        "social-links" => {
+            let mut items = Vec::new();
+            for child in &block.children {
+                let service = child
+                    .attrs
+                    .get("service")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("share");
+                let icon = match service {
+                    "twitter" | "x" => "fa-brands fa-x-twitter",
+                    "facebook" => "fa-brands fa-facebook",
+                    "instagram" => "fa-brands fa-instagram",
+                    "linkedin" => "fa-brands fa-linkedin",
+                    "youtube" => "fa-brands fa-youtube",
+                    "github" => "fa-brands fa-github",
+                    "tiktok" => "fa-brands fa-tiktok",
+                    _ => "fa-solid fa-share-nodes",
+                }
+                .to_string();
+                let link = child
+                    .attrs
+                    .get("url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| extract_attr_from_html(&child.inner_html, "href"))
+                    .unwrap_or_else(|| "#".to_string());
+                items.push(SocialIconItem { icon, link });
+            }
+            children.clear();
+            NodeKind::SocialIcons {
+                items,
+                skin: None,
+                color_type: None,
+            }
+        }
+        "audio" => {
+            let url = block
+                .attrs
+                .get("src")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| extract_attr_from_html(&block.inner_html, "src"))
+                .unwrap_or_default();
+            children.clear();
+            NodeKind::Audio { url }
         }
         "spacer" => {
             let height = block

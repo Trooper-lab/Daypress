@@ -121,6 +121,11 @@ impl Database {
             .get("daypress_session_ver")
             .and_then(|v| v.trim().parse::<i64>().ok())
             .unwrap_or(0);
+        let totp_enabled = parse_bool_meta(meta.get("daypress_2fa_enabled"), false)
+            && meta
+                .get("daypress_2fa_secret")
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
 
         crate::auth::sync_user_ui_prefs(id, show_admin_bar_front, &avatar_url);
 
@@ -144,6 +149,7 @@ impl Database {
             show_admin_bar_front,
             avatar_url,
             session_ver,
+            totp_enabled,
         }))
     }
 
@@ -469,6 +475,18 @@ impl Database {
         username: &str,
         password: &str,
     ) -> Result<Option<AuthUser>> {
+        Ok(self
+            .authenticate_credentials_with_method(username, password)?
+            .map(|(user, _used_app_password)| user))
+    }
+
+    /// Authenticates `username` + `password` and returns `(AuthUser, used_application_password)`.
+    /// When `used_application_password` is `false`, the primary account password was used.
+    pub fn authenticate_credentials_with_method(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<Option<(AuthUser, bool)>> {
         // Look the account up, then release the connection: argon2 verification is
         // deliberately slow and must not hold the global SQLite lock.
         let account: Option<(i64, String, String, String)> = {
@@ -505,11 +523,14 @@ impl Database {
                     params![upgraded, user_id],
                 );
             }
-            return Ok(Some(AuthUser {
-                user_id,
-                username: login,
-                role,
-            }));
+            return Ok(Some((
+                AuthUser {
+                    user_id,
+                    username: login,
+                    role,
+                },
+                false,
+            )));
         }
 
         // Check application passwords for this user (random 16-char tokens, stored as SHA-256)
@@ -529,15 +550,224 @@ impl Database {
                     "UPDATE application_passwords SET last_used = ?1 WHERE uuid = ?2",
                     params![now, uuid],
                 );
-                return Ok(Some(AuthUser {
-                    user_id,
-                    username: login,
-                    role,
-                }));
+                return Ok(Some((
+                    AuthUser {
+                        user_id,
+                        username: login,
+                        role,
+                    },
+                    true,
+                )));
             }
         }
 
         Ok(None)
+    }
+
+    // --- Two-Factor Authentication (2FA / RFC 6238 TOTP) ---
+
+    pub fn is_user_2fa_enabled(&self, user_id: i64) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let meta = Self::read_usermeta_map(&conn, user_id);
+        let enabled = parse_bool_meta(meta.get("daypress_2fa_enabled"), false)
+            && meta
+                .get("daypress_2fa_secret")
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+        Ok(enabled)
+    }
+
+    pub fn get_user_2fa_status(&self, user_id: i64) -> Result<TwoFactorStatusResponse> {
+        let conn = self.conn.lock().unwrap();
+        let meta = Self::read_usermeta_map(&conn, user_id);
+        let enabled = parse_bool_meta(meta.get("daypress_2fa_enabled"), false)
+            && meta
+                .get("daypress_2fa_secret")
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+        let recovery_codes_remaining = meta
+            .get("daypress_2fa_recovery_hashes")
+            .and_then(|raw| serde_json::from_str::<Vec<String>>(raw).ok())
+            .map(|v| v.len())
+            .unwrap_or(0);
+        Ok(TwoFactorStatusResponse {
+            enabled,
+            recovery_codes_remaining,
+        })
+    }
+
+    pub fn begin_user_2fa_setup(&self, user_id: i64) -> Result<TwoFactorSetupResponse, AppError> {
+        let conn = self.conn.lock().unwrap();
+        let login: String = conn
+            .query_row(
+                "SELECT user_login FROM users WHERE ID = ?1",
+                params![user_id],
+                |r| r.get(0),
+            )
+            .map_err(|_| AppError::NotFound(format!("User {} not found", user_id)))?;
+        let issuer: String = conn
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'blogname'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or_else(|_| "Daypress".to_string());
+
+        let secret = crate::totp::generate_totp_secret();
+        Self::upsert_usermeta(&conn, user_id, "daypress_2fa_pending_secret", &secret)?;
+        let otpauth_uri = crate::totp::build_otpauth_uri(&secret, &login, &issuer);
+        Ok(TwoFactorSetupResponse {
+            secret,
+            otpauth_uri,
+        })
+    }
+
+    pub fn enable_user_2fa(
+        &self,
+        user_id: i64,
+        code: &str,
+    ) -> Result<TwoFactorEnableResponse, AppError> {
+        let conn = self.conn.lock().unwrap();
+        let meta = Self::read_usermeta_map(&conn, user_id);
+        let secret = meta
+            .get("daypress_2fa_pending_secret")
+            .or_else(|| meta.get("daypress_2fa_secret"))
+            .cloned()
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                AppError::BadRequest("No 2FA setup in progress; start 2FA setup first".to_string())
+            })?;
+
+        let now = Utc::now().timestamp();
+        let accepted_step =
+            crate::totp::verify_totp_code(&secret, code, now, None).ok_or_else(|| {
+                AppError::BadRequest("Invalid 6-digit authenticator code".to_string())
+            })?;
+
+        let recovery_codes = crate::totp::generate_recovery_codes();
+        let hashes: Vec<String> = recovery_codes
+            .iter()
+            .map(|c| crate::totp::hash_recovery_code(c))
+            .collect();
+        let hashes_json = serde_json::to_string(&hashes).unwrap_or_else(|_| "[]".to_string());
+
+        Self::upsert_usermeta(&conn, user_id, "daypress_2fa_secret", &secret)?;
+        Self::upsert_usermeta(&conn, user_id, "daypress_2fa_enabled", "true")?;
+        Self::upsert_usermeta(&conn, user_id, "daypress_2fa_recovery_hashes", &hashes_json)?;
+        Self::upsert_usermeta(
+            &conn,
+            user_id,
+            "daypress_2fa_last_step",
+            &accepted_step.to_string(),
+        )?;
+        conn.execute(
+            "DELETE FROM usermeta WHERE user_id = ?1 AND meta_key = 'daypress_2fa_pending_secret'",
+            params![user_id],
+        )?;
+
+        Ok(TwoFactorEnableResponse {
+            enabled: true,
+            recovery_codes,
+        })
+    }
+
+    pub fn regenerate_user_2fa_recovery_codes(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<String>, AppError> {
+        let conn = self.conn.lock().unwrap();
+        let meta = Self::read_usermeta_map(&conn, user_id);
+        let enabled = parse_bool_meta(meta.get("daypress_2fa_enabled"), false)
+            && meta
+                .get("daypress_2fa_secret")
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+        if !enabled {
+            return Err(AppError::BadRequest(
+                "Two-factor authentication is not enabled on this account".to_string(),
+            ));
+        }
+
+        let recovery_codes = crate::totp::generate_recovery_codes();
+        let hashes: Vec<String> = recovery_codes
+            .iter()
+            .map(|c| crate::totp::hash_recovery_code(c))
+            .collect();
+        let hashes_json = serde_json::to_string(&hashes).unwrap_or_else(|_| "[]".to_string());
+        Self::upsert_usermeta(&conn, user_id, "daypress_2fa_recovery_hashes", &hashes_json)?;
+        Ok(recovery_codes)
+    }
+
+    pub fn disable_user_2fa(&self, user_id: i64) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let was_enabled = {
+            let meta = Self::read_usermeta_map(&conn, user_id);
+            parse_bool_meta(meta.get("daypress_2fa_enabled"), false)
+        };
+        conn.execute(
+            "DELETE FROM usermeta WHERE user_id = ?1 AND meta_key IN ('daypress_2fa_enabled', 'daypress_2fa_secret', 'daypress_2fa_pending_secret', 'daypress_2fa_recovery_hashes', 'daypress_2fa_last_step')",
+            params![user_id],
+        )?;
+        Ok(was_enabled)
+    }
+
+    /// Verifies either a 6-digit TOTP code (with replay protection) or a single-use recovery code.
+    pub fn verify_user_2fa_code(&self, user_id: i64, code: &str) -> Result<bool> {
+        let trimmed = code.trim();
+        if trimmed.is_empty() {
+            return Ok(false);
+        }
+        let conn = self.conn.lock().unwrap();
+        let meta = Self::read_usermeta_map(&conn, user_id);
+        let enabled = parse_bool_meta(meta.get("daypress_2fa_enabled"), false);
+        let Some(secret) = meta
+            .get("daypress_2fa_secret")
+            .filter(|s| !s.trim().is_empty())
+        else {
+            return Ok(false);
+        };
+        if !enabled {
+            return Ok(false);
+        }
+
+        let last_step = meta
+            .get("daypress_2fa_last_step")
+            .and_then(|v| v.trim().parse::<i64>().ok());
+        let now = Utc::now().timestamp();
+        if let Some(accepted_step) = crate::totp::verify_totp_code(secret, trimmed, now, last_step)
+        {
+            Self::upsert_usermeta(
+                &conn,
+                user_id,
+                "daypress_2fa_last_step",
+                &accepted_step.to_string(),
+            )?;
+            return Ok(true);
+        }
+
+        // Check single-use recovery codes
+        if let Some(raw_hashes) = meta.get("daypress_2fa_recovery_hashes") {
+            if let Ok(mut hashes) = serde_json::from_str::<Vec<String>>(raw_hashes) {
+                let candidate = crate::totp::hash_recovery_code(trimmed);
+                if let Some(pos) = hashes
+                    .iter()
+                    .position(|h| crate::auth::constant_time_eq(h.as_bytes(), candidate.as_bytes()))
+                {
+                    hashes.remove(pos);
+                    let updated_json =
+                        serde_json::to_string(&hashes).unwrap_or_else(|_| "[]".to_string());
+                    Self::upsert_usermeta(
+                        &conn,
+                        user_id,
+                        "daypress_2fa_recovery_hashes",
+                        &updated_json,
+                    )?;
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
     }
 
     /// [`Self::authenticate_credentials`] behind the failed-login throttle: after
@@ -549,19 +779,30 @@ impl Database {
         password: &str,
         client: Option<&str>,
     ) -> Result<crate::auth::LoginAttempt> {
+        Ok(self
+            .attempt_login_with_method(username, password, client)?
+            .0)
+    }
+
+    pub fn attempt_login_with_method(
+        &self,
+        username: &str,
+        password: &str,
+        client: Option<&str>,
+    ) -> Result<(crate::auth::LoginAttempt, bool)> {
         use crate::auth::{LoginAttempt, LoginThrottle};
         let key = LoginThrottle::key(client, username);
         if let Some(retry_after_secs) = self.login_throttle.retry_after(&key) {
-            return Ok(LoginAttempt::Throttled { retry_after_secs });
+            return Ok((LoginAttempt::Throttled { retry_after_secs }, false));
         }
-        match self.authenticate_credentials(username, password)? {
-            Some(user) => {
+        match self.authenticate_credentials_with_method(username, password)? {
+            Some((user, used_app_password)) => {
                 self.login_throttle.record_success(&key);
-                Ok(LoginAttempt::Success(user))
+                Ok((LoginAttempt::Success(user), used_app_password))
             }
             None => {
                 self.login_throttle.record_failure(&key);
-                Ok(LoginAttempt::Invalid)
+                Ok((LoginAttempt::Invalid, false))
             }
         }
     }

@@ -1,5 +1,6 @@
 use crate::importer::models::PendingAstItem;
 use crate::importer::templates::upsert_theme_template;
+use crate::models::PostFidelityItem;
 use rusqlite::{params, Result, Transaction};
 use std::collections::HashMap;
 
@@ -8,6 +9,7 @@ pub struct AstPassResult {
     pub footer_html: String,
     pub popups_html: String,
     pub has_divi_content: bool,
+    pub fidelity_items: Vec<PostFidelityItem>,
 }
 
 pub fn execute_ast_pass2(
@@ -34,6 +36,7 @@ pub fn execute_ast_pass2(
     let mut footer_html = String::new();
     let mut popups_html = String::new();
     let mut has_divi_content = false;
+    let mut fidelity_items = Vec::new();
 
     for mut item in pending_ast_items {
         let post_id = item.post_id;
@@ -69,7 +72,23 @@ pub fn execute_ast_pass2(
             meta.insert("_elementor_kit_settings".to_string(), kit_str.to_string());
         }
 
-        if let Some(transpiled_layout) = daypress_ast::transpile_content(&raw_content, meta) {
+        let transpiled_opt = daypress_ast::transpile_content(&raw_content, meta);
+        if matches!(p_type.as_str(), "post" | "page") {
+            let report =
+                daypress_ast::analyze_post_fidelity(&raw_content, meta, transpiled_opt.as_ref());
+            fidelity_items.push(PostFidelityItem {
+                title: p_title.clone(),
+                post_type: p_type.clone(),
+                builder_detected: report.builder_detected,
+                total_nodes: report.total_nodes,
+                native_nodes: report.native_nodes,
+                fallback_html_nodes: report.fallback_html_nodes,
+                unresolved_shortcodes: report.unresolved_shortcodes,
+                fidelity_score_pct: report.fidelity_score_pct,
+            });
+        }
+
+        if let Some(transpiled_layout) = transpiled_opt {
             let rendered_html = daypress_ast::render_layout_to_html(&transpiled_layout);
             let final_content = if !rendered_html.trim().is_empty()
                 || raw_content.trim().is_empty()
@@ -183,5 +202,6 @@ pub fn execute_ast_pass2(
         footer_html,
         popups_html,
         has_divi_content,
+        fidelity_items,
     })
 }

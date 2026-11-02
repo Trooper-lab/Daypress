@@ -98,10 +98,15 @@ pub(crate) async fn delete_user(
 }
 
 pub(crate) async fn list_comments(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     Query(params): Query<CommentListQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<DaypressCommentAdminItem>>), AppError> {
+    if !user.can_moderate_comments() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to moderate comments.".to_string(),
+        ));
+    }
     let per_page = params.per_page.unwrap_or(100).clamp(1, 500);
     let mut comments = db
         .get_comments(params.status.as_deref(), 500)
@@ -173,10 +178,15 @@ pub(crate) async fn create_comment_handler(
 }
 
 pub(crate) async fn get_comment(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<DaypressCommentAdminItem>, AppError> {
+    if !user.can_moderate_comments() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to moderate comments.".to_string(),
+        ));
+    }
     if let Some(c) = db.get_comment_by_id(id)? {
         Ok(Json(c))
     } else {
@@ -185,11 +195,16 @@ pub(crate) async fn get_comment(
 }
 
 pub(crate) async fn update_comment_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateCommentRequest>,
 ) -> Result<Json<Value>, AppError> {
+    if !user.can_moderate_comments() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to moderate comments.".to_string(),
+        ));
+    }
     match db.update_comment(id, &payload)? {
         Some(updated) => {
             let mut val = serde_json::to_value(&updated).unwrap_or_default();
@@ -203,11 +218,16 @@ pub(crate) async fn update_comment_handler(
 }
 
 pub(crate) async fn delete_comment_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Query(params): Query<DeleteQueryParams>,
 ) -> Result<Json<Value>, AppError> {
+    if !user.can_moderate_comments() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to moderate comments.".to_string(),
+        ));
+    }
     let existing = db
         .get_comment_by_id(id)?
         .ok_or_else(|| AppError::NotFound(format!("Comment {} not found", id)))?;
@@ -382,24 +402,42 @@ pub(crate) async fn get_auth_nonce(
 
 pub(crate) async fn generate_jwt_token(
     crate::auth::ClientIp(client): crate::auth::ClientIp,
+    headers: HeaderMap,
     State(db): State<Database>,
     Json(payload): Json<JwtTokenRequest>,
 ) -> Result<Json<JwtTokenResponse>, AppError> {
     use crate::auth::LoginAttempt;
-    let user = match db.attempt_login(&payload.username, &payload.password, client.as_deref())? {
-        LoginAttempt::Success(u) => u,
-        LoginAttempt::Throttled { retry_after_secs } => {
+    let (user, used_app_password) = match db.attempt_login_with_method(
+        &payload.username,
+        &payload.password,
+        client.as_deref(),
+    )? {
+        (LoginAttempt::Success(u), used_app) => (u, used_app),
+        (LoginAttempt::Throttled { retry_after_secs }, _) => {
             return Err(AppError::TooManyRequests(format!(
                 "Too many failed login attempts. Try again in {} minutes.",
                 (retry_after_secs + 59) / 60
             )))
         }
-        LoginAttempt::Invalid => {
+        (LoginAttempt::Invalid, _) => {
             return Err(AppError::Unauthorized(
                 "Invalid username or password".to_string(),
             ))
         }
     };
+
+    if !used_app_password && db.is_user_2fa_enabled(user.user_id).unwrap_or(false) {
+        let otp = payload
+            .totp_code
+            .as_deref()
+            .or_else(|| headers.get("x-daypress-otp").and_then(|v| v.to_str().ok()))
+            .unwrap_or("");
+        if !db.verify_user_2fa_code(user.user_id, otp).unwrap_or(false) {
+            return Err(AppError::Unauthorized(
+                "Two-factor authentication code required (pass totp_code in JSON or X-Daypress-OTP header).".to_string(),
+            ));
+        }
+    }
 
     let user_detail = db
         .get_user_detail(user.user_id)?
@@ -432,4 +470,74 @@ pub(crate) async fn validate_jwt_token(
         code: "jwt_auth_valid_token".to_string(),
         data: serde_json::json!({ "status": 200 }),
     }))
+}
+
+// --- Two-Factor Authentication (2FA) Management Endpoints ---
+
+pub(crate) async fn get_user_2fa_status_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+) -> Result<Json<TwoFactorStatusResponse>, AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let status = db.get_user_2fa_status(user_id)?;
+    Ok(Json(status))
+}
+
+pub(crate) async fn setup_user_2fa_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+) -> Result<Json<TwoFactorSetupResponse>, AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let setup = db.begin_user_2fa_setup(user_id)?;
+    Ok(Json(setup))
+}
+
+pub(crate) async fn enable_user_2fa_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+    Json(payload): Json<TwoFactorVerifyRequest>,
+) -> Result<Json<TwoFactorEnableResponse>, AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let res = db.enable_user_2fa(user_id, &payload.code)?;
+    Ok(Json(res))
+}
+
+pub(crate) async fn regenerate_user_2fa_recovery_codes_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+) -> Result<Json<Value>, AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let codes = db.regenerate_user_2fa_recovery_codes(user_id)?;
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "recovery_codes": codes
+    })))
+}
+
+pub(crate) async fn disable_user_2fa_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+) -> Result<Json<Value>, AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+    let was_enabled = db.disable_user_2fa(user_id)?;
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "disabled": true,
+        "was_enabled": was_enabled
+    })))
 }

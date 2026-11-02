@@ -547,3 +547,23 @@ async fn editor_offers_schedule_option_with_datetime_picker() {
     let statuses = get(&app, "/wp-json/wp/v2/statuses").await.json();
     assert_eq!(statuses["future"]["name"], "Scheduled");
 }
+
+#[tokio::test]
+async fn sitemap_xml_lastmod_uses_valid_w3c_datetime_with_timezone() {
+    let (_db, app) = setup();
+    let res = get(&app, "/sitemap.xml").await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert_well_formed_xml(&res.body);
+
+    let mut count = 0;
+    for chunk in res.body.split("<lastmod>").skip(1) {
+        let val = chunk.split("</lastmod>").next().expect("closing lastmod");
+        chrono::DateTime::parse_from_rfc3339(val)
+            .unwrap_or_else(|e| panic!("invalid W3C/RFC3339 lastmod '{val}' in sitemap.xml: {e}"));
+        count += 1;
+    }
+    assert!(
+        count > 0,
+        "expected at least one <lastmod> entry in sitemap.xml"
+    );
+}

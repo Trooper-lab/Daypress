@@ -21,6 +21,8 @@ pub struct CreateAppPasswordRequest {
 pub struct JwtTokenRequest {
     pub username: String,
     pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,4 +43,28 @@ pub struct JwtValidateResponse {
 pub struct NonceResponse {
     pub nonce: String,
     pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwoFactorStatusResponse {
+    pub enabled: bool,
+    pub recovery_codes_remaining: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwoFactorSetupResponse {
+    pub secret: String,
+    pub otpauth_uri: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TwoFactorVerifyRequest {
+    #[serde(default)]
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwoFactorEnableResponse {
+    pub enabled: bool,
+    pub recovery_codes: Vec<String>,
 }

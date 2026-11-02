@@ -198,10 +198,38 @@ pub fn render_import_view(settings: &DaypressSettingsResponse) -> String {
                 </div>
             </div>
             <textarea id="jsonBundleTextarea" rows="5" class="form-textarea" style="font-family: var(--font-mono); font-size: 12px; margin-bottom: 12px;" placeholder='{"site_title": "My Site", "posts": [...], "pages": [...]}'></textarea>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <button type="button" class="btn btn-primary" onclick="submitJsonBundle()">Run 1-Click JSON Import &rarr;</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="btn btn-primary" onclick="submitJsonBundle()">Run 1-Click JSON Import &rarr;</button>
+                    <button type="button" class="btn btn-secondary" onclick="analyzeJsonBundle()">Analyze Migration Fidelity</button>
+                </div>
                 <div id="jsonBundleSummary" style="font-size: 13px; font-weight: 600; color: var(--moss);"></div>
             </div>
+        </div>
+
+        <!-- Migration Fidelity Scorecard -->
+        <div id="migrationFidelityCard" class="day-card" style="display: none; margin-bottom: 24px; padding: 24px; border-left: 4px solid var(--moss);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 0;">Migration Fidelity Scorecard</h3>
+                    <p style="font-size: 12.5px; color: var(--ink-muted); margin: 4px 0 0 0;">Elementor, Divi &amp; Gutenberg AST conversion diagnostic</p>
+                </div>
+                <div id="fidelityOverallBadge" style="font-size: 14px; font-weight: 700; padding: 4px 12px; border-radius: 6px; background: var(--paper-sunk); color: var(--moss);"></div>
+            </div>
+            <div id="fidelityStatsRow" style="display: flex; gap: 20px; font-size: 13px; color: var(--ink-muted); margin-bottom: 14px; flex-wrap: wrap;"></div>
+            <table class="day-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th style="width: 100px;">Type</th>
+                        <th style="width: 120px;">Builder</th>
+                        <th style="width: 140px;">Native / Total</th>
+                        <th style="width: 110px;">Score</th>
+                        <th>Unresolved Shortcodes / Widgets</th>
+                    </tr>
+                </thead>
+                <tbody id="fidelityTableBody"></tbody>
+            </table>
         </div>
 
         <!-- Other Import Systems -->
@@ -250,8 +278,9 @@ pub fn render_import_view(settings: &DaypressSettingsResponse) -> String {
                         const data = await res.json();
                         bar.style.width = '100%';
                         status.textContent = '✓ ' + data.message;
+                        if (data.fidelity) renderFidelityScorecard(data.fidelity);
                         showToast('✓ ' + data.message);
-                        setTimeout(() => location.href = '/d-admin/edit', 1500);
+                        setTimeout(() => location.href = '/d-admin/edit', 1800);
                     } else {
                         status.textContent = 'Import error occurred';
                         showToast('Import failed', true);
@@ -323,8 +352,9 @@ pub fn render_import_view(settings: &DaypressSettingsResponse) -> String {
                         summary.style.color = 'var(--moss)';
                         const msg = data.message || ('Successfully imported ' + (data.migrated_posts || data.imported_posts || 0) + ' posts, ' + (data.migrated_pages || data.imported_pages || 0) + ' pages');
                         summary.textContent = '✓ ' + msg;
+                        if (data.fidelity) renderFidelityScorecard(data.fidelity);
                         showToast('✓ ' + msg);
-                        setTimeout(() => location.href = '/d-admin/edit?post_type=page', 1500);
+                        setTimeout(() => location.href = '/d-admin/edit?post_type=page', 1800);
                     } else {
                         summary.style.color = 'var(--oxide)';
                         const err = data.message || data.error || ('HTTP ' + res.status);
@@ -335,6 +365,70 @@ pub fn render_import_view(settings: &DaypressSettingsResponse) -> String {
                     summary.style.color = 'var(--oxide)';
                     summary.textContent = 'Network error: ' + e;
                     showToast('Network error: ' + e, true);
+                }
+            }
+
+            function renderFidelityScorecard(fidelity) {
+                const card = document.getElementById('migrationFidelityCard');
+                const badge = document.getElementById('fidelityOverallBadge');
+                const statsRow = document.getElementById('fidelityStatsRow');
+                const tbody = document.getElementById('fidelityTableBody');
+                if (!card || !fidelity) return;
+                card.style.display = 'block';
+                badge.textContent = 'Overall Fidelity: ' + (fidelity.overall_score_pct ?? 100) + '%';
+                statsRow.innerHTML =
+                    '<span><strong>Posts/Pages Analyzed:</strong> ' + (fidelity.analyzed_posts || 0) + '</span>' +
+                    '<span><strong>Native AST Nodes:</strong> ' + (fidelity.native_ast_nodes || 0) + ' / ' + (fidelity.total_ast_nodes || 0) + '</span>' +
+                    '<span><strong>Fallback Nodes:</strong> ' + (fidelity.fallback_ast_nodes || 0) + '</span>';
+                const reports = Array.isArray(fidelity.per_post_reports) ? fidelity.per_post_reports : [];
+                tbody.innerHTML = reports.map(r => {
+                    const unresolved = Array.isArray(r.unresolved_shortcodes) && r.unresolved_shortcodes.length
+                        ? r.unresolved_shortcodes.join(', ')
+                        : '—';
+                    return '<tr>' +
+                        '<td><strong>' + (r.title || '(Untitled)') + '</strong></td>' +
+                        '<td>' + (r.post_type || 'post') + '</td>' +
+                        '<td><span class="badge">' + (r.builder_detected || 'classic') + '</span></td>' +
+                        '<td>' + (r.native_nodes || 0) + ' / ' + (r.total_nodes || 0) + '</td>' +
+                        '<td><strong>' + (r.fidelity_score_pct ?? 100) + '%</strong></td>' +
+                        '<td style="font-family: var(--font-mono); font-size: 12px;">' + unresolved + '</td>' +
+                        '</tr>';
+                }).join('');
+            }
+
+            async function analyzeJsonBundle() {
+                const raw = document.getElementById('jsonBundleTextarea').value.trim();
+                const summary = document.getElementById('jsonBundleSummary');
+                if (!raw) {
+                    showToast('Please paste a JSON bundle or WXR XML first', true);
+                    return;
+                }
+                summary.style.color = 'var(--press)';
+                summary.textContent = 'Analyzing AST migration fidelity...';
+                try {
+                    const res = await fetch('/wp-json/daypress/v1/import/analyze', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': raw.startsWith('<') ? 'application/xml' : 'application/json',
+                            'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || ''
+                        },
+                        body: raw
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        summary.style.color = 'var(--moss)';
+                        summary.textContent = '✓ Pre-flight analysis complete (' + (data.overall_score_pct ?? 100) + '% native AST fidelity)';
+                        renderFidelityScorecard(data);
+                        showToast('✓ Migration fidelity analysis complete');
+                    } else {
+                        summary.style.color = 'var(--oxide)';
+                        summary.textContent = 'Analysis error: ' + (data.message || res.status);
+                        showToast(data.message || 'Analysis failed', true);
+                    }
+                } catch (e) {
+                    summary.style.color = 'var(--oxide)';
+                    summary.textContent = 'Analysis network error: ' + e;
+                    showToast('Analysis failed: ' + e, true);
                 }
             }
         </script>

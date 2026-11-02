@@ -39,20 +39,30 @@ pub(crate) async fn get_category_handler(
 }
 
 pub(crate) async fn create_category_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTermRequest>,
 ) -> Result<(StatusCode, Json<DaypressCategoryResponse>), AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to create terms in this taxonomy.".to_string(),
+        ));
+    }
     let cat = db.create_category(&payload)?;
     Ok((StatusCode::CREATED, Json(cat)))
 }
 
 pub(crate) async fn update_category_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTermRequest>,
 ) -> Result<Json<DaypressCategoryResponse>, AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to edit terms in this taxonomy.".to_string(),
+        ));
+    }
     match db.update_term("category", id, &payload)? {
         Some(c) => Ok(Json(c)),
         None => Err(AppError::NotFound(format!("Category {} not found", id))),
@@ -60,10 +70,15 @@ pub(crate) async fn update_category_handler(
 }
 
 pub(crate) async fn delete_category_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to delete terms in this taxonomy.".to_string(),
+        ));
+    }
     let prev = db.get_term_by_id("category", id)?;
     if db.delete_term("category", id)? {
         Ok(Json(serde_json::json!({
@@ -103,20 +118,30 @@ pub(crate) async fn get_tag_handler(
 }
 
 pub(crate) async fn create_tag_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<CreateTermRequest>,
 ) -> Result<(StatusCode, Json<DaypressCategoryResponse>), AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to create terms in this taxonomy.".to_string(),
+        ));
+    }
     let tag = db.create_tag(&payload)?;
     Ok((StatusCode::CREATED, Json(tag)))
 }
 
 pub(crate) async fn update_tag_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateTermRequest>,
 ) -> Result<Json<DaypressCategoryResponse>, AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to edit terms in this taxonomy.".to_string(),
+        ));
+    }
     match db.update_term("post_tag", id, &payload)? {
         Some(t) => Ok(Json(t)),
         None => Err(AppError::NotFound(format!("Tag {} not found", id))),
@@ -124,10 +149,15 @@ pub(crate) async fn update_tag_handler(
 }
 
 pub(crate) async fn delete_tag_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to delete terms in this taxonomy.".to_string(),
+        ));
+    }
     let prev = db.get_term_by_id("post_tag", id)?;
     if db.delete_term("post_tag", id)? {
         Ok(Json(serde_json::json!({

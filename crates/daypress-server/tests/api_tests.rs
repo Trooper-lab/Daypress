@@ -2163,3 +2163,586 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     assert!(plugins_html2.contains("Lightweight Cookie Consent"));
     assert!(plugins_html2.contains("Community"));
 }
+
+#[tokio::test]
+async fn test_v030_two_factor_authentication_lifecycle() {
+    let db = Database::new_in_memory().expect("Failed in-memory DB");
+    let app = create_app(db.clone());
+
+    // 1. Check initial 2FA status for admin (user 1)
+    let status_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/daypress/v1/users/1/2fa/status")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status_res.status(), StatusCode::OK);
+    let status_json: serde_json::Value =
+        serde_json::from_slice(&to_bytes(status_res.into_body(), usize::MAX).await.unwrap())
+            .unwrap();
+    assert_eq!(status_json["enabled"], false);
+
+    // 2. Start 2FA setup
+    let setup_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/users/1/2fa/setup")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(setup_res.status(), StatusCode::OK);
+    let setup_json: serde_json::Value =
+        serde_json::from_slice(&to_bytes(setup_res.into_body(), usize::MAX).await.unwrap())
+            .unwrap();
+    let secret = setup_json["secret"].as_str().unwrap().to_string();
+    assert!(setup_json["otpauth_uri"]
+        .as_str()
+        .unwrap()
+        .starts_with("otpauth://totp/"));
+
+    // 3. Verify and enable 2FA with current TOTP code
+    let code =
+        daypress_server::totp::current_totp_code(&secret, chrono::Utc::now().timestamp()).unwrap();
+    let enable_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/users/1/2fa/enable")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::json!({ "code": code }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(enable_res.status(), StatusCode::OK);
+    let enable_json: serde_json::Value =
+        serde_json::from_slice(&to_bytes(enable_res.into_body(), usize::MAX).await.unwrap())
+            .unwrap();
+    assert_eq!(enable_json["enabled"], true);
+    let recovery_codes: Vec<String> = enable_json["recovery_codes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(recovery_codes.len(), 8);
+
+    // 4. Primary-password Basic Auth without X-Daypress-OTP is now rejected once 2FA is enabled
+    let no_otp_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/daypress/v1/users/1/2fa/status")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(no_otp_res.status(), StatusCode::UNAUTHORIZED);
+
+    // 5. Form login with primary password redirects to /login/2fa and sets daypress_2fa_challenge cookie
+    let login_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/login")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(Body::from(
+                    "log=admin&pwd=admin&redirect_to=%2Fd-admin%2Fprofile",
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(login_res.status(), StatusCode::SEE_OTHER);
+    assert!(login_res
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .starts_with("/login/2fa"));
+    let challenge_cookie = login_res
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|v| v.to_str().unwrap().to_string())
+        .find(|s| s.starts_with("daypress_2fa_challenge="))
+        .expect("Expected daypress_2fa_challenge cookie");
+    let cookie_pair = challenge_cookie.split(';').next().unwrap().to_string();
+
+    // 6. Complete /login/2fa using a single-use recovery code
+    let first_recovery_code = recovery_codes[0].clone();
+    let verify_2fa_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/login/2fa")
+                .header("Cookie", &cookie_pair)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(Body::from(format!(
+                    "code={}&redirect_to=%2Fd-admin%2Fprofile",
+                    first_recovery_code
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(verify_2fa_res.status(), StatusCode::SEE_OTHER);
+    assert_eq!(
+        verify_2fa_res.headers().get("location").unwrap(),
+        "/d-admin/profile"
+    );
+    let session_cookie = verify_2fa_res
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|v| v.to_str().unwrap().to_string())
+        .find(|s| s.starts_with("daypress_admin="))
+        .expect("Expected daypress_admin session cookie after 2FA verification");
+    let session_pair = session_cookie.split(';').next().unwrap().to_string();
+
+    // 7. Reusing the same recovery code must fail (single-use)
+    let verify_reuse_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/login/2fa")
+                .header("Cookie", &cookie_pair)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(Body::from(format!("code={}", first_recovery_code)))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(verify_reuse_res.status(), StatusCode::UNAUTHORIZED);
+
+    // 8. Check 2FA status with session cookie (recovery_codes_remaining should now be 7)
+    let status_res2 = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/daypress/v1/users/1/2fa/status")
+                .header("Cookie", &session_pair)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status_res2.status(), StatusCode::OK);
+    let status_json2: serde_json::Value =
+        serde_json::from_slice(&to_bytes(status_res2.into_body(), usize::MAX).await.unwrap())
+            .unwrap();
+    assert_eq!(status_json2["enabled"], true);
+    assert_eq!(status_json2["recovery_codes_remaining"], 7);
+
+    // 9. Application Passwords bypass interactive 2FA for headless/MCP automation
+    let raw_app_pw = db
+        .create_application_password(1, "CI Bot", None)
+        .unwrap()
+        .password
+        .unwrap();
+    let app_basic = format!(
+        "Basic {}",
+        base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            format!("admin:{}", raw_app_pw)
+        )
+    );
+    let app_pw_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/daypress/v1/users/1/2fa/status")
+                .header("Authorization", &app_basic)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(app_pw_res.status(), StatusCode::OK);
+
+    // 10. Emergency CLI recovery (`reset_password_and_2fa_from_cli` with `disable_2fa = true`)
+    assert!(db.is_user_2fa_enabled(1).unwrap());
+    db.disable_user_2fa(1).unwrap();
+    assert!(!db.is_user_2fa_enabled(1).unwrap());
+}
+
+#[tokio::test]
+async fn test_v030_fine_grained_role_capabilities() {
+    let db = Database::new_in_memory().expect("Failed in-memory DB");
+    let app = create_app(db.clone());
+
+    // Create Contributor, Author, and Editor users
+    let contributor = db
+        .create_user(&daypress_server::models::CreateUserRequest {
+            username: "contrib_user".to_string(),
+            email: "contrib@example.com".to_string(),
+            name: Some("Contributor User".to_string()),
+            password: "contrib_pass".to_string(),
+            role: Some("contributor".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+    let author = db
+        .create_user(&daypress_server::models::CreateUserRequest {
+            username: "author_user".to_string(),
+            email: "author@example.com".to_string(),
+            name: Some("Author User".to_string()),
+            password: "author_pass".to_string(),
+            role: Some("author".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+    let editor = db
+        .create_user(&daypress_server::models::CreateUserRequest {
+            username: "editor_user".to_string(),
+            email: "editor@example.com".to_string(),
+            name: Some("Editor User".to_string()),
+            password: "editor_pass".to_string(),
+            role: Some("editor".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+
+    let contrib_auth = format!(
+        "Basic {}",
+        base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            "contrib_user:contrib_pass"
+        )
+    );
+    let author_auth = format!(
+        "Basic {}",
+        base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            "author_user:author_pass"
+        )
+    );
+    let editor_auth = format!(
+        "Basic {}",
+        base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            "editor_user:editor_pass"
+        )
+    );
+
+    // 1a. Contributor attempting to directly publish a post via REST is rejected with 403 Forbidden
+    let contrib_publish_attempt = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/posts")
+                .header("Authorization", &contrib_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Unauthorized Direct Publish",
+                        "content": "<p>Needs review</p>",
+                        "status": "publish"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(contrib_publish_attempt.status(), StatusCode::FORBIDDEN);
+
+    // 1b. Contributor submitting a post for review ("pending") succeeds
+    let contrib_post_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/posts")
+                .header("Authorization", &contrib_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Contributor Story",
+                        "content": "<p>Needs review</p>",
+                        "status": "pending"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(contrib_post_res.status(), StatusCode::CREATED);
+    let contrib_post: serde_json::Value = serde_json::from_slice(
+        &to_bytes(contrib_post_res.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(contrib_post["status"], "pending");
+    assert_eq!(contrib_post["author"], contributor.id);
+    let contrib_post_id = contrib_post["id"].as_i64().unwrap();
+
+    // 2. Contributor cannot create pages, categories, or moderate comments
+    let contrib_page_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/pages")
+                .header("Authorization", &contrib_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "title": "Unauthorized Page", "content": "<p>No</p>" })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(contrib_page_res.status(), StatusCode::FORBIDDEN);
+
+    let contrib_cat_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/categories")
+                .header("Authorization", &contrib_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "name": "Unauth Cat" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(contrib_cat_res.status(), StatusCode::FORBIDDEN);
+
+    // 3. Author can publish their own post, but CANNOT edit the Contributor's post or create pages
+    let author_post_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/posts")
+                .header("Authorization", &author_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Author Published Post",
+                        "content": "<p>Live</p>",
+                        "status": "publish"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(author_post_res.status(), StatusCode::CREATED);
+    let author_post: serde_json::Value = serde_json::from_slice(
+        &to_bytes(author_post_res.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(author_post["status"], "publish");
+    assert_eq!(author_post["author"], author.id);
+    let author_post_id = author_post["id"].as_i64().unwrap();
+
+    // Author tries to edit Contributor's post -> 403 Forbidden
+    let author_edit_other_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/wp-json/wp/v2/posts/{}", contrib_post_id))
+                .header("Authorization", &author_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "title": "Hijacked" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(author_edit_other_res.status(), StatusCode::FORBIDDEN);
+
+    // Contributor tries to edit Author's published post -> 403 Forbidden
+    let contrib_edit_other_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/wp-json/wp/v2/posts/{}", author_post_id))
+                .header("Authorization", &contrib_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "title": "Hijacked by Contrib" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(contrib_edit_other_res.status(), StatusCode::FORBIDDEN);
+
+    // 4. Editor CAN approve & publish the Contributor's pending post, create pages, and create categories
+    let editor_publish_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/wp-json/wp/v2/posts/{}", contrib_post_id))
+                .header("Authorization", &editor_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "status": "publish" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(editor_publish_res.status(), StatusCode::OK);
+    let published_contrib_post: serde_json::Value = serde_json::from_slice(
+        &to_bytes(editor_publish_res.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(published_contrib_post["status"], "publish");
+    let _ = editor.id;
+
+    // Once published, the Contributor can no longer edit or delete their own published post
+    let contrib_edit_published_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/wp-json/wp/v2/posts/{}", contrib_post_id))
+                .header("Authorization", &contrib_auth)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "title": "Post-publish edit" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(contrib_edit_published_res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_v030_migration_fidelity_analyzer_endpoint() {
+    let db = Database::new_in_memory().expect("Failed in-memory DB");
+    let app = create_app(db);
+
+    let bundle_payload = serde_json::json!({
+        "site_settings": { "title": "Fidelity Test Site" },
+        "posts": [
+            {
+                "id": 101,
+                "title": "Elementor Nested Tabs Page",
+                "post_type": "page",
+                "status": "publish",
+                "content": "",
+                "postmeta": {
+                    "_elementor_data": serde_json::json!([
+                        {
+                            "id": "sec1",
+                            "elType": "container",
+                            "settings": {},
+                            "elements": [
+                                {
+                                    "id": "nt1",
+                                    "elType": "widget",
+                                    "widgetType": "nested-tabs",
+                                    "settings": {
+                                        "tabs": [
+                                            { "tab_title": "Tab A" },
+                                            { "tab_title": "Tab B" }
+                                        ]
+                                    },
+                                    "elements": [
+                                        {
+                                            "id": "c1",
+                                            "elType": "container",
+                                            "settings": {},
+                                            "elements": [
+                                                {
+                                                    "id": "h1",
+                                                    "elType": "widget",
+                                                    "widgetType": "theme-post-title",
+                                                    "settings": { "title": "Dynamic Title" },
+                                                    "elements": []
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "id": "c2",
+                                            "elType": "container",
+                                            "settings": {},
+                                            "elements": [
+                                                {
+                                                    "id": "ab1",
+                                                    "elType": "widget",
+                                                    "widgetType": "author-box",
+                                                    "settings": { "author_name": "Ada Lovelace", "author_bio": "Mathematician" },
+                                                    "elements": []
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]).to_string()
+                }
+            },
+            {
+                "id": 102,
+                "title": "Divi Team & Shop Page",
+                "post_type": "page",
+                "status": "publish",
+                "content": r#"[et_pb_section][et_pb_row][et_pb_column type="4_4"][et_pb_team_member name="Grace Hopper" position="Rear Admiral" image_url="https://example.com/grace.jpg"]Pioneer[/et_pb_team_member][et_pb_shop posts_number="3" columns_number="3"][/et_pb_shop][/et_pb_column][/et_pb_row][/et_pb_section]"#,
+                "postmeta": {}
+            }
+        ]
+    });
+
+    let analyze_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/import/analyze")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .header("Content-Type", "application/json")
+                .body(Body::from(bundle_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(analyze_res.status(), StatusCode::OK);
+    let summary: serde_json::Value =
+        serde_json::from_slice(&to_bytes(analyze_res.into_body(), usize::MAX).await.unwrap())
+            .unwrap();
+    assert_eq!(summary["analyzed_posts"], 2);
+    assert_eq!(summary["overall_score_pct"], 100.0);
+    assert_eq!(summary["fallback_ast_nodes"], 0);
+}

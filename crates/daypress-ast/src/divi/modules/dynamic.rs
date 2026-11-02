@@ -55,7 +55,7 @@ pub fn map_dynamic_module(
             children.clear();
             Some(NodeKind::Map { address, zoom })
         }
-        "et_pb_search" => {
+        "et_pb_search" | "et_pb_sidebar" => {
             let placeholder = divi
                 .attributes
                 .get("placeholder")
@@ -121,7 +121,7 @@ pub fn map_dynamic_module(
                 color_type: None,
             })
         }
-        "et_pb_portfolio" | "et_pb_filterable_portfolio" => {
+        "et_pb_portfolio" | "et_pb_filterable_portfolio" | "et_pb_fullwidth_portfolio" => {
             let posts_per_page = divi
                 .attributes
                 .get("posts_number")
@@ -174,9 +174,82 @@ pub fn map_dynamic_module(
                 taxonomy,
             })
         }
-        "et_pb_gallery" => Some(NodeKind::CustomHtml {
-            raw: "<div class=\"dp-gallery\"></div>".to_string(),
-        }),
+        "et_pb_shop" => {
+            let posts_per_page = divi
+                .attributes
+                .get("posts_number")
+                .and_then(|n| n.parse::<u32>().ok())
+                .unwrap_or(6);
+            let columns = divi
+                .attributes
+                .get("columns_number")
+                .and_then(|n| n.parse::<u8>().ok())
+                .unwrap_or(3)
+                .clamp(1, 6);
+            let taxonomy = divi.attributes.get("include_categories").cloned();
+            children.clear();
+            Some(NodeKind::LoopGrid {
+                post_type: "product".to_string(),
+                posts_per_page,
+                columns,
+                show_thumbnail: true,
+                show_excerpt: false,
+                show_meta: true,
+                show_pagination: true,
+                taxonomy,
+            })
+        }
+        "et_pb_gallery" => {
+            let raw_list = divi
+                .attributes
+                .get("gallery_ids")
+                .or_else(|| divi.attributes.get("src"))
+                .or_else(|| divi.attributes.get("images"))
+                .cloned()
+                .unwrap_or_default();
+            let images: Vec<String> = raw_list
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|item| {
+                    let resolved = ctx.resolve_divi_attr(item);
+                    if resolved.starts_with('/') || resolved.starts_with("http") {
+                        resolved
+                    } else {
+                        format!("/wp-content/uploads/attachment-{}", resolved)
+                    }
+                })
+                .collect();
+            let columns = divi
+                .attributes
+                .get("posts_number")
+                .and_then(|n| n.parse::<u8>().ok())
+                .unwrap_or(4)
+                .clamp(1, 6);
+            children.clear();
+            for (idx, src) in images.into_iter().enumerate() {
+                children.push(DaypressNode {
+                    id: format!("divi_gallery_img_{}", idx + 1),
+                    kind: NodeKind::Image {
+                        src,
+                        alt: String::new(),
+                        width: None,
+                        height: None,
+                        link: None,
+                    },
+                    styles: Default::default(),
+                    children: Vec::new(),
+                });
+            }
+            Some(NodeKind::Grid { columns, gap: 16 })
+        }
+        "et_pb_post_nav" => {
+            children.clear();
+            Some(NodeKind::Breadcrumbs {
+                separator: "/".to_string(),
+                home_text: "Home".to_string(),
+            })
+        }
         "et_pb_slider" | "et_pb_fullwidth_slider" | "et_pb_post_slider" => {
             Some(NodeKind::Container)
         }

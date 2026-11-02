@@ -15,9 +15,20 @@ use serde::Deserialize;
 
 pub async fn handle_api_update_comment(
     State(db): State<Database>,
+    OptionalAuthUser(auth): OptionalAuthUser,
     AxPath(id): AxPath<i64>,
     axum::Json(payload): axum::Json<UpdateCommentStatusPayload>,
 ) -> impl IntoResponse {
+    if !auth.as_ref().is_some_and(|u| u.can_moderate_comments()) {
+        return (
+            StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({
+                "code": "rest_cannot_edit",
+                "message": "Sorry, you are not allowed to moderate comments."
+            })),
+        )
+            .into_response();
+    }
     match db.update_comment_status(id, &payload.status) {
         Ok(true) => (
             StatusCode::OK,
@@ -39,8 +50,19 @@ pub async fn handle_api_update_comment(
 
 pub async fn handle_api_delete_comment(
     State(db): State<Database>,
+    OptionalAuthUser(auth): OptionalAuthUser,
     AxPath(id): AxPath<i64>,
 ) -> impl IntoResponse {
+    if !auth.as_ref().is_some_and(|u| u.can_moderate_comments()) {
+        return (
+            StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({
+                "code": "rest_cannot_delete",
+                "message": "Sorry, you are not allowed to delete comments."
+            })),
+        )
+            .into_response();
+    }
     match db.delete_comment(id) {
         Ok(true) => (
             StatusCode::OK,

@@ -1,7 +1,37 @@
 //! Native SEO & Streaming Sitemap.xml / Robots.txt HTTP Handlers.
 
 use crate::db::Database;
+use crate::models::DaypressPostResponse;
+use crate::templates::public::rss::xml_escape;
 use axum::{extract::State, http::header, response::IntoResponse};
+use chrono::{DateTime, NaiveDate, NaiveDateTime};
+
+/// Formats a post's modification/publish timestamp into W3C Datetime (`YYYY-MM-DDThh:mm:ss+00:00`)
+/// as required by the Sitemaps 0.9 specification and Google Search Console.
+fn format_sitemap_lastmod(post: &DaypressPostResponse) -> Option<String> {
+    for candidate in [
+        post.modified_gmt.as_str(),
+        post.modified.as_str(),
+        post.date_gmt.as_str(),
+        post.date.as_str(),
+    ] {
+        let s = candidate.trim();
+        if s.is_empty() || s.starts_with("0000") {
+            continue;
+        }
+        if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+            return Some(dt.format("%Y-%m-%dT%H:%M:%S%:z").to_string());
+        }
+        let normalized = s.replace('T', " ");
+        if let Ok(ndt) = NaiveDateTime::parse_from_str(&normalized, "%Y-%m-%d %H:%M:%S") {
+            return Some(format!("{}+00:00", ndt.format("%Y-%m-%dT%H:%M:%S")));
+        }
+        if let Ok(nd) = NaiveDate::parse_from_str(&normalized, "%Y-%m-%d") {
+            return Some(nd.format("%Y-%m-%d").to_string());
+        }
+    }
+    None
+}
 
 pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();
@@ -16,7 +46,7 @@ pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse
     // Home Page
     xml.push_str(&format!(
         "  <url><loc>{}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n",
-        base_url
+        xml_escape(base_url)
     ));
 
     for post in posts {
@@ -24,20 +54,26 @@ pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse
             continue;
         }
         if post.post_type == "post" || post.post_type == "page" {
-            let lastmod = if !post.modified.is_empty() {
-                &post.modified
-            } else {
-                &post.date
-            };
             let priority = if post.post_type == "page" {
                 "0.8"
             } else {
                 "0.6"
             };
-            xml.push_str(&format!(
-                "  <url><loc>{}/{}/</loc><lastmod>{}</lastmod><priority>{}</priority></url>\n",
-                base_url, post.slug, lastmod, priority
-            ));
+            let loc = xml_escape(&format!("{}/{}/", base_url, post.slug));
+            match format_sitemap_lastmod(&post) {
+                Some(lastmod) => {
+                    xml.push_str(&format!(
+                        "  <url><loc>{}</loc><lastmod>{}</lastmod><priority>{}</priority></url>\n",
+                        loc, lastmod, priority
+                    ));
+                }
+                None => {
+                    xml.push_str(&format!(
+                        "  <url><loc>{}</loc><priority>{}</priority></url>\n",
+                        loc, priority
+                    ));
+                }
+            }
         }
     }
 

@@ -223,6 +223,93 @@ pub struct ImportBundleRequest {
     pub forms: Vec<ImportForm>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PostFidelityItem {
+    pub title: String,
+    pub post_type: String,
+    pub builder_detected: String,
+    pub total_nodes: usize,
+    pub native_nodes: usize,
+    pub fallback_html_nodes: usize,
+    pub unresolved_shortcodes: Vec<String>,
+    pub fidelity_score_pct: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MigrationFidelitySummary {
+    pub analyzed_posts: usize,
+    pub overall_score_pct: f32,
+    pub total_ast_nodes: usize,
+    pub native_ast_nodes: usize,
+    pub fallback_ast_nodes: usize,
+    pub unresolved_shortcodes: Vec<String>,
+    pub per_post_reports: Vec<PostFidelityItem>,
+}
+
+impl MigrationFidelitySummary {
+    pub fn from_items(per_post_reports: Vec<PostFidelityItem>) -> Self {
+        let analyzed_posts = per_post_reports.len();
+        let mut total_ast_nodes = 0usize;
+        let mut native_ast_nodes = 0usize;
+        let mut fallback_ast_nodes = 0usize;
+        let mut unresolved_shortcodes = Vec::new();
+
+        for item in &per_post_reports {
+            total_ast_nodes += item.total_nodes;
+            native_ast_nodes += item.native_nodes;
+            fallback_ast_nodes += item.fallback_html_nodes;
+            for sc in &item.unresolved_shortcodes {
+                if !unresolved_shortcodes.contains(sc) {
+                    unresolved_shortcodes.push(sc.clone());
+                }
+            }
+        }
+
+        let overall_score_pct = if total_ast_nodes > 0 {
+            ((native_ast_nodes as f32 / total_ast_nodes as f32) * 1000.0).round() / 10.0
+        } else if analyzed_posts > 0 {
+            let sum: f32 = per_post_reports.iter().map(|r| r.fidelity_score_pct).sum();
+            ((sum / analyzed_posts as f32) * 10.0).round() / 10.0
+        } else {
+            100.0
+        };
+
+        Self {
+            analyzed_posts,
+            overall_score_pct,
+            total_ast_nodes,
+            native_ast_nodes,
+            fallback_ast_nodes,
+            unresolved_shortcodes,
+            per_post_reports,
+        }
+    }
+
+    pub fn analyze_bundle(req: &ImportBundleRequest) -> Self {
+        let mut items = Vec::new();
+        for p in &req.posts {
+            if matches!(
+                p.post_type.as_str(),
+                "wpcf7_contact_form" | "wpforms" | "nav_menu_item" | "attachment" | "revision"
+            ) {
+                continue;
+            }
+            let report = daypress_ast::analyze_post_fidelity(&p.content, &p.postmeta, None);
+            items.push(PostFidelityItem {
+                title: p.title.clone(),
+                post_type: p.post_type.clone(),
+                builder_detected: report.builder_detected,
+                total_nodes: report.total_nodes,
+                native_nodes: report.native_nodes,
+                fallback_html_nodes: report.fallback_html_nodes,
+                unresolved_shortcodes: report.unresolved_shortcodes,
+                fidelity_score_pct: report.fidelity_score_pct,
+            });
+        }
+        Self::from_items(items)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportBundleResponse {
     pub success: bool,
@@ -243,6 +330,8 @@ pub struct ImportBundleResponse {
     pub migrated_redirects: usize,
     #[serde(default)]
     pub converged_plugins: Vec<String>,
+    #[serde(default)]
+    pub fidelity: Option<MigrationFidelitySummary>,
     pub message: String,
 }
 
@@ -255,5 +344,7 @@ pub struct WxrImportResponse {
     pub imported_categories: usize,
     pub imported_tags: usize,
     pub imported_comments: usize,
+    #[serde(default)]
+    pub fidelity: Option<MigrationFidelitySummary>,
     pub message: String,
 }

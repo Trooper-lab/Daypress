@@ -11,11 +11,15 @@ pub mod feeds;
 pub mod maintenance;
 pub mod media;
 pub mod migration;
+#[cfg(test)]
+mod migration_tests;
 pub mod options;
 pub mod password_resets;
 pub mod plugins_seo;
 pub mod post_ast;
 pub mod posts;
+pub mod posts_write;
+pub mod revisions;
 pub mod scheduling;
 pub mod schema;
 pub mod settings_extra;

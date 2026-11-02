@@ -50,7 +50,8 @@ pub async fn handle_admin_dashboard(State(db): State<Database>) -> impl IntoResp
 pub async fn handle_admin_posts(
     State(db): State<Database>,
     Query(params): Query<AdminEditQueryParams>,
-) -> Html<String> {
+    OptionalAuthUser(auth_user): OptionalAuthUser,
+) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();
     let ptype = params
         .post_type
@@ -59,6 +60,9 @@ pub async fn handle_admin_posts(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "post".to_string());
     let ptype = ptype.as_str();
+    if ptype == "page" && auth_user.as_ref().is_some_and(|u| !u.can_edit_pages()) {
+        return axum::response::Redirect::to("/d-admin/edit").into_response();
+    }
     let posts = db
         .get_posts(ptype, Some("any"), None, 200)
         .unwrap_or_default();
@@ -75,12 +79,14 @@ pub async fn handle_admin_posts(
         ptype,
         matrix.as_ref(),
     ))
+    .into_response()
 }
 
 pub async fn handle_admin_post_new(
     State(db): State<Database>,
     Query(params): Query<AdminEditQueryParams>,
-) -> Html<String> {
+    OptionalAuthUser(auth_user): OptionalAuthUser,
+) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();
     let target_id = params.id.or(params.post);
     let existing_post = if let Some(id) = target_id {
@@ -95,6 +101,17 @@ pub async fn handle_admin_post_new(
         .or_else(|| params.post_type.as_deref().map(sanitize_key))
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "post".to_string());
+
+    if let Some(ref u) = auth_user {
+        if ptype == "page" && !u.can_edit_pages() {
+            return axum::response::Redirect::to("/d-admin/edit").into_response();
+        }
+        if let Some(ref existing) = existing_post {
+            if !u.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+                return axum::response::Redirect::to("/d-admin/edit").into_response();
+            }
+        }
+    }
 
     let pages = db
         .get_posts("page", Some("any"), None, 100)
@@ -118,6 +135,7 @@ pub async fn handle_admin_post_new(
         has_visual_layout,
         &taxonomies,
     ))
+    .into_response()
 }
 
 pub async fn handle_admin_builder(

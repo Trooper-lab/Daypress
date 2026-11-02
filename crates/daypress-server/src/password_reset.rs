@@ -239,3 +239,23 @@ pub fn reset_password_from_cli(
     }
     Ok(report)
 }
+
+/// Like [`reset_password_from_cli`], and optionally disables 2FA (`--disable-2fa`) when an
+/// administrator or user has lost both their password and their authenticator device.
+pub fn reset_password_and_2fa_from_cli(
+    db_path: &Path,
+    identifier: &str,
+    new_password: Option<&str>,
+    sign_out_everyone: bool,
+    disable_2fa: bool,
+) -> Result<PasswordResetReport, AppError> {
+    let db = Database::open_existing(db_path)?;
+    let report = db.reset_user_password(identifier, new_password)?;
+    if disable_2fa {
+        let _ = db.disable_user_2fa(report.user_id)?;
+    }
+    if sign_out_everyone {
+        db.rotate_auth_secret()?;
+    }
+    Ok(report)
+}

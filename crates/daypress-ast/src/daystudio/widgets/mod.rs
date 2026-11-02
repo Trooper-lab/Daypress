@@ -18,7 +18,7 @@ pub(crate) use crate::daystudio::styles::extract_spacing_val;
 
 use crate::daystudio::context::DaystudioContext;
 use crate::daystudio::styles::parse_spacing_obj;
-use crate::schema::{DaypressNode, NodeKind, StyleProperties};
+use crate::schema::{AccordionItem, DaypressNode, NodeKind, StyleProperties, TabItem};
 use serde_json::Value;
 
 pub(crate) fn map_daystudio_widget(
@@ -30,6 +30,88 @@ pub(crate) fn map_daystudio_widget(
 ) -> Option<NodeKind> {
     if widget_type == "form" {
         return map_form_widget(settings, styles, children, ctx);
+    }
+
+    if matches!(widget_type, "nested-tabs" | "e-tabs") {
+        let mut items = Vec::new();
+        if let Some(tabs) = settings.get("tabs").and_then(|t| t.as_array()) {
+            for (idx, tab) in tabs.iter().enumerate() {
+                let title = tab
+                    .get("tab_title")
+                    .or_else(|| tab.get("title"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Tab")
+                    .to_string();
+                let raw_content = tab
+                    .get("tab_content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let content_html = if !raw_content.trim().is_empty() {
+                    ctx.normalize_html(raw_content)
+                } else if let Some(child_node) = children.get(idx) {
+                    crate::render_node_to_html(child_node)
+                } else {
+                    String::new()
+                };
+                items.push(TabItem {
+                    title,
+                    content_html,
+                });
+            }
+        } else {
+            for (idx, child_node) in children.iter().enumerate() {
+                items.push(TabItem {
+                    title: format!("Tab {}", idx + 1),
+                    content_html: crate::render_node_to_html(child_node),
+                });
+            }
+        }
+        children.clear();
+        return Some(NodeKind::Tabs { items });
+    }
+
+    if matches!(widget_type, "nested-accordion" | "e-accordion") {
+        let mut items = Vec::new();
+        let tab_list = settings
+            .get("tabs")
+            .or_else(|| settings.get("items"))
+            .and_then(|t| t.as_array());
+        if let Some(tabs) = tab_list {
+            for (idx, tab) in tabs.iter().enumerate() {
+                let title = tab
+                    .get("tab_title")
+                    .or_else(|| tab.get("item_title"))
+                    .or_else(|| tab.get("title"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Accordion Item")
+                    .to_string();
+                let raw_content = tab
+                    .get("tab_content")
+                    .or_else(|| tab.get("item_content"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let content_html = if !raw_content.trim().is_empty() {
+                    ctx.normalize_html(raw_content)
+                } else if let Some(child_node) = children.get(idx) {
+                    crate::render_node_to_html(child_node)
+                } else {
+                    String::new()
+                };
+                items.push(AccordionItem {
+                    title,
+                    content_html,
+                });
+            }
+        } else {
+            for (idx, child_node) in children.iter().enumerate() {
+                items.push(AccordionItem {
+                    title: format!("Item {}", idx + 1),
+                    content_html: crate::render_node_to_html(child_node),
+                });
+            }
+        }
+        children.clear();
+        return Some(NodeKind::Accordion { items });
     }
 
     if let Some(kind) = map_carousel_widget(widget_type, settings, styles, ctx) {

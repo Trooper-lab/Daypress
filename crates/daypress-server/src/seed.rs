@@ -112,6 +112,7 @@ fn insert_hello_world(conn: &Connection, now: &str) -> Result<()> {
 <li><strong>Write and publish:</strong> Open the <a href="/d-admin/edit">Posts screen</a> in the admin desk to write new articles, organize categories and tags, or edit this post.</li>
 <li><strong>Design pages visually:</strong> Open <a href="/d-admin/builder?post=3">DayStudio</a> to arrange sections, grids, and blocks directly on the canvas.</li>
 <li><strong>Shape your theme:</strong> Visit the <a href="/d-admin/customize">Theme Customizer</a> or <a href="/d-admin/headers-footers">Headers &amp; Footers</a> to adjust your site title, brand accent color, typography, and navigation menus.</li>
+<li><strong>Connect AI agents &amp; publish to the edge:</strong> Open the <a href="/d-admin/getting-started">Getting Started Launchpad</a> to connect Claude Code, Codex, Cursor, or Antigravity via MCP, or open <a href="/d-admin/publish">Publish &amp; Hosting</a> to deploy a static edge build to Cloudflare Pages, Netlify, or a portable <code>.zip</code> archive.</li>
 <li><strong>Bring an existing site:</strong> Moving from WordPress? Open <a href="/d-admin/import">Tools &rarr; Import</a> to import a WXR XML file or a site bundle.</li>
 </ul>
 <!-- /wp:list -->
@@ -532,8 +533,8 @@ pub fn apply_onboarding_site_pack(
                                             "type": "Container",
                                             "styles": { "background_color": bg_card, "padding_top": "24px", "padding_bottom": "24px", "padding_left": "20px", "padding_right": "20px", "border_radius": "6px", "border": format!("1px solid {border}") },
                                             "children": [
-                                                { "id": "h_card_widgets", "type": "Heading", "data": { "text": "First Post: Hello world!", "level": 3 }, "styles": { "font_size": "20px", "text_color": ink } },
-                                                { "id": "p_card_widgets", "type": "Text", "data": { "content_html": "<p>Read your first <a href=\"/hello-world/\">Hello world!</a> article or publish new posts and pages from the Daypress admin desk.</p>" }, "styles": { "font_size": "15px", "text_color": muted, "margin_top": "8px" } }
+                                                { "id": "h_card_widgets", "type": "Heading", "data": { "text": "1-Click Edge Publish", "level": 3 }, "styles": { "font_size": "20px", "text_color": ink } },
+                                                { "id": "p_card_widgets", "type": "Text", "data": { "content_html": "<p>Read your first <a href=\"/hello-world/\">Hello world!</a> post or open <a href=\"/d-admin/publish\">Publish &amp; Hosting</a> to deploy your site to Cloudflare Pages, Netlify, or a static <code>.zip</code> bundle.</p>" }, "styles": { "font_size": "15px", "text_color": muted, "margin_top": "8px" } }
                                             ]
                                         }
                                     ]

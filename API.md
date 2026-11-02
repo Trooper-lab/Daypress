@@ -513,6 +513,23 @@ Atomically imports an entire WordPress migration bundle in a single SQLite trans
 
 ---
 
+### 3. Two-Factor Authentication (RFC 6238 TOTP & Recovery Codes)
+Accounts with 2FA enabled require a second factor during interactive login (`/login/2fa`), JWT token issuance, or primary-password HTTP Basic Auth (via the `X-Daypress-OTP` header). Application Passwords remain non-interactive for headless/MCP automation.
+
+- `GET /wp-json/daypress/v1/users/{id}/2fa/status`: Returns `{"enabled": bool, "recovery_codes_remaining": usize}`.
+- `POST /wp-json/daypress/v1/users/{id}/2fa/setup`: Generates a pending Base32 TOTP secret and `otpauth://totp/...` URI.
+- `POST /wp-json/daypress/v1/users/{id}/2fa/enable`: Verifies a 6-digit TOTP code (`{"code": "123456"}`), activates 2FA, and returns 8 single-use `XXXX-XXXX` backup recovery codes.
+- `POST /wp-json/daypress/v1/users/{id}/2fa/recovery-codes`: Regenerates 8 fresh single-use backup recovery codes.
+- `POST /wp-json/daypress/v1/users/{id}/2fa/disable`: Disables 2FA for the specified user.
+- `POST /wp-json/daypress/v1/auth/token/2fa`: Exchanges a `challenge_token` and `code` (6-digit TOTP or recovery code) for a signed Bearer JWT token.
+
+---
+
+### `POST /wp-json/daypress/v1/import/analyze`
+Dry-run **Migration Fidelity Analyzer**. Accepts a 1-Click Migration JSON bundle and returns an `AstFidelityReport` scorecard (`overall_fidelity_score_pct`, `builder_breakdown`, `unresolved_shortcodes`, and per-post fidelity scores) without mutating SQLite.
+
+---
+
 ### `POST /wp-json/daypress/v1/import-wxr`
 Streaming ingestion of standard WordPress XML export files (WXR 1.2 / Tools &rarr; Export &rarr; All content).
 Accepts either `multipart/form-data` with a `.xml` file or raw `application/xml` payloads. Employs a streaming XML parser (`quick-xml`) with near-zero memory footprint for multi-gigabyte exports.

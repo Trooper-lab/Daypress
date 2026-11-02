@@ -55,6 +55,10 @@ pub enum Command {
         /// Also sign out every user by replacing the session signing key
         #[arg(long)]
         sign_out_everyone: bool,
+
+        /// Also disable Two-Factor Authentication (2FA) on this account
+        #[arg(long)]
+        disable_2fa: bool,
     },
 }
 
@@ -82,9 +86,15 @@ async fn main() {
     if let Some(Command::ResetPassword {
         username,
         sign_out_everyone,
+        disable_2fa,
     }) = &args.command
     {
-        std::process::exit(reset_password(&args.db, username, *sign_out_everyone));
+        std::process::exit(reset_password(
+            &args.db,
+            username,
+            *sign_out_everyone,
+            *disable_2fa,
+        ));
     }
 
     if args.mcp_stdio {
@@ -109,13 +119,19 @@ async fn main() {
 }
 
 /// `daypress reset-password`; returns the process exit code.
-fn reset_password(db_path: &Path, username: &str, sign_out_everyone: bool) -> i32 {
+fn reset_password(
+    db_path: &Path,
+    username: &str,
+    sign_out_everyone: bool,
+    disable_2fa: bool,
+) -> i32 {
     let from_env = legacy::env_var(password_reset::NEW_PASSWORD_ENV).filter(|p| !p.is_empty());
-    let result = password_reset::reset_password_from_cli(
+    let result = password_reset::reset_password_and_2fa_from_cli(
         db_path,
         username,
         from_env.as_deref(),
         sign_out_everyone,
+        disable_2fa,
     );
     let report = match result {
         Ok(report) => report,
@@ -140,6 +156,12 @@ fn reset_password(db_path: &Path, username: &str, sign_out_everyone: bool) -> i3
         "Cancelled {} unused password reset link(s).",
         report.cancelled_reset_links
     );
+    if disable_2fa {
+        println!(
+            "Two-Factor Authentication (2FA) has been disabled for '{}'.",
+            report.login
+        );
+    }
     if sign_out_everyone {
         println!("Every user has been signed out.");
     } else {

@@ -237,6 +237,33 @@ pub fn render_login_view_with_notice(
     render_login_shell(settings, "Log In", &card, &links)
 }
 
+/// `/login/2fa`: Two-Factor Authentication verification step (6-digit TOTP or recovery code).
+pub fn render_login_2fa_view(
+    settings: &DaypressSettingsResponse,
+    error_message: Option<&str>,
+    redirect_to: Option<&str>,
+) -> String {
+    let target = escape_html(&crate::auth::sanitize_redirect_target(redirect_to));
+    let notice = match error_message {
+        Some(err) => LoginNotice::Error(err).to_html(),
+        None => String::new(),
+    };
+    let card = format!(
+        r#"{notice}
+		<p class="login-intro">Enter the 6-digit code from your authenticator app, or one of your single-use backup recovery codes.</p>
+		<form method="post" action="/login/2fa">
+			<input type="hidden" name="redirect_to" value="{target}" />
+			<label for="authcode">Authentication code</label>
+			<input type="text" name="authcode" id="authcode" required autofocus autocomplete="one-time-code" inputmode="text" placeholder="123456 or xxxx-xxxx" style="font-family: var(--font-mono); letter-spacing: 0.08em;" />
+			<div class="login-actions">
+				<button type="submit" class="btn-login">Verify &amp; Log in</button>
+			</div>
+		</form>"#,
+    );
+    let links = r#"<p><a href="/login">← Use a different account</a></p>"#;
+    render_login_shell(settings, "Two-Factor Authentication", &card, links)
+}
+
 /// `/login/lost-password`: asks for a username or email address.
 pub fn render_lost_password_view(
     settings: &DaypressSettingsResponse,

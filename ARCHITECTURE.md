@@ -35,44 +35,36 @@ Daypress/
 │   ├── daypress-server/          # Primary Axum server, API, SSR, Database, Native Subsystems
 │   │   ├── Cargo.toml
 │   │   ├── src/
-│   │   │   ├── main.rs           # Server entrypoint, CLI flags, graceful shutdown
+│   │   │   ├── main.rs           # Server entrypoint, CLI flags (including reset-password --disable-2fa)
 │   │   │   ├── lib.rs            # Library entrypoint exporting create_app and services
-│   │   │   ├── api.rs            # WordPress REST API v2 & Daypress v1 routes
-│   │   │   ├── auth.rs           # Nonces, Application Passwords, JWT, Axum extractors
-│   │   │   ├── media.rs          # Image resizing, metadata, WebP, on-the-fly CDN
-│   │   │   ├── wxr.rs            # Low-memory streaming WordPress XML (WXR) parser
-│   │   │   ├── db.rs             # Rusqlite persistence layer with transactional support
-│   │   │   ├── errors.rs         # Strongly typed AppError & WpErrorResponse
-│   │   │   ├── handlers.rs       # Request handlers (Public SSR, Admin, Analytics)
-│   │   │   ├── models.rs         # WordPress entity schemas & DTOs
-│   │   │   ├── email.rs          # Native transactional email engine (lettre)
-│   │   │   ├── seo.rs            # Dynamic SEO, JSON-LD, and streaming XML sitemaps
-│   │   │   ├── forms.rs          # Native declarative forms, anti-spam & webhook dispatcher
-│   │   │   ├── analytics.rs      # Cookieless analytics engine with daily rotating salt
-│   │   │   └── templates/        # Modular Server-Side Rendering submodules
-│   │   │       ├── mod.rs
-│   │   │       ├── utils.rs      # HTML escaping and content sanitization
-│   │   │       ├── public.rs     # Public frontend templates (home, single post)
-│   │   │       └── admin/        # Admin portal templates (dashboard, settings, etc.)
-│   │   ├── static/               # Bundled assets (CSS, JS bridge, builder Wasm bundle)
-│   │   └── tests/                # Automated integration tests
-│   │       ├── api_tests.rs      # HTTP integration tests via Tower Oneshot
-│   │       └── db_tests.rs       # In-memory database persistence tests
-│   ├── daypress-builder/         # WebAssembly (Leptos) Visual Drag-and-Drop Page Builder
-│   │   ├── Cargo.toml            # wasm32-unknown-unknown target
-│   │   └── src/
-│   │       ├── lib.rs            # Leptos builder root component & reactive state
-│   │       ├── canvas.rs         # 60fps drag-and-drop interactive canvas
-│   │       ├── components/       # Layout widgets (Container, Grid, Heading, Form, etc.)
-│   │       ├── inspector.rs      # Reactive property inspector & style editor
-│   │       └── js_bridge.rs      # GTM Consent Mode v2 & DOM interop bridge
-│   ├── daypress-ast/             # Page Builder Transpiler (Elementor & Divi AST parser)
+│   │   │   ├── auth.rs           # Sessions, Nonces, App Passwords, JWT, 2FA Challenge, Role Capabilities
+│   │   │   ├── totp.rs           # RFC 6238 TOTP & single-use recovery code cryptography
+│   │   │   ├── domain/           # Hexagonal Domain Models, Errors, and Repository Output Ports
+│   │   │   ├── application/      # CmsService use-case orchestration
+│   │   │   ├── adapters/         # Hexagonal Adapters (modular SQLite database & MCP server)
+│   │   │   │   ├── database/     # Modular Rusqlite repositories (posts, posts_write, post_ast, revisions, users, migration, taxonomies, comments, scheduling, etc.)
+│   │   │   │   └── mcp/          # Built-in JSON-RPC Model Context Protocol server
+│   │   │   ├── api/              # WordPress REST API v2 & Daypress v1 controllers
+│   │   │   ├── handlers/         # HTTP route handlers (Public SSR, Admin Portal, Onboarding, 2FA)
+│   │   │   ├── importer/         # Streaming WXR 1.2 & JSON bundle migration pipeline
+│   │   │   ├── theme_builder/    # Display conditions, header/footer matrix, and dynamic AST hydration
+│   │   │   ├── publisher/        # Static site & Cloudflare Pages/Workers/Vercel/Netlify edge publisher
+│   │   │   └── templates/        # Modular Server-Side Rendering & DayStudio Visual Builder
+│   │   │       ├── public/       # Zero-JS public frontend SSR templates
+│   │   │       └── admin/        # Admin portal & DayStudio Visual Builder (`builder/`, `users.rs`, `tools.rs`, etc.)
+│   │   ├── static/               # Bundled assets (fonts, icons, starter SVGs)
+│   │   └── tests/                # Automated HTTP, DB, migration, and adversarial integration tests
+│   ├── daypress-ast/             # Universal Page Builder AST Transpiler & Fidelity Analyzer
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   │       ├── lib.rs            # AST translation engine & schema normalizer
-│   │       ├── elementor.rs      # Elementor _elementor_data JSON parser & mapper
-│   │       ├── divi.rs           # Divi shortcode grammar tokenizer & AST builder
-│   │       └── schema.rs         # Canonical DaypressLayout JSON schema definitions
+│   │       ├── lib.rs            # Public crate facade & exports
+│   │       ├── fidelity.rs       # Pre-flight & post-import AST fidelity scorecard & builder dispatcher
+│   │       ├── daystudio/        # Elementor `_elementor_data` JSON AST transpiler & widget mappers
+│   │       ├── divi/             # Divi 4 shortcode & Divi 5 block AST transpiler
+│   │       ├── gutenberg/        # Gutenberg block grammar & `theme.json` v2 compiler
+│   │       ├── html_transpiler/  # Raw HTML/CSS to native AST layout transpiler
+│   │       ├── render/           # Zero-JS semantic HTML/CSS compiler & leak-firewall sanitizer
+│   │       └── schema/           # Canonical `DaypressLayout`, `DaypressNode`, `NodeKind`, `StyleProperties`
 │   ├── daypress-transpiler/      # AI Transpiler CLI verification agent
 │   │   ├── Cargo.toml
 │   │   └── src/main.rs           # Multi-attempt compilation and Golden Master testing
@@ -253,7 +245,7 @@ pub struct Database {
 Legacy WordPress relies heavily on server-rendered textareas (TinyMCE) or JavaScript-heavy block editors (Gutenberg) and monstrous third-party plugins (Elementor, Divi) that inject megabytes of bloated JavaScript and CSS. Daypress resolves this through a **Hybrid Architecture**:
 
 - **Public Frontend**: Ultra-high-speed Server-Side Rendering (SSR) via Axum. Delivers static semantic HTML/CSS generated from the canonical JSON layout with sub-millisecond TTFB ($<1\text{ms}$) and zero client runtime overhead.
-- **Editorial Experience**: A client-side WebAssembly (Wasm) Single Page Application built with **Leptos** (`crates/daypress-builder`). Runs directly in the administrator's browser at native 60fps with real-time drag-and-drop, reactive property panels, and zero server roundtrips during editing.
+- **Editorial Experience**: The built-in **DayStudio Visual Builder** (`crates/daypress-server/src/templates/admin/builder/`) runs at `/d-admin/builder` with real-time drag-and-drop, responsive breakpoint switching, box-model inspector panels, and instant dual-write persistence to `posts.layout_json` and `postmeta._daypress_layout`.
 
 ```mermaid
 sequenceDiagram
