@@ -248,6 +248,8 @@ fn daypress_v1_routes() -> Router<Database> {
         .route("/auth/nonce", get(get_auth_nonce))
         .route("/auth/token", axum::routing::post(generate_jwt_token))
         .route("/stats", get(get_db_stats))
+        .route("/cache/stats", get(get_hot_cache_stats_handler))
+        .route("/cache/purge", axum::routing::post(purge_hot_cache_handler))
         .route("/vacuum", get(vacuum_db).post(vacuum_db))
         .route("/integrity-check", get(check_integrity))
         .route(

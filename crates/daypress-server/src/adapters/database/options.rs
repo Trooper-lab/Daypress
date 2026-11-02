@@ -23,12 +23,15 @@ impl Database {
     }
 
     pub fn set_option(&self, name: &str, value: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            r#"INSERT INTO options (option_name, option_value) VALUES (?1, ?2)
-               ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;"#,
-            params![name, value],
-        )?;
+        {
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                r#"INSERT INTO options (option_name, option_value) VALUES (?1, ?2)
+                   ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value;"#,
+                params![name, value],
+            )?;
+        }
+        self.invalidate_hot_cache("option_updated");
         Ok(())
     }
 
@@ -212,6 +215,7 @@ impl Database {
                 })
                 .unwrap_or_default(),
             update_available: crate::updater::cached_available_update_version(self),
+            privacy_settings: self.get_privacy_settings().unwrap_or_default(),
         })
     }
 
@@ -306,5 +310,33 @@ impl crate::ports::output::OptionRepository for Database {
 
     fn get_stats(&self) -> DomainResult<DbStats> {
         Database::get_stats(self).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn list_forms(&self) -> DomainResult<Vec<(DaypressForm, i64)>> {
+        Database::list_forms(self).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn get_form_by_id(&self, id: i64) -> DomainResult<Option<DaypressForm>> {
+        Database::get_form(self, id).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn save_form_record(&self, req: &CreateFormRequest) -> DomainResult<i64> {
+        Database::save_form_record(self, req).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn list_form_entries_filtered(
+        &self,
+        form_id: Option<i64>,
+        status: Option<&str>,
+        search: Option<&str>,
+        limit: i64,
+    ) -> DomainResult<Vec<FormEntryItem>> {
+        Database::list_form_entries_filtered(self, form_id, status, search, limit)
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn get_analytics_dashboard(&self, range: &str) -> DomainResult<AnalyticsSummary> {
+        Database::get_analytics_dashboard(self, range)
+            .map_err(|e| DomainError::Storage(e.to_string()))
     }
 }

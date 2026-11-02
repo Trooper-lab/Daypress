@@ -589,11 +589,7 @@ pub async fn handle_api_options_permalink_save(
 
 pub async fn handle_admin_options_privacy(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
-    let privacy = db
-        .get_privacy_settings()
-        .unwrap_or(models::PrivacySettings {
-            wp_page_for_privacy_policy: 0,
-        });
+    let privacy = db.get_privacy_settings().unwrap_or_default();
     let pages = db
         .get_posts("page", Some("any"), None, 50)
         .unwrap_or_default();

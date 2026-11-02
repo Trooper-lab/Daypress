@@ -254,11 +254,53 @@ impl Database {
     }
 
     pub fn get_privacy_settings(&self) -> Result<PrivacySettings> {
+        let defaults = PrivacySettings::default();
+        let banner_opt = self.get_option("daypress_cookie_banner_enabled")?;
+        let plugin_active = self.is_plugin_active("daypress-cookie-consent");
+        let cookie_banner_enabled = match banner_opt {
+            Some(v) => v == "1" || v.eq_ignore_ascii_case("true"),
+            None => plugin_active,
+        };
         Ok(PrivacySettings {
             wp_page_for_privacy_policy: self
                 .get_option("wp_page_for_privacy_policy")?
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0),
+            cookie_banner_enabled,
+            cookie_banner_position: self
+                .get_option("daypress_cookie_banner_position")?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(defaults.cookie_banner_position),
+            cookie_banner_title: self
+                .get_option("daypress_cookie_banner_title")?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(defaults.cookie_banner_title),
+            cookie_banner_message: self
+                .get_option("daypress_cookie_banner_message")?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(defaults.cookie_banner_message),
+            cookie_accept_all_label: self
+                .get_option("daypress_cookie_accept_label")?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(defaults.cookie_accept_all_label),
+            cookie_reject_label: self
+                .get_option("daypress_cookie_reject_label")?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(defaults.cookie_reject_label),
+            cookie_manage_label: self
+                .get_option("daypress_cookie_manage_label")?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(defaults.cookie_manage_label),
+            gate_builtin_analytics: self
+                .get_option("daypress_cookie_gate_builtin_analytics")?
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false),
+            analytics_scripts_html: self
+                .get_option("daypress_cookie_analytics_scripts")?
+                .unwrap_or_default(),
+            marketing_scripts_html: self
+                .get_option("daypress_cookie_marketing_scripts")?
+                .unwrap_or_default(),
         })
     }
 
@@ -267,6 +309,39 @@ impl Database {
             "wp_page_for_privacy_policy",
             &s.wp_page_for_privacy_policy.to_string(),
         )?;
+        self.set_option(
+            "daypress_cookie_banner_enabled",
+            if s.cookie_banner_enabled { "1" } else { "0" },
+        )?;
+        let _ = self.toggle_plugin_status("daypress-cookie-consent", Some(s.cookie_banner_enabled));
+        self.set_option(
+            "daypress_cookie_banner_position",
+            s.cookie_banner_position.trim(),
+        )?;
+        self.set_option("daypress_cookie_banner_title", s.cookie_banner_title.trim())?;
+        self.set_option(
+            "daypress_cookie_banner_message",
+            s.cookie_banner_message.trim(),
+        )?;
+        self.set_option(
+            "daypress_cookie_accept_label",
+            s.cookie_accept_all_label.trim(),
+        )?;
+        self.set_option("daypress_cookie_reject_label", s.cookie_reject_label.trim())?;
+        self.set_option("daypress_cookie_manage_label", s.cookie_manage_label.trim())?;
+        self.set_option(
+            "daypress_cookie_gate_builtin_analytics",
+            if s.gate_builtin_analytics { "1" } else { "0" },
+        )?;
+        self.set_option(
+            "daypress_cookie_analytics_scripts",
+            &s.analytics_scripts_html,
+        )?;
+        self.set_option(
+            "daypress_cookie_marketing_scripts",
+            &s.marketing_scripts_html,
+        )?;
+        self.invalidate_hot_cache("privacy_settings_updated");
         Ok(())
     }
 }

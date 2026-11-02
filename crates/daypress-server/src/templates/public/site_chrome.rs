@@ -206,7 +206,7 @@ pub fn render_site_footer(
     }
 
     let brand_display = escape_html(site_name(settings));
-    let privacy_link_html = if settings.privacy_policy_page_id > 0 {
+    let mut privacy_link_html = if settings.privacy_policy_page_id > 0 {
         format!(
             r#" &bull; <a href="/?page_id={}">Privacy Policy</a>"#,
             settings.privacy_policy_page_id
@@ -214,6 +214,11 @@ pub fn render_site_footer(
     } else {
         String::new()
     };
+    if settings.privacy_settings.cookie_banner_enabled {
+        privacy_link_html.push_str(
+            r##" &bull; <a href="#cookie-preferences" onclick="if(window.daypressOpenCookiePreferences){window.daypressOpenCookiePreferences();return false;}">Cookie Preferences</a>"##,
+        );
+    }
     let footer_nav_html = if !settings.nav_menu_items.is_empty() {
         super::menus::render_footer_nav_links(&settings.nav_menu_items)
     } else {

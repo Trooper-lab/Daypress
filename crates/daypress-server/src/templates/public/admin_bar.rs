@@ -248,6 +248,11 @@ pub fn render_admin_bar(
                             </a>
                         </li>
                         <li>
+                            <a class="ab-item" href="#" onclick="event.preventDefault();fetch('/wp-json/daypress/v1/cache/purge',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:'{{}}'}}).then(()=>{{this.innerHTML='<span>&#10003; Cache Purged</span>';setTimeout(()=>location.reload(),350);}});" title="Purge In-Memory SSR Hot Cache &amp; Edge CDN">
+                                <span>&#9889; Purge Cache</span>
+                            </a>
+                        </li>
+                        <li>
                             <a class="ab-item" href="/d-admin/update-core" title="Updates">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                                 <span>0</span>

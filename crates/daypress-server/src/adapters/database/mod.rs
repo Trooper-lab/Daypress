@@ -40,6 +40,10 @@ pub struct Database {
     pub(crate) login_throttle: crate::auth::LoginThrottle,
     /// "Lost your password?" request counter, kept apart so reset requests never lock out logins.
     pub(crate) password_reset_throttle: crate::auth::LoginThrottle,
+    /// Pre-compressed in-memory SSR hot cache (`<50µs` P99 latency) shared across all worker threads.
+    pub(crate) hot_cache: Arc<crate::hot_cache::SsrHotCache>,
+    /// Per-form sliding-window IP rate limiter for FormStudio submissions.
+    pub(crate) form_rate_limiter: Arc<crate::hot_cache::FormRateLimiter>,
 }
 
 impl Database {
@@ -49,6 +53,75 @@ impl Database {
 
     pub fn db_path_display(&self) -> String {
         self.db_path.display().to_string()
+    }
+
+    /// Invalidates all entries in the in-memory SSR hot cache and triggers an asynchronous
+    /// Cloudflare Zone cache purge if `daypress_cf_zone_id` and `daypress_cf_api_token` are configured.
+    pub fn invalidate_hot_cache(&self, reason: &str) -> usize {
+        let cleared = self.hot_cache.invalidate_all(reason);
+        // Check if Cloudflare Zone purge credentials are set without holding a write lock
+        let cf_creds = if let Ok(conn) = self.conn.lock() {
+            let zone_id: Option<String> = conn
+                .query_row(
+                    "SELECT option_value FROM options WHERE option_name = 'daypress_cf_zone_id'",
+                    [],
+                    |r| r.get(0),
+                )
+                .ok()
+                .filter(|s: &String| !s.trim().is_empty());
+            let api_token: Option<String> = conn
+                .query_row(
+                    "SELECT option_value FROM options WHERE option_name = 'daypress_cf_api_token'",
+                    [],
+                    |r| r.get(0),
+                )
+                .ok()
+                .filter(|s: &String| !s.trim().is_empty());
+            match (zone_id, api_token) {
+                (Some(z), Some(t)) => Some((z, t)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some((zone_id, api_token)) = cf_creds {
+            if tokio::runtime::Handle::try_current().is_ok() {
+                tokio::spawn(async move {
+                    let url = format!(
+                        "https://api.cloudflare.com/client/v4/zones/{}/purge_cache",
+                        zone_id.trim()
+                    );
+                    let client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(5))
+                        .build()
+                        .unwrap_or_default();
+                    let _ = client
+                        .post(&url)
+                        .bearer_auth(api_token.trim())
+                        .json(&serde_json::json!({ "purge_everything": true }))
+                        .send()
+                        .await;
+                });
+            }
+        }
+        cleared
+    }
+
+    pub fn hot_cache_stats(&self) -> crate::hot_cache::HotCacheStats {
+        let cf_configured = self
+            .get_option("daypress_cf_zone_id")
+            .ok()
+            .flatten()
+            .filter(|s| !s.trim().is_empty())
+            .is_some()
+            && self
+                .get_option("daypress_cf_api_token")
+                .ok()
+                .flatten()
+                .filter(|s| !s.trim().is_empty())
+                .is_some();
+        self.hot_cache.stats(cf_configured)
     }
 }
 

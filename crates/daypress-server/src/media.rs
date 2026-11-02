@@ -262,6 +262,9 @@ pub async fn handle_serve_media(AxPath(path_str): AxPath<String>) -> Result<Resp
     if clean_path.is_empty() || clean_path.contains('\0') {
         return Err(StatusCode::BAD_REQUEST);
     }
+    if clean_path == "form-submissions" || clean_path.starts_with("form-submissions/") {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let rel_path = Path::new(&clean_path);
     if rel_path.components().any(|c| {
         matches!(

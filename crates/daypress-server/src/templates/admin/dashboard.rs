@@ -183,6 +183,27 @@ pub fn render_dashboard_view(
                     </div>
                 </div>
 
+                <div class="day-card">
+                    <div class="day-card-header">
+                        <h2 class="day-card-title">v0.4 Growth &amp; Compliance Suite</h2>
+                        <span class="badge badge-published">Zero Plugins</span>
+                    </div>
+                    <div class="day-card-body" style="display: flex; flex-direction: column; gap: 10px;">
+                        <a href="/d-admin/analytics" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
+                            <span>📊 Cookieless Analytics Dashboard</span>
+                            <span>&rarr;</span>
+                        </a>
+                        <a href="/d-admin/forms" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
+                            <span>📋 FormStudio &amp; Submissions Vault</span>
+                            <span>&rarr;</span>
+                        </a>
+                        <a href="/d-admin/options-privacy" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
+                            <span>🛡️ GDPR Cookie Consent Banner</span>
+                            <span>&rarr;</span>
+                        </a>
+                    </div>
+                </div>
+
             </div>
         </div>
 

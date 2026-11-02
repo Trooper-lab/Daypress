@@ -30,8 +30,24 @@ fn term_archive_response(
     kind: TermArchive,
     slug: &str,
     page: usize,
+    headers: &HeaderMap,
     user: Option<&crate::auth::AuthUser>,
 ) -> Response {
+    let base_prefix = match kind {
+        TermArchive::Category => "category",
+        TermArchive::Tag => "tag",
+        TermArchive::Author => "author",
+    };
+    let cache_key = if page <= 1 {
+        format!("/{}/{}/", base_prefix, slug.trim_matches('/'))
+    } else {
+        format!("/{}/{}/page/{}/", base_prefix, slug.trim_matches('/'), page)
+    };
+    if user.is_none() && page >= 1 {
+        if let Some(hit) = db.hot_cache.try_serve(&cache_key, headers) {
+            return hit;
+        }
+    }
     let settings = db.get_settings().unwrap_or_default();
     let (base, found) = match kind {
         TermArchive::Category => {
@@ -96,19 +112,20 @@ fn term_archive_response(
         if (1..=total_pages).contains(&page) {
             let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, &settings);
             let nav = templates::pagination::render_pagination(&base_path, page, total_pages);
-            return (
-                StatusCode::OK,
-                Html(templates::render_archive_page_paginated(
-                    &title,
-                    &subtitle,
-                    page_posts,
-                    &settings,
-                    user,
-                    Some(&partials),
-                    &nav,
-                )),
-            )
-                .into_response();
+            let html = templates::render_archive_page_paginated(
+                &title,
+                &subtitle,
+                page_posts,
+                &settings,
+                user,
+                Some(&partials),
+                &nav,
+            );
+            let final_html =
+                crate::plugins::inject_plugin_hooks_into_html(db, &settings, None, html);
+            return db
+                .hot_cache
+                .store_and_serve(&cache_key, headers, user.is_some(), final_html);
         }
     }
     let req_ctx = RequestContext::for_404(&base_path);
@@ -128,57 +145,98 @@ pub async fn handle_category_archive(
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
     Query(q): Query<PagedQuery>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
-    term_archive_response(&db, TermArchive::Category, &slug, q.page(), user.as_ref())
+    term_archive_response(
+        &db,
+        TermArchive::Category,
+        &slug,
+        q.page(),
+        &headers,
+        user.as_ref(),
+    )
 }
 
 pub async fn handle_category_archive_paged(
     State(db): State<Database>,
     AxPath((slug, raw_page)): AxPath<(String, String)>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
     // Non-numeric pages fall through to page 0, which renders the 404.
     let page = super::parse_page_segment(&raw_page).unwrap_or(0);
-    term_archive_response(&db, TermArchive::Category, &slug, page, user.as_ref())
+    term_archive_response(
+        &db,
+        TermArchive::Category,
+        &slug,
+        page,
+        &headers,
+        user.as_ref(),
+    )
 }
 
 pub async fn handle_tag_archive(
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
     Query(q): Query<PagedQuery>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
-    term_archive_response(&db, TermArchive::Tag, &slug, q.page(), user.as_ref())
+    term_archive_response(
+        &db,
+        TermArchive::Tag,
+        &slug,
+        q.page(),
+        &headers,
+        user.as_ref(),
+    )
 }
 
 pub async fn handle_tag_archive_paged(
     State(db): State<Database>,
     AxPath((slug, raw_page)): AxPath<(String, String)>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
     // Non-numeric pages fall through to page 0, which renders the 404.
     let page = super::parse_page_segment(&raw_page).unwrap_or(0);
-    term_archive_response(&db, TermArchive::Tag, &slug, page, user.as_ref())
+    term_archive_response(&db, TermArchive::Tag, &slug, page, &headers, user.as_ref())
 }
 
 pub async fn handle_author_archive(
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
     Query(q): Query<PagedQuery>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
-    term_archive_response(&db, TermArchive::Author, &slug, q.page(), user.as_ref())
+    term_archive_response(
+        &db,
+        TermArchive::Author,
+        &slug,
+        q.page(),
+        &headers,
+        user.as_ref(),
+    )
 }
 
 pub async fn handle_author_archive_paged(
     State(db): State<Database>,
     AxPath((slug, raw_page)): AxPath<(String, String)>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
     // Non-numeric pages fall through to page 0, which renders the 404.
     let page = super::parse_page_segment(&raw_page).unwrap_or(0);
-    term_archive_response(&db, TermArchive::Author, &slug, page, user.as_ref())
+    term_archive_response(
+        &db,
+        TermArchive::Author,
+        &slug,
+        page,
+        &headers,
+        user.as_ref(),
+    )
 }
 
 pub async fn handle_search_page(
@@ -288,6 +346,12 @@ pub async fn handle_cpt_single(
         return (status, resp_headers, Html(String::new())).into_response();
     }
 
+    if user.is_none() {
+        if let Some(hit) = db.hot_cache.try_serve(&req_path, &headers) {
+            return hit;
+        }
+    }
+
     let settings = db.get_settings().unwrap_or_default();
     if let Some(mut post) = db
         .get_post_by_slug(clean_slug)
@@ -302,7 +366,12 @@ pub async fn handle_cpt_single(
                 .trim_start()
                 .starts_with("<!DOCTYPE html")
         {
-            return (StatusCode::OK, Html(post.content.rendered)).into_response();
+            return db.hot_cache.store_and_serve(
+                &req_path,
+                &headers,
+                user.is_some(),
+                post.content.rendered,
+            );
         }
         let layout_json = db.get_post_layout(post.id).unwrap_or(None);
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
@@ -327,16 +396,11 @@ pub async fn handle_cpt_single(
             layout_json.as_deref(),
             Some(&partials),
         );
-        return (
-            StatusCode::OK,
-            Html(crate::plugins::inject_plugin_hooks_into_html(
-                &db,
-                &settings,
-                Some(&post),
-                html,
-            )),
-        )
-            .into_response();
+        let final_html =
+            crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
+        return db
+            .hot_cache
+            .store_and_serve(&req_path, &headers, user.is_some(), final_html);
     }
 
     if let Some(resp) = super::taxonomy_archive_render::try_handle_taxonomy_archive(

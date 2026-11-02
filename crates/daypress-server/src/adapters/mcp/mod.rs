@@ -215,6 +215,76 @@ pub fn mcp_tools_manifest() -> Value {
                         "local_export_dir": { "type": "string", "description": "Optional local export folder path when provider is 'local'" }
                     }
                 }
+            },
+            {
+                "name": "daypress_list_forms",
+                "description": "List all FormStudio forms in Daypress with their field schemas, multi-step settings, and submission counts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "daypress_get_form",
+                "description": "Retrieve a single FormStudio form by numeric ID.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["id"],
+                    "properties": {
+                        "id": { "type": "integer", "description": "Numeric form ID" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_create_form",
+                "description": "Create a new FormStudio form with a JSON array of fields (`FormFieldSchema`) and optional `FormSettings` JSON.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["title", "fields"],
+                    "properties": {
+                        "title": { "type": "string" },
+                        "fields": { "type": "array", "description": "Array of FormFieldSchema objects" },
+                        "settings": { "type": "object", "description": "Optional FormSettings object" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_update_form",
+                "description": "Update an existing FormStudio form's title, fields array, or settings object by ID.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["id"],
+                    "properties": {
+                        "id": { "type": "integer" },
+                        "title": { "type": "string" },
+                        "fields": { "type": "array" },
+                        "settings": { "type": "object" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_list_form_submissions",
+                "description": "Query the FormStudio Submissions Vault with optional form_id, status ('unread', 'read', 'spam', 'trash', 'all'), search, and starred filters.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "form_id": { "type": "integer" },
+                        "status": { "type": "string", "default": "all" },
+                        "search": { "type": "string" },
+                        "starred_only": { "type": "boolean", "default": false },
+                        "limit": { "type": "integer", "default": 50 }
+                    }
+                }
+            },
+            {
+                "name": "daypress_get_analytics",
+                "description": "Retrieve the Plausible-style Cookieless Analytics dashboard summary (pageviews, unique visitors, bounce rate, time-series, top pages, referrers, UTM campaigns, devices, countries, and conversions).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "range": { "type": "string", "default": "30d", "description": "Date range ('today', '7d', '30d', '90d', '12m', or 'all')" }
+                    }
+                }
             }
         ]
     })
@@ -595,6 +665,109 @@ fn dispatch_tool_call(
                 "trigger_endpoint": "POST /wp-json/daypress/v1/publish/run",
                 "admin_ui": "/d-admin/publish"
             }))
+        }
+        "daypress_list_forms" => {
+            let forms = service.options_repo().list_forms()?;
+            let items: Vec<Value> = forms
+                .into_iter()
+                .map(|(f, entry_count)| {
+                    json!({
+                        "id": f.id,
+                        "title": f.title,
+                        "schema_json": f.schema_json,
+                        "settings_json": f.settings_json,
+                        "entry_count": entry_count,
+                        "created_at": f.created_at,
+                        "updated_at": f.updated_at
+                    })
+                })
+                .collect();
+            Ok(Value::Array(items))
+        }
+        "daypress_get_form" => {
+            let id = args
+                .get("id")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| DomainError::Validation("'id' is required".into()))?;
+            let form = service
+                .options_repo()
+                .get_form_by_id(id)?
+                .ok_or_else(|| DomainError::NotFound(format!("Form #{id} not found")))?;
+            Ok(serde_json::to_value(form).unwrap_or(Value::Null))
+        }
+        "daypress_create_form" => {
+            let req: crate::domain::models::CreateFormRequest = serde_json::from_value(args)
+                .map_err(|e| DomainError::Validation(format!("Invalid create_form args: {e}")))?;
+            let id = service.options_repo().save_form_record(&req)?;
+            let created = service.options_repo().get_form_by_id(id)?;
+            Ok(json!({
+                "status": "created",
+                "id": id,
+                "shortcode": format!("[daypress_form id=\"{id}\"]"),
+                "form": created
+            }))
+        }
+        "daypress_update_form" => {
+            let id = args
+                .get("id")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| DomainError::Validation("'id' is required".into()))?;
+            let existing = service
+                .options_repo()
+                .get_form_by_id(id)?
+                .ok_or_else(|| DomainError::NotFound(format!("Form #{id} not found")))?;
+            let title = args
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or(&existing.title)
+                .to_string();
+            let fields: Vec<crate::domain::models::FormFieldSchema> =
+                if let Some(f) = args.get("fields") {
+                    serde_json::from_value(f.clone()).unwrap_or_default()
+                } else {
+                    serde_json::from_str(&existing.schema_json).unwrap_or_default()
+                };
+            let settings: crate::domain::models::FormSettings =
+                if let Some(s) = args.get("settings") {
+                    serde_json::from_value(s.clone()).unwrap_or_default()
+                } else {
+                    serde_json::from_str(&existing.settings_json).unwrap_or_default()
+                };
+            let saved_id = service.options_repo().save_form_record(
+                &crate::domain::models::CreateFormRequest {
+                    id: Some(id),
+                    title,
+                    fields,
+                    settings,
+                },
+            )?;
+            Ok(json!({ "status": "updated", "id": saved_id }))
+        }
+        "daypress_list_form_submissions" => {
+            let form_id = args.get("form_id").and_then(Value::as_i64);
+            let mut status = args.get("status").and_then(Value::as_str);
+            let starred_only = args
+                .get("starred_only")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            if starred_only {
+                status = Some("starred");
+            }
+            let search = args.get("search").and_then(Value::as_str);
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_i64)
+                .unwrap_or(50)
+                .clamp(1, 500);
+            let entries = service
+                .options_repo()
+                .list_form_entries_filtered(form_id, status, search, limit)?;
+            Ok(serde_json::to_value(entries).unwrap_or(Value::Null))
+        }
+        "daypress_get_analytics" => {
+            let range = args.get("range").and_then(Value::as_str).unwrap_or("30d");
+            let summary = service.options_repo().get_analytics_dashboard(range)?;
+            Ok(serde_json::to_value(summary).unwrap_or(Value::Null))
         }
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"

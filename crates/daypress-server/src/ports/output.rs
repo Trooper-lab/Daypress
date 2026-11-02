@@ -60,12 +60,34 @@ pub trait TaxonomyRepository: Send + Sync {
     fn delete_term(&self, taxonomy: &str, id: i64) -> DomainResult<bool>;
 }
 
-/// Output port for WordPress Options (`options`) and Site Settings.
+/// Output port for WordPress Options (`options`), Site Settings, FormStudio, and Analytics.
 pub trait OptionRepository: Send + Sync {
     fn get_option(&self, name: &str) -> DomainResult<Option<String>>;
     fn set_option(&self, name: &str, value: &str) -> DomainResult<()>;
     fn get_settings(&self) -> DomainResult<DaypressSettingsResponse>;
     fn get_stats(&self) -> DomainResult<DbStats>;
+
+    fn list_forms(&self) -> DomainResult<Vec<(DaypressForm, i64)>> {
+        Ok(vec![])
+    }
+    fn get_form_by_id(&self, _id: i64) -> DomainResult<Option<DaypressForm>> {
+        Ok(None)
+    }
+    fn save_form_record(&self, _req: &CreateFormRequest) -> DomainResult<i64> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn list_form_entries_filtered(
+        &self,
+        _form_id: Option<i64>,
+        _status: Option<&str>,
+        _search: Option<&str>,
+        _limit: i64,
+    ) -> DomainResult<Vec<FormEntryItem>> {
+        Ok(vec![])
+    }
+    fn get_analytics_dashboard(&self, _range: &str) -> DomainResult<AnalyticsSummary> {
+        Ok(AnalyticsSummary::default())
+    }
 }
 
 /// Output port for WordPress Comments (`comments`).

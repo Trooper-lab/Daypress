@@ -65,7 +65,8 @@ pub fn render_plugins_view(
 
         let (settings_url, settings_label) = match record.manifest.slug.as_str() {
             "daypress-seo" => ("/d-admin/seo", "SEO Studio & Redirects"),
-            "daypress-forms" => ("/d-admin/forms", "Forms Studio & Inbox"),
+            "daypress-forms" => ("/d-admin/forms", "FormStudio & Vault"),
+            "daypress-cookie-consent" => ("/d-admin/options-privacy", "Privacy & Consent"),
             "daypress-backups" => ("/d-admin/backups", "Snapshots & Backups"),
             "daypress-wal-optimizer" => ("/d-admin/daypress-engine", "Engine Telemetry"),
             "webp-image-engine" => ("/d-admin/options-media", "Media Settings"),
@@ -1117,12 +1118,23 @@ pub fn render_seo_view(
     render_admin_shell("seo", "SEO & Redirects", &body, settings)
 }
 
-// 6. Daypress Forms Studio & Submissions Inbox (/d-admin/forms)
+// 6. Daypress FormStudio & Submissions Vault (/d-admin/forms)
 pub fn render_forms_view(
     settings: &DaypressSettingsResponse,
     forms: &[(DaypressForm, i64)],
     entries: &[FormEntryItem],
     selected_form_id: Option<i64>,
+) -> String {
+    render_forms_view_with_filters(settings, forms, entries, selected_form_id, "all", "")
+}
+
+pub fn render_forms_view_with_filters(
+    settings: &DaypressSettingsResponse,
+    forms: &[(DaypressForm, i64)],
+    entries: &[FormEntryItem],
+    selected_form_id: Option<i64>,
+    status_filter: &str,
+    search_query: &str,
 ) -> String {
     let active_form = selected_form_id
         .and_then(|id| forms.iter().find(|(f, _)| f.id == id).map(|(f, _)| f))
@@ -1147,8 +1159,9 @@ pub fn render_forms_view(
                     <code style="background:var(--paper-sunk);padding:2px 6px;border-radius:4px;font-family:var(--font-mono);font-size:12px;">[daypress_form id="{id}"]</code>
                 </td>
                 <td>{field_count} fields &bull; {entry_count} entries</td>
-                <td>
+                <td style="display:flex;gap:6px;">
                     <a href="/d-admin/forms?form_id={id}" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;">Edit</a>
+                    <button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11.5px;" onclick="deleteForm({id})">&times;</button>
                 </td>
             </tr>"#,
             row_bg = row_bg,
@@ -1159,30 +1172,33 @@ pub fn render_forms_view(
         ));
     }
 
-    let (edit_id, edit_title, edit_submit, edit_success, edit_email, edit_fields_json) =
-        if let Some(f) = active_form {
-            let parsed_fields: Vec<FormFieldSchema> =
-                serde_json::from_str(&f.schema_json).unwrap_or_default();
-            let parsed_settings: FormSettings =
-                serde_json::from_str(&f.settings_json).unwrap_or_default();
-            (
-                f.id,
-                escape_html(&f.title),
-                escape_html(&parsed_settings.submit_label),
-                escape_html(&parsed_settings.success_message),
-                escape_html(&parsed_settings.recipient_email),
-                serde_json::to_string_pretty(&parsed_fields).unwrap_or_else(|_| "[]".to_string()),
-            )
-        } else {
-            (
-                0,
-                "Contact Form".to_string(),
-                "Send Message".to_string(),
-                "Thank you! Your message has been received.".to_string(),
-                "".to_string(),
-                "[]".to_string(),
-            )
-        };
+    let (edit_id, edit_title, parsed_settings, edit_fields_json) = if let Some(f) = active_form {
+        let parsed_fields: Vec<FormFieldSchema> =
+            serde_json::from_str(&f.schema_json).unwrap_or_default();
+        let ps: FormSettings = serde_json::from_str(&f.settings_json).unwrap_or_default();
+        (
+            f.id,
+            escape_html(&f.title),
+            ps,
+            serde_json::to_string_pretty(&parsed_fields).unwrap_or_else(|_| "[]".to_string()),
+        )
+    } else {
+        (
+            0,
+            "Contact Form".to_string(),
+            FormSettings::default(),
+            "[]".to_string(),
+        )
+    };
+
+    let auto_resp_checked = if parsed_settings.auto_responder_enabled {
+        "checked"
+    } else {
+        ""
+    };
+    let step_titles_csv = escape_html(&parsed_settings.step_titles.join(", "));
+    let cond_routes_json = serde_json::to_string_pretty(&parsed_settings.conditional_routes)
+        .unwrap_or_else(|_| "[]".to_string());
 
     let mut entries_rows = String::new();
     for e in entries {
@@ -1202,59 +1218,149 @@ pub fn render_forms_view(
                 }
             }
         }
-        let summary_html = if pairs.is_empty() {
+        let mut summary_html = if pairs.is_empty() {
             escape_html(&e.data_json)
         } else {
             pairs.join(" &bull; ")
         };
 
+        if !e.attachments.is_empty() {
+            let mut att_links = Vec::new();
+            for att in &e.attachments {
+                let fn_esc = escape_html(&att.filename);
+                att_links.push(format!(
+                    r#"<a href="/d-admin/forms/attachment/{eid}/{fn_esc}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:var(--press-wash);color:var(--press);padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:600;text-decoration:none;">&#128206; {fn_esc}</a>"#,
+                    eid = e.id,
+                    fn_esc = fn_esc
+                ));
+            }
+            summary_html.push_str(&format!(
+                r#"<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">{}</div>"#,
+                att_links.join("")
+            ));
+        }
+
+        let star_char = if e.is_starred { "★" } else { "☆" };
+        let star_color = if e.is_starred {
+            "#f59e0b"
+        } else {
+            "var(--ink-muted)"
+        };
+
+        let status_badge = match e.status.as_str() {
+            "unread" => {
+                r#"<span class="badge" style="background:var(--press-wash);color:var(--press);font-size:11px;">Unread</span>"#
+            }
+            "spam" => {
+                r#"<span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:11px;">Spam</span>"#
+            }
+            "trash" => r#"<span class="badge badge-draft" style="font-size:11px;">Trash</span>"#,
+            _ => r#"<span class="badge badge-published" style="font-size:11px;">Read</span>"#,
+        };
+
+        let email_badge = match e.email_status.as_str() {
+            "sent" => {
+                r#"<span class="badge badge-published" style="font-size:11px;">✓ Sent</span>"#
+                    .to_string()
+            }
+            "failed" => format!(
+                r#"<span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:11px;" title="{}">✕ Failed</span>"#,
+                escape_html(e.email_error.as_deref().unwrap_or(""))
+            ),
+            "queued" => r#"<span class="badge badge-draft" style="font-size:11px;">Queued</span>"#
+                .to_string(),
+            _ => r#"<span style="font-size:11.5px;color:var(--ink-muted);">Disabled</span>"#
+                .to_string(),
+        };
+
         entries_rows.push_str(&format!(
             r#"<tr id="entry-row-{id}">
-                <td style="font-family:var(--font-mono);">#{id}</td>
-                <td>Form #{form_id}</td>
+                <td style="width:36px;text-align:center;">
+                    <button type="button" onclick="toggleEntryStar({id})" style="background:none;border:none;cursor:pointer;font-size:16px;color:{star_color};" title="Star entry">{star_char}</button>
+                </td>
+                <td style="font-family:var(--font-mono);font-size:12px;">#{id}<div style="font-size:11px;color:var(--ink-muted);">Form #{form_id}</div></td>
+                <td>{status_badge}</td>
                 <td style="font-size:13px;line-height:1.5;">{summary_html}</td>
+                <td>{email_badge}</td>
                 <td style="font-size:12px;color:var(--ink-muted);">{created_at}</td>
-                <td>
+                <td style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button type="button" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;" onclick="retryEntryEmail({id})" title="Re-send Admin &amp; Auto-Responder Email">↻ Retry Email</button>
+                    <select onchange="updateEntryStatus({id}, this.value)" class="form-select" style="width:auto;padding:2px 6px;font-size:11.5px;">
+                        <option value="">Move to...</option>
+                        <option value="read">Mark Read</option>
+                        <option value="unread">Mark Unread</option>
+                        <option value="spam">Spam</option>
+                        <option value="trash">Trash</option>
+                    </select>
                     <button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11.5px;" onclick="deleteFormEntry({id})">Delete</button>
                 </td>
             </tr>"#,
             id = e.id,
             form_id = e.form_id,
+            star_color = star_color,
+            star_char = star_char,
+            status_badge = status_badge,
             summary_html = summary_html,
+            email_badge = email_badge,
             created_at = escape_html(&e.created_at)
         ));
     }
     if entries.is_empty() {
-        entries_rows = r#"<tr><td colspan="5" style="text-align:center;color:var(--ink-muted);padding:24px;">No form submissions received yet. Submit a form on any public page to view entries here.</td></tr>"#.to_string();
+        entries_rows = r#"<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:24px;">No form submissions found in this view.</td></tr>"#.to_string();
     }
+
+    let filter_tab = |st: &str, label: &str| -> String {
+        let active = status_filter == st;
+        let style = if active {
+            "background:var(--ink);color:var(--paper-raised);"
+        } else {
+            ""
+        };
+        let fid_q = selected_form_id
+            .map(|id| format!("form_id={}&", id))
+            .unwrap_or_default();
+        format!(
+            r#"<a href="/d-admin/forms?{fid_q}status={st}" class="btn btn-secondary" style="padding:5px 11px;font-size:12px;text-decoration:none;{style}">{label}</a>"#
+        )
+    };
+    let status_tabs = format!(
+        "{}{}{}{}{}{}",
+        filter_tab("all", "Inbox (Active)"),
+        filter_tab("unread", "Unread"),
+        filter_tab("starred", "★ Starred"),
+        filter_tab("failed_email", "⚠ Failed Email"),
+        filter_tab("spam", "Spam Quarantine"),
+        filter_tab("trash", "Trash"),
+    );
 
     let body = format!(
         r##"
         <div class="page-header">
             <div>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <h1 class="page-title">Daypress Forms Studio</h1>
-                    <span class="badge badge-published">CF7 / WPForms / Ninja Forms Parity</span>
+                    <h1 class="page-title">Daypress FormStudio &amp; Submissions Vault</h1>
+                    <span class="badge badge-published">WPForms / Gravity Forms / CF7 Parity</span>
                 </div>
-                <p class="page-subtitle">Build high-conversion forms, embed via <code>[daypress_form id="X"]</code>, and inspect honeypot-protected SQLite submissions</p>
+                <p class="page-subtitle">Visual multi-step form builder, conditional logic, visitor file uploads, anti-spam quarantine, and fail-safe SQLite Submissions Vault</p>
             </div>
             <div style="display:flex;gap:10px;">
-                <a href="/d-admin/api/forms/export-csv" class="btn btn-secondary">⬇ Export Submissions (.csv)</a>
+                <a href="/d-admin/api/forms/export-csv" class="btn btn-secondary">⬇ Export CSV</a>
+                <a href="/d-admin/api/forms/export-json" class="btn btn-secondary">⬇ Export JSON</a>
                 <button type="button" class="btn btn-primary" onclick="createNewForm()">+ New Form</button>
             </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:24px;margin-bottom:24px;">
-            <!-- Forms List -->
-            <div class="day-card" style="padding:24px;">
-                <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:12px;">Configured Forms</h3>
+        <div style="display:grid;grid-template-columns:360px 1fr;gap:24px;margin-bottom:24px;align-items:start;">
+            <!-- Left: Configured Forms List -->
+            <div class="day-card" style="padding:20px;">
+                <h3 style="font-size:15px;font-weight:700;color:var(--ink);margin:0 0 12px 0;">Configured Forms</h3>
                 <div class="day-table-wrapper">
                     <table class="day-table">
                         <thead>
                             <tr>
-                                <th>Form Title</th>
+                                <th>Form</th>
                                 <th>Shortcode</th>
-                                <th>Fields</th>
+                                <th>Stats</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -1265,40 +1371,136 @@ pub fn render_forms_view(
                 </div>
             </div>
 
-            <!-- Form Schema Editor -->
+            <!-- Right: Visual Field & Step Builder + Notifications & Anti-Spam -->
             <div class="day-card" style="padding:24px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                    <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin:0;">Edit Form <span id="formEditBadge">#{edit_id}</span></h3>
-                    <code style="background:var(--press-wash);color:var(--press);padding:3px 8px;border-radius:4px;font-family:var(--font-mono);font-size:12px;">[daypress_form id="{edit_id}"]</code>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin:0;">FormStudio Builder <span id="formEditBadge">#{edit_id}</span></h3>
+                        <span style="font-size:12px;color:var(--ink-muted);">Embed anywhere via shortcode <code style="background:var(--press-wash);color:var(--press);padding:2px 6px;border-radius:4px;">[daypress_form id="{edit_id}"]</code> or the Daystudio Form block</span>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveCurrentForm()">Save Form to SQLite</button>
                 </div>
                 <input type="hidden" id="form_id" value="{edit_id}" />
 
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <div class="form-group">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
                         <label class="form-label">Form Title</label>
                         <input type="text" id="form_title" class="form-input" value="{edit_title}" />
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" style="margin:0;">
                         <label class="form-label">Submit Button Label</label>
                         <input type="text" id="form_submit_label" class="form-input" value="{edit_submit}" />
                     </div>
-                </div>
-
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <div class="form-group">
-                        <label class="form-label">Notification Recipient Email</label>
-                        <input type="email" id="form_recipient_email" class="form-input" value="{edit_email}" placeholder="admin@example.com" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Success Confirmation Message</label>
-                        <input type="text" id="form_success_msg" class="form-input" value="{edit_success}" />
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Multi-Step Titles (comma-separated)</label>
+                        <input type="text" id="form_step_titles" class="form-input" value="{step_titles_csv}" placeholder="Step 1: Contact, Step 2: Project Details" />
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Fields Schema JSON (<code>name</code>, <code>label</code>, <code>field_type</code>, <code>required</code>, <code>placeholder</code>)</label>
-                    <textarea id="form_fields_json" rows="7" class="form-textarea" style="font-family:var(--font-mono);font-size:12px;">{edit_fields_json}</textarea>
+                <!-- Visual Field Palette & Canvas -->
+                <div style="border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;background:var(--paper-raised);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                        <strong style="font-size:13.5px;color:var(--ink);">Visual Field &amp; Step Designer</strong>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('text')">+ Text</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('email')">+ Email</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('tel')">+ Phone</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('textarea')">+ Textarea</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('select')">+ Select</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('radio')">+ Radio</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('checkbox_group')">+ Checkboxes</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('file')">+ File Upload</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('calculated')">+ Calculated</button>
+                            <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11.5px;" onclick="addVisualField('consent')">+ GDPR Consent</button>
+                        </div>
+                    </div>
+                    <div id="visualFieldsList" style="display:flex;flex-direction:column;gap:8px;"></div>
                 </div>
+
+                <!-- Advanced Settings Accordion / Grid -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:14px;">
+                        <h4 style="font-size:13.5px;font-weight:700;margin:0 0 10px 0;">Admin Notification &amp; Confirmation</h4>
+                        <div class="form-group">
+                            <label class="form-label">Admin Recipient Email(s)</label>
+                            <input type="text" id="form_recipient_email" class="form-input" value="{edit_email}" placeholder="sales@example.com, support@example.com" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email Subject Template (Supports <code>{{{{field}}}}</code>, <code>{{{{form_title}}}}</code>)</label>
+                            <input type="text" id="form_email_subject" class="form-input" value="{email_subj}" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Success Message</label>
+                            <input type="text" id="form_success_msg" class="form-input" value="{edit_success}" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Optional Redirect URL after Submit</label>
+                            <input type="text" id="form_redirect_url" class="form-input" value="{redirect_url}" placeholder="/thank-you/" />
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label">Outbound Webhook URL (JSON POST)</label>
+                            <input type="text" id="form_webhook_url" class="form-input" value="{webhook_url}" placeholder="https://hooks.zapier.com/..." />
+                        </div>
+                    </div>
+
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:14px;">
+                        <h4 style="font-size:13.5px;font-weight:700;margin:0 0 10px 0;">User Auto-Responder &amp; Anti-Spam</h4>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:10px;cursor:pointer;">
+                            <input type="checkbox" id="form_auto_resp_enabled" {auto_resp_checked} />
+                            <span>Send Confirmation Email to Visitor</span>
+                        </label>
+                        <div style="display:grid;grid-template-columns:130px 1fr;gap:8px;">
+                            <div class="form-group">
+                                <label class="form-label">Email Field Key</label>
+                                <input type="text" id="form_auto_resp_field" class="form-input" value="{auto_resp_field}" placeholder="email" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Auto-Responder Subject</label>
+                                <input type="text" id="form_auto_resp_subj" class="form-input" value="{auto_resp_subj}" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Auto-Responder Body</label>
+                            <textarea id="form_auto_resp_body" rows="2" class="form-textarea" style="font-size:12px;">{auto_resp_body}</textarea>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label">Min Submit (sec)</label>
+                                <input type="number" id="form_min_sec" class="form-input" value="{min_sec}" min="0" max="60" />
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label">Rate Limit / min</label>
+                                <input type="number" id="form_rate_limit" class="form-input" value="{rate_limit}" min="1" max="500" />
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label">Captcha</label>
+                                <select id="form_captcha_provider" class="form-select">
+                                    <option value="none" {cap_none}>None (Honeypot+Trap)</option>
+                                    <option value="turnstile" {cap_turnstile}>Cloudflare Turnstile</option>
+                                    <option value="hcaptcha" {cap_hcaptcha}>hCaptcha</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+                            <input type="text" id="form_captcha_site" class="form-input" value="{cap_site}" placeholder="Captcha Site Key" style="font-size:12px;" />
+                            <input type="password" id="form_captcha_secret" class="form-input" value="{cap_secret}" placeholder="Captcha Secret Key" style="font-size:12px;" />
+                        </div>
+                    </div>
+                </div>
+
+                <details style="margin-bottom:14px;">
+                    <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-muted);">Raw Schema JSON &amp; Conditional Email Routing Rules</summary>
+                    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin-top:10px;">
+                        <div>
+                            <label class="form-label">Fields Schema JSON</label>
+                            <textarea id="form_fields_json" rows="7" class="form-textarea" style="font-family:var(--font-mono);font-size:12px;" oninput="syncVisualFromTextarea()">{edit_fields_json}</textarea>
+                        </div>
+                        <div>
+                            <label class="form-label">Conditional Email Routes JSON (<code>[{{"field","operator","value","recipient_email"}}]</code>)</label>
+                            <textarea id="form_cond_routes_json" rows="7" class="form-textarea" style="font-family:var(--font-mono);font-size:12px;">{cond_routes_json}</textarea>
+                        </div>
+                    </div>
+                </details>
 
                 <div style="display:flex;justify-content:flex-end;gap:10px;">
                     <button type="button" class="btn btn-primary" onclick="saveCurrentForm()">Save Form to SQLite</button>
@@ -1306,21 +1508,33 @@ pub fn render_forms_view(
             </div>
         </div>
 
-        <!-- Submissions Inbox -->
+        <!-- Submissions Vault Inbox -->
         <div class="day-card" style="padding:24px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin:0;">Form Submissions Inbox ({entry_count})</h3>
-                <a href="/d-admin/api/forms/export-csv" class="btn btn-secondary" style="font-size:12px;">Export CSV</a>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:12px;">
+                <div>
+                    <h3 style="font-size:16px;font-weight:700;color:var(--ink);margin:0;">Fail-Safe SQLite Submissions Vault ({entry_count})</h3>
+                    <p style="font-size:12.5px;color:var(--ink-muted);margin:2px 0 0 0;">Every submission is committed to SQLite before SMTP dispatch so zero leads are ever lost.</p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    {status_tabs}
+                    <form method="GET" action="/d-admin/forms" style="display:flex;gap:6px;">
+                        <input type="hidden" name="status" value="{status_filter}" />
+                        <input type="text" name="s" value="{search_query}" placeholder="Search entries..." class="form-input" style="width:180px;padding:5px 10px;font-size:12.5px;" />
+                        <button type="submit" class="btn btn-secondary" style="padding:5px 10px;font-size:12px;">Search</button>
+                    </form>
+                </div>
             </div>
             <div class="day-table-wrapper">
                 <table class="day-table">
                     <thead>
                         <tr>
-                            <th style="width:80px;">ID</th>
-                            <th style="width:100px;">Form</th>
-                            <th>Submitted Fields</th>
-                            <th style="width:170px;">Timestamp</th>
-                            <th style="width:90px;">Action</th>
+                            <th style="width:36px;">★</th>
+                            <th style="width:90px;">Entry</th>
+                            <th style="width:85px;">Status</th>
+                            <th>Submitted Payload &amp; Attachments</th>
+                            <th style="width:95px;">Email</th>
+                            <th style="width:155px;">Timestamp</th>
+                            <th style="width:230px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1331,10 +1545,150 @@ pub fn render_forms_view(
         </div>
 
         <script>
+            let visualFieldsState = [];
+
+            function initVisualBuilder() {{
+                try {{
+                    visualFieldsState = JSON.parse(document.getElementById('form_fields_json').value || '[]');
+                }} catch (_) {{
+                    visualFieldsState = [];
+                }}
+                renderVisualFields();
+            }}
+
+            function syncVisualFromTextarea() {{
+                try {{
+                    visualFieldsState = JSON.parse(document.getElementById('form_fields_json').value || '[]');
+                    renderVisualFields();
+                }} catch (_) {{}}
+            }}
+
+            function syncTextareaFromVisual() {{
+                document.getElementById('form_fields_json').value = JSON.stringify(visualFieldsState, null, 2);
+            }}
+
+            function renderVisualFields() {{
+                const container = document.getElementById('visualFieldsList');
+                if (!container) return;
+                if (!visualFieldsState.length) {{
+                    container.innerHTML = '<div style="padding:14px;text-align:center;color:var(--ink-muted);font-size:12.5px;">No fields yet. Click a field type above to add one.</div>';
+                    return;
+                }}
+                container.innerHTML = visualFieldsState.map((f, idx) => {{
+                    const optsVal = Array.isArray(f.options) ? f.options.join(', ') : '';
+                    const showOpts = ['select', 'radio', 'checkbox_group'].includes(f.field_type);
+                    const showCalc = f.field_type === 'calculated';
+                    const showFile = f.field_type === 'file';
+                    const condField = (f.condition && f.condition.field) || '';
+                    const condVal = (f.condition && f.condition.value) || '';
+                    return `<div style="display:grid;grid-template-columns:130px 1fr 110px 95px 75px auto;gap:8px;align-items:center;background:var(--paper-card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;">
+                        <input type="text" class="form-input" style="padding:4px 8px;font-size:12px;font-family:var(--font-mono);" value="${{(f.name || '').replace(/"/g, '&quot;')}}" placeholder="field_name" onchange="updateFieldProp(${{idx}}, 'name', this.value)" title="Field Key (name)" />
+                        <input type="text" class="form-input" style="padding:4px 8px;font-size:12px;" value="${{(f.label || '').replace(/"/g, '&quot;')}}" placeholder="Field Label" onchange="updateFieldProp(${{idx}}, 'label', this.value)" title="Field Label" />
+                        <select class="form-select" style="padding:4px 6px;font-size:12px;" onchange="updateFieldProp(${{idx}}, 'field_type', this.value)">
+                            ${{['text','email','tel','url','number','textarea','select','radio','checkbox','checkbox_group','date','time','file','hidden','consent','calculated'].map(t => `<option value="${{t}}" ${{f.field_type===t?'selected':''}}>${{t}}</option>`).join('')}}
+                        </select>
+                        <select class="form-select" style="padding:4px 6px;font-size:12px;" onchange="updateFieldProp(${{idx}}, 'width', this.value)" title="Column Width">
+                            <option value="full" ${{(f.width||'full')==='full'?'selected':''}}>Full (1/1)</option>
+                            <option value="half" ${{f.width==='half'?'selected':''}}>Half (1/2)</option>
+                            <option value="third" ${{f.width==='third'?'selected':''}}>Third (1/3)</option>
+                            <option value="two_thirds" ${{f.width==='two_thirds'?'selected':''}}>2/3 Width</option>
+                        </select>
+                        <input type="number" class="form-input" style="padding:4px 6px;font-size:12px;" value="${{f.step || 1}}" min="1" max="10" onchange="updateFieldProp(${{idx}}, 'step', parseInt(this.value)||1)" title="Wizard Step #" />
+                        <div style="display:flex;gap:4px;align-items:center;">
+                            <label style="font-size:11.5px;display:flex;align-items:center;gap:3px;cursor:pointer;" title="Required"><input type="checkbox" ${{f.required?'checked':''}} onchange="updateFieldProp(${{idx}}, 'required', this.checked)" />Req</label>
+                            <button type="button" class="btn btn-secondary" style="padding:2px 6px;font-size:11px;" onclick="moveVisualField(${{idx}}, -1)">↑</button>
+                            <button type="button" class="btn btn-secondary" style="padding:2px 6px;font-size:11px;" onclick="moveVisualField(${{idx}}, 1)">↓</button>
+                            <button type="button" class="btn btn-danger" style="padding:2px 6px;font-size:11px;" onclick="removeVisualField(${{idx}})">&times;</button>
+                        </div>
+                        ${{showOpts ? `<div style="grid-column:1 / -1;display:flex;gap:8px;align-items:center;"><span style="font-size:11.5px;color:var(--ink-muted);">Options (CSV):</span><input type="text" class="form-input" style="padding:3px 8px;font-size:12px;" value="${{optsVal.replace(/"/g, '&quot;')}}" onchange="updateFieldOptions(${{idx}}, this.value)" placeholder="Option A, Option B, Option C" /></div>` : ''}}
+                        ${{showCalc ? `<div style="grid-column:1 / -1;display:flex;gap:8px;align-items:center;"><span style="font-size:11.5px;color:var(--ink-muted);">Formula:</span><input type="text" class="form-input" style="padding:3px 8px;font-size:12px;font-family:var(--font-mono);" value="${{(f.calculation_formula||'').replace(/"/g, '&quot;')}}" onchange="updateFieldProp(${{idx}}, 'calculation_formula', this.value)" placeholder="{{quantity}} * 49" /></div>` : ''}}
+                        ${{showFile ? `<div style="grid-column:1 / -1;display:flex;gap:8px;align-items:center;"><span style="font-size:11.5px;color:var(--ink-muted);">Allowed Extensions:</span><input type="text" class="form-input" style="padding:3px 8px;font-size:12px;width:220px;" value="${{(f.accept_extensions||'.pdf,.png,.jpg').replace(/"/g, '&quot;')}}" onchange="updateFieldProp(${{idx}}, 'accept_extensions', this.value)" /><span style="font-size:11.5px;color:var(--ink-muted);">Max MB:</span><input type="number" class="form-input" style="padding:3px 8px;font-size:12px;width:80px;" value="${{f.max_file_size_mb||10}}" onchange="updateFieldProp(${{idx}}, 'max_file_size_mb', parseInt(this.value)||10)" /></div>` : ''}}
+                        <div style="grid-column:1 / -1;display:flex;gap:8px;align-items:center;font-size:11.5px;color:var(--ink-muted);">
+                            <span>Show if field:</span>
+                            <input type="text" class="form-input" style="padding:2px 6px;font-size:11.5px;width:130px;" value="${{condField.replace(/"/g, '&quot;')}}" placeholder="(always visible)" onchange="updateFieldCondition(${{idx}}, this.value, document.getElementById('cond_val_${{idx}}').value)" />
+                            <span>equals</span>
+                            <input type="text" id="cond_val_${{idx}}" class="form-input" style="padding:2px 6px;font-size:11.5px;width:130px;" value="${{condVal.replace(/"/g, '&quot;')}}" placeholder="value" onchange="updateFieldCondition(${{idx}}, '${{condField.replace(/'/g, '')}}', this.value)" />
+                        </div>
+                    </div>`;
+                }}).join('');
+            }}
+
+            function addVisualField(type) {{
+                const count = visualFieldsState.length + 1;
+                visualFieldsState.push({{
+                    name: type + '_' + count,
+                    label: type.charAt(0).toUpperCase() + type.slice(1) + ' ' + count,
+                    field_type: type,
+                    required: type === 'email' || type === 'consent',
+                    placeholder: '',
+                    options: ['select', 'radio', 'checkbox_group'].includes(type) ? ['Option 1', 'Option 2'] : [],
+                    width: 'full',
+                    step: 1,
+                    default_value: '',
+                    help_text: '',
+                    accept_extensions: type === 'file' ? '.pdf,.doc,.docx,.png,.jpg,.webp' : '',
+                    max_file_size_mb: 10,
+                    calculation_formula: type === 'calculated' ? '{{qty}} * 10' : '',
+                    condition: null
+                }});
+                syncTextareaFromVisual();
+                renderVisualFields();
+            }}
+
+            function updateFieldProp(idx, key, val) {{
+                if (!visualFieldsState[idx]) return;
+                visualFieldsState[idx][key] = val;
+                syncTextareaFromVisual();
+                if (key === 'field_type') renderVisualFields();
+            }}
+
+            function updateFieldOptions(idx, csv) {{
+                if (!visualFieldsState[idx]) return;
+                visualFieldsState[idx].options = csv.split(',').map(s => s.trim()).filter(Boolean);
+                syncTextareaFromVisual();
+            }}
+
+            function updateFieldCondition(idx, fieldName, expectedVal) {{
+                if (!visualFieldsState[idx]) return;
+                if (!fieldName.trim()) {{
+                    visualFieldsState[idx].condition = null;
+                }} else {{
+                    visualFieldsState[idx].condition = {{
+                        field: fieldName.trim(),
+                        operator: 'equals',
+                        value: expectedVal.trim()
+                    }};
+                }}
+                syncTextareaFromVisual();
+            }}
+
+            function moveVisualField(idx, dir) {{
+                const target = idx + dir;
+                if (target < 0 || target >= visualFieldsState.length) return;
+                const tmp = visualFieldsState[idx];
+                visualFieldsState[idx] = visualFieldsState[target];
+                visualFieldsState[target] = tmp;
+                syncTextareaFromVisual();
+                renderVisualFields();
+            }}
+
+            function removeVisualField(idx) {{
+                visualFieldsState.splice(idx, 1);
+                syncTextareaFromVisual();
+                renderVisualFields();
+            }}
+
             function createNewForm() {{
                 document.getElementById('form_id').value = '';
                 document.getElementById('formEditBadge').textContent = '(New)';
                 document.getElementById('form_title').value = 'New Lead Capture Form';
+                visualFieldsState = [
+                    {{ name: 'name', label: 'Full Name', field_type: 'text', required: true, placeholder: 'Jane Doe', options: [], width: 'half', step: 1 }},
+                    {{ name: 'email', label: 'Email Address', field_type: 'email', required: true, placeholder: 'jane@example.com', options: [], width: 'half', step: 1 }},
+                    {{ name: 'message', label: 'How can we help?', field_type: 'textarea', required: true, placeholder: '', options: [], width: 'full', step: 1 }}
+                ];
+                syncTextareaFromVisual();
+                renderVisualFields();
                 document.getElementById('form_title').focus();
             }}
 
@@ -1348,11 +1702,37 @@ pub fn render_forms_view(
                     showToast('Invalid Fields JSON: ' + e.message, true);
                     return;
                 }}
+                let conditional_routes = [];
+                try {{
+                    conditional_routes = JSON.parse(document.getElementById('form_cond_routes_json').value || '[]');
+                }} catch (e) {{
+                    showToast('Invalid Conditional Routes JSON: ' + e.message, true);
+                    return;
+                }}
+                const step_titles = document.getElementById('form_step_titles').value
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(Boolean);
+                const redir = document.getElementById('form_redirect_url').value.trim();
+                const wh = document.getElementById('form_webhook_url').value.trim();
                 const settings = {{
                     submit_label: document.getElementById('form_submit_label').value.trim() || 'Send Message',
                     success_message: document.getElementById('form_success_msg').value.trim() || 'Thank you!',
+                    redirect_url: redir || null,
                     recipient_email: document.getElementById('form_recipient_email').value.trim(),
-                    webhook_url: ''
+                    email_subject_template: document.getElementById('form_email_subject').value.trim() || '[Daypress Form] New submission: {{{{form_title}}}}',
+                    webhook_url: wh || null,
+                    step_titles,
+                    conditional_routes,
+                    auto_responder_enabled: document.getElementById('form_auto_resp_enabled').checked,
+                    auto_responder_email_field: document.getElementById('form_auto_resp_field').value.trim() || 'email',
+                    auto_responder_subject: document.getElementById('form_auto_resp_subj').value.trim(),
+                    auto_responder_body: document.getElementById('form_auto_resp_body').value,
+                    min_submit_seconds: parseInt(document.getElementById('form_min_sec').value) || 0,
+                    rate_limit_per_minute: parseInt(document.getElementById('form_rate_limit').value) || 10,
+                    captcha_provider: document.getElementById('form_captcha_provider').value,
+                    captcha_site_key: document.getElementById('form_captcha_site').value.trim(),
+                    captcha_secret_key: document.getElementById('form_captcha_secret').value.trim()
                 }};
                 const res = await fetch('/d-admin/api/forms', {{
                     method: 'POST',
@@ -1366,11 +1746,62 @@ pub fn render_forms_view(
                     }})
                 }});
                 if (res.ok) {{
-                    showToast('✓ Form saved to SQLite!');
+                    showToast('✓ FormStudio schema & settings saved to SQLite!');
                     setTimeout(() => location.reload(), 450);
                 }} else {{
                     showToast('Failed to save form', true);
                 }}
+            }}
+
+            async function deleteForm(id) {{
+                if (!confirm('Delete Form #' + id + ' and all its submissions?')) return;
+                const res = await fetch('/d-admin/api/forms', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ action: 'delete_form', id }})
+                }});
+                if (res.ok) {{
+                    showToast('✓ Form deleted');
+                    setTimeout(() => window.location.href = '/d-admin/forms', 350);
+                }}
+            }}
+
+            async function toggleEntryStar(id) {{
+                const res = await fetch('/d-admin/api/forms', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ action: 'toggle_entry_star', id }})
+                }});
+                if (res.ok) location.reload();
+            }}
+
+            async function updateEntryStatus(id, status) {{
+                if (!status) return;
+                const res = await fetch('/d-admin/api/forms', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ action: 'update_entry_status', id, status }})
+                }});
+                if (res.ok) {{
+                    showToast('✓ Entry moved to ' + status);
+                    setTimeout(() => location.reload(), 300);
+                }}
+            }}
+
+            async function retryEntryEmail(id) {{
+                showToast('Dispatching notification email for entry #' + id + '...');
+                const res = await fetch('/d-admin/api/forms', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ action: 'retry_email', id }})
+                }});
+                const data = await res.json().catch(() => ({{}}));
+                if (res.ok && data.email_status === 'sent') {{
+                    showToast('✓ Notification email sent!');
+                }} else {{
+                    showToast('Email status: ' + (data.email_status || 'failed') + (data.email_error ? ' (' + data.email_error + ')' : ''), true);
+                }}
+                setTimeout(() => location.reload(), 500);
             }}
 
             async function deleteFormEntry(id) {{
@@ -1385,20 +1816,53 @@ pub fn render_forms_view(
                     showToast('✓ Submission deleted');
                 }}
             }}
+
+            document.addEventListener('DOMContentLoaded', initVisualBuilder);
         </script>
         "##,
         forms_list_html = forms_list_html,
         edit_id = edit_id,
         edit_title = edit_title,
-        edit_submit = edit_submit,
-        edit_email = edit_email,
-        edit_success = edit_success,
+        edit_submit = escape_html(&parsed_settings.submit_label),
+        step_titles_csv = step_titles_csv,
+        edit_email = escape_html(&parsed_settings.recipient_email),
+        email_subj = escape_html(&parsed_settings.email_subject_template),
+        edit_success = escape_html(&parsed_settings.success_message),
+        redirect_url = escape_html(&parsed_settings.redirect_url),
+        webhook_url = escape_html(&parsed_settings.webhook_url),
+        auto_resp_checked = auto_resp_checked,
+        auto_resp_field = escape_html(&parsed_settings.auto_responder_email_field),
+        auto_resp_subj = escape_html(&parsed_settings.auto_responder_subject),
+        auto_resp_body = escape_html(&parsed_settings.auto_responder_body),
+        min_sec = parsed_settings.min_submit_seconds,
+        rate_limit = parsed_settings.rate_limit_per_minute,
+        cap_none = if parsed_settings.captcha_provider == "none" {
+            "selected"
+        } else {
+            ""
+        },
+        cap_turnstile = if parsed_settings.captcha_provider == "turnstile" {
+            "selected"
+        } else {
+            ""
+        },
+        cap_hcaptcha = if parsed_settings.captcha_provider == "hcaptcha" {
+            "selected"
+        } else {
+            ""
+        },
+        cap_site = escape_html(&parsed_settings.captcha_site_key),
+        cap_secret = escape_html(&parsed_settings.captcha_secret_key),
         edit_fields_json = escape_html(&edit_fields_json),
+        cond_routes_json = escape_html(&cond_routes_json),
         entry_count = entries.len(),
+        status_tabs = status_tabs,
+        status_filter = escape_html(status_filter),
+        search_query = escape_html(search_query),
         entries_rows = entries_rows
     );
 
-    render_admin_shell("forms", "Forms Studio", &body, settings)
+    render_admin_shell("forms", "FormStudio & Vault", &body, settings)
 }
 
 // 7. Snapshot & Hot Backup Manager (/d-admin/backups)

@@ -28,3 +28,19 @@ Daypress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
 6. **Never Overwrite Live User Design Edits (`daypress.dev`)**:
    - Before running any website design or content updater script (`deploy_all_pages_mcp.ps1`, `update_navs_mcp.ps1`, or MCP/REST layout updates) when given a design update prompt, ALWAYS run `check_live_design_changes.ps1` to fetch and diff the live `posts` (`layout_json`, `post_modified`, and `revision` rows) and `daypress_templates` (`layout_json`, `settings_json`, `updated_at`) from `daypress.dev` first.
    - Always apply design changes incrementally on top of the live AST/template state so user edits made in the Daystudio Visual Builder are never overwritten.
+
+7. **Canonical Roadmap & Milestone Progress Tracking (`ROADMAP.md`)**:
+   - `ROADMAP.md` in the repository root is the single source of truth for the `0.1` → `1.0` release roadmap (mirroring `https://daypress.dev/#roadmap`).
+   - Whenever an agent implements or ships a feature or milestone from the roadmap, it MUST update the checklist in `ROADMAP.md`, `README.md`, and `https://daypress.dev/#roadmap`.
+   - Current milestone sequence:
+     - **`0.1`** (`Shipped`): Core, Daystudio, REST API & MCP
+     - **`0.2`** (`Shipped`): Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity
+     - **`0.3.0`** (`Shipped`): TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker
+     - **`0.4.0`** (`Early preview — Now`): FormStudio & Submissions Vault, Full Analytics Dashboard (`/d-admin/analytics`), Native Privacy/Cookie Banner & `<50µs` Hot Cache
+     - **`0.5`** (`Up next`): Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2
+     - **`0.6`** (`Planned`): Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids
+     - **`0.7`** (`Planned`): SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter
+     - **`0.8`** (`Planned`): Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging
+     - **`0.9`** (`Planned`): Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates
+     - **`1.0`** (`Planned`): First Stable Release (External Audit, Reproducible Benchmarks, Stable Schema/ABI & 70%+ WP Migration Sign-off)
+

@@ -60,6 +60,8 @@ impl Database {
             db_path: path.to_path_buf(),
             login_throttle: Default::default(),
             password_reset_throttle: Default::default(),
+            hot_cache: Arc::new(crate::hot_cache::SsrHotCache::new()),
+            form_rate_limiter: Arc::new(crate::hot_cache::FormRateLimiter::new()),
         })
     }
 

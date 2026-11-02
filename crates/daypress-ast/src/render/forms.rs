@@ -32,7 +32,7 @@ pub(crate) fn render_form_html(
         inner_html.to_string()
     };
 
-    let onsubmit = "event.preventDefault();var f=this,s=f.querySelector('.dp-form-status'),d=Object.fromEntries(new FormData(f).entries());fetch(f.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(function(r){var okMsg=(s&&s.getAttribute('data-success-msg'))||'Thank you! Your message has been sent.';var redir=s&&s.getAttribute('data-redirect-url');if(s)s.textContent=r.ok?okMsg:'Submission failed.';if(r.ok){f.reset();if(redir)window.location.href=redir;}});return false;";
+    let onsubmit = "event.preventDefault();var f=this,s=f.querySelector('.dp-form-status'),fd=new FormData(f),hasFile=!!f.querySelector('input[type=file]');var reqInit=hasFile?{method:'POST',body:fd}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(fd.entries()))};fetch(f.action,reqInit).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:r.ok,j:{}};});}).then(function(res){var okMsg=(res.j&&res.j.message)||(s&&s.getAttribute('data-success-msg'))||'Thank you! Your message has been sent.';var redir=(res.j&&res.j.redirect_url)||(s&&s.getAttribute('data-redirect-url'));if(s)s.textContent=res.ok?okMsg:((res.j&&res.j.message)||'Submission failed.');if(res.ok){f.reset();if(redir)window.location.href=redir;}});return false;";
 
     format!(
         "<form id=\"{}\" class=\"dp-form\" data-form-id=\"{}\" method=\"POST\" action=\"{}\" onsubmit=\"{}\"{}>\n{}<input type=\"text\" name=\"_np_hp\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\" />\n{}\n</form>",

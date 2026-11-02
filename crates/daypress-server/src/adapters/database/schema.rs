@@ -67,6 +67,8 @@ impl Database {
             db_path: path.to_path_buf(),
             login_throttle: Default::default(),
             password_reset_throttle: Default::default(),
+            hot_cache: Default::default(),
+            form_rate_limiter: Default::default(),
         };
 
         db.init_schema()?;
@@ -440,6 +442,8 @@ impl Database {
             db_path: PathBuf::from(":memory:"),
             login_throttle: Default::default(),
             password_reset_throttle: Default::default(),
+            hot_cache: Default::default(),
+            form_rate_limiter: Default::default(),
         };
 
         db.init_schema()?;
@@ -505,6 +509,24 @@ impl Database {
                 "ALTER TABLE posts ADD COLUMN is_sticky INTEGER NOT NULL DEFAULT 0;",
                 [],
             );
+        }
+
+        // Idempotent v0.4 migrations for daypress_form_entries (Submissions Vault)
+        for alter_sql in [
+            "ALTER TABLE daypress_form_entries ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]';",
+            "ALTER TABLE daypress_form_entries ADD COLUMN status TEXT NOT NULL DEFAULT 'unread';",
+            "ALTER TABLE daypress_form_entries ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_form_entries ADD COLUMN email_status TEXT NOT NULL DEFAULT 'disabled';",
+            "ALTER TABLE daypress_form_entries ADD COLUMN email_error TEXT DEFAULT NULL;",
+            "ALTER TABLE daypress_form_entries ADD COLUMN webhook_status TEXT DEFAULT NULL;",
+            "ALTER TABLE daypress_form_entries ADD COLUMN source_url TEXT NOT NULL DEFAULT '';",
+            "CREATE INDEX IF NOT EXISTS idx_form_entries_form_status ON daypress_form_entries(form_id, status, created_at);",
+            // Idempotent v0.4 migrations for daypress_analytics_events (Goal/Form Conversions)
+            "ALTER TABLE daypress_analytics_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'pageview';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN goal_name TEXT DEFAULT NULL;",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON daypress_analytics_events(created_at, event_type);",
+        ] {
+            let _ = conn.execute(alter_sql, []);
         }
         Ok(())
     }

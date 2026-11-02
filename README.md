@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.3.1).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.4.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -47,9 +47,11 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 
 **Built-in site features**
 - SEO fields per post, `sitemap.xml`, `robots.txt` (including "discourage search engines"), redirects, and a 404 log.
-- Forms Studio, with email notifications over SMTP.
+- **All-in-One FormStudio (`/d-admin/forms`) & Fail-Safe Submissions Vault**: multi-column rows (`1/2`, `1/3`, `2/3`), multi-step wizards with progress bars, conditional field & email routing logic, 15 field types (including isolated private file uploads, star ratings, range sliders, live calculated formulas, and hidden UTM capture), honeypot + timestamp trap + IP rate-limiting + Turnstile/hCaptcha anti-spam, SQLite-first vault persistence before SMTP send, 1-click email retry, and CSV/JSON export.
+- **Full Plausible-Style Cookieless Analytics Dashboard (`/d-admin/analytics`)**: daily rotating SHA-256 visitor hash (zero cookies), interactive SVG time-series chart (`24h`, `7d`, `30d`, `90d`, `12m`, `all`), and breakdown tables for Top Pages, Referrers, UTM Campaigns, Countries, Devices, and Form/Goal Conversions.
+- **Native Zero-Bloat GDPR / Privacy & Cookie Consent Banner (`/d-admin/options-privacy`)**: customizable `<2 KB` inline consent banner & script-category manager (`Essential`, `Analytics`, `Marketing`).
+- **Pre-Compressed In-Memory SSR Hot Cache (`<50µs` P99 latency)**: automatic Gzip pre-compression, `ETag` / `304 Not Modified`, `X-Daypress-Cache: HIT|MISS|BYPASS`, automatic invalidation on content/layout/template/settings saves, and optional Cloudflare CDN Zone purge.
 - SQLite backup snapshots you can create, download, and restore.
-- Simple built-in visitor analytics.
 
 **Security basics**
 - No default password: the first start generates one (or uses `DAYPRESS_ADMIN_PASSWORD`).
@@ -108,11 +110,30 @@ This list is long on purpose. If something here matters to you, an issue or pull
 - The DayStudio canvas matches the published page across desktop (`1200px`), tablet (`768px`), and mobile (`375px`) breakpoints, including root-level (`body`, `:root`, `html`) container queries and font-stack parity.
 
 **Performance and security**
-- There are no published benchmarks yet, and no caching layer or CDN integration.
+- Pre-compressed Gzip in-memory SSR hot cache (`<50µs` P99 latency) with `ETag` / `304 Not Modified`, automatic invalidation on content/layout/settings edits, and optional Cloudflare Zone purge is built in (`/d-admin/daypress-engine`). Published comparative load benchmarks are still planned for 1.0.
 - The code has not had an external security audit. Please report problems privately; see [SECURITY.md](SECURITY.md).
 
 **Code**
 - The `domain / ports / application` layering is only partly applied. Many request handlers still talk to the database adapter directly.
+
+---
+
+## Roadmap to 1.0
+
+See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
+
+| Version | Milestone | Status |
+| :--- | :--- | :--- |
+| **`0.1`** | Core, Daystudio, REST API & MCP | **Shipped** |
+| **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
+| **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
+| **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Early preview (Now)** |
+| **`0.5`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Up next** |
+| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | Planned |
+| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | Planned |
+| **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
+| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
+| **`1.0`** | First Stable Release | Planned |
 
 ---
 
@@ -275,6 +296,12 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_import_wp_bundle` | Import a WordPress JSON bundle |
 | `daypress_get_publish_status` | Read static edge publishing config and published route count |
 | `daypress_publish_site` | Configure or trigger a static edge deployment (Cloudflare Pages, Netlify, or local folder) |
+| `daypress_list_forms` | List all FormStudio forms, schemas, and submission counts |
+| `daypress_get_form` | Retrieve a single FormStudio form by ID |
+| `daypress_create_form` | Create a new FormStudio form with fields and settings |
+| `daypress_update_form` | Update an existing FormStudio form's fields or settings |
+| `daypress_list_form_submissions` | Query the FormStudio Submissions Vault with status/search filters |
+| `daypress_get_analytics` | Retrieve the Cookieless Analytics dashboard summary (`today`, `7d`, `30d`, `90d`, `12m`, `all`) |
 
 ---
 
@@ -302,7 +329,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 333 tests
+cargo test --workspace                                  # 336 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

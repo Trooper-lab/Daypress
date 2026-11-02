@@ -189,15 +189,25 @@ CREATE TABLE IF NOT EXISTS daypress_form_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     form_id INTEGER NOT NULL,
     data_json TEXT NOT NULL DEFAULT '{}',
+    attachments_json TEXT NOT NULL DEFAULT '[]',
     ip_hash TEXT NOT NULL DEFAULT '',
     user_agent TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'unread',
+    is_starred INTEGER NOT NULL DEFAULT 0,
+    email_status TEXT NOT NULL DEFAULT 'disabled',
+    email_error TEXT DEFAULT NULL,
+    webhook_status TEXT DEFAULT NULL,
+    source_url TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_form_entries_form_status ON daypress_form_entries(form_id, status, created_at);
 
 -- Native Subsystems: Cookieless Daily Salted Analytics
 CREATE TABLE IF NOT EXISTS daypress_analytics_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     visitor_hash TEXT NOT NULL,
+    event_type TEXT NOT NULL DEFAULT 'pageview',
+    goal_name TEXT DEFAULT NULL,
     page_url TEXT NOT NULL,
     referrer TEXT NOT NULL DEFAULT '',
     device_type TEXT NOT NULL DEFAULT 'desktop',
@@ -207,6 +217,7 @@ CREATE TABLE IF NOT EXISTS daypress_analytics_events (
     utm_campaign TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON daypress_analytics_events(created_at, event_type);
 
 CREATE TABLE IF NOT EXISTS daypress_analytics_daily (
     date TEXT NOT NULL,

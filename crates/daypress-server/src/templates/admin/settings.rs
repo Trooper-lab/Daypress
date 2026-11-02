@@ -1004,12 +1004,40 @@ pub fn render_settings_privacy_view(
         ));
     }
 
+    let banner_chk = if privacy.cookie_banner_enabled {
+        "checked"
+    } else {
+        ""
+    };
+    let gate_chk = if privacy.gate_builtin_analytics {
+        "checked"
+    } else {
+        ""
+    };
+    let pos_bottom = if privacy.cookie_banner_position == "bottom-bar"
+        || privacy.cookie_banner_position.is_empty()
+    {
+        "selected"
+    } else {
+        ""
+    };
+    let pos_right = if privacy.cookie_banner_position == "floating-right" {
+        "selected"
+    } else {
+        ""
+    };
+    let pos_left = if privacy.cookie_banner_position == "floating-left" {
+        "selected"
+    } else {
+        ""
+    };
+
     let body = format!(
         r##"
         <div class="page-header">
             <div>
-                <h1 class="page-title">Privacy Settings</h1>
-                <p class="page-subtitle">Designate your official site privacy policy page and GDPR data handling requirements</p>
+                <h1 class="page-title">Privacy &amp; Cookie Consent Settings</h1>
+                <p class="page-subtitle">Designate your official site privacy policy page and configure the native &lt;2 KB GDPR Cookie Consent Banner</p>
             </div>
             <div>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('privacyFormSubmit').click()">Save Changes</button>
@@ -1018,6 +1046,74 @@ pub fn render_settings_privacy_view(
 
         <form id="privacyForm" onsubmit="savePrivacySettings(event)">
             <button type="submit" id="privacyFormSubmit" style="display: none;"></button>
+
+            <div class="day-card" style="margin-bottom: 20px;">
+                <div class="day-card-header">
+                    <h2 class="day-card-title">Native Zero-Bloat GDPR / Cookie Consent Banner</h2>
+                    <span class="badge badge-published">&lt;2 KB Inline</span>
+                </div>
+                <div class="day-card-body">
+                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 16px;">
+                        Daypress's built-in analytics are 100% cookieless by default (daily rotating SHA-256 hash). Enable this banner if you want explicit visitor consent or use third-party Analytics / Marketing scripts that set cookies.
+                    </p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 16px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" id="cookie_banner_enabled" {banner_chk}>
+                            <span>Enable GDPR / Privacy Cookie Consent Banner on public pages</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+                            <input type="checkbox" id="gate_builtin_analytics" {gate_chk}>
+                            <span>Also require Analytics consent before firing built-in cookieless beacon</span>
+                        </label>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 16px; margin-bottom: 16px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="cookie_banner_position">Banner Layout Position</label>
+                            <select id="cookie_banner_position" class="form-select">
+                                <option value="bottom-bar" {pos_bottom}>Bottom Bar (Full Width)</option>
+                                <option value="floating-right" {pos_right}>Floating Card (Bottom Right)</option>
+                                <option value="floating-left" {pos_left}>Floating Card (Bottom Left)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="cookie_banner_title">Banner Heading</label>
+                            <input type="text" id="cookie_banner_title" class="form-input" value="{banner_title}">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label class="form-label" for="cookie_banner_message">Consent Message Copy</label>
+                        <textarea id="cookie_banner_message" class="form-textarea" rows="2">{banner_msg}</textarea>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="cookie_accept_all_label">Accept All Button Label</label>
+                            <input type="text" id="cookie_accept_all_label" class="form-input" value="{lbl_accept}">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="cookie_reject_label">Essential Only Button Label</label>
+                            <input type="text" id="cookie_reject_label" class="form-input" value="{lbl_reject}">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="cookie_manage_label">Preferences Button Label</label>
+                            <input type="text" id="cookie_manage_label" class="form-input" value="{lbl_manage}">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="analytics_scripts_html">Third-Party Analytics Scripts (gated until <code>analytics</code> consent)</label>
+                            <textarea id="analytics_scripts_html" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 12px;" placeholder="<!-- e.g. Google Analytics / Matomo script tags -->">{analytics_scripts}</textarea>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="marketing_scripts_html">Marketing / Pixel Scripts (gated until <code>marketing</code> consent)</label>
+                            <textarea id="marketing_scripts_html" class="form-textarea" rows="3" style="font-family: var(--font-mono); font-size: 12px;" placeholder="<!-- e.g. Meta Pixel / LinkedIn Insight script tags -->">{marketing_scripts}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="day-card" style="margin-bottom: 20px;">
                 <div class="day-card-header"><h2 class="day-card-title">Change your Privacy Policy page</h2></div>
@@ -1056,16 +1152,28 @@ pub fn render_settings_privacy_view(
         <script>
             async function savePrivacySettings(e) {{
                 e.preventDefault();
-                const wp_page_for_privacy_policy = parseInt(document.getElementById('privacy_page_id').value, 10);
+                const payload = {{
+                    wp_page_for_privacy_policy: parseInt(document.getElementById('privacy_page_id').value, 10) || 0,
+                    cookie_banner_enabled: document.getElementById('cookie_banner_enabled').checked,
+                    cookie_banner_position: document.getElementById('cookie_banner_position').value,
+                    cookie_banner_title: document.getElementById('cookie_banner_title').value,
+                    cookie_banner_message: document.getElementById('cookie_banner_message').value,
+                    cookie_accept_all_label: document.getElementById('cookie_accept_all_label').value,
+                    cookie_reject_label: document.getElementById('cookie_reject_label').value,
+                    cookie_manage_label: document.getElementById('cookie_manage_label').value,
+                    gate_builtin_analytics: document.getElementById('gate_builtin_analytics').checked,
+                    analytics_scripts_html: document.getElementById('analytics_scripts_html').value,
+                    marketing_scripts_html: document.getElementById('marketing_scripts_html').value
+                }};
                 const res = await fetch('/d-admin/api/options-privacy', {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ wp_page_for_privacy_policy }})
+                    body: JSON.stringify(payload)
                 }});
                 if (res.ok) {{
-                    showToast('✓ Privacy policy page assigned successfully in SQLite!');
+                    showToast('✓ Privacy & Cookie Consent settings saved to SQLite!');
                 }} else {{
-                    showToast('Error updating privacy page', true);
+                    showToast('Error updating privacy settings', true);
                 }}
             }}
 
@@ -1094,7 +1202,19 @@ pub fn render_settings_privacy_view(
             }}
         </script>
         "##,
-        page_options = page_options
+        page_options = page_options,
+        banner_chk = banner_chk,
+        gate_chk = gate_chk,
+        pos_bottom = pos_bottom,
+        pos_right = pos_right,
+        pos_left = pos_left,
+        banner_title = escape_html(&privacy.cookie_banner_title),
+        banner_msg = escape_html(&privacy.cookie_banner_message),
+        lbl_accept = escape_html(&privacy.cookie_accept_all_label),
+        lbl_reject = escape_html(&privacy.cookie_reject_label),
+        lbl_manage = escape_html(&privacy.cookie_manage_label),
+        analytics_scripts = escape_html(&privacy.analytics_scripts_html),
+        marketing_scripts = escape_html(&privacy.marketing_scripts_html),
     );
 
     render_admin_shell("privacy", "Privacy Settings", &body, settings)

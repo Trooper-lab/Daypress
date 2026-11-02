@@ -91,6 +91,7 @@ pub async fn assign_page_template_handler(
     Json(payload): Json<AssignPageTemplateRequest>,
 ) -> Result<Json<HeaderFooterMatrixResponse>, AppError> {
     super::matrix::assign_page_or_route_templates(&db, &payload)?;
+    db.invalidate_hot_cache("theme_template_assigned");
     Ok(Json(super::matrix::build_header_footer_matrix(&db)))
 }
 
@@ -103,6 +104,7 @@ pub async fn duplicate_template_handler(
     let cloned = repo
         .duplicate(id)?
         .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))?;
+    db.invalidate_hot_cache("theme_template_duplicated");
     Ok((StatusCode::CREATED, Json(cloned)))
 }
 
@@ -133,6 +135,7 @@ pub async fn create_template_handler(
     }
     let repo = ThemeTemplateRepository::from_database(&db);
     let record = repo.create(&payload)?;
+    db.invalidate_hot_cache("theme_template_created");
     Ok((StatusCode::CREATED, Json(record)))
 }
 
@@ -157,6 +160,7 @@ pub async fn update_template_handler(
     let updated = repo
         .update(id, &payload)?
         .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))?;
+    db.invalidate_hot_cache("theme_template_updated");
     Ok(Json(updated))
 }
 
@@ -172,6 +176,7 @@ pub async fn delete_template_handler(
     if !deleted {
         return Err(AppError::NotFound(format!("Template {} not found", id)));
     }
+    db.invalidate_hot_cache("theme_template_deleted");
     Ok(Json(serde_json::json!({
         "success": true,
         "id": id,
@@ -203,6 +208,7 @@ pub async fn set_conditions_handler(
         .get_by_id(id)?
         .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))?;
     let updated = repo.set_conditions(id, &payload.conditions)?;
+    db.invalidate_hot_cache("theme_template_conditions_updated");
     Ok(Json(updated))
 }
 

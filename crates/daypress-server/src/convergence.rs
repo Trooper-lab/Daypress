@@ -272,6 +272,7 @@ fn parse_cf7_form(
             required,
             placeholder,
             options,
+            ..Default::default()
         });
     }
 
@@ -347,6 +348,7 @@ fn parse_wpforms_post(_title: &str, content: &str) -> (Vec<FormFieldSchema>, For
                     required,
                     placeholder,
                     options,
+                    ..Default::default()
                 });
             }
         }
@@ -457,6 +459,7 @@ pub fn default_contact_fields() -> Vec<FormFieldSchema> {
             required: true,
             placeholder: "Jane Doe".to_string(),
             options: vec![],
+            ..Default::default()
         },
         FormFieldSchema {
             name: "email".to_string(),
@@ -465,6 +468,7 @@ pub fn default_contact_fields() -> Vec<FormFieldSchema> {
             required: true,
             placeholder: "jane@example.com".to_string(),
             options: vec![],
+            ..Default::default()
         },
         FormFieldSchema {
             name: "message".to_string(),
@@ -473,6 +477,7 @@ pub fn default_contact_fields() -> Vec<FormFieldSchema> {
             required: true,
             placeholder: "How can we help you?".to_string(),
             options: vec![],
+            ..Default::default()
         },
     ]
 }

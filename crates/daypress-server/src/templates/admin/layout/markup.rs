@@ -269,6 +269,14 @@ pub fn render_admin_shell(
 				</a>
 			</div>
 
+			<!-- 8c. COOKIELESS ANALYTICS -->
+			<div class="nav-group">
+				<a href="/d-admin/analytics" class="nav-item {is_analytics}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+					<span>Analytics</span>
+				</a>
+			</div>
+
 			<!-- 9. USERS -->
 			<div class="nav-group {is_users_open}">
 				<a href="/d-admin/users" class="nav-item {is_users}">
@@ -547,6 +555,7 @@ pub fn render_admin_shell(
         sub_plug_new = nav.sub_plug_new,
         is_seo = nav.is_seo,
         is_forms = nav.is_forms,
+        is_analytics = nav.is_analytics,
         is_backups = nav.is_backups,
         is_users = nav.is_users,
         is_users_open = nav.is_users_open,

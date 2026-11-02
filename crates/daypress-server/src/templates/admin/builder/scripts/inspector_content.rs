@@ -184,6 +184,18 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
                 `;
                 break;
             }
+            case "Form":
+            case "NativeForm": {
+                const fid = data.form_id !== undefined ? data.form_id : 1;
+                container.innerHTML = `
+                    <div class="cad-row"><span class="cad-label">FormStudio ID</span><input type="number" class="cad-input font-mono" style="flex:1;" data-key="form_id" value="${fid}" min="1"></div>
+                    <div class="cad-row"><span class="cad-label">Form Heading</span><input type="text" class="cad-input" style="flex:1;" data-key="title" value="${(data.title || '').replace(/"/g, '&quot;')}"></div>
+                    <div class="cad-row"><span class="cad-label">Submit Button</span><input type="text" class="cad-input" style="flex:1;" data-key="button_text" value="${(data.button_text || 'Send Message').replace(/"/g, '&quot;')}"></div>
+                    <div class="cad-row"><span class="cad-label">Custom Endpoint</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="endpoint" value="${(data.endpoint || '').replace(/"/g, '&quot;')}" placeholder="/wp-json/daypress/v1/forms/${fid}/submit"></div>
+                    <div class="cad-row" style="margin-top:6px;"><a href="/d-admin/forms?form_id=${fid}" target="_blank" style="font-size:11px;color:var(--day-accent, #3b82f6);text-decoration:none;font-weight:600;">&#8599; Open Form #${fid} in FormStudio Builder</a></div>
+                `;
+                break;
+            }
             case "SearchForm": {
                 container.innerHTML = `
                     <div class="cad-row"><span class="cad-label">Placeholder</span><input type="text" class="cad-input" style="flex:1;" data-key="placeholder" value="${data.placeholder || ''}"></div>
@@ -209,7 +221,7 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
             const k = ctrl.dataset.key;
             ctrl.oninput = () => {
                 if (!node.data) node.data = {};
-                node.data[k] = k === "level" ? parseInt(ctrl.value, 10) : ctrl.value;
+                node.data[k] = (k === "level" || k === "form_id") ? (parseInt(ctrl.value, 10) || 1) : ctrl.value;
                 window.markDirty(true);
                 window.renderCanvas();
             };

@@ -250,6 +250,8 @@ impl Database {
         let _ = Self::snapshot_post_revision_with_conn(&tx, post_id, &now_local, &now);
 
         tx.commit()?;
+        drop(conn);
+        self.invalidate_hot_cache("post_layout_saved");
         Ok(())
     }
 
@@ -266,6 +268,8 @@ impl Database {
             params![post_id],
         )?;
         tx.commit()?;
+        drop(conn);
+        self.invalidate_hot_cache("post_layout_deleted");
         Ok(())
     }
 }

@@ -18,10 +18,9 @@ use serde::Deserialize;
 pub async fn handle_home_or_query(
     State(db): State<Database>,
     Query(params): Query<QueryPostParams>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
-    let settings = db.get_settings().unwrap_or_default();
-
+) -> Response {
     if let Some(q) = params
         .s
         .as_deref()
@@ -29,6 +28,7 @@ pub async fn handle_home_or_query(
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
+        let settings = db.get_settings().unwrap_or_default();
         let results = db
             .get_posts("any", Some("publish"), Some(q), 50)
             .unwrap_or_default();
@@ -44,6 +44,25 @@ pub async fn handle_home_or_query(
         ))
         .into_response();
     }
+
+    let page_num = params.paged.unwrap_or(1).max(1);
+    let cache_key = if let Some(id) = params.p {
+        format!("/?p={}", id)
+    } else if let Some(id) = params.page_id {
+        format!("/?page_id={}", id)
+    } else if page_num <= 1 {
+        "/".to_string()
+    } else {
+        format!("/?paged={}", page_num)
+    };
+
+    if user.is_none() {
+        if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
+            return hit;
+        }
+    }
+
+    let settings = db.get_settings().unwrap_or_default();
 
     if let Some(id) = params.p {
         if let Some(mut post) = db
@@ -83,13 +102,11 @@ pub async fn handle_home_or_query(
                 layout_json.as_deref(),
                 Some(&partials),
             );
-            return Html(crate::plugins::inject_plugin_hooks_into_html(
-                &db,
-                &settings,
-                Some(&post),
-                html,
-            ))
-            .into_response();
+            let final_html =
+                crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
+            return db
+                .hot_cache
+                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
         } else {
             let req_ctx = RequestContext::for_404(&format!("/?p={}", id));
             let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
@@ -142,13 +159,11 @@ pub async fn handle_home_or_query(
                 layout_json.as_deref(),
                 Some(&partials),
             );
-            return Html(crate::plugins::inject_plugin_hooks_into_html(
-                &db,
-                &settings,
-                Some(&page),
-                html,
-            ))
-            .into_response();
+            let final_html =
+                crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&page), html);
+            return db
+                .hot_cache
+                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
         } else {
             let req_ctx = RequestContext::for_404(&format!("/?page_id={}", id));
             let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
@@ -197,13 +212,15 @@ pub async fn handle_home_or_query(
                 layout_json.as_deref(),
                 Some(&partials),
             );
-            return Html(crate::plugins::inject_plugin_hooks_into_html(
+            let final_html = crate::plugins::inject_plugin_hooks_into_html(
                 &db,
                 &settings,
                 Some(&front_page),
                 html,
-            ))
-            .into_response();
+            );
+            return db
+                .hot_cache
+                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
         }
     }
 
@@ -211,7 +228,9 @@ pub async fn handle_home_or_query(
         &db,
         &settings,
         user.as_ref(),
-        params.paged.unwrap_or(1).max(1),
+        page_num,
+        &cache_key,
+        &headers,
     )
 }
 
@@ -219,12 +238,19 @@ pub async fn handle_home_or_query(
 pub async fn handle_home_paged(
     State(db): State<Database>,
     AxPath(raw_page): AxPath<String>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
+    let cache_key = format!("/page/{}/", raw_page.trim_matches('/'));
+    if user.is_none() {
+        if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
+            return hit;
+        }
+    }
     let settings = db.get_settings().unwrap_or_default();
     match parse_page_segment(&raw_page) {
         Some(page) if !(settings.show_on_front == "page" && settings.page_on_front > 0) => {
-            blog_index_response(&db, &settings, user.as_ref(), page)
+            blog_index_response(&db, &settings, user.as_ref(), page, &cache_key, &headers)
         }
         _ => not_found_response(
             &db,
@@ -239,8 +265,19 @@ pub async fn handle_home_paged(
 pub async fn handle_single_paged(
     State(db): State<Database>,
     AxPath((slug, raw_page)): AxPath<(String, String)>,
+    headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
+    let cache_key = format!(
+        "/{}/page/{}/",
+        slug.trim_matches('/'),
+        raw_page.trim_matches('/')
+    );
+    if user.is_none() {
+        if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
+            return hit;
+        }
+    }
     let settings = db.get_settings().unwrap_or_default();
     let page = parse_page_segment(&raw_page).unwrap_or(0);
     let posts_page = db
@@ -251,7 +288,15 @@ pub async fn handle_single_paged(
         .filter(|p| settings.show_on_front == "page" && p.id == settings.page_for_posts)
         .filter(|_| page >= 1);
     match posts_page {
-        Some(post) => posts_page_response(&db, &settings, user.as_ref(), &post, page),
+        Some(post) => posts_page_response(
+            &db,
+            &settings,
+            user.as_ref(),
+            &post,
+            page,
+            &cache_key,
+            &headers,
+        ),
         None => not_found_response(
             &db,
             &settings,
@@ -267,6 +312,8 @@ fn blog_index_response(
     settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
     page: usize,
+    cache_key: &str,
+    headers: &HeaderMap,
 ) -> Response {
     let per_page = settings.posts_per_page.clamp(1, 100) as usize;
     let posts = db
@@ -281,10 +328,9 @@ fn blog_index_response(
     let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, settings);
     let html =
         templates::render_home_page_paginated(page_posts, settings, user, Some(&partials), &nav);
-    Html(crate::plugins::inject_plugin_hooks_into_html(
-        db, settings, None, html,
-    ))
-    .into_response()
+    let final_html = crate::plugins::inject_plugin_hooks_into_html(db, settings, None, html);
+    db.hot_cache
+        .store_and_serve(cache_key, headers, user.is_some(), final_html)
 }
 
 /// One page of the posts page archive, with older/newer links under `/{slug}/page/N/`.
@@ -294,6 +340,8 @@ fn posts_page_response(
     user: Option<&crate::auth::AuthUser>,
     post: &models::DaypressPostResponse,
     page: usize,
+    cache_key: &str,
+    headers: &HeaderMap,
 ) -> Response {
     let per_page = settings.posts_per_page.clamp(1, 100) as usize;
     let posts = db
@@ -319,16 +367,9 @@ fn posts_page_response(
         Some(&partials),
         &nav,
     );
-    (
-        StatusCode::OK,
-        Html(crate::plugins::inject_plugin_hooks_into_html(
-            db,
-            settings,
-            Some(post),
-            html,
-        )),
-    )
-        .into_response()
+    let final_html = crate::plugins::inject_plugin_hooks_into_html(db, settings, Some(post), html);
+    db.hot_cache
+        .store_and_serve(cache_key, headers, user.is_some(), final_html)
 }
 
 fn not_found_response(
@@ -356,7 +397,7 @@ pub async fn handle_single(
     Query(paged): Query<PagedQuery>,
     headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
-) -> impl IntoResponse {
+) -> Response {
     // 1. Check 301/302 Redirect Manager first
     let req_path = format!("/{}/", slug.trim_matches('/'));
     if let Some((target_url, status_code)) = db.match_redirect_and_increment(&req_path) {
@@ -366,6 +407,18 @@ pub async fn handle_single(
         }
         let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::MOVED_PERMANENTLY);
         return (status, resp_headers, Html(String::new())).into_response();
+    }
+
+    let page_num = paged.page();
+    let cache_key = if page_num <= 1 {
+        req_path.clone()
+    } else {
+        format!("{}?paged={}", req_path, page_num)
+    };
+    if user.is_none() {
+        if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
+            return hit;
+        }
     }
 
     let settings = db.get_settings().unwrap_or_default();
@@ -385,7 +438,12 @@ pub async fn handle_single(
                 .trim_start()
                 .starts_with("<!DOCTYPE html")
         {
-            return (StatusCode::OK, Html(post.content.rendered)).into_response();
+            return db.hot_cache.store_and_serve(
+                &cache_key,
+                &headers,
+                user.is_some(),
+                post.content.rendered,
+            );
         }
         let layout_json = db.get_post_layout(post.id).unwrap_or(None);
         if settings.show_on_front == "page"
@@ -394,7 +452,15 @@ pub async fn handle_single(
             && layout_json.is_none()
             && post.content.rendered.trim().is_empty()
         {
-            return posts_page_response(&db, &settings, user.as_ref(), &post, paged.page());
+            return posts_page_response(
+                &db,
+                &settings,
+                user.as_ref(),
+                &post,
+                page_num,
+                &cache_key,
+                &headers,
+            );
         }
 
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
@@ -426,16 +492,11 @@ pub async fn handle_single(
             layout_json.as_deref(),
             Some(&partials),
         );
-        return (
-            StatusCode::OK,
-            Html(crate::plugins::inject_plugin_hooks_into_html(
-                &db,
-                &settings,
-                Some(&post),
-                html,
-            )),
-        )
-            .into_response();
+        let final_html =
+            crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
+        return db
+            .hot_cache
+            .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
     }
 
     if let Some(archive_resp) = crate::handlers::archives_ssr::try_handle_cpt_archive(

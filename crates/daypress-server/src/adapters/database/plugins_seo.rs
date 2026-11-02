@@ -17,13 +17,17 @@ impl Database {
     // =========================================================================
 
     pub fn create_form(&self, title: &str, schema_json: &str, settings_json: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
-        let now = Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT INTO daypress_forms (title, schema_json, settings_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
-            params![title, schema_json, settings_json, now],
-        )?;
-        Ok(conn.last_insert_rowid())
+        let id = {
+            let conn = self.conn.lock().unwrap();
+            let now = Utc::now().to_rfc3339();
+            conn.execute(
+                "INSERT INTO daypress_forms (title, schema_json, settings_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+                params![title, schema_json, settings_json, now],
+            )?;
+            conn.last_insert_rowid()
+        };
+        self.invalidate_hot_cache("form_created");
+        Ok(id)
     }
 
     pub fn get_form(&self, id: i64) -> Result<Option<DaypressForm>> {
@@ -54,20 +58,93 @@ impl Database {
         ip_hash: &str,
         user_agent: &str,
     ) -> Result<i64> {
+        self.submit_form_entry_full(
+            form_id, data_json, "[]", "unread", "queued", "none", "", ip_hash, user_agent,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_form_entry_full(
+        &self,
+        form_id: i64,
+        data_json: &str,
+        attachments_json: &str,
+        status: &str,
+        email_status: &str,
+        webhook_status: &str,
+        source_url: &str,
+        ip_hash: &str,
+        user_agent: &str,
+    ) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
-        let now = Utc::now().to_rfc3339();
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         conn.execute(
-            "INSERT INTO daypress_form_entries (form_id, data_json, ip_hash, user_agent, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![form_id, data_json, ip_hash, user_agent, now],
+            r#"INSERT INTO daypress_form_entries
+               (form_id, data_json, attachments_json, status, is_starred, email_status, email_error, webhook_status, source_url, ip_hash, user_agent, created_at)
+               VALUES (?1, ?2, ?3, ?4, 0, ?5, '', ?6, ?7, ?8, ?9, ?10)"#,
+            params![
+                form_id,
+                data_json,
+                attachments_json,
+                status,
+                email_status,
+                webhook_status,
+                source_url,
+                ip_hash,
+                user_agent,
+                now
+            ],
         )?;
         Ok(conn.last_insert_rowid())
+    }
+
+    pub fn update_form_entry_delivery_status(
+        &self,
+        entry_id: i64,
+        email_status: &str,
+        email_error: &str,
+        webhook_status: &str,
+    ) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE daypress_form_entries SET email_status = ?1, email_error = ?2, webhook_status = ?3 WHERE id = ?4",
+            params![email_status, email_error, webhook_status, entry_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    pub fn update_form_entry_workflow(
+        &self,
+        entry_id: i64,
+        status: Option<&str>,
+        is_starred: Option<bool>,
+    ) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let mut changed = 0usize;
+        if let Some(st) = status {
+            let clean = match st {
+                "unread" | "read" | "spam" | "trash" => st,
+                _ => "read",
+            };
+            changed += conn.execute(
+                "UPDATE daypress_form_entries SET status = ?1 WHERE id = ?2",
+                params![clean, entry_id],
+            )?;
+        }
+        if let Some(star) = is_starred {
+            changed += conn.execute(
+                "UPDATE daypress_form_entries SET is_starred = ?1 WHERE id = ?2",
+                params![if star { 1 } else { 0 }, entry_id],
+            )?;
+        }
+        Ok(changed > 0)
     }
 
     pub fn list_forms(&self) -> Result<Vec<(DaypressForm, i64)>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             r#"SELECT f.id, f.title, f.schema_json, f.settings_json, f.created_at, f.updated_at,
-                      (SELECT COUNT(*) FROM daypress_form_entries e WHERE e.form_id = f.id)
+                      (SELECT COUNT(*) FROM daypress_form_entries e WHERE e.form_id = f.id AND COALESCE(e.status, 'unread') NOT IN ('spam', 'trash'))
                FROM daypress_forms f
                ORDER BY f.id ASC"#,
         )?;
@@ -88,42 +165,102 @@ impl Database {
     }
 
     pub fn save_form_record(&self, req: &CreateFormRequest) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
-        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let schema_json = serde_json::to_string(&req.fields).unwrap_or_else(|_| "[]".to_string());
-        let settings_json =
-            serde_json::to_string(&req.settings).unwrap_or_else(|_| "{}".to_string());
-        let title = if req.title.trim().is_empty() {
-            "Untitled Form"
-        } else {
-            req.title.trim()
-        };
+        let saved_id = {
+            let conn = self.conn.lock().unwrap();
+            let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let schema_json =
+                serde_json::to_string(&req.fields).unwrap_or_else(|_| "[]".to_string());
+            let settings_json =
+                serde_json::to_string(&req.settings).unwrap_or_else(|_| "{}".to_string());
+            let title = if req.title.trim().is_empty() {
+                "Untitled Form"
+            } else {
+                req.title.trim()
+            };
 
-        if let Some(id) = req.id.filter(|&id| id > 0) {
-            let updated = conn.execute(
-                "UPDATE daypress_forms SET title = ?1, schema_json = ?2, settings_json = ?3, updated_at = ?4 WHERE id = ?5",
-                params![title, schema_json, settings_json, now, id],
-            )?;
-            if updated > 0 {
-                return Ok(id);
+            if let Some(id) = req.id.filter(|&id| id > 0) {
+                let updated = conn.execute(
+                    "UPDATE daypress_forms SET title = ?1, schema_json = ?2, settings_json = ?3, updated_at = ?4 WHERE id = ?5",
+                    params![title, schema_json, settings_json, now, id],
+                )?;
+                if updated > 0 {
+                    id
+                } else {
+                    conn.execute(
+                        "INSERT INTO daypress_forms (id, title, schema_json, settings_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+                        params![id, title, schema_json, settings_json, now],
+                    )?;
+                    id
+                }
+            } else {
+                conn.execute(
+                    "INSERT INTO daypress_forms (title, schema_json, settings_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+                    params![title, schema_json, settings_json, now],
+                )?;
+                conn.last_insert_rowid()
             }
-        }
-
-        conn.execute(
-            "INSERT INTO daypress_forms (title, schema_json, settings_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
-            params![title, schema_json, settings_json, now],
-        )?;
-        Ok(conn.last_insert_rowid())
+        };
+        self.invalidate_hot_cache("form_saved");
+        Ok(saved_id)
     }
 
     pub fn delete_form(&self, id: i64) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
-        let _ = conn.execute(
-            "DELETE FROM daypress_form_entries WHERE form_id = ?1",
-            params![id],
-        );
-        let rows = conn.execute("DELETE FROM daypress_forms WHERE id = ?1", params![id])?;
+        let rows = {
+            let conn = self.conn.lock().unwrap();
+            let _ = conn.execute(
+                "DELETE FROM daypress_form_entries WHERE form_id = ?1",
+                params![id],
+            );
+            conn.execute("DELETE FROM daypress_forms WHERE id = ?1", params![id])?
+        };
+        let upload_dir = Path::new("uploads")
+            .join("form-submissions")
+            .join(id.to_string());
+        if upload_dir.exists() {
+            let _ = fs::remove_dir_all(upload_dir);
+        }
+        self.invalidate_hot_cache("form_deleted");
         Ok(rows > 0)
+    }
+
+    pub fn get_form_entry_by_id(&self, entry_id: i64) -> Result<Option<FormEntryItem>> {
+        let conn = self.conn.lock().unwrap();
+        let sql = r#"SELECT e.id, e.form_id, COALESCE(f.title, 'Form'), e.data_json,
+                            COALESCE(e.attachments_json, '[]'), COALESCE(e.status, 'unread'),
+                            COALESCE(e.is_starred, 0), COALESCE(e.email_status, 'disabled'),
+                            COALESCE(e.email_error, ''), COALESCE(e.webhook_status, 'none'),
+                            COALESCE(e.source_url, ''), e.ip_hash, e.user_agent, e.created_at
+                     FROM daypress_form_entries e
+                     LEFT JOIN daypress_forms f ON e.form_id = f.id
+                     WHERE e.id = ?1"#;
+        let mut stmt = conn.prepare(sql)?;
+        let mut rows = stmt.query_map(params![entry_id], Self::map_form_entry_row)?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
+    }
+
+    fn map_form_entry_row(r: &rusqlite::Row) -> rusqlite::Result<FormEntryItem> {
+        let attachments_raw: String = r.get(4)?;
+        let attachments: Vec<FormAttachmentMeta> =
+            serde_json::from_str(&attachments_raw).unwrap_or_default();
+        Ok(FormEntryItem {
+            id: r.get(0)?,
+            form_id: r.get(1)?,
+            form_title: r.get(2)?,
+            data_json: r.get(3)?,
+            attachments,
+            status: r.get(5)?,
+            is_starred: r.get::<_, i64>(6).unwrap_or(0) != 0,
+            email_status: r.get(7)?,
+            email_error: r.get(8)?,
+            webhook_status: r.get(9)?,
+            source_url: r.get(10)?,
+            ip_hash: r.get(11)?,
+            user_agent: r.get(12)?,
+            created_at: r.get(13)?,
+        })
     }
 
     pub fn list_form_entries(
@@ -131,46 +268,86 @@ impl Database {
         form_id: Option<i64>,
         limit: i64,
     ) -> Result<Vec<FormEntryItem>> {
+        self.list_form_entries_filtered(form_id, None, None, limit)
+    }
+
+    pub fn list_form_entries_filtered(
+        &self,
+        form_id: Option<i64>,
+        status_filter: Option<&str>,
+        search: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<FormEntryItem>> {
         let conn = self.conn.lock().unwrap();
         let sql = if form_id.is_some() {
-            r#"SELECT e.id, e.form_id, COALESCE(f.title, 'Form'), e.data_json, e.ip_hash, e.user_agent, e.created_at
+            r#"SELECT e.id, e.form_id, COALESCE(f.title, 'Form'), e.data_json,
+                      COALESCE(e.attachments_json, '[]'), COALESCE(e.status, 'unread'),
+                      COALESCE(e.is_starred, 0), COALESCE(e.email_status, 'disabled'),
+                      COALESCE(e.email_error, ''), COALESCE(e.webhook_status, 'none'),
+                      COALESCE(e.source_url, ''), e.ip_hash, e.user_agent, e.created_at
                FROM daypress_form_entries e
                LEFT JOIN daypress_forms f ON e.form_id = f.id
                WHERE e.form_id = ?1
                ORDER BY e.id DESC LIMIT ?2"#
         } else {
-            r#"SELECT e.id, e.form_id, COALESCE(f.title, 'Form'), e.data_json, e.ip_hash, e.user_agent, e.created_at
+            r#"SELECT e.id, e.form_id, COALESCE(f.title, 'Form'), e.data_json,
+                      COALESCE(e.attachments_json, '[]'), COALESCE(e.status, 'unread'),
+                      COALESCE(e.is_starred, 0), COALESCE(e.email_status, 'disabled'),
+                      COALESCE(e.email_error, ''), COALESCE(e.webhook_status, 'none'),
+                      COALESCE(e.source_url, ''), e.ip_hash, e.user_agent, e.created_at
                FROM daypress_form_entries e
                LEFT JOIN daypress_forms f ON e.form_id = f.id
                ORDER BY e.id DESC LIMIT ?1"#
         };
 
         let mut stmt = conn.prepare(sql)?;
-        let map_row = |r: &rusqlite::Row| -> rusqlite::Result<FormEntryItem> {
-            Ok(FormEntryItem {
-                id: r.get(0)?,
-                form_id: r.get(1)?,
-                form_title: r.get(2)?,
-                data_json: r.get(3)?,
-                ip_hash: r.get(4)?,
-                user_agent: r.get(5)?,
-                created_at: r.get(6)?,
-            })
-        };
-
-        let entries: Vec<FormEntryItem> = if let Some(fid) = form_id {
-            stmt.query_map(params![fid, limit], map_row)?
+        let fetch_limit = limit.max(200);
+        let raw_entries: Vec<FormEntryItem> = if let Some(fid) = form_id {
+            stmt.query_map(params![fid, fetch_limit], Self::map_form_entry_row)?
                 .filter_map(|r| r.ok())
                 .collect()
         } else {
-            stmt.query_map(params![limit], map_row)?
+            stmt.query_map(params![fetch_limit], Self::map_form_entry_row)?
                 .filter_map(|r| r.ok())
                 .collect()
         };
-        Ok(entries)
+
+        let status_clean = status_filter.map(str::trim).unwrap_or("");
+        let search_lower = search.map(|s| s.trim().to_lowercase()).unwrap_or_default();
+
+        let filtered = raw_entries
+            .into_iter()
+            .filter(|item| match status_clean {
+                "" | "all" => item.status != "spam" && item.status != "trash",
+                "starred" => item.is_starred && item.status != "trash",
+                "unread" | "read" | "spam" | "trash" => item.status == status_clean,
+                "failed_email" => item.email_status == "failed",
+                _ => true,
+            })
+            .filter(|item| {
+                if search_lower.is_empty() {
+                    true
+                } else {
+                    item.data_json.to_lowercase().contains(&search_lower)
+                        || item.form_title.to_lowercase().contains(&search_lower)
+                        || item.source_url.to_lowercase().contains(&search_lower)
+                }
+            })
+            .take(limit.max(1) as usize)
+            .collect();
+
+        Ok(filtered)
     }
 
     pub fn delete_form_entry(&self, entry_id: i64) -> Result<bool> {
+        if let Ok(Some(entry)) = self.get_form_entry_by_id(entry_id) {
+            for att in &entry.attachments {
+                let p = Path::new(&att.stored_path);
+                if p.starts_with("uploads/form-submissions") && p.exists() {
+                    let _ = fs::remove_file(p);
+                }
+            }
+        }
         let conn = self.conn.lock().unwrap();
         let rows = conn.execute(
             "DELETE FROM daypress_form_entries WHERE id = ?1",
@@ -817,21 +994,56 @@ impl Database {
         utm_medium: Option<&str>,
         utm_campaign: Option<&str>,
     ) -> Result<()> {
+        self.record_analytics_event_full(
+            visitor_hash,
+            page_url,
+            referrer,
+            device_type,
+            country,
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            "pageview",
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_analytics_event_full(
+        &self,
+        visitor_hash: &str,
+        page_url: &str,
+        referrer: &str,
+        device_type: &str,
+        country: &str,
+        utm_source: Option<&str>,
+        utm_medium: Option<&str>,
+        utm_campaign: Option<&str>,
+        event_type: &str,
+        goal_name: Option<&str>,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        let now = Utc::now().to_rfc3339();
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let ev_type = if event_type.trim().is_empty() {
+            "pageview"
+        } else {
+            event_type.trim()
+        };
         conn.execute(
             r#"INSERT INTO daypress_analytics_events 
-               (visitor_hash, page_url, referrer, device_type, country, utm_source, utm_medium, utm_campaign, created_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#,
+               (visitor_hash, page_url, referrer, device_type, country, utm_source, utm_medium, utm_campaign, event_type, goal_name, created_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"#,
             params![
                 visitor_hash,
                 page_url,
                 referrer,
                 device_type,
                 country,
-                utm_source,
-                utm_medium,
-                utm_campaign,
+                utm_source.filter(|s| !s.trim().is_empty()),
+                utm_medium.filter(|s| !s.trim().is_empty()),
+                utm_campaign.filter(|s| !s.trim().is_empty()),
+                ev_type,
+                goal_name.filter(|s| !s.trim().is_empty()),
                 now
             ],
         )?;
@@ -839,38 +1051,281 @@ impl Database {
     }
 
     pub fn get_analytics_summary(&self) -> Result<AnalyticsSummary> {
+        self.get_analytics_dashboard("30d")
+    }
+
+    pub fn get_analytics_dashboard(&self, range: &str) -> Result<AnalyticsSummary> {
+        use chrono::Duration;
         let conn = self.conn.lock().unwrap();
+        let now = Utc::now();
+        let clean_range = match range.trim() {
+            "24h" | "7d" | "30d" | "90d" | "12m" => range.trim(),
+            _ => "30d",
+        };
+
+        let cutoff_dt = match clean_range {
+            "24h" => now - Duration::hours(24),
+            "7d" => now - Duration::days(7),
+            "90d" => now - Duration::days(90),
+            "12m" => now - Duration::days(365),
+            _ => now - Duration::days(30),
+        };
+        let cutoff_str = cutoff_dt.format("%Y-%m-%d %H:%M:%S").to_string();
+
         let total_visitors: i64 = conn
             .query_row(
-                "SELECT COUNT(DISTINCT visitor_hash) FROM daypress_analytics_events",
-                [],
+                "SELECT COUNT(DISTINCT visitor_hash) FROM daypress_analytics_events WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1",
+                params![cutoff_str],
                 |r| r.get(0),
             )
             .unwrap_or(0);
 
         let total_pageviews: i64 = conn
-            .query_row("SELECT COUNT(*) FROM daypress_analytics_events", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT COUNT(*) FROM daypress_analytics_events WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1 AND COALESCE(event_type, 'pageview') = 'pageview'",
+                params![cutoff_str],
+                |r| r.get(0),
+            )
             .unwrap_or(0);
 
+        let total_conversions: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM daypress_analytics_events WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1 AND COALESCE(event_type, 'pageview') IN ('form_submit', 'goal')",
+                params![cutoff_str],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        let single_hit_visitors: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM (SELECT visitor_hash FROM daypress_analytics_events WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1 GROUP BY visitor_hash HAVING COUNT(*) = 1)",
+                params![cutoff_str],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        let bounce_rate_pct = if total_visitors == 0 {
+            0.0
+        } else {
+            (single_hit_visitors as f64 / total_visitors as f64) * 100.0
+        };
+
+        // Time-series buckets
+        let mut bucket_map: std::collections::BTreeMap<String, (i64, i64, i64)> =
+            std::collections::BTreeMap::new();
+        match clean_range {
+            "24h" => {
+                for h in (0..24).rev() {
+                    let b = (now - Duration::hours(h))
+                        .format("%Y-%m-%d %H:00")
+                        .to_string();
+                    bucket_map.insert(b, (0, 0, 0));
+                }
+            }
+            "12m" => {
+                for m in (0..12).rev() {
+                    let b = (now - Duration::days(m * 30)).format("%Y-%m").to_string();
+                    bucket_map.insert(b, (0, 0, 0));
+                }
+            }
+            _ => {
+                let days = match clean_range {
+                    "7d" => 7,
+                    "90d" => 90,
+                    _ => 30,
+                };
+                for d in (0..days).rev() {
+                    let b = (now - Duration::days(d)).format("%Y-%m-%d").to_string();
+                    bucket_map.insert(b, (0, 0, 0));
+                }
+            }
+        }
+
+        let bucket_sql = match clean_range {
+            "24h" => {
+                r#"SELECT substr(replace(created_at, 'T', ' '), 1, 13) || ':00' AS b,
+                          COUNT(DISTINCT visitor_hash),
+                          SUM(CASE WHEN COALESCE(event_type, 'pageview') = 'pageview' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN COALESCE(event_type, 'pageview') IN ('form_submit', 'goal') THEN 1 ELSE 0 END)
+                   FROM daypress_analytics_events
+                   WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                   GROUP BY b ORDER BY b ASC"#
+            }
+            "12m" => {
+                r#"SELECT substr(replace(created_at, 'T', ' '), 1, 7) AS b,
+                          COUNT(DISTINCT visitor_hash),
+                          SUM(CASE WHEN COALESCE(event_type, 'pageview') = 'pageview' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN COALESCE(event_type, 'pageview') IN ('form_submit', 'goal') THEN 1 ELSE 0 END)
+                   FROM daypress_analytics_events
+                   WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                   GROUP BY b ORDER BY b ASC"#
+            }
+            _ => {
+                r#"SELECT substr(replace(created_at, 'T', ' '), 1, 10) AS b,
+                          COUNT(DISTINCT visitor_hash),
+                          SUM(CASE WHEN COALESCE(event_type, 'pageview') = 'pageview' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN COALESCE(event_type, 'pageview') IN ('form_submit', 'goal') THEN 1 ELSE 0 END)
+                   FROM daypress_analytics_events
+                   WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                   GROUP BY b ORDER BY b ASC"#
+            }
+        };
+
+        if let Ok(mut b_stmt) = conn.prepare(bucket_sql) {
+            if let Ok(rows) = b_stmt.query_map(params![cutoff_str], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1).unwrap_or(0),
+                    r.get::<_, i64>(2).unwrap_or(0),
+                    r.get::<_, i64>(3).unwrap_or(0),
+                ))
+            }) {
+                for row in rows.flatten() {
+                    bucket_map.insert(row.0, (row.1, row.2, row.3));
+                }
+            }
+        }
+
+        let buckets: Vec<AnalyticsBucketPoint> = bucket_map
+            .into_iter()
+            .map(
+                |(bucket, (visitors, pageviews, conversions))| AnalyticsBucketPoint {
+                    bucket,
+                    visitors,
+                    pageviews,
+                    conversions,
+                },
+            )
+            .collect();
+
+        // Top Pages
         let mut stmt = conn.prepare(
-            "SELECT page_url, COUNT(*) as views FROM daypress_analytics_events GROUP BY page_url ORDER BY views DESC LIMIT 10",
+            r#"SELECT page_url, COUNT(*) as views, COUNT(DISTINCT visitor_hash) as visitors
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                 AND COALESCE(event_type, 'pageview') = 'pageview'
+               GROUP BY page_url ORDER BY views DESC LIMIT 10"#,
         )?;
         let top_pages = stmt
-            .query_map([], |r| {
+            .query_map(params![cutoff_str], |r| {
                 Ok(TopPageMetric {
                     page_url: r.get(0)?,
                     views: r.get(1)?,
+                    visitors: r.get(2).unwrap_or(0),
                 })
             })?
             .filter_map(|r| r.ok())
             .collect();
 
+        let query_breakdown = |sql: &str| -> Vec<BreakdownMetric> {
+            let Ok(mut s) = conn.prepare(sql) else {
+                return Vec::new();
+            };
+            let Ok(rows) = s.query_map(params![cutoff_str], |r| {
+                Ok(BreakdownMetric {
+                    label: r.get(0)?,
+                    visitors: r.get(1).unwrap_or(0),
+                    views: r.get(2).unwrap_or(0),
+                })
+            }) else {
+                return Vec::new();
+            };
+            rows.filter_map(|r| r.ok()).collect()
+        };
+
+        let top_referrers = query_breakdown(
+            r#"SELECT CASE WHEN TRIM(COALESCE(referrer, '')) = '' THEN 'Direct / None' ELSE referrer END AS lbl,
+                      COUNT(DISTINCT visitor_hash) AS vis, COUNT(*) AS vws
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+               GROUP BY lbl ORDER BY vws DESC LIMIT 10"#,
+        );
+
+        let utm_sources = query_breakdown(
+            r#"SELECT utm_source AS lbl, COUNT(DISTINCT visitor_hash) AS vis, COUNT(*) AS vws
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                 AND utm_source IS NOT NULL AND TRIM(utm_source) != ''
+               GROUP BY lbl ORDER BY vws DESC LIMIT 10"#,
+        );
+
+        let utm_mediums = query_breakdown(
+            r#"SELECT utm_medium AS lbl, COUNT(DISTINCT visitor_hash) AS vis, COUNT(*) AS vws
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                 AND utm_medium IS NOT NULL AND TRIM(utm_medium) != ''
+               GROUP BY lbl ORDER BY vws DESC LIMIT 10"#,
+        );
+
+        let utm_campaigns = query_breakdown(
+            r#"SELECT utm_campaign AS lbl, COUNT(DISTINCT visitor_hash) AS vis, COUNT(*) AS vws
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                 AND utm_campaign IS NOT NULL AND TRIM(utm_campaign) != ''
+               GROUP BY lbl ORDER BY vws DESC LIMIT 10"#,
+        );
+
+        let devices = query_breakdown(
+            r#"SELECT COALESCE(NULLIF(TRIM(device_type), ''), 'desktop') AS lbl,
+                      COUNT(DISTINCT visitor_hash) AS vis, COUNT(*) AS vws
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+               GROUP BY lbl ORDER BY vws DESC LIMIT 10"#,
+        );
+
+        let countries = query_breakdown(
+            r#"SELECT COALESCE(NULLIF(TRIM(country), ''), 'XX') AS lbl,
+                      COUNT(DISTINCT visitor_hash) AS vis, COUNT(*) AS vws
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+               GROUP BY lbl ORDER BY vws DESC LIMIT 10"#,
+        );
+
+        let mut conversions = Vec::new();
+        if let Ok(mut c_stmt) = conn.prepare(
+            r#"SELECT COALESCE(NULLIF(TRIM(goal_name), ''), COALESCE(event_type, 'goal')) AS gname,
+                      COUNT(*) AS cnt,
+                      COUNT(DISTINCT visitor_hash) AS vis
+               FROM daypress_analytics_events
+               WHERE substr(replace(created_at, 'T', ' '), 1, 19) >= ?1
+                 AND COALESCE(event_type, 'pageview') IN ('form_submit', 'goal')
+               GROUP BY gname ORDER BY cnt DESC LIMIT 15"#,
+        ) {
+            if let Ok(rows) = c_stmt.query_map(params![cutoff_str], |r| {
+                let goal_name: String = r.get(0)?;
+                let count: i64 = r.get(1).unwrap_or(0);
+                let unique_visitors: i64 = r.get(2).unwrap_or(0);
+                let conversion_rate_pct = if total_visitors == 0 {
+                    0.0
+                } else {
+                    (unique_visitors as f64 / total_visitors as f64) * 100.0
+                };
+                Ok(ConversionMetric {
+                    goal_name,
+                    count,
+                    unique_visitors,
+                    conversion_rate_pct,
+                })
+            }) {
+                conversions = rows.filter_map(|r| r.ok()).collect();
+            }
+        }
+
         Ok(AnalyticsSummary {
+            range: clean_range.to_string(),
             total_visitors,
             total_pageviews,
+            total_conversions,
+            bounce_rate_pct,
+            buckets,
             top_pages,
+            top_referrers,
+            utm_sources,
+            utm_mediums,
+            utm_campaigns,
+            devices,
+            countries,
+            conversions,
         })
     }
 

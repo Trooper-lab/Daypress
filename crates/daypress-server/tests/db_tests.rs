@@ -499,6 +499,7 @@ fn test_all_settings_sections() {
     assert_eq!(privacy.wp_page_for_privacy_policy, 0);
     let new_privacy = PrivacySettings {
         wp_page_for_privacy_policy: 42,
+        ..Default::default()
     };
     db.update_privacy_settings(&new_privacy)
         .expect("Update privacy failed");

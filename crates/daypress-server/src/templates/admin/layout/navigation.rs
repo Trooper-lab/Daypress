@@ -92,6 +92,7 @@ pub struct NavState {
     pub sub_plug_editor: &'static str,
     pub is_seo: &'static str,
     pub is_forms: &'static str,
+    pub is_analytics: &'static str,
     pub is_backups: &'static str,
     pub is_users: &'static str,
     pub is_users_open: &'static str,
@@ -274,6 +275,11 @@ impl NavState {
 
         let is_seo = if current_tab == "seo" { "active" } else { "" };
         let is_forms = if current_tab == "forms" { "active" } else { "" };
+        let is_analytics = if current_tab == "analytics" {
+            "active"
+        } else {
+            ""
+        };
         let is_backups = if current_tab == "backups" {
             "active"
         } else {
@@ -440,6 +446,7 @@ impl NavState {
             sub_plug_editor,
             is_seo,
             is_forms,
+            is_analytics,
             is_backups,
             is_users,
             is_users_open,

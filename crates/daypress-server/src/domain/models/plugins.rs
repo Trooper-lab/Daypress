@@ -72,6 +72,32 @@ impl Default for GlobalSeoSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FieldConditionRule {
+    #[serde(default)]
+    pub field: String,
+    #[serde(default = "default_cond_operator")]
+    pub operator: String,
+    #[serde(default)]
+    pub value: String,
+}
+
+pub fn default_cond_operator() -> String {
+    "equals".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConditionalEmailRoute {
+    #[serde(default)]
+    pub field: String,
+    #[serde(default = "default_cond_operator")]
+    pub operator: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub recipient_email: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormFieldSchema {
     pub name: String,
@@ -84,10 +110,68 @@ pub struct FormFieldSchema {
     pub placeholder: String,
     #[serde(default)]
     pub options: Vec<String>,
+    #[serde(default = "default_field_width")]
+    pub width: String,
+    #[serde(default = "default_field_step")]
+    pub step: u8,
+    #[serde(default)]
+    pub default_value: String,
+    #[serde(default)]
+    pub help_text: String,
+    #[serde(default)]
+    pub condition: Option<FieldConditionRule>,
+    #[serde(default)]
+    pub calculation_formula: Option<String>,
+    #[serde(default)]
+    pub min: Option<f64>,
+    #[serde(default)]
+    pub max: Option<f64>,
+    #[serde(default)]
+    pub step_increment: Option<f64>,
+    #[serde(default, alias = "allowed_extensions")]
+    pub accept_extensions: String,
+    #[serde(default = "default_max_file_size_mb")]
+    pub max_file_size_mb: u32,
+}
+
+pub fn default_max_file_size_mb() -> u32 {
+    10
 }
 
 pub fn default_field_type() -> String {
     "text".to_string()
+}
+
+pub fn default_field_width() -> String {
+    "full".to_string()
+}
+
+pub fn default_field_step() -> u8 {
+    1
+}
+
+impl Default for FormFieldSchema {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            label: String::new(),
+            field_type: default_field_type(),
+            required: false,
+            placeholder: String::new(),
+            options: Vec::new(),
+            width: default_field_width(),
+            step: default_field_step(),
+            default_value: String::new(),
+            help_text: String::new(),
+            condition: None,
+            calculation_formula: None,
+            min: None,
+            max: None,
+            step_increment: None,
+            accept_extensions: String::new(),
+            max_file_size_mb: default_max_file_size_mb(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,9 +181,42 @@ pub struct FormSettings {
     #[serde(default = "default_success_msg")]
     pub success_message: String,
     #[serde(default)]
+    pub redirect_url: String,
+    #[serde(default)]
     pub recipient_email: String,
     #[serde(default)]
+    pub email_subject_template: String,
+    #[serde(default)]
+    pub conditional_routes: Vec<ConditionalEmailRoute>,
+    #[serde(default, alias = "enable_autoresponder")]
+    pub auto_responder_enabled: bool,
+    #[serde(
+        default = "default_autoresponder_field",
+        alias = "autoresponder_email_field"
+    )]
+    pub auto_responder_email_field: String,
+    #[serde(default, alias = "autoresponder_subject")]
+    pub auto_responder_subject: String,
+    #[serde(default, alias = "autoresponder_body")]
+    pub auto_responder_body: String,
+    #[serde(default)]
     pub webhook_url: String,
+    #[serde(default)]
+    pub step_titles: Vec<String>,
+    #[serde(default = "default_true_bool")]
+    pub show_progress_bar: bool,
+    #[serde(default = "default_true_bool")]
+    pub enable_honeypot: bool,
+    #[serde(default)]
+    pub min_submit_seconds: u32,
+    #[serde(default = "default_rate_limit_per_min")]
+    pub rate_limit_per_minute: u32,
+    #[serde(default = "default_captcha_provider")]
+    pub captcha_provider: String,
+    #[serde(default)]
+    pub captcha_site_key: String,
+    #[serde(default)]
+    pub captcha_secret_key: String,
 }
 
 pub fn default_submit_label() -> String {
@@ -110,13 +227,40 @@ pub fn default_success_msg() -> String {
     "Thank you! Your submission has been received.".to_string()
 }
 
+pub fn default_autoresponder_field() -> String {
+    "email".to_string()
+}
+
+pub fn default_rate_limit_per_min() -> u32 {
+    15
+}
+
+pub fn default_captcha_provider() -> String {
+    "none".to_string()
+}
+
 impl Default for FormSettings {
     fn default() -> Self {
         Self {
             submit_label: default_submit_label(),
             success_message: default_success_msg(),
+            redirect_url: String::new(),
             recipient_email: String::new(),
+            email_subject_template: String::new(),
+            conditional_routes: Vec::new(),
+            auto_responder_enabled: false,
+            auto_responder_email_field: default_autoresponder_field(),
+            auto_responder_subject: String::new(),
+            auto_responder_body: String::new(),
             webhook_url: String::new(),
+            step_titles: Vec::new(),
+            show_progress_bar: true,
+            enable_honeypot: true,
+            min_submit_seconds: 0,
+            rate_limit_per_minute: default_rate_limit_per_min(),
+            captcha_provider: default_captcha_provider(),
+            captcha_site_key: String::new(),
+            captcha_secret_key: String::new(),
         }
     }
 }
@@ -131,15 +275,53 @@ pub struct CreateFormRequest {
     pub settings: FormSettings,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FormAttachmentMeta {
+    #[serde(default)]
+    pub field_name: String,
+    #[serde(default, alias = "stored_name")]
+    pub filename: String,
+    #[serde(default)]
+    pub original_name: String,
+    #[serde(default)]
+    pub mime_type: String,
+    #[serde(default)]
+    pub size_bytes: u64,
+    #[serde(default)]
+    pub stored_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FormEntryItem {
     pub id: i64,
     pub form_id: i64,
     pub form_title: String,
     pub data_json: String,
+    #[serde(default)]
+    pub attachments: Vec<FormAttachmentMeta>,
     pub ip_hash: String,
     pub user_agent: String,
+    #[serde(default = "default_entry_status")]
+    pub status: String,
+    #[serde(default)]
+    pub is_starred: bool,
+    #[serde(default = "default_email_status")]
+    pub email_status: String,
+    #[serde(default)]
+    pub email_error: Option<String>,
+    #[serde(default)]
+    pub webhook_status: Option<String>,
+    #[serde(default)]
+    pub source_url: String,
     pub created_at: String,
+}
+
+pub fn default_entry_status() -> String {
+    "unread".to_string()
+}
+
+pub fn default_email_status() -> String {
+    "disabled".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +344,10 @@ pub struct FormSubmitRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalyticsEventRequest {
     pub page_url: String,
+    #[serde(default = "default_analytics_event_type")]
+    pub event_type: String,
+    #[serde(default)]
+    pub goal_name: Option<String>,
     #[serde(default)]
     pub referrer: Option<String>,
     #[serde(default)]
@@ -174,17 +360,71 @@ pub struct AnalyticsEventRequest {
     pub utm_campaign: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+pub fn default_analytics_event_type() -> String {
+    "pageview".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AnalyticsSummary {
     pub total_visitors: i64,
     pub total_pageviews: i64,
     pub top_pages: Vec<TopPageMetric>,
+    #[serde(default)]
+    pub total_conversions: i64,
+    #[serde(default)]
+    pub bounce_rate_pct: f64,
+    #[serde(default)]
+    pub range: String,
+    #[serde(default, alias = "timeseries")]
+    pub buckets: Vec<AnalyticsBucketPoint>,
+    #[serde(default)]
+    pub top_referrers: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub utm_sources: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub utm_mediums: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub utm_campaigns: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub countries: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub devices: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub conversions: Vec<ConversionMetric>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TopPageMetric {
     pub page_url: String,
     pub views: i64,
+    #[serde(default)]
+    pub visitors: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AnalyticsBucketPoint {
+    #[serde(default, alias = "label")]
+    pub bucket: String,
+    pub visitors: i64,
+    pub pageviews: i64,
+    pub conversions: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BreakdownMetric {
+    pub label: String,
+    pub visitors: i64,
+    #[serde(default, alias = "pageviews")]
+    pub views: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ConversionMetric {
+    pub goal_name: String,
+    #[serde(default, alias = "conversions")]
+    pub count: i64,
+    pub unique_visitors: i64,
+    pub conversion_rate_pct: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

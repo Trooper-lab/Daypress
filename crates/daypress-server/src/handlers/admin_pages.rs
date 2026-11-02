@@ -291,7 +291,26 @@ pub async fn handle_admin_settings(State(db): State<Database>) -> Html<String> {
 pub async fn handle_admin_engine(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_engine_view(&settings, &stats))
+    let cache_stats = db.hot_cache_stats();
+    let cf_zone_id = db
+        .get_option("daypress_cf_zone_id")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let has_cf_token = !db
+        .get_option("daypress_cf_api_token")
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+        .trim()
+        .is_empty();
+    Html(templates::render_engine_view_with_cache(
+        &settings,
+        &stats,
+        &cache_stats,
+        &cf_zone_id,
+        has_cf_token,
+    ))
 }
 
 pub async fn handle_admin_publish(State(db): State<Database>) -> Html<String> {

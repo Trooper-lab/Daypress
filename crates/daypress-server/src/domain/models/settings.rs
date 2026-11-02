@@ -63,6 +63,8 @@ pub struct DaypressSettingsResponse {
     pub theme_assets_html: String,
     #[serde(default)]
     pub update_available: Option<String>,
+    #[serde(default)]
+    pub privacy_settings: PrivacySettings,
 }
 
 pub fn default_show_on_front() -> String {
@@ -130,6 +132,7 @@ impl Default for DaypressSettingsResponse {
             custom_post_types: Vec::new(),
             theme_assets_html: String::new(),
             update_available: None,
+            privacy_settings: PrivacySettings::default(),
         }
     }
 }
@@ -244,5 +247,68 @@ pub struct PermalinkSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivacySettings {
+    #[serde(default)]
     pub wp_page_for_privacy_policy: i64,
+    #[serde(default)]
+    pub cookie_banner_enabled: bool,
+    #[serde(default = "default_cookie_banner_position")]
+    pub cookie_banner_position: String,
+    #[serde(default = "default_cookie_banner_title")]
+    pub cookie_banner_title: String,
+    #[serde(default = "default_cookie_banner_message")]
+    pub cookie_banner_message: String,
+    #[serde(default = "default_cookie_accept_label")]
+    pub cookie_accept_all_label: String,
+    #[serde(default = "default_cookie_reject_label")]
+    pub cookie_reject_label: String,
+    #[serde(default = "default_cookie_manage_label")]
+    pub cookie_manage_label: String,
+    #[serde(default)]
+    pub gate_builtin_analytics: bool,
+    #[serde(default)]
+    pub analytics_scripts_html: String,
+    #[serde(default)]
+    pub marketing_scripts_html: String,
+}
+
+pub fn default_cookie_banner_position() -> String {
+    "bottom-bar".to_string()
+}
+
+pub fn default_cookie_banner_title() -> String {
+    "Privacy & Cookie Preferences".to_string()
+}
+
+pub fn default_cookie_banner_message() -> String {
+    "We use strictly necessary cookies to make our site work. With your consent, we may also enable optional analytics and marketing scripts.".to_string()
+}
+
+pub fn default_cookie_accept_label() -> String {
+    "Accept All".to_string()
+}
+
+pub fn default_cookie_reject_label() -> String {
+    "Necessary Only".to_string()
+}
+
+pub fn default_cookie_manage_label() -> String {
+    "Manage Preferences".to_string()
+}
+
+impl Default for PrivacySettings {
+    fn default() -> Self {
+        Self {
+            wp_page_for_privacy_policy: 0,
+            cookie_banner_enabled: false,
+            cookie_banner_position: default_cookie_banner_position(),
+            cookie_banner_title: default_cookie_banner_title(),
+            cookie_banner_message: default_cookie_banner_message(),
+            cookie_accept_all_label: default_cookie_accept_label(),
+            cookie_reject_label: default_cookie_reject_label(),
+            cookie_manage_label: default_cookie_manage_label(),
+            gate_builtin_analytics: false,
+            analytics_scripts_html: String::new(),
+            marketing_scripts_html: String::new(),
+        }
+    }
 }

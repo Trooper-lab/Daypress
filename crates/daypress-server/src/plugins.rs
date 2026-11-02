@@ -23,14 +23,25 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "daypress-forms".to_string(),
-            name: "Daypress Forms Studio & Lead Inbox".to_string(),
-            version: "2.2.0".to_string(),
+            name: "Daypress Forms Studio & Submissions Vault".to_string(),
+            version: "3.0.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "Full Contact Form 7, WPForms & Ninja Forms parity: Declarative form builder, honeypot anti-spam protection, SQLite submissions inbox, CSV export, email notifications, and webhook triggers.".to_string(),
+            description: "All-in-One FormStudio (WPForms, Gravity Forms & CF7 parity): Multi-step wizard forms, multi-column layouts, conditional field visibility, calculated fields, visitor file uploads, honeypot/timestamp/Turnstile anti-spam, and a fail-safe SQLite Submissions Vault with 1-click email retry.".to_string(),
             settings_url: Some("/d-admin/forms".to_string()),
             is_builtin: true,
             // Per-form settings (notifications, honeypot, webhooks) are stored on each form
             // in `daypress_forms.settings_json` and edited on /d-admin/forms.
+            settings_schema: vec![],
+            hooks: PluginHooksManifest::default(),
+        },
+        PluginManifest {
+            slug: "daypress-cookie-consent".to_string(),
+            name: "Native GDPR Privacy & Cookie Consent Banner".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Daypress Core".to_string(),
+            description: "Complianz & CookieYes parity: Zero-bloat (<2 KB) GDPR/CCPA cookie consent banner with granular script category gating (Necessary, Analytics, Marketing) configured directly in Settings → Privacy.".to_string(),
+            settings_url: Some("/d-admin/options-privacy".to_string()),
+            is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
         },
@@ -643,7 +654,7 @@ pub fn render_public_form_html(db: &Database, form_id: i64) -> String {
                     field_type: "text".to_string(),
                     required: true,
                     placeholder: "Jane Doe".to_string(),
-                    options: vec![],
+                    ..Default::default()
                 },
                 crate::models::FormFieldSchema {
                     name: "your_email".to_string(),
@@ -651,7 +662,7 @@ pub fn render_public_form_html(db: &Database, form_id: i64) -> String {
                     field_type: "email".to_string(),
                     required: true,
                     placeholder: "jane@example.com".to_string(),
-                    options: vec![],
+                    ..Default::default()
                 },
                 crate::models::FormFieldSchema {
                     name: "your_message".to_string(),
@@ -659,121 +670,429 @@ pub fn render_public_form_html(db: &Database, form_id: i64) -> String {
                     field_type: "textarea".to_string(),
                     required: true,
                     placeholder: "How can we help you?".to_string(),
-                    options: vec![],
+                    ..Default::default()
                 },
             ],
             crate::models::FormSettings::default(),
         ),
     };
 
-    let mut fields_html = String::new();
-    for field in &fields {
-        let req_attr = if field.required { "required" } else { "" };
-        let req_star = if field.required {
-            r#" <span style="color: #ef4444;">*</span>"#
-        } else {
-            ""
-        };
-        let fname = crate::templates::utils::escape_html(&field.name);
-        let flabel = crate::templates::utils::escape_html(&field.label);
-        let fph = crate::templates::utils::escape_html(&field.placeholder);
+    let max_step = fields.iter().map(|f| f.step.max(1)).max().unwrap_or(1);
+    let is_multistep = max_step > 1;
 
-        let input_el = match field.field_type.as_str() {
-            "textarea" => format!(
-                r#"<textarea name="{fname}" rows="4" placeholder="{fph}" {req_attr} style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border, #334155); background: var(--bg-base, #090d16); color: var(--text-main, #f8fafc); font-family: inherit; font-size: 14px;"></textarea>"#
-            ),
-            "select" => {
-                let mut opts = String::new();
-                for o in &field.options {
-                    let o_esc = crate::templates::utils::escape_html(o);
-                    opts.push_str(&format!(r#"<option value="{o_esc}">{o_esc}</option>"#));
+    let mut steps_html = String::new();
+    for step_idx in 1..=max_step {
+        let step_display = if step_idx == 1 {
+            "display: flex;"
+        } else {
+            "display: none;"
+        };
+        let mut step_fields_html = String::new();
+
+        for field in fields.iter().filter(|f| f.step.max(1) == step_idx) {
+            let req_attr = if field.required {
+                "required data-dp-required=\"1\""
+            } else {
+                ""
+            };
+            let req_star = if field.required {
+                r#" <span style="color: #ef4444;">*</span>"#
+            } else {
+                ""
+            };
+            let fname = crate::templates::utils::escape_html(&field.name);
+            let flabel = crate::templates::utils::escape_html(&field.label);
+            let fph = crate::templates::utils::escape_html(&field.placeholder);
+            let fdef = crate::templates::utils::escape_html(&field.default_value);
+            let fhelp = if field.help_text.trim().is_empty() {
+                String::new()
+            } else {
+                format!(
+                    r#"<div style="font-size: 12px; color: var(--text-muted, #94a3b8); margin-top: 4px;">{}</div>"#,
+                    crate::templates::utils::escape_html(&field.help_text)
+                )
+            };
+
+            let width_css = match field.width.as_str() {
+                "half" | "1/2" => "flex: 1 1 calc(50% - 12px); min-width: 220px;",
+                "third" | "1/3" => "flex: 1 1 calc(33.333% - 12px); min-width: 180px;",
+                "two_thirds" | "2/3" => "flex: 1 1 calc(66.666% - 12px); min-width: 240px;",
+                _ => "flex: 1 1 100%; width: 100%;",
+            };
+
+            let cond_attrs = if let Some(ref c) = field.condition {
+                if !c.field.trim().is_empty() {
+                    format!(
+                        r#" data-cond-field="{}" data-cond-op="{}" data-cond-val="{}""#,
+                        crate::templates::utils::escape_html(&c.field),
+                        crate::templates::utils::escape_html(&c.operator),
+                        crate::templates::utils::escape_html(&c.value)
+                    )
+                } else {
+                    String::new()
                 }
-                format!(
-                    r#"<select name="{fname}" {req_attr} style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border, #334155); background: var(--bg-base, #090d16); color: var(--text-main, #f8fafc); font-size: 14px;">{opts}</select>"#
-                )
+            } else {
+                String::new()
+            };
+
+            let base_input_style = "width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border, #334155); background: var(--bg-base, #090d16); color: var(--text-main, #f8fafc); font-family: inherit; font-size: 14px;";
+
+            if field.field_type == "hidden" {
+                step_fields_html.push_str(&format!(
+                    r#"<input type="hidden" name="{fname}" value="{fdef}" />"#
+                ));
+                continue;
             }
-            "checkbox" => format!(
-                r#"<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" name="{fname}" value="yes" {req_attr} /> <span>{flabel}</span></label>"#
-            ),
-            other => {
-                let itype = match other {
-                    "email" | "tel" | "url" | "number" | "date" => other,
-                    _ => "text",
-                };
-                format!(
-                    r#"<input type="{itype}" name="{fname}" placeholder="{fph}" {req_attr} style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border, #334155); background: var(--bg-base, #090d16); color: var(--text-main, #f8fafc); font-size: 14px;" />"#
-                )
+
+            let input_el = match field.field_type.as_str() {
+                "textarea" => format!(
+                    r#"<textarea name="{fname}" rows="4" placeholder="{fph}" {req_attr} style="{base_input_style}">{fdef}</textarea>"#
+                ),
+                "select" => {
+                    let mut opts = String::new();
+                    if !fph.is_empty() {
+                        opts.push_str(&format!(r#"<option value="">{fph}</option>"#));
+                    }
+                    for o in &field.options {
+                        let o_esc = crate::templates::utils::escape_html(o);
+                        let sel = if o == &field.default_value {
+                            " selected"
+                        } else {
+                            ""
+                        };
+                        opts.push_str(&format!(r#"<option value="{o_esc}"{sel}>{o_esc}</option>"#));
+                    }
+                    format!(
+                        r#"<select name="{fname}" {req_attr} style="{base_input_style}">{opts}</select>"#
+                    )
+                }
+                "radio" => {
+                    let mut radios = String::new();
+                    for (idx, o) in field.options.iter().enumerate() {
+                        let o_esc = crate::templates::utils::escape_html(o);
+                        let r_req = if field.required && idx == 0 {
+                            req_attr
+                        } else {
+                            ""
+                        };
+                        radios.push_str(&format!(
+                            r#"<label style="display: inline-flex; align-items: center; gap: 8px; margin-right: 16px; cursor: pointer; font-size: 14px;"><input type="radio" name="{fname}" value="{o_esc}" {r_req} /> <span>{o_esc}</span></label>"#
+                        ));
+                    }
+                    format!(
+                        r#"<div style="display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px;">{radios}</div>"#
+                    )
+                }
+                "checkbox_group" => {
+                    let mut boxes = String::new();
+                    for o in &field.options {
+                        let o_esc = crate::templates::utils::escape_html(o);
+                        boxes.push_str(&format!(
+                            r#"<label style="display: inline-flex; align-items: center; gap: 8px; margin-right: 16px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="{fname}" value="{o_esc}" /> <span>{o_esc}</span></label>"#
+                        ));
+                    }
+                    format!(
+                        r#"<div style="display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px;">{boxes}</div>"#
+                    )
+                }
+                "checkbox" | "consent" => format!(
+                    r#"<label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="{fname}" value="yes" {req_attr} style="margin-top: 3px;" /> <span>{flabel}{req_star}</span></label>"#
+                ),
+                "file" => {
+                    let accept_attr = if field.accept_extensions.trim().is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            r#" accept="{}""#,
+                            crate::templates::utils::escape_html(&field.accept_extensions)
+                        )
+                    };
+                    format!(
+                        r#"<input type="file" name="{fname}"{accept_attr} {req_attr} style="{base_input_style}" />"#
+                    )
+                }
+                "calculated" => {
+                    let formula_esc = crate::templates::utils::escape_html(
+                        field.calculation_formula.as_deref().unwrap_or(""),
+                    );
+                    format!(
+                        r#"<input type="text" name="{fname}" value="{fdef}" readonly data-calc-formula="{formula_esc}" style="{base_input_style} font-weight: 700; opacity: 0.92;" />"#
+                    )
+                }
+                other => {
+                    let itype = match other {
+                        "email" | "tel" | "url" | "number" | "date" | "time" => other,
+                        _ => "text",
+                    };
+                    format!(
+                        r#"<input type="{itype}" name="{fname}" value="{fdef}" placeholder="{fph}" {req_attr} style="{base_input_style}" />"#
+                    )
+                }
+            };
+
+            if matches!(field.field_type.as_str(), "checkbox" | "consent") {
+                step_fields_html.push_str(&format!(
+                    r#"<div class="dp-form-field-wrap" style="{width_css} margin-bottom: 16px;"{cond_attrs}>{input_el}{fhelp}</div>"#
+                ));
+            } else {
+                step_fields_html.push_str(&format!(
+                    r#"<div class="dp-form-field-wrap" style="{width_css} margin-bottom: 16px;"{cond_attrs}>
+                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-main, #f8fafc);">{flabel}{req_star}</label>
+                        {input_el}
+                        {fhelp}
+                    </div>"#
+                ));
             }
+        }
+
+        let nav_buttons = if is_multistep {
+            let prev_btn = if step_idx > 1 {
+                format!(
+                    r#"<button type="button" class="dp-button dp-step-prev" onclick="window.dpFormStep({id}, {prev})" style="cursor: pointer; border: 1px solid var(--border, #334155); padding: 10px 18px; border-radius: 8px; background: transparent; color: var(--text-main, #f8fafc); font-weight: 600; font-size: 14px;">&larr; Previous</button>"#,
+                    id = id,
+                    prev = step_idx - 1
+                )
+            } else {
+                String::new()
+            };
+            let next_or_submit = if step_idx < max_step {
+                format!(
+                    r#"<button type="button" class="dp-button dp-step-next" onclick="window.dpFormStep({id}, {next})" style="cursor: pointer; border: none; padding: 11px 22px; border-radius: 8px; background: var(--accent, #2563eb); color: #ffffff; font-weight: 700; font-size: 14px;">Next Step &rarr;</button>"#,
+                    id = id,
+                    next = step_idx + 1
+                )
+            } else {
+                format!(
+                    r#"<button type="submit" class="dp-button" style="cursor: pointer; border: none; padding: 11px 24px; border-radius: 8px; background: var(--accent, #2563eb); color: #ffffff; font-weight: 700; font-size: 14px;">{}</button>"#,
+                    crate::templates::utils::escape_html(&form_settings.submit_label)
+                )
+            };
+            format!(
+                r#"<div style="width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px;">{prev_btn}{next_or_submit}</div>"#
+            )
+        } else {
+            String::new()
         };
 
-        if field.field_type == "checkbox" {
-            fields_html.push_str(&format!(
-                r#"<div style="margin-bottom: 16px;">{input_el}</div>"#
-            ));
-        } else {
-            fields_html.push_str(&format!(
-                r#"<div style="margin-bottom: 16px;">
-                    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-main, #f8fafc);">{flabel}{req_star}</label>
-                    {input_el}
-                </div>"#
-            ));
-        }
+        steps_html.push_str(&format!(
+            r#"<div class="dp-form-step" data-step="{step_idx}" style="{step_display} flex-wrap: wrap; gap: 0 16px;">{step_fields_html}{nav_buttons}</div>"#
+        ));
     }
 
-    let submit_text = crate::templates::utils::escape_html(&form_settings.submit_label);
+    let step_header_html = if is_multistep {
+        let first_step_title = form_settings
+            .step_titles
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or("Step 1");
+        let step_titles_json =
+            serde_json::to_string(&form_settings.step_titles).unwrap_or_else(|_| "[]".into());
+        let pct = (100.0 / max_step as f64).round() as i32;
+        format!(
+            r#"<div id="dp-step-header-{id}" data-max-step="{max_step}" data-step-titles='{titles_json}' style="margin-bottom: 18px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; color: var(--text-muted, #94a3b8); margin-bottom: 6px;">
+                    <span id="dp-step-label-{id}">Step 1 of {max_step}: {first_title}</span>
+                    <span id="dp-step-pct-{id}">{pct}%</span>
+                </div>
+                <div style="width: 100%; height: 6px; background: rgba(148,163,184,0.2); border-radius: 999px; overflow: hidden;">
+                    <div id="dp-step-bar-{id}" style="width: {pct}%; height: 100%; background: var(--accent, #2563eb); transition: width 0.25s ease;"></div>
+                </div>
+            </div>"#,
+            id = id,
+            max_step = max_step,
+            titles_json = crate::templates::utils::escape_html(&step_titles_json),
+            first_title = crate::templates::utils::escape_html(first_step_title),
+            pct = pct
+        )
+    } else {
+        String::new()
+    };
+
+    let single_submit_btn = if !is_multistep {
+        format!(
+            r#"<button type="submit" class="dp-button" style="cursor: pointer; border: none; padding: 11px 24px; border-radius: 8px; background: var(--accent, #2563eb); color: #ffffff; font-weight: 700; font-size: 14px;">{}</button>"#,
+            crate::templates::utils::escape_html(&form_settings.submit_label)
+        )
+    } else {
+        String::new()
+    };
+
+    let captcha_html = match form_settings.captcha_provider.as_str() {
+        "turnstile" if !form_settings.captcha_site_key.trim().is_empty() => format!(
+            r#"<div class="cf-turnstile" data-sitekey="{}" style="margin-bottom: 14px;"></div><script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>"#,
+            crate::templates::utils::escape_html(form_settings.captcha_site_key.trim())
+        ),
+        "hcaptcha" if !form_settings.captcha_site_key.trim().is_empty() => format!(
+            r#"<div class="h-captcha" data-sitekey="{}" style="margin-bottom: 14px;"></div><script src="https://js.hcaptcha.com/1/api.js" async defer></script>"#,
+            crate::templates::utils::escape_html(form_settings.captcha_site_key.trim())
+        ),
+        _ => String::new(),
+    };
+
     let success_msg = crate::templates::utils::escape_html(&form_settings.success_message);
+    let redirect_url = crate::templates::utils::escape_html(&form_settings.redirect_url);
     let title_esc = crate::templates::utils::escape_html(&title);
 
     format!(
         r##"<div class="dp-native-form-card" style="background: var(--bg-card, #111827); border: 1px solid var(--border, #1e293b); border-radius: 12px; padding: 28px; margin: 24px 0;">
             <h3 style="font-size: 18px; font-weight: 700; margin: 0 0 18px 0; color: var(--text-main, #f8fafc);">{title_esc}</h3>
-            <form id="dp-form-{id}" onsubmit="return submitDaypressForm(event, {id})">
+            {step_header_html}
+            <form id="dp-form-{id}" data-form-id="{id}" onsubmit="return submitDaypressForm(event, {id})" oninput="window.dpEvaluateFormLogic && window.dpEvaluateFormLogic(this)" onchange="window.dpEvaluateFormLogic && window.dpEvaluateFormLogic(this)">
                 <div style="display:none;" aria-hidden="true">
                     <input type="text" name="_np_hp" value="" tabindex="-1" autocomplete="off" />
+                    <input type="hidden" name="_dp_ts" value="" />
+                    <input type="hidden" name="_source_url" value="" />
+                    <input type="hidden" name="_utm_source" value="" />
+                    <input type="hidden" name="_utm_medium" value="" />
+                    <input type="hidden" name="_utm_campaign" value="" />
+                    <input type="hidden" name="_referrer" value="" />
                 </div>
-                {fields_html}
-                <button type="submit" class="dp-button" style="cursor: pointer; border: none; padding: 11px 24px; border-radius: 8px; background: var(--accent, #2563eb); color: #ffffff; font-weight: 700; font-size: 14px;">{submit_text}</button>
-                <div id="dp-form-status-{id}" style="margin-top: 12px; font-size: 13.5px; font-weight: 600; display: none;" data-success="{success_msg}"></div>
+                {steps_html}
+                {captcha_html}
+                {single_submit_btn}
+                <div id="dp-form-status-{id}" style="margin-top: 12px; font-size: 13.5px; font-weight: 600; display: none;" data-success="{success_msg}" data-redirect="{redirect_url}"></div>
             </form>
             <script>
-            if (!window.submitDaypressForm) {{
-                window.submitDaypressForm = async function(e, formId) {{
-                    e.preventDefault();
-                    const form = e.target;
-                    const statusEl = document.getElementById('dp-form-status-' + formId);
-                    const formData = new FormData(form);
-                    const data = {{}};
-                    formData.forEach((v, k) => {{ data[k] = v; }});
+            (function() {{
+                var f = document.getElementById('dp-form-{id}');
+                if (f) {{
+                    var ts = f.querySelector('input[name="_dp_ts"]');
+                    if (ts) ts.value = String(Date.now());
+                    var src = f.querySelector('input[name="_source_url"]');
+                    if (src) src.value = window.location.pathname + window.location.search;
+                    var ref = f.querySelector('input[name="_referrer"]');
+                    if (ref) ref.value = document.referrer || '';
                     try {{
-                        const res = await fetch('/wp-json/daypress/v1/forms/' + formId + '/submit', {{
-                            method: 'POST',
-                            headers: {{ 'Content-Type': 'application/json' }},
-                            body: JSON.stringify({{ data }})
+                        var sp = new URLSearchParams(window.location.search);
+                        ['utm_source', 'utm_medium', 'utm_campaign'].forEach(function(k) {{
+                            var el = f.querySelector('input[name="_' + k + '"]');
+                            if (el && sp.get(k)) el.value = sp.get(k);
                         }});
-                        if (res.ok) {{
-                            form.reset();
-                            if (statusEl) {{
-                                statusEl.style.display = 'block';
-                                statusEl.style.color = '#10b981';
-                                statusEl.textContent = '✓ ' + (statusEl.getAttribute('data-success') || 'Submitted successfully!');
+                    }} catch (_) {{}}
+                }}
+                if (!window.dpEvaluateFormLogic) {{
+                    window.dpEvaluateFormLogic = function(form) {{
+                        var fd = new FormData(form);
+                        form.querySelectorAll('[data-cond-field]').forEach(function(wrap) {{
+                            var cf = wrap.getAttribute('data-cond-field');
+                            var op = wrap.getAttribute('data-cond-op') || 'equals';
+                            var cv = (wrap.getAttribute('data-cond-val') || '').toLowerCase();
+                            var actual = String(fd.get(cf) || '').toLowerCase();
+                            var show = op === 'not_equals' ? actual !== cv : (op === 'contains' ? actual.indexOf(cv) !== -1 : actual === cv);
+                            wrap.style.display = show ? '' : 'none';
+                            wrap.querySelectorAll('[data-dp-required="1"]').forEach(function(inp) {{
+                                if (show) inp.setAttribute('required', 'required');
+                                else inp.removeAttribute('required');
+                            }});
+                        }});
+                        form.querySelectorAll('input[data-calc-formula]').forEach(function(calcInp) {{
+                            var expr = calcInp.getAttribute('data-calc-formula') || '';
+                            expr = expr.replace(/\{{([^}}]+)\}}/g, function(_, key) {{
+                                var v = parseFloat(fd.get(key.trim()) || '0');
+                                return isNaN(v) ? '0' : String(v);
+                            }});
+                            if (/^[0-9+\-*/().\s]+$/.test(expr) && expr.trim() !== '') {{
+                                try {{
+                                    var val = Function('"use strict";return (' + expr + ')')();
+                                    if (typeof val === 'number' && isFinite(val)) {{
+                                        calcInp.value = Number.isInteger(val) ? String(val) : val.toFixed(2);
+                                    }}
+                                }} catch (_) {{}}
                             }}
-                        }} else {{
+                        }});
+                    }};
+                }}
+                if (!window.dpFormStep) {{
+                    window.dpFormStep = function(formId, targetStep) {{
+                        var form = document.getElementById('dp-form-' + formId);
+                        if (!form) return;
+                        var steps = form.querySelectorAll('.dp-form-step');
+                        var currentStepEl = null;
+                        steps.forEach(function(s) {{ if (s.style.display !== 'none') currentStepEl = s; }});
+                        if (currentStepEl && Number(currentStepEl.getAttribute('data-step')) < targetStep) {{
+                            var inputs = currentStepEl.querySelectorAll('input, select, textarea');
+                            for (var i = 0; i < inputs.length; i++) {{
+                                if (!inputs[i].checkValidity()) {{
+                                    inputs[i].reportValidity();
+                                    return;
+                                }}
+                            }}
+                        }}
+                        steps.forEach(function(s) {{
+                            s.style.display = Number(s.getAttribute('data-step')) === targetStep ? 'flex' : 'none';
+                        }});
+                        var hdr = document.getElementById('dp-step-header-' + formId);
+                        if (hdr) {{
+                            var maxS = Number(hdr.getAttribute('data-max-step') || 1);
+                            var titles = [];
+                            try {{ titles = JSON.parse(hdr.getAttribute('data-step-titles') || '[]'); }} catch (_) {{}}
+                            var tLabel = titles[targetStep - 1] || ('Step ' + targetStep);
+                            var pct = Math.round((targetStep / maxS) * 100);
+                            var lblEl = document.getElementById('dp-step-label-' + formId);
+                            var pctEl = document.getElementById('dp-step-pct-' + formId);
+                            var barEl = document.getElementById('dp-step-bar-' + formId);
+                            if (lblEl) lblEl.textContent = 'Step ' + targetStep + ' of ' + maxS + ': ' + tLabel;
+                            if (pctEl) pctEl.textContent = pct + '%';
+                            if (barEl) barEl.style.width = pct + '%';
+                        }}
+                    }};
+                }}
+                if (!window.submitDaypressForm) {{
+                    window.submitDaypressForm = async function(e, formId) {{
+                        e.preventDefault();
+                        var form = e.target;
+                        var statusEl = document.getElementById('dp-form-status-' + formId);
+                        var formData = new FormData(form);
+                        var hasFile = !!form.querySelector('input[type="file"]');
+                        var fetchOpts = hasFile
+                            ? {{ method: 'POST', body: formData }}
+                            : (function() {{
+                                var data = {{}};
+                                formData.forEach(function(v, k) {{
+                                    if (data[k] !== undefined) data[k] = data[k] + ', ' + v;
+                                    else data[k] = v;
+                                }});
+                                return {{
+                                    method: 'POST',
+                                    headers: {{ 'Content-Type': 'application/json' }},
+                                    body: JSON.stringify({{ data: data }})
+                                }};
+                            }})();
+                        try {{
+                            var res = await fetch('/wp-json/daypress/v1/forms/' + formId + '/submit', fetchOpts);
+                            var payload = await res.json().catch(function() {{ return {{}}; }});
+                            if (res.ok) {{
+                                form.reset();
+                                var ts = form.querySelector('input[name="_dp_ts"]');
+                                if (ts) ts.value = String(Date.now());
+                                if (statusEl) {{
+                                    statusEl.style.display = 'block';
+                                    statusEl.style.color = '#10b981';
+                                    statusEl.textContent = '✓ ' + (payload.message || statusEl.getAttribute('data-success') || 'Submitted successfully!');
+                                }}
+                                var redir = payload.redirect_url || (statusEl && statusEl.getAttribute('data-redirect'));
+                                if (redir) {{
+                                    setTimeout(function() {{ window.location.href = redir; }}, 350);
+                                }}
+                            }} else {{
+                                if (statusEl) {{
+                                    statusEl.style.display = 'block';
+                                    statusEl.style.color = '#ef4444';
+                                    statusEl.textContent = payload.message || 'Submission failed. Please check your inputs.';
+                                }}
+                            }}
+                        }} catch (err) {{
                             if (statusEl) {{
                                 statusEl.style.display = 'block';
                                 statusEl.style.color = '#ef4444';
-                                statusEl.textContent = 'Submission failed. Please check your inputs.';
+                                statusEl.textContent = 'Network error submitting form.';
                             }}
                         }}
-                    }} catch (err) {{
-                        if (statusEl) {{
-                            statusEl.style.display = 'block';
-                            statusEl.style.color = '#ef4444';
-                            statusEl.textContent = 'Network error submitting form.';
-                        }}
-                    }}
-                    return false;
-                }};
-            }}
+                        return false;
+                    }};
+                }}
+                if (f && window.dpEvaluateFormLogic) window.dpEvaluateFormLogic(f);
+            }})();
             </script>
         </div>"##
     )
@@ -833,10 +1152,36 @@ fn expand_shortcodes_in_main_region(
         return html;
     };
     let region = &html[start..start + len];
-    if !region.contains('[') {
-        return html;
+    let mut expanded = if region.contains('[') {
+        expand_shortcodes_in_content(region, db, settings)
+    } else {
+        region.to_string()
+    };
+
+    // Hydrate Daystudio AST `<form ... class="dp-form" data-form-id="X" ...>` blocks that use
+    // the generic placeholder (`<div class="dp-form-fields">`) when Form #X exists in SQLite.
+    if expanded.contains("class=\"dp-form\" data-form-id=\"")
+        && db.is_plugin_active("daypress-forms")
+    {
+        if let Ok(re) = regex::Regex::new(
+            r#"(?s)<form[^>]*class="dp-form"[^>]*data-form-id="(\d+)"[^>]*>.*?<div class="dp-form-fields">.*?</form>"#,
+        ) {
+            expanded = re
+                .replace_all(&expanded, |caps: &regex::Captures| {
+                    let fid: i64 = caps
+                        .get(1)
+                        .and_then(|m| m.as_str().parse().ok())
+                        .unwrap_or(0);
+                    if fid > 0 && db.get_form(fid).ok().flatten().is_some() {
+                        render_public_form_html(db, fid)
+                    } else {
+                        caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string()
+                    }
+                })
+                .into_owned();
+        }
     }
-    let expanded = expand_shortcodes_in_content(region, db, settings);
+
     format!("{}{}{}", &html[..start], expanded, &html[start + len..])
 }
 

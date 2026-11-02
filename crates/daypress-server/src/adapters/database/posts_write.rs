@@ -247,6 +247,7 @@ impl Database {
         );
 
         drop(conn);
+        self.invalidate_hot_cache("post_created");
         Ok(self.get_post_by_id(id)?.unwrap())
     }
 
@@ -523,6 +524,7 @@ impl Database {
 
         tx.commit()?;
         drop(conn);
+        self.invalidate_hot_cache("post_updated");
         self.get_post_by_id(id)
     }
 
@@ -678,6 +680,7 @@ impl Database {
                 Self::record_trash_meta(&conn, id, &prev_status);
             }
         }
+        self.invalidate_hot_cache("post_trashed");
         self.get_post_by_id(id)
     }
 
@@ -722,6 +725,8 @@ impl Database {
             params![id],
         );
         let rows = conn.execute("DELETE FROM posts WHERE ID = ?1", params![id])?;
+        drop(conn);
+        self.invalidate_hot_cache("post_deleted");
         Ok(rows > 0)
     }
 }
