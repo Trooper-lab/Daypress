@@ -11,7 +11,24 @@ pub struct MediaSizeDetail {
     pub source_url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub fn default_focal_coord() -> f32 {
+    0.5
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct MediaFolderDto {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    #[serde(default)]
+    pub parent_id: i64,
+    #[serde(default)]
+    pub count: i64,
+    #[serde(default)]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaDetails {
     pub width: u32,
     pub height: u32,
@@ -20,6 +37,24 @@ pub struct MediaDetails {
     pub filesize: u64,
     #[serde(default)]
     pub sizes: std::collections::HashMap<String, MediaSizeDetail>,
+    #[serde(default = "default_focal_coord")]
+    pub focal_x: f32,
+    #[serde(default = "default_focal_coord")]
+    pub focal_y: f32,
+}
+
+impl Default for MediaDetails {
+    fn default() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            file: String::new(),
+            filesize: 0,
+            sizes: std::collections::HashMap::new(),
+            focal_x: 0.5,
+            focal_y: 0.5,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +81,14 @@ pub struct DaypressMediaResponse {
     /// Parent post ID (`post_parent`), WP REST `post` (null when unattached).
     #[serde(default)]
     pub post: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder_id: Option<i64>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default = "default_focal_coord")]
+    pub focal_x: f32,
+    #[serde(default = "default_focal_coord")]
+    pub focal_y: f32,
 }
 
 pub fn empty_rendered_text() -> DaypressRenderedText {
@@ -69,4 +112,12 @@ pub struct UpdateMediaRequest {
     pub caption: Option<serde_json::Value>,
     #[serde(default)]
     pub description: Option<serde_json::Value>,
+    #[serde(default)]
+    pub folder_id: Option<i64>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub focal_x: Option<f32>,
+    #[serde(default)]
+    pub focal_y: Option<f32>,
 }

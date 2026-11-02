@@ -200,7 +200,6 @@ CREATE TABLE IF NOT EXISTS daypress_form_entries (
     source_url TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_form_entries_form_status ON daypress_form_entries(form_id, status, created_at);
 
 -- Native Subsystems: Cookieless Daily Salted Analytics
 CREATE TABLE IF NOT EXISTS daypress_analytics_events (
@@ -217,7 +216,6 @@ CREATE TABLE IF NOT EXISTS daypress_analytics_events (
     utm_campaign TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON daypress_analytics_events(created_at, event_type);
 
 CREATE TABLE IF NOT EXISTS daypress_analytics_daily (
     date TEXT NOT NULL,
@@ -279,6 +277,16 @@ CREATE TABLE IF NOT EXISTS daypress_deployments (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     duration_ms INTEGER NOT NULL DEFAULT 0
 );
+
+-- Native Subsystems: Media Library DAM Virtual Folders
+CREATE TABLE IF NOT EXISTS daypress_media_folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    parent_id INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_media_folders_parent ON daypress_media_folders(parent_id);
 "#;
 
 /// Single-use "Lost your password?" links. Only the SHA-256 of each token is stored, so a

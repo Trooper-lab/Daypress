@@ -316,13 +316,15 @@ pub fn render_headers_footers_view(
         <div class="page-header">
             <div>
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <h1 class="page-title">Header &amp; Footer Manager</h1>
+                    <h1 class="page-title">Theme Builder &amp; Template Manager</h1>
                     <span class="badge badge-published" style="font-size: 11px;">Theme: {active_theme}</span>
                 </div>
-                <p class="page-subtitle">See every Header &amp; Footer created on your site, inspect which pages they apply to, and assign overrides per page or route</p>
+                <p class="page-subtitle">Manage Headers, Footers, Single Post/Page layouts, Archives, 404 pages, Synced Symbols, Mega Menus, and Popups</p>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button type="button" class="btn btn-secondary" onclick="openStarterCatalogModal()">1-Click Starters</button>
+                <button type="button" class="btn btn-secondary" onclick="openCreateModal('section_symbol')">+ New Symbol</button>
+                <button type="button" class="btn btn-secondary" onclick="openCreateModal('popup')">+ New Popup</button>
                 <button type="button" class="btn btn-secondary" onclick="openCreateModal('footer')">+ New Footer</button>
                 <button type="button" class="btn btn-primary" onclick="openCreateModal('header')">+ New Header</button>
             </div>
@@ -351,15 +353,15 @@ pub fn render_headers_footers_view(
                 <span class="hf-kpi-sub">Specific page &amp; hidden rules</span>
             </div>
             <div class="hf-kpi-card">
-                <span class="hf-kpi-label">Layout Templates</span>
+                <span class="hf-kpi-label">Layout &amp; Symbol Templates</span>
                 <div class="hf-kpi-value" id="kpiOtherVal">{other_templates}</div>
-                <span class="hf-kpi-sub">Single, Archive, 404 &amp; Popups</span>
+                <span class="hf-kpi-sub">Single, Archive, 404, Symbols &amp; Popups</span>
             </div>
         </div>
 
         <!-- Main Workspace Navigation Tabs -->
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <div class="hf-tabs" role="tablist">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+            <div class="hf-tabs" role="tablist" style="margin-bottom: 0;">
                 <button type="button" class="hf-tab-btn active" id="tabBtnTemplates" onclick="switchMainTab('templates')">
                     <span>Headers &amp; Footers</span>
                     <span class="hf-tab-count" id="tabCountHF">{hf_total}</span>
@@ -369,15 +371,21 @@ pub fn render_headers_footers_view(
                     <span class="hf-tab-count" id="tabCountPages">{total_pages}</span>
                 </button>
                 <button type="button" class="hf-tab-btn" id="tabBtnLayouts" onclick="switchMainTab('layouts')">
-                    <span>Other Layout Templates</span>
+                    <span>Theme Layouts, Symbols &amp; Popups</span>
                     <span class="hf-tab-count" id="tabCountOther">{other_templates}</span>
                 </button>
             </div>
 
-            <div id="templatesTypeFilterBar" style="display: flex; gap: 6px;">
-                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="all" style="background: var(--ink); color: var(--paper-raised); font-size: 12px; padding: 5px 12px;" onclick="setTemplateFilter('all', this)">All Headers &amp; Footers</button>
-                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="header" style="font-size: 12px; padding: 5px 12px;" onclick="setTemplateFilter('header', this)">Headers Only</button>
-                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="footer" style="font-size: 12px; padding: 5px 12px;" onclick="setTemplateFilter('footer', this)">Footers Only</button>
+            <div id="templatesTypeFilterBar" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="all" style="background: var(--ink); color: var(--paper-raised); font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('all', this)">All Templates</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="header" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('header', this)">Header</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="footer" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('footer', this)">Footer</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="single_post" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('single_post', this)">Single Post</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="single_page" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('single_page', this)">Single Page</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="archive" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('archive', this)">Archive</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="404_page" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('404_page', this)">404 Page</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="section_symbol" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('section_symbol', this)">Synced Symbols</button>
+                <button type="button" class="btn btn-secondary hf-filter-pill" data-type="popup" style="font-size: 12px; padding: 5px 11px;" onclick="setTemplateFilter('popup', this)">Popups &amp; Bars</button>
             </div>
         </div>
 
@@ -480,12 +488,16 @@ pub fn render_headers_footers_view(
 
         <!-- TAB 3: OTHER LAYOUT TEMPLATES -->
         <div id="tabPanelLayouts" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
                 <div>
-                    <h2 style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 0;">Single, Archive, 404 &amp; Popup Templates</h2>
-                    <p style="font-size: 12.5px; color: var(--ink-muted); margin: 2px 0 0 0;">Theme Builder layout templates for blog articles, category archives, 404 error screens, and popups.</p>
+                    <h2 style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 0;" id="otherLayoutsSectionHeading">Single, Archive, 404, Synced Symbols &amp; Popup Templates</h2>
+                    <p style="font-size: 12.5px; color: var(--ink-muted); margin: 2px 0 0 0;">Theme Builder layout templates for blog articles, static pages, category/author archives, 404 screens, global synced symbols, mega menu panels, and announcement/popup modals.</p>
                 </div>
-                <button type="button" class="btn btn-primary" style="font-size: 12.5px;" onclick="openCreateModal('single_post')">+ New Layout Template</button>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-secondary" style="font-size: 12px;" onclick="openCreateModal('section_symbol')">+ New Synced Symbol</button>
+                    <button type="button" class="btn btn-secondary" style="font-size: 12px;" onclick="openCreateModal('popup')">+ New Popup / Bar</button>
+                    <button type="button" class="btn btn-primary" style="font-size: 12.5px;" onclick="openCreateModal('single_post')">+ New Layout Template</button>
+                </div>
             </div>
             <div id="otherLayoutsCardsContainer" class="hf-tpl-grid"></div>
         </div>
@@ -506,13 +518,14 @@ pub fn render_headers_footers_view(
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Template Type</label>
                             <select id="createTplType" class="form-select" onchange="onCreateTypeChange()">
-                                <option value="header">Header</option>
-                                <option value="footer">Footer</option>
-                                <option value="single_post">Single Post Layout</option>
-                                <option value="single_page">Single Page Layout</option>
-                                <option value="archive">Archive / Category Layout</option>
-                                <option value="404_page">404 Error Page Layout</option>
-                                <option value="popup">Popup / Modal</option>
+                                <option value="header">Header (header)</option>
+                                <option value="footer">Footer (footer)</option>
+                                <option value="single_post">Single Post (single_post)</option>
+                                <option value="single_page">Single Page (single_page)</option>
+                                <option value="archive">Archive / Category / Author (archive)</option>
+                                <option value="404_page">404 Page (404_page)</option>
+                                <option value="section_symbol">Synced Symbol / Mega Menu Panel (section_symbol)</option>
+                                <option value="popup">Announcement Bar / Slide-In Modal / Popup (popup)</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
@@ -530,8 +543,10 @@ pub fn render_headers_footers_view(
                                 <option value="front_page">Front Page Only</option>
                                 <option value="all_pages">All Static Pages</option>
                                 <option value="all_posts">All Blog Posts</option>
+                                <option value="archive">All Archives (Category / Tag / Author)</option>
+                                <option value="not_found">404 Error Page</option>
                                 <option value="page">Specific Page...</option>
-                                <option value="unassigned">Unassigned (Do not apply yet)</option>
+                                <option value="unassigned">Unassigned (Reusable Symbol / Do not apply yet)</option>
                             </select>
                         </div>
                         <div class="form-group" id="createTplPageWrap" style="margin-bottom: 0; display: none;">
@@ -541,6 +556,45 @@ pub fn render_headers_footers_view(
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Priority Score</label>
                             <input type="number" id="createTplPriority" class="form-input" value="10" />
+                        </div>
+                    </div>
+
+                    <!-- Popup Creation Quick Settings (shown when type === 'popup') -->
+                    <div id="createPopupBehaviors" style="background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: 14px; display: none; flex-direction: column; gap: 10px;">
+                        <strong style="font-size: 12.5px; color: var(--ink);">Popup / Announcement Bar Trigger &amp; Variant</strong>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 11.5px;">Popup Variant (<code>popup_variant</code>)</label>
+                                <select id="createTplPopupVariant" class="form-select">
+                                    <option value="announcement_bar_top">Announcement Bar (Top)</option>
+                                    <option value="announcement_bar_bottom">Announcement Bar (Bottom)</option>
+                                    <option value="slide_in_right">Slide-In Drawer (Right)</option>
+                                    <option value="slide_in_left">Slide-In Drawer (Left)</option>
+                                    <option value="modal" selected>Center Modal / Popup</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 11.5px;">Trigger Rule (<code>trigger</code>)</label>
+                                <select id="createTplPopupTrigger" class="form-select">
+                                    <option value="on_load" selected>On Page Load (on_load)</option>
+                                    <option value="on_scroll">On Scroll Depth (on_scroll)</option>
+                                    <option value="exit_intent">Exit Intent (exit_intent)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 11.5px;">Delay Sec (<code>delay_sec</code>)</label>
+                                <input type="number" id="createTplPopupDelaySec" class="form-input" min="0" max="300" value="0" />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 11.5px;">Scroll % (<code>scroll_pct</code>)</label>
+                                <input type="number" id="createTplPopupScrollPct" class="form-input" min="0" max="100" value="50" />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 11.5px;">Dismiss Days (<code>dismiss_days</code>)</label>
+                                <input type="number" id="createTplPopupDismissDays" class="form-input" min="0" max="365" value="7" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -635,6 +689,44 @@ pub fn render_headers_footers_view(
                                 <input type="checkbox" id="setTplRevealScroll" />
                                 <span>Curtain Reveal on Scroll</span>
                             </label>
+                        </div>
+                    </div>
+
+                    <div id="setPopupBehaviors" style="background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: 14px; display: none; flex-direction: column; gap: 10px;">
+                        <strong style="font-size: 12.5px; color: var(--ink);">Popup, Slide-In &amp; Announcement Bar Behavior Controls</strong>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 12px;">Popup Variant (<code>popup_variant</code>)</label>
+                                <select id="setTplPopupVariant" class="form-select">
+                                    <option value="announcement_bar_top">Announcement Bar (Top) — announcement_bar_top</option>
+                                    <option value="announcement_bar_bottom">Announcement Bar (Bottom) — announcement_bar_bottom</option>
+                                    <option value="slide_in_right">Slide-In Drawer (Right) — slide_in_right</option>
+                                    <option value="slide_in_left">Slide-In Drawer (Left) — slide_in_left</option>
+                                    <option value="modal">Center Modal / Popup — modal</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 12px;">Trigger Rule (<code>trigger</code>)</label>
+                                <select id="setTplPopupTrigger" class="form-select">
+                                    <option value="on_load">On Page Load — on_load</option>
+                                    <option value="on_scroll">On Scroll Depth — on_scroll</option>
+                                    <option value="exit_intent">On Exit Intent — exit_intent</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 12px;">Delay Seconds (<code>delay_sec</code>)</label>
+                                <input type="number" id="setTplPopupDelaySec" class="form-input" min="0" max="300" value="0" />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 12px;">Scroll Depth % (<code>scroll_pct</code>)</label>
+                                <input type="number" id="setTplPopupScrollPct" class="form-input" min="0" max="100" value="50" />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 12px;">Dismiss Cookie Days (<code>dismiss_days</code>)</label>
+                                <input type="number" id="setTplPopupDismissDays" class="form-input" min="0" max="365" value="7" />
+                            </div>
                         </div>
                     </div>
 

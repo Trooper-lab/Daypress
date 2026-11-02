@@ -285,6 +285,62 @@ pub fn mcp_tools_manifest() -> Value {
                         "range": { "type": "string", "default": "30d", "description": "Date range ('today', '7d', '30d', '90d', '12m', or 'all')" }
                     }
                 }
+            },
+            {
+                "name": "daypress_list_templates",
+                "description": "List Dynamic Theme Templates, Synced Components (Symbols), and Site-Wide Popups/Announcement Bars ('header', 'footer', 'single_post', 'single_page', 'archive', 'error_404', 'symbol', 'popup') with their display conditions.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "template_type": { "type": "string", "description": "Optional filter ('header', 'footer', 'single_post', 'single_page', 'archive', 'error_404', 'symbol', 'popup', or 'all')" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_save_template",
+                "description": "Create or update a Dynamic Theme Template, Synced Component ('symbol'), or Site-Wide Popup ('popup') with DaypressLayout AST, settings, and display conditions.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["title", "template_type"],
+                    "properties": {
+                        "id": { "type": "integer", "description": "Optional template ID to update an existing template" },
+                        "title": { "type": "string" },
+                        "template_type": { "type": "string", "description": "Template type ('header', 'footer', 'single_post', 'single_page', 'archive', 'error_404', 'symbol', 'popup')" },
+                        "status": { "type": "string", "default": "publish" },
+                        "priority": { "type": "integer", "default": 10 },
+                        "is_active": { "type": "boolean", "default": true },
+                        "layout": { "type": "object", "description": "DaypressLayout AST JSON object" },
+                        "settings": { "type": "object", "description": "Optional TemplateSettings (e.g. popup_variant, trigger, dismiss_days)" },
+                        "conditions": { "type": "array", "description": "Optional array of CreateConditionDto rules" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_list_media_folders",
+                "description": "List all virtual Media Library DAM folders with item counts, or create a new virtual folder when 'create_name' is provided.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "create_name": { "type": "string", "description": "Optional folder name to create before returning the folder list" },
+                        "parent_id": { "type": "integer", "default": 0, "description": "Optional parent folder ID when creating a folder" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_scan_unused_media",
+                "description": "Scan all media attachments across posts, daypress_templates, _thumbnail_id, and site options, returning unreferenced media assets.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "daypress_get_storage_s3_status",
+                "description": "Retrieve S3 / Cloudflare R2 object storage offload configuration and continuous SQLite replica status.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
             }
         ]
     })
@@ -769,6 +825,51 @@ fn dispatch_tool_call(
             let summary = service.options_repo().get_analytics_dashboard(range)?;
             Ok(serde_json::to_value(summary).unwrap_or(Value::Null))
         }
+        "daypress_list_templates" => {
+            let template_type = args.get("template_type").and_then(Value::as_str);
+            let templates = service.options_repo().list_theme_templates(template_type)?;
+            Ok(Value::Array(templates))
+        }
+        "daypress_save_template" => {
+            let saved = service
+                .options_repo()
+                .save_theme_template_from_json(&args)?;
+            Ok(saved)
+        }
+        "daypress_list_media_folders" => {
+            if let Some(name) = args
+                .get("create_name")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                let parent_id = args.get("parent_id").and_then(Value::as_i64).unwrap_or(0);
+                let _ = service
+                    .options_repo()
+                    .create_media_folder(name, parent_id)?;
+            }
+            let folders = service.options_repo().list_media_folders()?;
+            Ok(serde_json::to_value(folders).unwrap_or(Value::Null))
+        }
+        "daypress_scan_unused_media" => {
+            let unused = service.options_repo().scan_unused_media()?;
+            Ok(json!({
+                "unused_count": unused.len(),
+                "items": unused
+            }))
+        }
+        "daypress_get_storage_s3_status" => {
+            let raw = service
+                .options_repo()
+                .get_option(crate::storage_s3::S3_CONFIG_OPTION_KEY)?
+                .unwrap_or_default();
+            let mut cfg: crate::storage_s3::S3StorageConfig =
+                serde_json::from_str(&raw).unwrap_or_default();
+            if !cfg.secret_access_key.is_empty() {
+                cfg.secret_access_key = crate::storage_s3::MASKED_SECRET_PLACEHOLDER.to_string();
+            }
+            Ok(serde_json::to_value(cfg).unwrap_or(Value::Null))
+        }
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"
         ))),
@@ -888,6 +989,109 @@ mod tests {
         assert_eq!(result_obj["isError"], false);
         let text = result_obj["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("authored-via-claude-mcp"));
+    }
+
+    #[test]
+    fn test_mcp_v05_templates_symbols_and_media_dam_tools() {
+        let db = Database::new_in_memory().expect("in-memory db");
+        let service = CmsService::from_adapter(db);
+
+        // 1. Save a Symbol via MCP
+        let save_tpl = handle_mcp_rpc(
+            &service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(10)),
+                method: "tools/call".into(),
+                params: json!({
+                    "name": "daypress_save_template",
+                    "arguments": {
+                        "title": "MCP Synced CTA",
+                        "template_type": "symbol",
+                        "status": "publish",
+                        "is_active": true,
+                        "priority": 10
+                    }
+                }),
+            },
+        );
+        let tpl_res = save_tpl.result.unwrap();
+        assert_eq!(tpl_res["isError"], false);
+        let tpl_text = tpl_res["content"][0]["text"].as_str().unwrap();
+        assert!(tpl_text.contains("MCP Synced CTA"));
+
+        // 2. List templates filtered by 'symbol'
+        let list_tpl = handle_mcp_rpc(
+            &service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(11)),
+                method: "tools/call".into(),
+                params: json!({
+                    "name": "daypress_list_templates",
+                    "arguments": {
+                        "template_type": "symbol"
+                    }
+                }),
+            },
+        );
+        let list_res = list_tpl.result.unwrap();
+        assert_eq!(list_res["isError"], false);
+        assert!(list_res["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("MCP Synced CTA"));
+
+        // 3. Create & list Media DAM folder via MCP
+        let folder_resp = handle_mcp_rpc(
+            &service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(12)),
+                method: "tools/call".into(),
+                params: json!({
+                    "name": "daypress_list_media_folders",
+                    "arguments": {
+                        "create_name": "Hero Assets"
+                    }
+                }),
+            },
+        );
+        let folder_res = folder_resp.result.unwrap();
+        assert_eq!(folder_res["isError"], false);
+        assert!(folder_res["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Hero Assets"));
+
+        // 4. Scan unused media & check S3 status via MCP
+        let unused_resp = handle_mcp_rpc(
+            &service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(13)),
+                method: "tools/call".into(),
+                params: json!({
+                    "name": "daypress_scan_unused_media",
+                    "arguments": {}
+                }),
+            },
+        );
+        assert_eq!(unused_resp.result.unwrap()["isError"], false);
+
+        let s3_resp = handle_mcp_rpc(
+            &service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(14)),
+                method: "tools/call".into(),
+                params: json!({
+                    "name": "daypress_get_storage_s3_status",
+                    "arguments": {}
+                }),
+            },
+        );
+        assert_eq!(s3_resp.result.unwrap()["isError"], false);
     }
 
     #[test]

@@ -13,9 +13,17 @@ pub enum TemplateType {
     SinglePost,
     SinglePage,
     Archive,
-    #[serde(rename = "404_page", alias = "error404", alias = "not_found")]
+    #[serde(
+        rename = "404_page",
+        alias = "error404",
+        alias = "error_404",
+        alias = "404",
+        alias = "not_found"
+    )]
     Error404,
+    #[serde(alias = "modal")]
     Popup,
+    #[serde(alias = "symbol", alias = "section-symbol", alias = "section")]
     SectionSymbol,
 }
 
@@ -193,6 +201,10 @@ pub struct TemplateSettings {
     pub scroll_pct: Option<u32>,
     #[serde(default)]
     pub backdrop_blur: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub popup_variant: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dismiss_days: Option<u32>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_css: Option<String>,
@@ -368,6 +380,10 @@ pub struct ResolvedThemePartials {
     pub single_css: Option<String>,
     pub archive_html: Option<String>,
     pub archive_css: Option<String>,
+    pub error_404_html: Option<String>,
+    pub error_404_css: Option<String>,
+    pub popups_html: Option<String>,
+    pub popups_css: Option<String>,
     #[serde(default)]
     pub has_theme_builder_header: bool,
     #[serde(default)]

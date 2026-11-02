@@ -8,7 +8,11 @@ pub mod canvas_drag;
 pub mod canvas_overlays;
 pub mod canvas_pro_commercial;
 pub mod canvas_pro_dynamic;
+pub mod canvas_pro_dynamic_render;
 pub mod canvas_pro_interactive;
+pub mod canvas_pro_megamenu_inspector;
+pub mod canvas_pro_symbols_actions;
+pub mod canvas_pro_symbols_drawer;
 pub mod canvas_pro_widgets;
 pub mod canvas_render;
 pub mod canvas_selection;
@@ -47,6 +51,10 @@ pub fn get_scripts() -> &'static str {
             canvas_render::JS_CANVAS_RENDER,
             canvas_pro_commercial::JS_CANVAS_PRO_COMMERCIAL,
             canvas_pro_interactive::JS_CANVAS_PRO_INTERACTIVE,
+            canvas_pro_dynamic_render::JS_CANVAS_PRO_DYNAMIC_RENDER,
+            canvas_pro_symbols_actions::JS_CANVAS_PRO_SYMBOLS_ACTIONS,
+            canvas_pro_symbols_drawer::JS_CANVAS_PRO_SYMBOLS_DRAWER,
+            canvas_pro_megamenu_inspector::JS_CANVAS_PRO_MEGAMENU_INSPECTOR,
             canvas_pro_dynamic::JS_CANVAS_PRO_DYNAMIC,
             canvas_pro_widgets::JS_CANVAS_PRO_WIDGETS,
             canvas_selection::JS_CANVAS_SELECTION,

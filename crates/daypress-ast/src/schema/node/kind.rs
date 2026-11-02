@@ -284,6 +284,10 @@ pub enum NodeKind {
     },
 
     // Fallbacks & Raw HTML
+    SymbolInstance {
+        symbol_id: i64,
+        overrides: HashMap<String, crate::schema::items::SymbolOverride>,
+    },
     CustomHtml {
         raw: String,
     },

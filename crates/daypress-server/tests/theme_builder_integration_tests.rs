@@ -244,6 +244,12 @@ async fn test_dynamic_placeholder_ast_hydration_and_tokens() {
             },
         ],
         nav_menus: HashMap::new(),
+        db: Some(&db),
+        archive_title: None,
+        archive_subtitle: None,
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
     };
 
     SsrInjector::hydrate_layout(&mut layout, &hyd_ctx);
@@ -362,8 +368,13 @@ async fn test_starter_templates_catalog_and_install() {
     assert_eq!(cat_resp.status(), StatusCode::OK);
     let cat_body = to_bytes(cat_resp.into_body(), usize::MAX).await.unwrap();
     let catalog: Vec<StarterTemplateInfo> = serde_json::from_slice(&cat_body).unwrap();
-    assert_eq!(catalog.len(), 4);
+    assert_eq!(catalog.len(), 9);
     assert!(catalog.iter().any(|c| c.id == "dark-grid-footer"));
+    assert!(catalog.iter().any(|c| c.id == "editorial-single-post"));
+    assert!(catalog.iter().any(|c| c.id == "magazine-archive-grid"));
+    assert!(catalog.iter().any(|c| c.id == "modern-error-404"));
+    assert!(catalog.iter().any(|c| c.id == "global-cta-symbol"));
+    assert!(catalog.iter().any(|c| c.id == "top-announcement-popup"));
 
     let inst_resp = app
         .clone()
@@ -578,7 +589,10 @@ async fn test_header_footer_manager_matrix_page_assignments_and_ssr() {
             .to_vec(),
     )
     .unwrap();
-    assert!(admin_html.contains("Header &amp; Footer Manager"));
+    assert!(
+        admin_html.contains("Theme Builder &amp; Template Manager")
+            || admin_html.contains("Header &amp; Footer Manager")
+    );
     assert!(admin_html.contains("Global Site Header"));
     assert!(admin_html.contains("Promo Landing Header"));
     assert!(admin_html.contains("Special Campaign Page"));

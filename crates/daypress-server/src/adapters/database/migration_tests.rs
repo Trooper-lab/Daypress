@@ -139,6 +139,7 @@ fn test_import_bundle_relational_remapping_and_ast_transpilation() {
                     target: String::new(),
                     parent: 0,
                     menu_order: 1,
+                    ..Default::default()
                 }],
             }],
             comments: vec![ImportComment {

@@ -130,6 +130,7 @@ pub fn ingest_nav_menus(
                 parent: mapped_menu_parent,
                 order: menu_order,
                 children: Vec::new(),
+                ..Default::default()
             };
 
             flat_items_by_slug
@@ -149,6 +150,7 @@ pub fn ingest_nav_menus(
                     target,
                     parent: mapped_menu_parent,
                     menu_order,
+                    ..Default::default()
                 });
             }
         }

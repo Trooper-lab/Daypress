@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["Daypress Core Team"]
 license = "AGPL-3.0-or-later"
@@ -32,7 +32,7 @@ chrono = { version = "0.4", features = ["serde"] }
 quick-xml = "0.37"
 
 # Media & Image Processing
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "avif"] }
 
 # Cryptography & Authentication
 argon2 = "0.5"

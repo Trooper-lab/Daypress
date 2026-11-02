@@ -651,3 +651,52 @@ impl Database {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_v03_to_v04_schema_upgrade_adds_columns_before_indexes() {
+        let conn = Connection::open_in_memory().unwrap();
+        // Simulate pre-v0.4 tables without `status` on `daypress_form_entries`
+        // and without `event_type` on `daypress_analytics_events`.
+        conn.execute_batch(
+            r#"
+            CREATE TABLE daypress_form_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                form_id INTEGER NOT NULL,
+                data_json TEXT NOT NULL DEFAULT '{}',
+                ip_hash TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE daypress_analytics_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visitor_hash TEXT NOT NULL,
+                page_url TEXT NOT NULL,
+                referrer TEXT NOT NULL DEFAULT '',
+                device_type TEXT NOT NULL DEFAULT 'desktop',
+                country TEXT NOT NULL DEFAULT 'XX',
+                utm_source TEXT DEFAULT NULL,
+                utm_medium TEXT DEFAULT NULL,
+                utm_campaign TEXT DEFAULT NULL,
+                created_at TEXT NOT NULL
+            );
+            "#,
+        )
+        .unwrap();
+
+        let db = Database {
+            conn: Arc::new(Mutex::new(conn)),
+            db_path: PathBuf::from(":memory:"),
+            login_throttle: Default::default(),
+            password_reset_throttle: Default::default(),
+            hot_cache: Default::default(),
+            form_rate_limiter: Default::default(),
+        };
+
+        db.init_schema()
+            .expect("init_schema must upgrade v0.3 tables to v0.4 without failing on new indexes");
+    }
+}

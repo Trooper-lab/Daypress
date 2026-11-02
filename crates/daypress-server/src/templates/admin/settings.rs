@@ -202,7 +202,99 @@ pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
             </div>
         </div>
 
+        <div class="day-card" style="margin-top: 20px;">
+            <div class="day-card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <h2 class="day-card-title">Automatic HTTPS / Let's Encrypt TLS (ACME <code>:443</code>)</h2>
+                <span class="badge" id="acmeTlsStatusBadge" style="background: var(--paper-raised); color: var(--ink-muted); border: 1px solid var(--rule);">unconfigured</span>
+            </div>
+            <div class="day-card-body">
+                <p style="font-size: 13.5px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 16px;">
+                    Provision zero-config TLS certificates via Let's Encrypt ACME (<code>HTTP-01</code> at <code>/.well-known/acme-challenge/*</code> and <code>TLS-ALPN-01</code>). You can also pass <code>--tls-domain</code> and <code>--tls-email</code> on startup.
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 720px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="acme_tls_domain">Domain</label>
+                        <input type="text" id="acme_tls_domain" placeholder="cms.example.com" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="acme_tls_email">ACME Contact Email</label>
+                        <input type="email" id="acme_tls_email" value="{email}" placeholder="ops@example.com" class="form-input">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 720px; margin-bottom: 16px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="acme_https_port">HTTPS Port</label>
+                        <input type="number" id="acme_https_port" value="443" min="1" max="65535" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="acme_tls_env">Let's Encrypt Environment</label>
+                        <select id="acme_tls_env" class="form-select">
+                            <option value="production">Production (acme-v02.api.letsencrypt.org)</option>
+                            <option value="staging">Staging (acme-staging-v02.api.letsencrypt.org)</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-primary" id="saveAcmeTlsBtn" onclick="saveAcmeTlsConfig()">Save &amp; Arm ACME TLS</button>
+                    <span id="acmeTlsResult" style="font-size: 13px; color: var(--ink-muted);"></span>
+                </div>
+            </div>
+        </div>
+
         <script>
+            async function loadAcmeTlsStatus() {{
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/tls/status');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.domain) document.getElementById('acme_tls_domain').value = data.domain;
+                    if (data.email) document.getElementById('acme_tls_email').value = data.email;
+                    if (data.https_port) document.getElementById('acme_https_port').value = data.https_port;
+                    document.getElementById('acme_tls_env').value = data.staging ? 'staging' : 'production';
+                    const badge = document.getElementById('acmeTlsStatusBadge');
+                    if (badge && data.cert_status) {{
+                        badge.textContent = data.cert_status;
+                    }}
+                }} catch (_) {{}}
+            }}
+
+            async function saveAcmeTlsConfig() {{
+                const domain = document.getElementById('acme_tls_domain').value.trim();
+                const email = document.getElementById('acme_tls_email').value.trim();
+                const https_port = parseInt(document.getElementById('acme_https_port').value, 10) || 443;
+                const staging = document.getElementById('acme_tls_env').value === 'staging';
+                const out = document.getElementById('acmeTlsResult');
+                out.style.color = 'var(--ink-muted)';
+                out.textContent = 'Arming ACME TLS...';
+
+                const res = await fetch('/wp-json/daypress/v1/tls/config', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || '' }},
+                    body: JSON.stringify({{
+                        enabled: domain.length > 0,
+                        domain,
+                        email,
+                        https_port,
+                        cert_dir: 'data/tls',
+                        staging
+                    }})
+                }});
+                const data = await res.json().catch(() => ({{}}));
+                if (res.ok) {{
+                    const badge = document.getElementById('acmeTlsStatusBadge');
+                    if (badge && data.cert_status) badge.textContent = data.cert_status;
+                    out.style.color = '#059669';
+                    out.textContent = '✓ ACME TLS armed (' + (data.cert_status || 'challenge_ready') + ')';
+                    showToast('✓ ACME / Let\'s Encrypt TLS configuration saved to SQLite!');
+                }} else {{
+                    out.style.color = '#dc2626';
+                    out.textContent = data.message || 'Failed to save ACME TLS config.';
+                    showToast('Error saving ACME TLS settings', true);
+                }}
+            }}
+
+            document.addEventListener('DOMContentLoaded', loadAcmeTlsStatus);
+
             async function sendTestEmail() {{
                 const out = document.getElementById('testEmailResult');
                 const to = document.getElementById('admin_email').value;
@@ -752,6 +844,72 @@ pub fn render_settings_media_view(
             </div>
         </div>
 
+        <div class="day-card" style="margin-bottom: 20px;">
+            <div class="day-card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <h2 class="day-card-title">Cloud Storage &amp; Replica Offload (S3 / Cloudflare R2)</h2>
+                <span class="badge" id="s3ReplicaBadge" style="background: var(--paper-raised); color: var(--ink-muted); border: 1px solid var(--rule);">SigV4 Native</span>
+            </div>
+            <div class="day-card-body">
+                <p style="font-size: 13.5px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 16px;">
+                    Offload <code>uploads/</code> media assets and stream Gzip-compressed <code>VACUUM INTO</code> SQLite snapshots to Cloudflare R2, Amazon S3, or MinIO using built-in AWS Signature Version 4 (<code>SigV4</code>).
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_provider">Provider</label>
+                        <select id="s3_provider" class="form-select">
+                            <option value="r2">Cloudflare R2</option>
+                            <option value="s3">Amazon S3</option>
+                            <option value="minio">MinIO / S3-Compatible</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_endpoint">Endpoint URL</label>
+                        <input type="text" id="s3_endpoint" placeholder="https://&lt;account_id&gt;.r2.cloudflarestorage.com" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_bucket">Bucket Name</label>
+                        <input type="text" id="s3_bucket" placeholder="daypress-prod" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_region">Region</label>
+                        <input type="text" id="s3_region" value="auto" placeholder="auto" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_public_url_prefix">Public CDN URL Prefix</label>
+                        <input type="text" id="s3_public_url_prefix" placeholder="https://cdn.example.com" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_access_key_id">Access Key ID</label>
+                        <input type="text" id="s3_access_key_id" placeholder="AKIA..." class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="s3_secret_access_key">Secret Access Key</label>
+                        <input type="password" id="s3_secret_access_key" placeholder="••••••••" class="form-input" style="font-family: var(--font-mono);">
+                    </div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 18px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+                        <input type="checkbox" id="s3_media_offload_enabled">
+                        <span>Automatic Media Offload</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+                        <input type="checkbox" id="s3_sqlite_replica_enabled">
+                        <span>Continuous SQLite Replica Streaming</span>
+                    </label>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                    <button type="button" class="btn btn-primary" onclick="saveS3StorageConfig()">Save S3 / R2 Settings</button>
+                    <button type="button" class="btn btn-secondary" onclick="syncMediaToS3Now()">Offload Media to R2/S3 Now</button>
+                    <button type="button" class="btn btn-secondary" onclick="streamSqliteReplicaNow()">Stream SQLite Replica Snapshot Now</button>
+                </div>
+                <p id="s3StorageStatusResult" style="font-size: 13px; color: var(--ink-muted); margin-top: 12px;"></p>
+            </div>
+        </div>
+
         <!-- Custom image sizes and dated upload folders are not implemented in v0.1. -->
         <form id="mediaForm" onsubmit="saveMediaSettings(event)" hidden>
             <button type="submit" id="mediaFormSubmit" style="display: none;"></button>
@@ -797,6 +955,111 @@ pub fn render_settings_media_view(
         </form>
 
         <script>
+            async function loadS3StorageConfig() {{
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/storage/s3/config');
+                    if (!res.ok) return;
+                    const cfg = await res.json();
+                    if (cfg.provider) document.getElementById('s3_provider').value = cfg.provider;
+                    if (cfg.endpoint) document.getElementById('s3_endpoint').value = cfg.endpoint;
+                    if (cfg.bucket) document.getElementById('s3_bucket').value = cfg.bucket;
+                    if (cfg.region) document.getElementById('s3_region').value = cfg.region;
+                    if (cfg.public_url_prefix) document.getElementById('s3_public_url_prefix').value = cfg.public_url_prefix;
+                    if (cfg.access_key_id) document.getElementById('s3_access_key_id').value = cfg.access_key_id;
+                    if (cfg.secret_access_key) document.getElementById('s3_secret_access_key').value = cfg.secret_access_key;
+                    document.getElementById('s3_media_offload_enabled').checked = !!cfg.media_offload_enabled;
+                    document.getElementById('s3_sqlite_replica_enabled').checked = !!cfg.sqlite_replica_enabled;
+                    const badge = document.getElementById('s3ReplicaBadge');
+                    if (badge && cfg.last_replica_at) {{
+                        badge.textContent = 'Last Replica: ' + cfg.last_replica_at;
+                    }}
+                }} catch (_) {{}}
+            }}
+
+            async function saveS3StorageConfig() {{
+                const out = document.getElementById('s3StorageStatusResult');
+                out.style.color = 'var(--ink-muted)';
+                out.textContent = 'Saving S3 / R2 settings...';
+                const mediaOffload = document.getElementById('s3_media_offload_enabled').checked;
+                const sqliteReplica = document.getElementById('s3_sqlite_replica_enabled').checked;
+                const endpoint = document.getElementById('s3_endpoint').value.trim();
+                const bucket = document.getElementById('s3_bucket').value.trim();
+                const payload = {{
+                    enabled: mediaOffload || sqliteReplica || (endpoint.length > 0 && bucket.length > 0),
+                    provider: document.getElementById('s3_provider').value,
+                    endpoint,
+                    bucket,
+                    region: document.getElementById('s3_region').value.trim() || 'auto',
+                    public_url_prefix: document.getElementById('s3_public_url_prefix').value.trim(),
+                    access_key_id: document.getElementById('s3_access_key_id').value.trim(),
+                    secret_access_key: document.getElementById('s3_secret_access_key').value,
+                    media_offload_enabled: mediaOffload,
+                    sqlite_replica_enabled: sqliteReplica,
+                    replica_interval_secs: 300
+                }};
+                const res = await fetch('/wp-json/daypress/v1/storage/s3/config', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || '' }},
+                    body: JSON.stringify(payload)
+                }});
+                const data = await res.json().catch(() => ({{}}));
+                if (res.ok) {{
+                    out.style.color = '#059669';
+                    out.textContent = '✓ S3 / Cloudflare R2 configuration persisted to SQLite.';
+                    showToast('✓ S3 / Cloudflare R2 configuration saved!');
+                }} else {{
+                    out.style.color = '#dc2626';
+                    out.textContent = data.message || 'Failed to save S3 / R2 settings.';
+                    showToast('Error saving S3 / R2 settings', true);
+                }}
+            }}
+
+            async function syncMediaToS3Now() {{
+                const out = document.getElementById('s3StorageStatusResult');
+                out.style.color = 'var(--ink-muted)';
+                out.textContent = 'Offloading uploads/ media to R2/S3...';
+                const res = await fetch('/wp-json/daypress/v1/storage/s3/sync-media', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || '' }},
+                    body: JSON.stringify({{}})
+                }});
+                const data = await res.json().catch(() => ({{}}));
+                if (res.ok) {{
+                    out.style.color = '#059669';
+                    out.textContent = '✓ Media offload finished: ' + (data.files_scanned || 0) + ' scanned, ' + (data.files_uploaded || 0) + ' uploaded (' + (data.bytes_synced || 0) + ' bytes).';
+                    showToast('✓ Media offload sync complete!');
+                }} else {{
+                    out.style.color = '#dc2626';
+                    out.textContent = data.message || 'Media offload sync failed.';
+                    showToast('Error running media offload', true);
+                }}
+            }}
+
+            async function streamSqliteReplicaNow() {{
+                const out = document.getElementById('s3StorageStatusResult');
+                out.style.color = 'var(--ink-muted)';
+                out.textContent = 'Creating Gzip VACUUM INTO SQLite replica snapshot...';
+                const res = await fetch('/wp-json/daypress/v1/storage/s3/replicate-db', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || '' }},
+                    body: JSON.stringify({{}})
+                }});
+                const data = await res.json().catch(() => ({{}}));
+                if (res.ok) {{
+                    const badge = document.getElementById('s3ReplicaBadge');
+                    if (badge && data.last_replica_at) badge.textContent = 'Last Replica: ' + data.last_replica_at;
+                    out.style.color = '#059669';
+                    out.textContent = '✓ SQLite replica snapshot ready: ' + (data.filename || 'daypress-latest.sqlite.gz') + ' (' + (data.size_bytes || 0) + ' bytes compressed).';
+                    showToast('✓ SQLite replica snapshot created!');
+                }} else {{
+                    out.style.color = '#dc2626';
+                    out.textContent = data.message || 'SQLite replica snapshot failed.';
+                    showToast('Error creating SQLite replica', true);
+                }}
+            }}
+
+            document.addEventListener('DOMContentLoaded', loadS3StorageConfig);
+
             async function saveMediaSettings(e) {{
                 e.preventDefault();
                 const payload = {{

@@ -7,10 +7,11 @@ pub fn render_media_view(
     media: &[DaypressMediaResponse],
 ) -> String {
     let mut media_cards = String::new();
+    let mut all_tags_set = std::collections::BTreeSet::<String>::new();
 
     if media.is_empty() {
         media_cards.push_str(r#"
-            <div style="grid-column: 1 / -1; text-align: center; padding: 48px; background: var(--paper-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+            <div id="emptyMediaState" style="grid-column: 1 / -1; text-align: center; padding: 48px; background: var(--paper-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
                 <h3 style="font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Media library is empty</h3>
                 <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px;">Drop files into the zone above or browse from your computer.</p>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaUploadInput').click()">Select Images to Upload</button>
@@ -18,17 +19,50 @@ pub fn render_media_view(
         "#);
     } else {
         for m in media {
+            for t in &m.tags {
+                let clean_t = t.trim();
+                if !clean_t.is_empty() {
+                    all_tags_set.insert(clean_t.to_string());
+                }
+            }
             let is_img = m.mime_type.starts_with("image/");
             let title_escaped = escape_html(&m.title.rendered);
             let url_escaped = escape_html(&m.source_url);
             let mime_escaped = escape_html(&m.mime_type);
             let date_escaped = escape_html(&m.date);
+            let folder_attr = m
+                .folder_id
+                .map(|fid| fid.to_string())
+                .unwrap_or_else(|| "0".to_string());
+            let tags_csv = escape_html(&m.tags.join(","));
+            let fx_pct = (m.focal_x.clamp(0.0, 1.0) * 100.0).round() as i32;
+            let fy_pct = (m.focal_y.clamp(0.0, 1.0) * 100.0).round() as i32;
+
+            let has_webp = m.media_details.sizes.contains_key("webp")
+                || m.mime_type.eq_ignore_ascii_case("image/webp");
+            let has_avif = m.media_details.sizes.contains_key("avif")
+                || m.mime_type.eq_ignore_ascii_case("image/avif");
+
+            let mut variant_badges = String::new();
+            if has_webp {
+                variant_badges.push_str(r#"<span style="background: rgba(16, 185, 129, 0.9); color: #fff; font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px;">WebP</span>"#);
+            }
+            if has_avif {
+                variant_badges.push_str(r#"<span style="background: rgba(59, 130, 246, 0.9); color: #fff; font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px;">AVIF</span>"#);
+            }
 
             let preview_html = if is_img {
                 format!(
-                    r#"<div style="height: 150px; background: var(--ink); overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                        <img src="{url_escaped}" alt="{title_escaped}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy" />
-                    </div>"#
+                    r#"<div style="position: relative; height: 150px; background: var(--ink); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                        <img id="gridMediaImg-{id}" src="{url_escaped}" alt="{title_escaped}" style="width: 100%; height: 100%; object-fit: cover; object-position: {fx_pct}% {fy_pct}%; transition: transform 0.2s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" loading="lazy" />
+                        <div style="position: absolute; top: 8px; right: 8px; display: flex; gap: 4px;">{variant_badges}</div>
+                    </div>"#,
+                    id = m.id,
+                    url_escaped = url_escaped,
+                    title_escaped = title_escaped,
+                    fx_pct = fx_pct,
+                    fy_pct = fy_pct,
+                    variant_badges = variant_badges
                 )
             } else {
                 format!(
@@ -39,9 +73,29 @@ pub fn render_media_view(
                 )
             };
 
+            let tag_pills_html = if m.tags.is_empty() {
+                String::new()
+            } else {
+                let pills: Vec<String> = m
+                    .tags
+                    .iter()
+                    .take(3)
+                    .map(|t| {
+                        let te = escape_html(t);
+                        format!(
+                            r#"<span style="font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--press-wash); color: var(--press); font-weight: 600;">#{te}</span>"#
+                        )
+                    })
+                    .collect();
+                format!(
+                    r#"<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">{}</div>"#,
+                    pills.join("")
+                )
+            };
+
             media_cards.push_str(&format!(
                 r#"
-                <div class="day-card" style="display: flex; flex-direction: column; overflow: hidden; cursor: pointer;" onclick="openMediaDetails({id})">
+                <div class="day-card media-asset-card" data-media-id="{id}" data-folder-id="{folder_attr}" data-tags="{tags_csv}" style="display: flex; flex-direction: column; overflow: hidden; cursor: pointer;" onclick="openMediaDetails({id})">
                     {preview_html}
                     <div style="padding: 12px; flex: 1;">
                         <div style="font-weight: 600; font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{title_escaped}">{title_escaped}</div>
@@ -49,6 +103,7 @@ pub fn render_media_view(
                             <span style="font-family: var(--font-mono);">{mime_escaped}</span>
                             <span>{date_escaped}</span>
                         </div>
+                        {tag_pills_html}
                     </div>
                     <div style="padding: 8px 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: var(--paper-raised);" onclick="event.stopPropagation()">
                         <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;" onclick="openMediaDetails({id})">Edit</button>
@@ -62,15 +117,42 @@ pub fn render_media_view(
                 url_escaped = url_escaped,
                 mime_escaped = mime_escaped,
                 date_escaped = date_escaped,
+                tag_pills_html = tag_pills_html,
+                folder_attr = folder_attr,
+                tags_csv = tags_csv,
                 id = m.id
             ));
         }
+    }
+
+    let mut tag_filter_pills = String::new();
+    for tag in &all_tags_set {
+        let te = escape_html(tag);
+        tag_filter_pills.push_str(&format!(
+            r#"<button type="button" class="btn btn-secondary tag-pill-btn" data-tag="{te}" style="padding: 3px 10px; font-size: 11.5px; border-radius: 999px;" onclick="filterByTag('{te}')">#{te}</button>"#
+        ));
     }
 
     let media_count = media.len();
     let media_json_items: Vec<serde_json::Value> = media
         .iter()
         .map(|m| {
+            let has_webp = m.media_details.sizes.contains_key("webp")
+                || m.mime_type.eq_ignore_ascii_case("image/webp");
+            let has_avif = m.media_details.sizes.contains_key("avif")
+                || m.mime_type.eq_ignore_ascii_case("image/avif");
+            let webp_url = m
+                .media_details
+                .sizes
+                .get("webp")
+                .map(|s| s.source_url.clone())
+                .unwrap_or_default();
+            let avif_url = m
+                .media_details
+                .sizes
+                .get("avif")
+                .map(|s| s.source_url.clone())
+                .unwrap_or_default();
             serde_json::json!({
                 "id": m.id,
                 "title": m.title.rendered,
@@ -81,6 +163,14 @@ pub fn render_media_view(
                 "alt_text": m.alt_text,
                 "caption": m.caption.rendered,
                 "description": m.description.rendered,
+                "folder_id": m.folder_id,
+                "tags": m.tags,
+                "focal_x": m.focal_x,
+                "focal_y": m.focal_y,
+                "has_webp": has_webp,
+                "has_avif": has_avif,
+                "webp_url": webp_url,
+                "avif_url": avif_url,
             })
         })
         .collect();
@@ -91,46 +181,96 @@ pub fn render_media_view(
         r##"
         <div class="page-header">
             <div>
-                <h1 class="page-title">Media Library</h1>
-                <p class="page-subtitle">Upload and manage images, video, and documents stored directly in embedded Rusqlite</p>
+                <h1 class="page-title">Media Library &amp; DAM</h1>
+                <p class="page-subtitle">Organize virtual folders, focal-point crops, sanitized SVGs, and dual WebP/AVIF variants</p>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <span class="badge badge-published" style="padding: 6px 12px; font-size: 12px;">{media_count} Assets</span>
+                <button type="button" class="btn btn-secondary" id="scanUnusedBtn" onclick="scanUnusedMedia()" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <span>Scan Unused Assets</span>
+                    <span id="unusedAssetsBadge" style="display: none; background: var(--oxide); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px;">0</span>
+                </button>
+                <button type="button" class="btn btn-secondary" id="bulkDeleteUnusedBtn" onclick="bulkDeleteUnusedMedia()" style="display: none; color: var(--oxide); border-color: var(--oxide);">
+                    Bulk Delete Unused
+                </button>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaUploadInput').click()">+ Upload Files</button>
-                <input type="file" id="mediaUploadInput" multiple accept="image/*,video/*,application/pdf" style="display: none;" onchange="uploadFiles(this.files)" />
+                <input type="file" id="mediaUploadInput" multiple accept="image/*,video/*,application/pdf,.svg" style="display: none;" onchange="uploadFiles(this.files)" />
+            </div>
+        </div>
+
+        <!-- DAM Virtual Folders & Tag Filter Toolbar -->
+        <div class="day-card" style="padding: 14px 18px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;" id="mediaFoldersBar">
+                    <span style="font-size: 12px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px;">Folders:</span>
+                    <button type="button" class="btn btn-primary folder-tab-btn" data-folder-filter="all" style="padding: 5px 12px; font-size: 12px;" onclick="filterByFolder('all')">All Media ({media_count})</button>
+                    <button type="button" class="btn btn-secondary folder-tab-btn" data-folder-filter="0" style="padding: 5px 12px; font-size: 12px;" onclick="filterByFolder('0')">Uncategorized</button>
+                    <div id="dynamicFolderTabs" style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="text" id="newFolderNameInput" class="form-input" placeholder="New folder name..." style="width: 170px; padding: 5px 10px; font-size: 12px; height: 32px;" />
+                    <button type="button" class="btn btn-secondary" style="padding: 5px 12px; font-size: 12px; height: 32px;" onclick="createMediaFolder()">+ New Folder</button>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--border-subtle); padding-top: 10px;">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--ink-muted);">Tag Filter:</span>
+                    <input type="text" id="mediaTagFilterInput" class="form-input" placeholder="Filter by tag or title..." style="width: 210px; padding: 4px 10px; font-size: 12px; height: 30px;" oninput="applyMediaFilters()" />
+                    {tag_filter_pills}
+                </div>
+                <div id="activeFilterStatus" style="font-size: 12px; color: var(--ink-muted);">Showing all media assets</div>
             </div>
         </div>
 
         <!-- Drag & Drop Upload Zone -->
-        <div id="dropZone" style="border: 2px dashed var(--rule-strong); background: var(--paper-raised); border-radius: var(--radius-sm); padding: 36px 20px; text-align: center; margin-bottom: 24px; transition: all 0.2s ease; cursor: pointer;"
+        <div id="dropZone" style="border: 2px dashed var(--rule-strong); background: var(--paper-raised); border-radius: var(--radius-sm); padding: 28px 20px; text-align: center; margin-bottom: 24px; transition: all 0.2s ease; cursor: pointer;"
              onclick="document.getElementById('mediaUploadInput').click()"
              ondragover="event.preventDefault(); this.style.borderColor = 'var(--press)'; this.style.background = 'var(--press-wash)';"
              ondragleave="event.preventDefault(); this.style.borderColor = 'var(--rule-strong)'; this.style.background = 'var(--paper-raised)';"
              ondrop="event.preventDefault(); this.style.borderColor = 'var(--rule-strong)'; this.style.background = 'var(--paper-raised)'; uploadFiles(event.dataTransfer.files);">
-            <div style="width: 44px; height: 44px; margin: 0 auto 10px auto; color: var(--press); background: var(--press-wash); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                <svg style="width: 22px; height: 22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <div style="width: 40px; height: 40px; margin: 0 auto 8px auto; color: var(--press); background: var(--press-wash); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </div>
-            <h2 style="font-size: 15px; font-weight: 600; margin: 0 0 4px 0; color: var(--ink);">Drop files here to upload to Daypress storage</h2>
-            <p style="font-size: 12.5px; color: var(--ink-muted); margin: 0 0 12px 0;">Supports PNG, JPG, WebP, SVG, GIF, PDF &bull; Fast async streaming pipeline</p>
+            <h2 style="font-size: 14.5px; font-weight: 600; margin: 0 0 4px 0; color: var(--ink);">Drop files here to upload to Daypress DAM</h2>
+            <p style="font-size: 12px; color: var(--ink-muted); margin: 0 0 10px 0;">Supports PNG, JPG, WebP, AVIF, Sanitized SVG, GIF, PDF &bull; Auto-generates WebP &amp; AVIF variants</p>
             <button type="button" class="btn btn-secondary" style="font-size: 12px; pointer-events: none;">Select Files from Computer</button>
         </div>
 
         <!-- Media Grid -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px;">
+        <div id="mediaGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px;">
             {media_cards}
         </div>
 
         <!-- Attachment Details Modal -->
         <div id="mediaDetailsModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
-            <div style="background: var(--paper-raised); border-radius: var(--radius-sm); width: 100%; max-width: 840px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); border: 1px solid var(--border-subtle); display: flex; flex-direction: column;">
+            <div style="background: var(--paper-raised); border-radius: var(--radius-sm); width: 100%; max-width: 900px; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); border: 1px solid var(--border-subtle); display: flex; flex-direction: column;">
                 <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; background: var(--paper-raised);">
-                    <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 0;">Attachment Details</h3>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 0;">Attachment Details &amp; Focal Crop</h3>
+                        <div id="modalVariantBadges" style="display: flex; gap: 6px;"></div>
+                    </div>
                     <button type="button" onclick="closeMediaDetails()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--ink-muted); line-height: 1;">&times;</button>
                 </div>
-                <div style="padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-                    <!-- Left: Preview & Metadata -->
+                <div style="padding: 24px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 24px;">
+                    <!-- Left: Interactive Focal-Point Preview, Replace File & Metadata -->
                     <div>
-                        <div id="modalPreviewBox" style="width: 100%; height: 240px; background: var(--ink); border-radius: var(--radius-sm); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 14px;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span style="font-size: 11.5px; font-weight: 600; color: var(--ink-muted);">Click image to set Focal Point crosshair</span>
+                            <span id="focalCoordsLabel" style="font-family: var(--font-mono); font-size: 11.5px; color: var(--press); font-weight: 600;">Focal: 50%, 50%</span>
+                        </div>
+                        <div id="modalPreviewBox" onclick="handleFocalPointClick(event)" style="position: relative; width: 100%; height: 260px; background: var(--ink); border-radius: var(--radius-sm); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; cursor: crosshair; user-select: none;"></div>
+
+                        <!-- Replace Media File (Keep URL & ID) -->
+                        <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: var(--paper-sunk); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                            <div>
+                                <div style="font-size: 12.5px; font-weight: 600; color: var(--ink);">Replace Media File (Keep URL &amp; ID)</div>
+                                <div style="font-size: 11px; color: var(--ink-muted);">Overwrites file in-place without breaking existing post embeds</div>
+                            </div>
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; white-space: nowrap;" onclick="document.getElementById('replaceMediaFileInput').click()">Replace File...</button>
+                            <input type="file" id="replaceMediaFileInput" accept="image/*,video/*,application/pdf,.svg" style="display: none;" onchange="replaceCurrentMediaFile(this.files)" />
+                        </div>
+
                         <div style="font-size: 12px; color: var(--ink-muted); display: flex; flex-direction: column; gap: 6px; background: var(--paper-raised); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
                             <div><strong style="color: var(--ink-muted);">File URL:</strong> <a id="modalFileUrlLink" href="#" target="_blank" style="color: var(--press); word-break: break-all;"></a></div>
                             <div><strong style="color: var(--ink-muted);">MIME Type:</strong> <span id="modalMime"></span></div>
@@ -139,7 +279,19 @@ pub fn render_media_view(
                         </div>
                     </div>
                     <!-- Right: Editable Fields -->
-                    <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div>
+                                <label class="form-label">Virtual Folder</label>
+                                <select id="modalFolderSelect" class="form-input">
+                                    <option value="0">Uncategorized</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label">Tags (comma-separated)</label>
+                                <input type="text" id="modalTagsInput" class="form-input" placeholder="hero, product, brand" />
+                            </div>
+                        </div>
                         <div>
                             <label class="form-label">Alternative Text (Alt Text)</label>
                             <input type="text" id="modalAltText" class="form-input" placeholder="Describe image for SEO &amp; accessibility" />
@@ -150,11 +302,11 @@ pub fn render_media_view(
                         </div>
                         <div>
                             <label class="form-label">Caption</label>
-                            <textarea id="modalCaption" class="form-textarea" style="height: 60px; min-height: 60px;" placeholder="Optional caption"></textarea>
+                            <textarea id="modalCaption" class="form-textarea" style="height: 54px; min-height: 54px;" placeholder="Optional caption"></textarea>
                         </div>
                         <div>
                             <label class="form-label">Description</label>
-                            <textarea id="modalDescription" class="form-textarea" style="height: 80px; min-height: 80px;" placeholder="Optional description"></textarea>
+                            <textarea id="modalDescription" class="form-textarea" style="height: 68px; min-height: 68px;" placeholder="Optional description"></textarea>
                         </div>
                     </div>
                 </div>
@@ -173,29 +325,356 @@ pub fn render_media_view(
             const mediaData = {{}};
             mediaList.forEach(m => {{ mediaData[m.id] = m; }});
             let currentModalMediaId = null;
+            let currentFocalX = 0.5;
+            let currentFocalY = 0.5;
+            let activeFolderFilter = 'all';
+            let unusedMediaIds = null;
+            let foldersList = [];
+
+            async function loadMediaFolders() {{
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/media/folders');
+                    if (!res.ok) return;
+                    foldersList = await res.json();
+                    renderFolderControls();
+                }} catch (e) {{
+                    console.error('Failed to load media folders', e);
+                }}
+            }}
+
+            function renderFolderControls() {{
+                const container = document.getElementById('dynamicFolderTabs');
+                const selectEl = document.getElementById('modalFolderSelect');
+                if (container) {{
+                    container.innerHTML = '';
+                    foldersList.forEach(f => {{
+                        const wrap = document.createElement('div');
+                        wrap.style.display = 'inline-flex';
+                        wrap.style.alignItems = 'center';
+                        wrap.style.gap = '2px';
+
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = (String(activeFolderFilter) === String(f.id)) ? 'btn btn-primary folder-tab-btn' : 'btn btn-secondary folder-tab-btn';
+                        btn.setAttribute('data-folder-filter', String(f.id));
+                        btn.style.padding = '5px 10px';
+                        btn.style.fontSize = '12px';
+                        btn.textContent = f.name + ' (' + (f.count || 0) + ')';
+                        btn.onclick = () => filterByFolder(String(f.id));
+
+                        const delBtn = document.createElement('button');
+                        delBtn.type = 'button';
+                        delBtn.className = 'btn btn-secondary';
+                        delBtn.style.padding = '5px 6px';
+                        delBtn.style.fontSize = '11px';
+                        delBtn.style.color = 'var(--oxide)';
+                        delBtn.title = 'Delete folder ' + f.name;
+                        delBtn.innerHTML = '&times;';
+                        delBtn.onclick = (ev) => {{
+                            ev.stopPropagation();
+                            deleteMediaFolder(f.id, f.name);
+                        }};
+
+                        wrap.appendChild(btn);
+                        wrap.appendChild(delBtn);
+                        container.appendChild(wrap);
+                    }});
+                }}
+
+                if (selectEl) {{
+                    const prevVal = selectEl.value;
+                    selectEl.innerHTML = '<option value="0">Uncategorized</option>';
+                    foldersList.forEach(f => {{
+                        const opt = document.createElement('option');
+                        opt.value = String(f.id);
+                        opt.textContent = f.name;
+                        selectEl.appendChild(opt);
+                    }});
+                    if (prevVal) selectEl.value = prevVal;
+                }}
+            }}
+
+            async function createMediaFolder() {{
+                const input = document.getElementById('newFolderNameInput');
+                const name = input ? input.value.trim() : '';
+                if (!name) {{
+                    showToast('Enter a folder name first', true);
+                    return;
+                }}
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/media/folders', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ name: name, parent_id: 0 }})
+                    }});
+                    if (res.ok) {{
+                        input.value = '';
+                        showToast('✓ Created folder "' + name + '"');
+                        await loadMediaFolders();
+                    }} else {{
+                        showToast('Failed to create media folder', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
+            async function deleteMediaFolder(folderId, folderName) {{
+                if (!confirm('Delete virtual folder "' + folderName + '"? Assets inside will move to Uncategorized.')) return;
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/media/folders/' + folderId, {{
+                        method: 'DELETE'
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ Deleted folder "' + folderName + '"');
+                        if (String(activeFolderFilter) === String(folderId)) {{
+                            activeFolderFilter = 'all';
+                        }}
+                        await loadMediaFolders();
+                        applyMediaFilters();
+                    }} else {{
+                        showToast('Failed to delete folder', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
+            function filterByFolder(folderId) {{
+                activeFolderFilter = String(folderId);
+                unusedMediaIds = null;
+                document.getElementById('bulkDeleteUnusedBtn').style.display = 'none';
+                document.querySelectorAll('.folder-tab-btn').forEach(btn => {{
+                    if (btn.getAttribute('data-folder-filter') === activeFolderFilter) {{
+                        btn.className = 'btn btn-primary folder-tab-btn';
+                    }} else {{
+                        btn.className = 'btn btn-secondary folder-tab-btn';
+                    }}
+                }});
+                applyMediaFilters();
+            }}
+
+            function filterByTag(tag) {{
+                const input = document.getElementById('mediaTagFilterInput');
+                if (!input) return;
+                if (input.value.trim().toLowerCase() === tag.toLowerCase()) {{
+                    input.value = '';
+                }} else {{
+                    input.value = tag;
+                }}
+                unusedMediaIds = null;
+                document.getElementById('bulkDeleteUnusedBtn').style.display = 'none';
+                applyMediaFilters();
+            }}
+
+            function applyMediaFilters() {{
+                const q = (document.getElementById('mediaTagFilterInput')?.value || '').trim().toLowerCase();
+                const cards = document.querySelectorAll('.media-asset-card');
+                let visibleCount = 0;
+
+                cards.forEach(card => {{
+                    const id = Number(card.getAttribute('data-media-id'));
+                    const folderId = card.getAttribute('data-folder-id') || '0';
+                    const tags = (card.getAttribute('data-tags') || '').toLowerCase();
+                    const item = mediaData[id];
+                    const title = (item && item.title ? item.title : '').toLowerCase();
+
+                    let matchFolder = (activeFolderFilter === 'all') || (folderId === activeFolderFilter);
+                    let matchQuery = !q || tags.includes(q) || title.includes(q);
+                    let matchUnused = (unusedMediaIds === null) || unusedMediaIds.has(id);
+
+                    if (matchFolder && matchQuery && matchUnused) {{
+                        card.style.display = 'flex';
+                        visibleCount++;
+                    }} else {{
+                        card.style.display = 'none';
+                    }}
+                }});
+
+                const statusEl = document.getElementById('activeFilterStatus');
+                if (statusEl) {{
+                    if (unusedMediaIds !== null) {{
+                        statusEl.textContent = 'Showing ' + visibleCount + ' unused media asset(s)';
+                    }} else {{
+                        statusEl.textContent = 'Showing ' + visibleCount + ' of ' + cards.length + ' asset(s)';
+                    }}
+                }}
+            }}
+
+            async function scanUnusedMedia() {{
+                showToast('Scanning posts, AST layouts, templates, and options for unused media...');
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/media/unused');
+                    if (!res.ok) {{
+                        showToast('Failed to scan unused assets', true);
+                        return;
+                    }}
+                    const unusedList = await res.json();
+                    unusedMediaIds = new Set(unusedList.map(m => m.id));
+                    const badge = document.getElementById('unusedAssetsBadge');
+                    if (badge) {{
+                        badge.style.display = 'inline-block';
+                        badge.textContent = String(unusedList.length);
+                    }}
+                    const bulkBtn = document.getElementById('bulkDeleteUnusedBtn');
+                    if (bulkBtn) {{
+                        bulkBtn.style.display = unusedList.length > 0 ? 'inline-flex' : 'none';
+                    }}
+                    applyMediaFilters();
+                    showToast('✓ Found ' + unusedList.length + ' unused media asset(s)');
+                }} catch (e) {{
+                    showToast('Error scanning unused media: ' + e, true);
+                }}
+            }}
+
+            async function bulkDeleteUnusedMedia() {{
+                if (!unusedMediaIds || unusedMediaIds.size === 0) return;
+                const ids = Array.from(unusedMediaIds);
+                if (!confirm('Permanently delete ' + ids.length + ' unused media asset(s)?')) return;
+                let deleted = 0;
+                for (const id of ids) {{
+                    try {{
+                        const res = await fetch('/wp-json/wp/v2/media/' + id, {{ method: 'DELETE' }});
+                        if (res.ok) deleted++;
+                    }} catch (e) {{
+                        console.error('Failed deleting unused media ' + id, e);
+                    }}
+                }}
+                showToast('✓ Deleted ' + deleted + ' unused asset(s)');
+                setTimeout(() => window.location.reload(), 500);
+            }}
+
+            function renderModalPreview(item, cacheBust) {{
+                const pBox = document.getElementById('modalPreviewBox');
+                const fxPct = Math.round((currentFocalX || 0.5) * 100);
+                const fyPct = Math.round((currentFocalY || 0.5) * 100);
+                document.getElementById('focalCoordsLabel').textContent = 'Focal: ' + fxPct + '%, ' + fyPct + '%';
+
+                if (item.mime_type.startsWith('image/')) {{
+                    const srcUrl = cacheBust ? (item.source_url + '?t=' + cacheBust) : item.source_url;
+                    pBox.innerHTML =
+                        '<img id="modalPreviewImage" src="' + srcUrl + '" alt="" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" />' +
+                        '<div id="focalPointMarker" style="position: absolute; left: ' + fxPct + '%; top: ' + fyPct + '%; transform: translate(-50%, -50%); width: 22px; height: 22px; border: 2px solid #fff; border-radius: 50%; background: rgba(59, 130, 246, 0.55); box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.75); pointer-events: none;">' +
+                            '<div style="position: absolute; left: 50%; top: -5px; bottom: -5px; width: 1.5px; background: #fff; transform: translateX(-50%);"></div>' +
+                            '<div style="position: absolute; top: 50%; left: -5px; right: -5px; height: 1.5px; background: #fff; transform: translateY(-50%);"></div>' +
+                        '</div>';
+                }} else {{
+                    pBox.innerHTML = '<div style="color: var(--ink-muted); font-size: 14px; font-weight: 600;">' + item.mime_type + '</div>';
+                }}
+            }}
 
             function openMediaDetails(id) {{
                 const item = mediaData[id];
                 if (!item) return;
                 currentModalMediaId = id;
+                currentFocalX = typeof item.focal_x === 'number' ? item.focal_x : 0.5;
+                currentFocalY = typeof item.focal_y === 'number' ? item.focal_y : 0.5;
+
                 document.getElementById('modalTitle').value = item.title || '';
                 document.getElementById('modalAltText').value = item.alt_text || '';
                 document.getElementById('modalCaption').value = item.caption || '';
                 document.getElementById('modalDescription').value = item.description || '';
+                document.getElementById('modalFolderSelect').value = item.folder_id ? String(item.folder_id) : '0';
+                document.getElementById('modalTagsInput').value = Array.isArray(item.tags) ? item.tags.join(', ') : '';
+
                 document.getElementById('modalFileUrlLink').href = item.source_url;
                 document.getElementById('modalFileUrlLink').textContent = item.source_url;
                 document.getElementById('modalMime').textContent = item.mime_type;
                 document.getElementById('modalSize').textContent = item.file_size ? (Math.round(item.file_size / 1024) + ' KB') : '—';
                 document.getElementById('modalDate').textContent = item.date ? item.date.substring(0, 10) : '—';
 
-                const pBox = document.getElementById('modalPreviewBox');
-                if (item.mime_type.startsWith('image/')) {{
-                    pBox.innerHTML = '<img src="' + item.source_url + '" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;" />';
-                }} else {{
-                    pBox.innerHTML = '<div style="color: var(--ink-muted); font-size: 14px; font-weight: 600;">' + item.mime_type + '</div>';
+                const badgesEl = document.getElementById('modalVariantBadges');
+                if (badgesEl) {{
+                    let bHtml = '';
+                    if (item.has_webp) {{
+                        bHtml += '<a href="' + (item.webp_url || item.source_url) + '" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.4); font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-decoration: none;">WebP Ready</a>';
+                    }}
+                    if (item.has_avif) {{
+                        bHtml += '<a href="' + (item.avif_url || item.source_url) + '" target="_blank" style="background: rgba(59, 130, 246, 0.15); color: #2563eb; border: 1px solid rgba(59, 130, 246, 0.4); font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-decoration: none;">AVIF Ready</a>';
+                    }}
+                    badgesEl.innerHTML = bHtml;
                 }}
 
+                renderModalPreview(item, null);
                 document.getElementById('mediaDetailsModal').style.display = 'flex';
+            }}
+
+            async function handleFocalPointClick(event) {{
+                const id = currentModalMediaId;
+                if (!id || !mediaData[id] || !mediaData[id].mime_type.startsWith('image/')) return;
+                const box = document.getElementById('modalPreviewBox');
+                const rect = box.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+
+                const fx = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+                const fy = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+                currentFocalX = Number(fx.toFixed(4));
+                currentFocalY = Number(fy.toFixed(4));
+
+                const marker = document.getElementById('focalPointMarker');
+                const fxPct = Math.round(currentFocalX * 100);
+                const fyPct = Math.round(currentFocalY * 100);
+                if (marker) {{
+                    marker.style.left = fxPct + '%';
+                    marker.style.top = fyPct + '%';
+                }}
+                document.getElementById('focalCoordsLabel').textContent = 'Focal: ' + fxPct + '%, ' + fyPct + '%';
+
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/media/' + id, {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{
+                            focal_x: currentFocalX,
+                            focal_y: currentFocalY
+                        }})
+                    }});
+                    if (res.ok) {{
+                        mediaData[id].focal_x = currentFocalX;
+                        mediaData[id].focal_y = currentFocalY;
+                        const gridImg = document.getElementById('gridMediaImg-' + id);
+                        if (gridImg) {{
+                            gridImg.style.objectPosition = fxPct + '% ' + fyPct + '%';
+                        }}
+                        showToast('✓ Focal point updated (' + fxPct + '%, ' + fyPct + '%)');
+                    }}
+                }} catch (e) {{
+                    showToast('Failed to save focal point: ' + e, true);
+                }}
+            }}
+
+            async function replaceCurrentMediaFile(files) {{
+                const id = currentModalMediaId;
+                if (!id || !files || files.length === 0) return;
+                const file = files[0];
+                const formData = new FormData();
+                formData.append('file', file);
+
+                showToast('Replacing media file #' + id + ' in-place...');
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/media/' + id + '/replace', {{
+                        method: 'POST',
+                        body: formData
+                    }});
+                    if (res.ok) {{
+                        const updated = await res.json();
+                        const stamp = Date.now();
+                        mediaData[id].file_size = updated.file_size;
+                        mediaData[id].mime_type = updated.mime_type;
+                        document.getElementById('modalSize').textContent = updated.file_size ? (Math.round(updated.file_size / 1024) + ' KB') : '—';
+                        document.getElementById('modalMime').textContent = updated.mime_type;
+                        renderModalPreview(mediaData[id], stamp);
+                        const gridImg = document.getElementById('gridMediaImg-' + id);
+                        if (gridImg) {{
+                            gridImg.src = updated.source_url + '?t=' + stamp;
+                        }}
+                        showToast('✓ Media file #' + id + ' replaced without changing URL or ID!');
+                    }} else {{
+                        showToast('Failed to replace media file', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Error replacing file: ' + e, true);
+                }}
             }}
 
             function closeMediaDetails() {{
@@ -210,17 +689,24 @@ pub fn render_media_view(
                 const alt_text = document.getElementById('modalAltText').value;
                 const caption = document.getElementById('modalCaption').value;
                 const description = document.getElementById('modalDescription').value;
+                const folder_id = Number(document.getElementById('modalFolderSelect').value || '0');
+                const tagsRaw = document.getElementById('modalTagsInput').value || '';
+                const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
 
                 showToast('Saving attachment metadata...');
                 try {{
                     const res = await fetch('/wp-json/wp/v2/media/' + id, {{
-                        method: 'PUT',
+                        method: 'POST',
                         headers: {{ 'Content-Type': 'application/json' }},
                         body: JSON.stringify({{
                             title: title,
                             alt_text: alt_text,
                             caption: caption,
-                            description: description
+                            description: description,
+                            folder_id: folder_id,
+                            tags: tags,
+                            focal_x: currentFocalX,
+                            focal_y: currentFocalY
                         }})
                     }});
                     if (res.ok) {{
@@ -230,9 +716,13 @@ pub fn render_media_view(
                             mediaData[id].alt_text = alt_text;
                             mediaData[id].caption = caption;
                             mediaData[id].description = description;
+                            mediaData[id].folder_id = folder_id > 0 ? folder_id : null;
+                            mediaData[id].tags = tags;
+                            mediaData[id].focal_x = currentFocalX;
+                            mediaData[id].focal_y = currentFocalY;
                         }}
                         closeMediaDetails();
-                        setTimeout(() => window.location.reload(), 500);
+                        setTimeout(() => window.location.reload(), 400);
                     }} else {{
                         showToast('Failed to update media details', true);
                     }}
@@ -246,6 +736,7 @@ pub fn render_media_view(
                     deleteMedia(currentModalMediaId);
                 }}
             }}
+
             async function uploadFiles(files) {{
                 if (!files || files.length === 0) return;
                 showToast('Uploading ' + files.length + ' file(s) to SQLite storage...');
@@ -254,6 +745,9 @@ pub fn render_media_view(
                 for (let i = 0; i < files.length; i++) {{
                     const file = files[i];
                     const formData = new FormData();
+                    if (activeFolderFilter !== 'all' && activeFolderFilter !== '0') {{
+                        formData.append('folder_id', activeFolderFilter);
+                    }}
                     formData.append('file', file);
 
                     try {{
@@ -299,10 +793,16 @@ pub fn render_media_view(
                     showToast('Error: ' + e, true);
                 }}
             }}
+
+            document.addEventListener('DOMContentLoaded', () => {{
+                loadMediaFolders();
+            }});
         </script>
         "##,
         media_count = media_count,
-        media_cards = media_cards
+        media_cards = media_cards,
+        tag_filter_pills = tag_filter_pills,
+        media_json_str = media_json_str
     );
 
     render_admin_shell("media", "Media Library", &body, settings)

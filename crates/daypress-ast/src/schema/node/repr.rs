@@ -456,6 +456,12 @@ pub(crate) enum NodeKindRepr {
         #[serde(default)]
         anchor_id: String,
     },
+    SymbolInstance {
+        #[serde(default)]
+        symbol_id: i64,
+        #[serde(default)]
+        overrides: HashMap<String, crate::schema::items::SymbolOverride>,
+    },
     CustomHtml {
         #[serde(default)]
         raw: String,

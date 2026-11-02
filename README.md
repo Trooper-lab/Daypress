@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.4.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.5.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -24,14 +24,15 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - First-time browser onboarding wizard (`/setup`, `/d-admin/install`, `/d-admin/setup`) and AI Agent Getting Started screen (`/d-admin/getting-started`): configure your site title, tagline, administrator account, starter theme (`Daypress Daylight`, `Daypress Night`, or `Daypress Modern`), accent color, typography scale, and starter mode (sample content, blank site, or 1-click WordPress import), plus generate a 1-click MCP Application Password for Claude Code, Codex, Cursor, or Antigravity.
 - Static Edge Publisher (`/d-admin/publish`): compile your local Daypress site into a self-contained static build (`_redirects`, `sitemap.xml`, `robots.txt`, `feed/index.xml`, `404.html`, and client-side `search-index.json`) and deploy in 1 click to **Cloudflare Pages**, **Netlify**, or a local directory / `.zip` bundle with deployment history and rollback.
 - Built-in self-updater (`/d-admin/updates` and `/d-admin/system?tab=updates`): 24-hour background GitHub release check, SHA-256 checksum verification, automatic pre-update SQLite snapshot, atomic executable hot-swap, manual `.tar.gz` / `.zip` archive upload, and 1-click rollback.
-- A release workflow builds binaries for Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon and Intel) for each version tag and attaches them, with SHA-256 checksums, to the GitHub release, and publishes multi-arch (`linux/amd64`, `linux/arm64`) Docker images to `ghcr.io/trooper-lab/daypress`.
+- A release workflow builds binaries for Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon and Intel) alongside `.deb`, `.rpm` (with `systemd` service unit), and Homebrew formula (`daypress.rb`) packages for each version tag, attaches them with SHA-256 checksums to the GitHub release, and publishes multi-arch (`linux/amd64`, `linux/arm64`) Docker images to `ghcr.io/trooper-lab/daypress`.
+- Built-in automatic Let's Encrypt TLS / ACME (`--tls-domain`, `--tls-email`, `/d-admin/options-general`) for direct `:443` deployment without an external reverse proxy, plus optional S3 / Cloudflare R2 media offload and continuous SQLite replica streaming (`/d-admin/options-media`).
 - A `Dockerfile` and `docker-compose.yml` that pull `ghcr.io/trooper-lab/daypress:latest` (or build locally) and keep the database, uploads, and backups in one volume.
 - CI builds and tests every change on Linux, Windows, and macOS.
 
 **Writing and managing content**
 - Posts, pages, categories, tags, and navigation menus.
 - A post editor with visual, block, and HTML source modes, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
-- Media uploads, with thumbnail, medium, and WebP versions generated automatically.
+- **Media Library DAM (`/d-admin/upload`)**: virtual media folders & tags, 1-click **Replace Media File Without Changing URL/ID** (`Enable Media Replace` parity), dual **AVIF + WebP** encoding alongside thumbnail/medium crops, interactive focal-point crop picker (`object-position`), sanitized SVG uploads, and an Unused Asset Scanner.
 - Comments with moderation and discussion settings (who can comment, manual approval).
 - Users with application passwords, Two-Factor Authentication (RFC 6238 TOTP authenticator app + single-use backup recovery codes on `/d-admin/profile`), fine-grained WordPress-parity role capabilities (`Administrator`, `Editor`, `Author`, `Contributor`, `Subscriber`), per-user session sign-out ("Log Out Everywhere Else" on `/d-admin/profile`), plus personal data export and erase tools.
 - Blog index, category, tag, and author archives with pagination, plus site search.
@@ -42,7 +43,7 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 **Designing the site**
 - **DayStudio**, a drag-and-drop page builder: sections, containers, grids, headings, text, buttons, images, video, and more. Layouts are stored as JSON and rendered on the server.
 - The DayStudio canvas loads the site's header, footer, and theme CSS, and matches the published page across desktop (`1200px`), tablet (`768px`), and mobile (`375px`) breakpoints, including root-level (`body`, `:root`, `html`) container queries and font-stack parity.
-- A header and footer manager with starter templates and per-page rules.
+- **Dynamic Theme Templates, Synced Components (Symbols), Visual Mega Menus & Site-Wide Modals (`/d-admin/headers-footers` & DayStudio)**: visual Single Post, Single Page, Archive, Category, Author, and 404 templates with dynamic field bindings (`{{post.title}}`, `{{post.date}}`, `{{author.name}}`, `{{post.featured_image}}`), Figma-style Synced Global Components (`SymbolInstance`) with per-instance text/media/link overrides and 1-click detach, visual Mega Menu dropdown panels (`mega_menu_template_id`), and site-wide Announcement Bars / Slide-In Modals.
 - A customizer for colors, fonts, and custom CSS.
 
 **Built-in site features**
@@ -127,9 +128,9 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.1`** | Core, Daystudio, REST API & MCP | **Shipped** |
 | **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
 | **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
-| **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Early preview (Now)** |
-| **`0.5`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Up next** |
-| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | Planned |
+| **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
+| **`0.5.0`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Early preview (Now)** |
+| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Up next** |
 | **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | Planned |
 | **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
@@ -302,6 +303,11 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_update_form` | Update an existing FormStudio form's fields or settings |
 | `daypress_list_form_submissions` | Query the FormStudio Submissions Vault with status/search filters |
 | `daypress_get_analytics` | Retrieve the Cookieless Analytics dashboard summary (`today`, `7d`, `30d`, `90d`, `12m`, `all`) |
+| `daypress_list_templates` | List Dynamic Theme Templates, Synced Components (`symbol`), and Site-Wide Popups (`popup`) |
+| `daypress_save_template` | Create or update a Dynamic Theme Template, Synced Component, or Site-Wide Popup |
+| `daypress_list_media_folders` | List or create virtual Media Library DAM folders |
+| `daypress_scan_unused_media` | Scan all media attachments for unreferenced assets across posts, templates, and options |
+| `daypress_get_storage_s3_status` | Read S3 / Cloudflare R2 media offload and continuous SQLite replica status |
 
 ---
 
@@ -329,7 +335,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 336 tests
+cargo test --workspace                                  # 358 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

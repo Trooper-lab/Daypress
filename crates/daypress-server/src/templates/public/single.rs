@@ -28,6 +28,13 @@ pub fn render_single_post(
         .unwrap_or_default();
 
     let has_ast_layout = ast_rendered.is_some();
+    let theme_single_html = if !has_ast_layout {
+        partials
+            .and_then(|p| p.single_html.as_ref())
+            .filter(|s| !s.trim().is_empty())
+    } else {
+        None
+    };
     let clean_content = ast_rendered.unwrap_or_else(|| clean_post_content(&post.content.rendered));
     let is_page = post.post_type == "page";
     let site_name = if settings.title.trim().is_empty() {
@@ -38,13 +45,24 @@ pub fn render_single_post(
 
     let global_css = super::site_chrome::page_kit_css(settings, parsed_layout.as_ref());
 
-    let page_custom_css = if layout_scoped_css.is_empty() {
+    let mut page_custom_css = if layout_scoped_css.is_empty() {
         global_css
     } else if global_css.is_empty() {
         layout_scoped_css
     } else {
         format!("{}\n{}", global_css, layout_scoped_css)
     };
+
+    if theme_single_html.is_some() {
+        let single_tpl_css = partials.and_then(|p| p.single_css.as_deref()).unwrap_or("");
+        if !single_tpl_css.trim().is_empty() {
+            if page_custom_css.is_empty() {
+                page_custom_css = single_tpl_css.to_string();
+            } else {
+                page_custom_css = format!("{}\n{}", page_custom_css, single_tpl_css);
+            }
+        }
+    }
 
     // Full-bleed Visual Builder page vs standard article/page with header shell
     let is_full_bleed_visual = has_ast_layout
@@ -65,7 +83,9 @@ pub fn render_single_post(
         || clean_content.contains("<section class=\"section ")
         || clean_content.contains("<section class=\"dp-section");
 
-    let content = if is_section_layout {
+    let content = if let Some(tpl_html) = theme_single_html {
+        tpl_html.clone()
+    } else if is_section_layout {
         clean_content
     } else if is_full_bleed_visual {
         format!(

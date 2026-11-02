@@ -34,5 +34,6 @@ pub use schema::{
     AccordionItem, BackgroundConfig, BorderConfig, Breakpoint, ConditionScope, ConditionType,
     DaypressLayout, DaypressNode, DisplayCondition, IconListItem, NavMenuItem, NodeKind,
     PriceFeatureItem, PseudoState, SharePlatformItem, SocialIconItem, Spacing, StyleProperties,
-    TabItem, TemplateType, TestimonialSlide, ThemeTemplate, ToggleItem, TypographyConfig,
+    SymbolOverride, TabItem, TemplateType, TestimonialSlide, ThemeTemplate, ToggleItem,
+    TypographyConfig,
 };

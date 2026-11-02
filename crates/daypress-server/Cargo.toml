@@ -44,3 +44,30 @@ generated_slugify = { path = "../generated_slugify" }
 
 [dev-dependencies]
 tower = { workspace = true }
+
+[package.metadata.deb]
+name = "daypress"
+maintainer = "Daypress Contributors <hello@daypress.dev>"
+copyright = "2026, Daypress Contributors"
+license-file = ["../../LICENSE", "0"]
+extended-description = "Daypress is a drop-in WordPress CMS replacement written in native Rust (Axum + Rusqlite) with 1-Click WP Migration, Daystudio Visual Builder, and built-in MCP Server."
+depends = "$auto, ca-certificates"
+section = "web"
+priority = "optional"
+assets = [
+    ["target/release/daypress", "usr/bin/daypress", "755"],
+    ["../../packaging/systemd/daypress.service", "lib/systemd/system/daypress.service", "644"],
+    ["../../README.md", "usr/share/doc/daypress/README.md", "644"],
+]
+systemd-units = { unit-name = "daypress", enable = true, start = false }
+
+[package.metadata.generate-rpm]
+name = "daypress"
+summary = "Daypress — Self-Hosted Rust CMS with 1-Click WP Migration & Built-in MCP Server"
+license = "AGPL-3.0-or-later"
+assets = [
+    { source = "target/release/daypress", dest = "/usr/bin/daypress", mode = "755" },
+    { source = "../../packaging/systemd/daypress.service", dest = "/usr/lib/systemd/system/daypress.service", mode = "644" },
+    { source = "../../README.md", dest = "/usr/share/doc/daypress/README.md", mode = "644", doc = true },
+]
+

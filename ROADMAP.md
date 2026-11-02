@@ -11,9 +11,9 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.1`** | Core, Daystudio, REST API & MCP | **Shipped** |
 | **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
 | **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
-| **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Early preview (Now)** |
-| **`0.5`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Up next** |
-| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | Planned |
+| **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
+| **`0.5.0`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Early preview (Now)** |
+| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Up next** |
 | **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | Planned |
 | **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
@@ -48,7 +48,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 
 ---
 
-### `0.4.0` — FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache (`Early preview — Now`)
+### `0.4.0` — FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache (`Shipped`)
 - [x] **All-in-One FormStudio (`/d-admin/forms` — CF7 + Ninja Forms + WPForms Parity)**:
   - [x] Multi-column rows (`1/2`, `1/3`, `2/3`), multi-step/paginated forms with progress bars, and conditional field/routing logic
   - [x] Rich field library: text, email, tel, URL, number, textarea, select, radio cards, multi-checkboxes, file uploads (MIME/size validation), date/time, star rating/NPS, range slider, calculated fields (instant quote/price estimators), hidden UTM/referrer capture, and GDPR consent checkbox
@@ -68,20 +68,20 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 - [x] **Production Performance & Cache Hardening**:
   - [x] Pre-compressed Gzip in-memory SSR hot cache (`<50µs` P99 latency) with ETag / `304 Not Modified`, `X-Daypress-Cache: HIT|MISS|BYPASS`, automatic invalidation, and Cloudflare CDN cache purge on save
 
-### `0.5` — Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 (`Up next`)
-- [ ] Visual Single Post, Archive, Category, Author, and 404 templates in Daystudio with dynamic field bindings (`{{post.title}}`, `{{post.date}}`, `{{author.name}}`, `{{post.featured_image}}`)
-- [ ] Figma-style **Synced Global Components (Symbols)** in Daystudio with per-instance text/media/link overrides
-- [ ] Visual **Mega Menus** & site-wide **Announcement Bars / Slide-In Modals**
-- [ ] **Media Library DAM Upgrade (`/d-admin/upload`)**:
-  - [ ] Virtual media folders & tags
-  - [ ] **Replace Media File Without Changing URL/ID** (`Enable Media Replace` parity)
-  - [ ] Dual AVIF + WebP encoding, focal-point crop picker, sanitized SVG uploads, and Unused Asset Scanner
-- [ ] **External Edge & OS Packaging (`v0.4.1` / `v0.5`)**:
-  - [ ] Built-in automatic Let's Encrypt TLS (ACME) for direct `:443` deployment without an external reverse proxy
-  - [ ] S3 & Cloudflare R2 media offload + continuous SQLite replica streaming
-  - [ ] Code-signed release binaries and `.deb` / `.rpm` / Homebrew packages
+### `0.5.0` — Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 (`Early preview — Now`)
+- [x] Visual Single Post, Archive, Category, Author, and 404 templates in Daystudio with dynamic field bindings (`{{post.title}}`, `{{post.date}}`, `{{author.name}}`, `{{post.featured_image}}`)
+- [x] Figma-style **Synced Global Components (Symbols)** in Daystudio with per-instance text/media/link overrides
+- [x] Visual **Mega Menus** & site-wide **Announcement Bars / Slide-In Modals**
+- [x] **Media Library DAM Upgrade (`/d-admin/upload`)**:
+  - [x] Virtual media folders & tags
+  - [x] **Replace Media File Without Changing URL/ID** (`Enable Media Replace` parity)
+  - [x] Dual AVIF + WebP encoding, focal-point crop picker, sanitized SVG uploads, and Unused Asset Scanner
+- [x] **External Edge & OS Packaging (`v0.4.1` / `v0.5`)**:
+  - [x] Built-in automatic Let's Encrypt TLS (ACME) for direct `:443` deployment without an external reverse proxy
+  - [x] S3 & Cloudflare R2 media offload + continuous SQLite replica streaming
+  - [x] Code-signed release binaries and `.deb` / `.rpm` / Homebrew packages
 
-### `0.6` — Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids (`Planned`)
+### `0.6` — Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids (`Up next`)
 - [ ] Zero-code Custom Post Type (CPT) & Custom Taxonomy builder in `/d-admin/` (Case Studies, Team, Docs, Jobs, Events, Portfolio, Testimonials)
 - [ ] Typed Structured Field Schemas (text, rich text, number, date, media, select, repeater, relational post link)
 - [ ] Automatic 1-click migration of **Advanced Custom Fields (ACF)** and **Custom Post Type UI** schemas & postmeta

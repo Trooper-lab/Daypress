@@ -138,6 +138,9 @@ pub fn render_shell() -> &'static str {
                 <button class="rail-tab-btn" data-drawer="templates" id="rail-btn-templates" title="Theme Templates (Ctrl+T)">
                     <i class="fa-solid fa-shapes"></i>
                 </button>
+                <button class="rail-tab-btn" data-drawer="symbols" id="rail-btn-symbols" title="Synced Global Symbols (Ctrl+Y)">
+                    <i class="fa-solid fa-cubes"></i>
+                </button>
                 <button class="rail-tab-btn" data-drawer="tokens" id="rail-btn-tokens" title="Global Tokens & Styles (Ctrl+G)">
                     <i class="fa-solid fa-sliders"></i>
                 </button>
@@ -190,6 +193,10 @@ pub fn render_shell() -> &'static str {
                                 <i class="fa-solid fa-shapes"></i>
                                 <span>Template Library</span>
                             </button>
+                            <button class="btn-add-section-action" id="btn-open-symbols-prompt" title="Insert Synced Global Symbol">
+                                <i class="fa-solid fa-cubes"></i>
+                                <span>Insert Symbol</span>
+                            </button>
                         </div>
                         <div class="preset-selector" id="preset-selector">
                             <div class="preset-title">Select Column Layout</div>
@@ -241,6 +248,7 @@ pub fn render_shell() -> &'static str {
                     <div class="badge-actions">
                         <button class="badge-action-btn" id="act-drag-node" title="Drag to Reorder" draggable="true"><i class="fa-solid fa-grip-vertical"></i></button>
                         <button class="badge-action-btn" id="act-parent-node" title="Select Parent Container"><i class="fa-solid fa-arrow-up"></i></button>
+                        <button class="badge-action-btn" id="act-save-symbol-node" title="Save Selected Section as Global Symbol"><i class="fa-solid fa-cubes"></i></button>
                         <button class="badge-action-btn" id="act-dup-node" title="Duplicate Node (Cmd+D)"><i class="fa-regular fa-copy"></i></button>
                         <button class="badge-action-btn" id="act-del-node" title="Delete Node (Del)"><i class="fa-regular fa-trash-can"></i></button>
                     </div>

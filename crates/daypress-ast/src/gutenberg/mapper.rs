@@ -416,6 +416,7 @@ pub(crate) fn map_gutenberg_block(
                         parent: 0,
                         order: (idx + 1) as i64,
                         children: Vec::new(),
+                        ..Default::default()
                     });
                 }
             }

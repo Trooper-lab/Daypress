@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DaypressGuid {
     pub rendered: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DaypressRenderedText {
     pub rendered: String,
     #[serde(default)]
@@ -24,6 +24,14 @@ pub struct NavMenuItemDto {
     pub parent: i64,
     #[serde(default)]
     pub menu_order: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mega_menu_template_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

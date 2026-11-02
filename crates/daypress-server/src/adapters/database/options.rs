@@ -339,4 +339,72 @@ impl crate::ports::output::OptionRepository for Database {
         Database::get_analytics_dashboard(self, range)
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
+
+    fn list_theme_templates(
+        &self,
+        template_type: Option<&str>,
+    ) -> DomainResult<Vec<serde_json::Value>> {
+        use crate::theme_builder::models::{TemplateFilter, TemplateType};
+        let parsed_type = template_type
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("all"))
+            .and_then(TemplateType::from_str_loose);
+        let filter = TemplateFilter {
+            template_type: parsed_type,
+            status: None,
+            is_active: None,
+        };
+        let records = self
+            .theme_templates()
+            .list(&filter)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        Ok(records
+            .into_iter()
+            .filter_map(|r| serde_json::to_value(r).ok())
+            .collect())
+    }
+
+    fn save_theme_template_from_json(
+        &self,
+        payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        use crate::theme_builder::models::{CreateTemplateRequest, UpdateTemplateRequest};
+        let repo = self.theme_templates();
+        let saved = if let Some(id) = payload
+            .get("id")
+            .and_then(|v| v.as_i64())
+            .filter(|&i| i > 0)
+        {
+            let req: UpdateTemplateRequest =
+                serde_json::from_value(payload.clone()).map_err(|e| {
+                    DomainError::Validation(format!("Invalid template update payload: {e}"))
+                })?;
+            repo.update(id, &req)
+                .map_err(|e| DomainError::Storage(e.to_string()))?
+                .ok_or_else(|| DomainError::NotFound(format!("Template #{id} not found")))?
+        } else {
+            let req: CreateTemplateRequest =
+                serde_json::from_value(payload.clone()).map_err(|e| {
+                    DomainError::Validation(format!("Invalid template create payload: {e}"))
+                })?;
+            repo.create(&req)
+                .map_err(|e| DomainError::Storage(e.to_string()))?
+        };
+        self.invalidate_hot_cache("mcp_template_saved");
+        serde_json::to_value(saved).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn list_media_folders(&self) -> DomainResult<Vec<MediaFolderDto>> {
+        Database::list_media_folders(self).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn create_media_folder(&self, name: &str, parent_id: i64) -> DomainResult<MediaFolderDto> {
+        Database::create_media_folder(self, name, parent_id)
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn scan_unused_media(&self) -> DomainResult<Vec<DaypressMediaResponse>> {
+        Database::scan_unused_media_attachments(self)
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
 }

@@ -88,6 +88,27 @@ pub trait OptionRepository: Send + Sync {
     fn get_analytics_dashboard(&self, _range: &str) -> DomainResult<AnalyticsSummary> {
         Ok(AnalyticsSummary::default())
     }
+    fn list_theme_templates(
+        &self,
+        _template_type: Option<&str>,
+    ) -> DomainResult<Vec<serde_json::Value>> {
+        Ok(vec![])
+    }
+    fn save_theme_template_from_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn list_media_folders(&self) -> DomainResult<Vec<MediaFolderDto>> {
+        Ok(vec![])
+    }
+    fn create_media_folder(&self, _name: &str, _parent_id: i64) -> DomainResult<MediaFolderDto> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn scan_unused_media(&self) -> DomainResult<Vec<DaypressMediaResponse>> {
+        Ok(vec![])
+    }
 }
 
 /// Output port for WordPress Comments (`comments`).

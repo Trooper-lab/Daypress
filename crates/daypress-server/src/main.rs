@@ -38,6 +38,22 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub mcp_stdio: bool,
 
+    /// Domain name for Automatic HTTPS / Let's Encrypt ACME TLS provisioning
+    #[arg(long, env = "DAYPRESS_TLS_DOMAIN")]
+    pub tls_domain: Option<String>,
+
+    /// Contact email for Let's Encrypt ACME account & expiration notices
+    #[arg(long, env = "DAYPRESS_TLS_EMAIL")]
+    pub tls_email: Option<String>,
+
+    /// Directory where ACME TLS certificates and private keys are stored
+    #[arg(long, env = "DAYPRESS_TLS_CERT_DIR", default_value = "data/tls")]
+    pub tls_cert_dir: PathBuf,
+
+    /// HTTPS port for TLS listener (defaults to 443)
+    #[arg(long, env = "DAYPRESS_HTTPS_PORT", default_value_t = 443)]
+    pub https_port: u16,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -291,6 +307,44 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let database = Database::new(&args.db)?;
     let needs_onboarding = database.needs_onboarding();
 
+    // Persist CLI ACME / Let's Encrypt TLS flags when `--tls-domain` is supplied
+    if let Some(ref raw_domain) = args.tls_domain {
+        let domain = raw_domain.trim().to_ascii_lowercase();
+        if !domain.is_empty() {
+            let email = args.tls_email.as_deref().unwrap_or("").trim().to_string();
+            let cert_dir = args.tls_cert_dir.to_string_lossy().to_string();
+            let _ = std::fs::create_dir_all(&args.tls_cert_dir);
+            let has_pem_pair = args.tls_cert_dir.join("fullchain.pem").is_file()
+                && args.tls_cert_dir.join("privkey.pem").is_file();
+            let cert_status = if has_pem_pair {
+                "active"
+            } else {
+                "challenge_ready"
+            };
+            let tls_cfg = serde_json::json!({
+                "enabled": true,
+                "domain": domain,
+                "email": email,
+                "https_port": args.https_port,
+                "cert_dir": cert_dir,
+                "staging": false,
+                "cert_status": cert_status,
+                "cert_expires_at": serde_json::Value::Null,
+            });
+            if let Ok(json_str) = serde_json::to_string(&tls_cfg) {
+                let _ = database.set_option("daypress_tls_config", &json_str);
+            }
+            let _ = database.set_option(
+                "daypress_acme_challenge_daypress-acme-probe",
+                &format!("daypress-acme-probe.{}", domain),
+            );
+            println!(
+                "🔒 [ACME TLS] Armed for domain '{}' (HTTPS :{}, cert_dir: {}, status: {}, HTTP-01 ready at /.well-known/acme-challenge/*)",
+                domain, args.https_port, cert_dir, cert_status
+            );
+        }
+    }
+
     // Resolve bind address:
     // - Explicit `--host` / `HOST` env var wins.
     // - Inside Docker (`/.dockerenv`) or when the user enabled LAN mode (`daypress_network_bind_mode = "lan"`), bind `0.0.0.0`.
@@ -327,8 +381,9 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let _cms_service =
         CmsService::new(repo.clone(), repo.clone(), repo.clone(), repo.clone(), repo);
 
-    // 4. Spawn non-blocking 24-hour release update checker (persisted in SQLite)
+    // 4. Spawn non-blocking 24-hour release update checker & continuous S3/R2 SQLite replicator
     daypress_server::updater::spawn_background_update_checker(database.clone());
+    daypress_server::storage_s3::spawn_background_sqlite_replicator(database.clone());
 
     // 5. Hand wired state to Primary Web & MCP Adapter
     let app = create_app(database);
@@ -392,5 +447,25 @@ mod tests {
             "error must name port {port}: {err}"
         );
         assert!(err.contains("--port"), "error must suggest --port: {err}");
+    }
+
+    #[test]
+    fn cli_parses_acme_tls_flags() {
+        let cli = Cli::try_parse_from([
+            "daypress",
+            "--tls-domain",
+            "example.com",
+            "--tls-email",
+            "admin@example.com",
+            "--tls-cert-dir",
+            "custom/tls",
+            "--https-port",
+            "8443",
+        ])
+        .expect("parse tls flags");
+        assert_eq!(cli.tls_domain.as_deref(), Some("example.com"));
+        assert_eq!(cli.tls_email.as_deref(), Some("admin@example.com"));
+        assert_eq!(cli.tls_cert_dir, PathBuf::from("custom/tls"));
+        assert_eq!(cli.https_port, 8443);
     }
 }

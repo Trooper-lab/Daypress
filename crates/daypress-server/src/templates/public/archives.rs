@@ -35,6 +35,25 @@ pub fn render_archive_page_paginated(
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
     pagination_html: &str,
 ) -> String {
+    if let Some(tpl_html) = partials
+        .and_then(|p| p.archive_html.as_ref())
+        .filter(|s| !s.trim().is_empty())
+    {
+        let archive_css = partials
+            .and_then(|p| p.archive_css.as_deref())
+            .unwrap_or("");
+        let body = if archive_css.trim().is_empty() {
+            tpl_html.clone()
+        } else {
+            format!(
+                "<style id=\"dp-theme-archive-css\">\n{}\n</style>\n{}",
+                archive_css.trim(),
+                tpl_html
+            )
+        };
+        return render_base_layout(archive_title, settings, &body, current_user, None, partials);
+    }
+
     let mut cards_html = String::new();
     if posts.is_empty() {
         cards_html.push_str(
@@ -130,6 +149,32 @@ pub fn render_not_found_page(
     current_user: Option<&AuthUser>,
     partials: Option<&crate::theme_builder::models::ResolvedThemePartials>,
 ) -> String {
+    if let Some(tpl_html) = partials
+        .and_then(|p| p.error_404_html.as_ref())
+        .filter(|s| !s.trim().is_empty())
+    {
+        let err_css = partials
+            .and_then(|p| p.error_404_css.as_deref())
+            .unwrap_or("");
+        let body = if err_css.trim().is_empty() {
+            tpl_html.clone()
+        } else {
+            format!(
+                "<style id=\"dp-theme-404-css\">\n{}\n</style>\n{}",
+                err_css.trim(),
+                tpl_html
+            )
+        };
+        return render_base_layout(
+            "404 Not Found",
+            settings,
+            &body,
+            current_user,
+            None,
+            partials,
+        );
+    }
+
     let body = r##"
         <section class="dp-section">
             <div class="dp-container" style="max-width: 720px; text-align: center;">

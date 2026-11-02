@@ -94,10 +94,16 @@ pub async fn preview_template_handler(
     ];
 
     let hyd_ctx = HydrationContext {
+        db: Some(&db),
         post: Some(&mock_post),
         settings: &settings,
         breadcrumbs,
         nav_menus: HashMap::new(),
+        archive_title: None,
+        archive_subtitle: None,
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
     };
 
     let mut layout = template.layout.clone();

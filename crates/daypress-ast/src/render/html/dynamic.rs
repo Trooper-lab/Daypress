@@ -189,6 +189,17 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             "<div id=\"{}\" class=\"dp-menu-anchor\"></div>",
             escape_attr(anchor_id)
         )),
+        NodeKind::SymbolInstance { symbol_id, .. } => {
+            let cls = with_extra_classes("dp-symbol-instance", extra_cls);
+            Some(format!(
+                "<div id=\"{}\" class=\"{}\" data-symbol-id=\"{}\"{}>{}</div>",
+                escape_attr(&node.id),
+                escape_attr(&cls),
+                symbol_id,
+                style_attr,
+                inner_html
+            ))
+        }
         _ => None,
     }
 }
@@ -197,7 +208,15 @@ fn render_nav_items_recursive(items: &[NavMenuItem]) -> String {
     let mut out = String::new();
     for item in items {
         let has_children = !item.children.is_empty();
-        let li_class = if has_children {
+        let has_mega = item
+            .mega_menu_html
+            .as_deref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+            || item.mega_menu_template_id.unwrap_or(0) > 0;
+        let li_class = if has_mega {
+            "menu-item menu-item-has-children menu-item-has-megamenu dp-nav-item"
+        } else if has_children {
             "menu-item menu-item-has-children dp-nav-item"
         } else {
             "menu-item dp-nav-item"
@@ -207,14 +226,48 @@ fn render_nav_items_recursive(items: &[NavMenuItem]) -> String {
         } else {
             String::new()
         };
+        let icon_html = item
+            .icon
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|ic| {
+                format!(
+                    r#"<i class="{} dp-nav-icon" aria-hidden="true"></i> "#,
+                    escape_attr(ic)
+                )
+            })
+            .unwrap_or_default();
+        let badge_html = item
+            .badge
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|b| format!(r#" <span class="dp-nav-badge">{}</span>"#, escape_attr(b)))
+            .unwrap_or_default();
+        let desc_html = item
+            .description
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|d| format!(r#"<span class="dp-nav-desc">{}</span>"#, escape_attr(d)))
+            .unwrap_or_default();
         out.push_str(&format!(
-            r#"<li class="{}"><a href="{}" class="dp-nav-link"{}>{}</a>"#,
+            r#"<li class="{}"><a href="{}" class="dp-nav-link"{}>{}{}{}{}</a>"#,
             li_class,
             escape_attr(&item.url),
             target_attr,
-            escape_attr(&item.title)
+            icon_html,
+            escape_attr(&item.title),
+            badge_html,
+            desc_html
         ));
-        if has_children {
+        if let Some(ref mega_html) = item.mega_menu_html {
+            if !mega_html.trim().is_empty() {
+                out.push_str(&format!(
+                    r#"<div class="dp-megamenu-dropdown" data-mega-template-id="{}">{}</div>"#,
+                    item.mega_menu_template_id.unwrap_or(0),
+                    mega_html
+                ));
+            }
+        } else if has_children {
             out.push_str(r#"<ul class="sub-menu">"#);
             out.push_str(&render_nav_items_recursive(&item.children));
             out.push_str("</ul>");

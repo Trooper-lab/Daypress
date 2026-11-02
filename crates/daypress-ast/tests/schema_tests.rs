@@ -132,3 +132,81 @@ fn test_visual_builder_and_seed_schema_unification() {
     assert!(html.contains("95,000 req/sec"));
     assert!(html.contains("<i class=\"fa-solid fa-rocket\""));
 }
+
+#[test]
+fn test_symbol_instance_and_megamenu_ast_serialization() {
+    let json = r##"{
+        "version": 1,
+        "root": {
+            "id": "root",
+            "type": "Root",
+            "children": [
+                {
+                    "id": "sym_inst_1",
+                    "type": "SymbolInstance",
+                    "data": {
+                        "symbol_id": 42,
+                        "overrides": {
+                            "hero_h1": { "text": "Overridden Symbol Headline" },
+                            "hero_cta": { "text": "Get Started", "url": "/signup" }
+                        }
+                    },
+                    "styles": {}
+                },
+                {
+                    "id": "nav_1",
+                    "type": "NavMenu",
+                    "data": {
+                        "menu_slug": "primary",
+                        "layout": "horizontal",
+                        "align": "left",
+                        "mobile_hamburger": true,
+                        "items": [
+                            {
+                                "id": 1,
+                                "title": "Products",
+                                "url": "/products",
+                                "icon": "fa-solid fa-cube",
+                                "badge": "NEW",
+                                "description": "Explore our platform",
+                                "mega_menu_template_id": 99,
+                                "mega_menu_html": "<div class=\"mega-grid\">Mega Content</div>"
+                            }
+                        ]
+                    },
+                    "styles": {}
+                }
+            ]
+        }
+    }"##;
+
+    let layout: DaypressLayout =
+        serde_json::from_str(json).expect("SymbolInstance and MegaMenu NavMenu should deserialize");
+    assert_eq!(layout.root.children.len(), 2);
+
+    match &layout.root.children[0].kind {
+        NodeKind::SymbolInstance {
+            symbol_id,
+            overrides,
+        } => {
+            assert_eq!(*symbol_id, 42);
+            assert_eq!(
+                overrides.get("hero_h1").and_then(|o| o.text.as_deref()),
+                Some("Overridden Symbol Headline")
+            );
+            assert_eq!(
+                overrides.get("hero_cta").and_then(|o| o.url.as_deref()),
+                Some("/signup")
+            );
+        }
+        other => panic!("Expected SymbolInstance, got {:?}", other),
+    }
+
+    let html = render_layout_to_html(&layout);
+    assert!(html.contains("data-symbol-id=\"42\""));
+    assert!(html.contains("menu-item-has-megamenu"));
+    assert!(html.contains("dp-megamenu-dropdown"));
+    assert!(html.contains("data-mega-template-id=\"99\""));
+    assert!(html.contains("Mega Content"));
+    assert!(html.contains("dp-nav-badge\">NEW</span>"));
+}

@@ -9,6 +9,7 @@ pub mod domain;
 pub mod ports;
 
 // Canonical Module Exports
+pub mod acme_tls;
 pub mod api;
 pub mod auth;
 pub mod convergence;
@@ -26,6 +27,7 @@ pub mod plugins;
 pub mod publisher;
 pub mod seed;
 pub mod static_assets;
+pub mod storage_s3;
 pub mod templates;
 pub mod theme;
 pub mod theme_builder;
@@ -86,6 +88,7 @@ pub fn create_app(database: Database) -> Router {
 
     Router::new()
         .route("/mcp", post(adapters::mcp::handle_http_mcp))
+        .merge(acme_tls::acme_well_known_routes())
         .route("/wp-json", get(api::rest_index_root))
         .route("/wp-json/", get(api::rest_index_root))
         .nest("/wp-json", api::api_routes())
@@ -795,5 +798,194 @@ mod v04_tests {
             },
         );
         assert_eq!(analytics_resp.result.unwrap()["isError"], false);
+    }
+
+    #[tokio::test]
+    async fn test_v05_dynamic_templates_symbols_popups_and_media_dam() {
+        use crate::theme_builder::models::{
+            ConditionType, CreateConditionDto, CreateTemplateRequest, RuleTarget, TemplateSettings,
+            TemplateType,
+        };
+        use crate::theme_builder::repository::ThemeTemplateRepository;
+        use daypress_ast::{
+            DaypressLayout, DaypressNode, NodeKind, StyleProperties, SymbolOverride,
+        };
+        use std::collections::HashMap;
+
+        let db = Database::new_in_memory().expect("in-memory db");
+        let repo = ThemeTemplateRepository::from_database(&db);
+
+        // 1. Create a SectionSymbol master template
+        let symbol_layout = DaypressLayout {
+            version: 1,
+            global_styles: None,
+            root: DaypressNode {
+                id: "root".into(),
+                kind: NodeKind::Root,
+                styles: StyleProperties::default(),
+                children: vec![DaypressNode {
+                    id: "sym_cta_heading".into(),
+                    kind: NodeKind::Heading {
+                        text: "Master Symbol Headline".into(),
+                        level: 2,
+                    },
+                    styles: StyleProperties::default(),
+                    children: vec![],
+                }],
+            },
+        };
+        let sym_record = repo
+            .create(&CreateTemplateRequest {
+                title: "Global Promo Symbol".into(),
+                template_type: TemplateType::SectionSymbol,
+                layout: Some(symbol_layout),
+                layout_json: None,
+                status: Some("publish".into()),
+                priority: Some(10),
+                is_active: Some(true),
+                settings: None,
+                conditions: None,
+            })
+            .expect("create symbol");
+
+        // 2. Create a SinglePost template that embeds {{post.title}} AND an overridden SymbolInstance
+        let mut overrides = HashMap::new();
+        overrides.insert(
+            "sym_cta_heading".to_string(),
+            SymbolOverride {
+                text: Some("Instance Overridden CTA".to_string()),
+                ..Default::default()
+            },
+        );
+        let single_layout = DaypressLayout {
+            version: 1,
+            global_styles: None,
+            root: DaypressNode {
+                id: "root".into(),
+                kind: NodeKind::Root,
+                styles: StyleProperties::default(),
+                children: vec![
+                    DaypressNode {
+                        id: "dyn_title".into(),
+                        kind: NodeKind::Heading {
+                            text: "Article: {{post.title}} by {{author.name}}".into(),
+                            level: 1,
+                        },
+                        styles: StyleProperties::default(),
+                        children: vec![],
+                    },
+                    DaypressNode {
+                        id: "sym_inst".into(),
+                        kind: NodeKind::SymbolInstance {
+                            symbol_id: sym_record.id,
+                            overrides,
+                        },
+                        styles: StyleProperties::default(),
+                        children: vec![],
+                    },
+                ],
+            },
+        };
+        repo.create(&CreateTemplateRequest {
+            title: "Custom Single Post Layout".into(),
+            template_type: TemplateType::SinglePost,
+            layout: Some(single_layout),
+            layout_json: None,
+            status: Some("publish".into()),
+            priority: Some(20),
+            is_active: Some(true),
+            settings: None,
+            conditions: Some(vec![CreateConditionDto {
+                id: None,
+                condition_type: ConditionType::Include,
+                rule_target: RuleTarget::AllPosts,
+                target_id: String::new(),
+                priority: 20,
+            }]),
+        })
+        .expect("create single_post template");
+
+        // 3. Create a Top Announcement Bar Popup template
+        let popup_settings = TemplateSettings {
+            popup_variant: Some("announcement_bar_top".to_string()),
+            dismiss_days: Some(7),
+            ..Default::default()
+        };
+        let popup_layout = DaypressLayout {
+            version: 1,
+            global_styles: None,
+            root: DaypressNode {
+                id: "root".into(),
+                kind: NodeKind::Root,
+                styles: StyleProperties::default(),
+                children: vec![DaypressNode {
+                    id: "ann_txt".into(),
+                    kind: NodeKind::Text {
+                        content_html: "Daypress 0.5 Shipped Announcement!".into(),
+                    },
+                    styles: StyleProperties::default(),
+                    children: vec![],
+                }],
+            },
+        };
+        repo.create(&CreateTemplateRequest {
+            title: "Sitewide Announcement".into(),
+            template_type: TemplateType::Popup,
+            layout: Some(popup_layout),
+            layout_json: None,
+            status: Some("publish".into()),
+            priority: Some(10),
+            is_active: Some(true),
+            settings: Some(popup_settings),
+            conditions: None,
+        })
+        .expect("create popup");
+
+        // 4. Request a single post (/?p=1 is the seeded "Hello world!" post)
+        let app = create_app(db.clone());
+        let res = app
+            .oneshot(Request::builder().uri("/?p=1").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body_bytes);
+        assert!(
+            html.contains("Article: Hello world!"),
+            "Expected dynamic {{post.title}} binding in SSR output"
+        );
+        assert!(
+            html.contains("Instance Overridden CTA"),
+            "Expected SymbolInstance child override in SSR output"
+        );
+        assert!(
+            html.contains("Daypress 0.5 Shipped Announcement!"),
+            "Expected Announcement Bar popup in SSR output"
+        );
+
+        // 5. Verify Media Library DAM Virtual Folders & Unused Asset Scanner
+        let folder = db
+            .create_media_folder("Brand Icons", 0)
+            .expect("create media folder");
+        assert_eq!(folder.name, "Brand Icons");
+        let folders = db.list_media_folders().expect("list folders");
+        assert_eq!(folders.len(), 1);
+
+        let att = db
+            .create_attachment(
+                "Unused Icon",
+                "unused-test-icon.svg",
+                "image/svg+xml",
+                128,
+                "http://localhost:8090/uploads/unused-test-icon.svg",
+            )
+            .expect("create attachment");
+        let unused = db.scan_unused_media_attachments().expect("scan unused");
+        assert!(
+            unused.iter().any(|m| m.id == att.id),
+            "Unreferenced attachment must be detected by Unused Asset Scanner"
+        );
     }
 }

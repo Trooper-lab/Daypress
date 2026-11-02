@@ -59,6 +59,46 @@ pub fn get_starter_catalog() -> Vec<StarterTemplateInfo> {
             preview_img: "/static/starters/clean-footer.svg".to_string(),
             description: "Single-row streamlined footer with copyright token and social links.".to_string(),
         },
+        StarterTemplateInfo {
+            id: "global-cta-symbol".to_string(),
+            title: "Synced Global CTA Banner".to_string(),
+            template_type: TemplateType::SectionSymbol,
+            category: "Symbol".to_string(),
+            preview_img: "/static/starters/global-cta-symbol.svg".to_string(),
+            description: "Reusable synced call-to-action banner with overridable heading, copy, and button link.".to_string(),
+        },
+        StarterTemplateInfo {
+            id: "top-announcement-popup".to_string(),
+            title: "Site-Wide Top Announcement Bar".to_string(),
+            template_type: TemplateType::Popup,
+            category: "Conversion".to_string(),
+            preview_img: "/static/starters/top-announcement.svg".to_string(),
+            description: "Dismissible top announcement banner with release highlight and action link.".to_string(),
+        },
+        StarterTemplateInfo {
+            id: "editorial-single-post".to_string(),
+            title: "Editorial Single Post Layout".to_string(),
+            template_type: TemplateType::SinglePost,
+            category: "Editorial".to_string(),
+            preview_img: "/static/starters/editorial-single.svg".to_string(),
+            description: "Dynamic single article template with {{post.title}}, {{post.date}}, {{author.name}}, and {{post.featured_image}} bindings.".to_string(),
+        },
+        StarterTemplateInfo {
+            id: "magazine-archive-grid".to_string(),
+            title: "Magazine Archive Loop Grid".to_string(),
+            template_type: TemplateType::Archive,
+            category: "Archive".to_string(),
+            preview_img: "/static/starters/magazine-archive.svg".to_string(),
+            description: "Dynamic category/tag/author archive template with {{archive.title}} header and 3-column server-rendered LoopGrid.".to_string(),
+        },
+        StarterTemplateInfo {
+            id: "modern-error-404".to_string(),
+            title: "Modern 404 Recovery Page".to_string(),
+            template_type: TemplateType::Error404,
+            category: "System".to_string(),
+            preview_img: "/static/starters/error-404.svg".to_string(),
+            description: "Branded 404 Not Found template with site title token and quick recovery navigation.".to_string(),
+        },
     ]
 }
 
@@ -329,6 +369,344 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
             Some(CreateTemplateRequest {
                 title: "Clean Minimalist Footer".to_string(),
                 template_type: TemplateType::Footer,
+                status: Some("publish".to_string()),
+                layout: Some(layout),
+                layout_json: None,
+                settings: Some(TemplateSettings::default()),
+                priority: Some(10),
+                is_active: Some(true),
+                conditions: Some(vec![CreateConditionDto {
+                    id: None,
+                    condition_type: ConditionType::Include,
+                    rule_target: RuleTarget::EntireSite,
+                    target_id: String::new(),
+                    priority: 10,
+                }]),
+            })
+        }
+        "global-cta-symbol" => {
+            let mut root_styles = StyleProperties::default();
+            root_styles.background_color = Some("#111827".to_string());
+            root_styles.text_color = Some("#F9FAFB".to_string());
+            root_styles.padding = Some(make_spacing("48px", "32px", "48px", "32px"));
+            root_styles.border_radius = Some("16px".to_string());
+            root_styles.text_align = Some("center".to_string());
+
+            let heading = make_node(
+                "cta-heading",
+                NodeKind::Heading {
+                    text: "Ready to accelerate {{site.title}} to sub-millisecond SSR?".to_string(),
+                    level: 2,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let subtext = make_node(
+                "cta-subtext",
+                NodeKind::Text {
+                    content_html: "<p>Reusable synced global component with per-instance text and link overrides.</p>".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let mut btn_styles = StyleProperties::default();
+            btn_styles.background_color = Some("#2563EB".to_string());
+            btn_styles.text_color = Some("#FFFFFF".to_string());
+            btn_styles.padding = Some(make_spacing("12px", "24px", "12px", "24px"));
+            btn_styles.border_radius = Some("8px".to_string());
+            let btn = make_node(
+                "cta-button",
+                NodeKind::Button {
+                    text: "Get Started Now".to_string(),
+                    url: "/contact".to_string(),
+                    target: "_self".to_string(),
+                },
+                btn_styles,
+                vec![],
+            );
+
+            let root = make_node(
+                "global-cta-symbol-root",
+                NodeKind::Section,
+                root_styles,
+                vec![heading, subtext, btn],
+            );
+            let layout = DaypressLayout {
+                version: 1,
+                root,
+                global_styles: None,
+            };
+
+            Some(CreateTemplateRequest {
+                title: "Synced Global CTA Banner".to_string(),
+                template_type: TemplateType::SectionSymbol,
+                status: Some("publish".to_string()),
+                layout: Some(layout),
+                layout_json: None,
+                settings: Some(TemplateSettings::default()),
+                priority: Some(10),
+                is_active: Some(true),
+                conditions: Some(vec![]),
+            })
+        }
+        "top-announcement-popup" => {
+            let mut root_styles = StyleProperties::default();
+            root_styles.display = Some("flex".to_string());
+            root_styles.justify_content = Some("center".to_string());
+            root_styles.align_items = Some("center".to_string());
+            root_styles.gap = Some("16px".to_string());
+            root_styles.background_color = Some("#1D4ED8".to_string());
+            root_styles.text_color = Some("#FFFFFF".to_string());
+            root_styles.padding = Some(make_spacing("10px", "24px", "10px", "24px"));
+
+            let msg = make_node(
+                "announcement-text",
+                NodeKind::Text {
+                    content_html: "<span><strong>New in {{site.title}}:</strong> Sub-50µs Rust SSR &amp; Visual Theme Builder are live.</span>".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let btn = make_node(
+                "announcement-cta",
+                NodeKind::Button {
+                    text: "Learn More".to_string(),
+                    url: "/about".to_string(),
+                    target: "_self".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+
+            let root = make_node(
+                "top-announcement-root",
+                NodeKind::Section,
+                root_styles,
+                vec![msg, btn],
+            );
+            let layout = DaypressLayout {
+                version: 1,
+                root,
+                global_styles: None,
+            };
+
+            Some(CreateTemplateRequest {
+                title: "Site-Wide Top Announcement Bar".to_string(),
+                template_type: TemplateType::Popup,
+                status: Some("publish".to_string()),
+                layout: Some(layout),
+                layout_json: None,
+                settings: Some(TemplateSettings {
+                    popup_variant: Some("announcement_bar_top".to_string()),
+                    dismiss_days: Some(7),
+                    ..Default::default()
+                }),
+                priority: Some(10),
+                is_active: Some(true),
+                conditions: Some(vec![CreateConditionDto {
+                    id: None,
+                    condition_type: ConditionType::Include,
+                    rule_target: RuleTarget::EntireSite,
+                    target_id: String::new(),
+                    priority: 10,
+                }]),
+            })
+        }
+        "editorial-single-post" => {
+            let mut root_styles = StyleProperties::default();
+            root_styles.padding = Some(make_spacing("48px", "24px", "64px", "24px"));
+            root_styles.max_width = Some("860px".to_string());
+            root_styles.margin = Some(make_spacing("0", "auto", "0", "auto"));
+
+            let meta_node = make_node(
+                "single-post-meta",
+                NodeKind::Text {
+                    content_html: "<p class=\"dp-post-meta\">Published on {{post.date}} by <strong>{{author.name}}</strong></p>".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let title_node = make_node(
+                "single-post-title",
+                NodeKind::Heading {
+                    text: "{{post.title}}".to_string(),
+                    level: 1,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let featured_img = make_node(
+                "single-featured-image",
+                NodeKind::Image {
+                    src: "{{post.featured_image}}".to_string(),
+                    alt: "{{post.title}}".to_string(),
+                    width: None,
+                    height: None,
+                    link: None,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let content_node = make_node(
+                "single-post-content",
+                NodeKind::CustomHtml {
+                    raw: "<div class=\"dp-entry-content\">{{post.content}}</div>".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+
+            let root = make_node(
+                "editorial-single-root",
+                NodeKind::Section,
+                root_styles,
+                vec![meta_node, title_node, featured_img, content_node],
+            );
+            let layout = DaypressLayout {
+                version: 1,
+                root,
+                global_styles: None,
+            };
+
+            Some(CreateTemplateRequest {
+                title: "Editorial Single Post Layout".to_string(),
+                template_type: TemplateType::SinglePost,
+                status: Some("publish".to_string()),
+                layout: Some(layout),
+                layout_json: None,
+                settings: Some(TemplateSettings::default()),
+                priority: Some(10),
+                is_active: Some(true),
+                conditions: Some(vec![CreateConditionDto {
+                    id: None,
+                    condition_type: ConditionType::Include,
+                    rule_target: RuleTarget::EntireSite,
+                    target_id: String::new(),
+                    priority: 10,
+                }]),
+            })
+        }
+        "magazine-archive-grid" => {
+            let mut root_styles = StyleProperties::default();
+            root_styles.padding = Some(make_spacing("48px", "24px", "64px", "24px"));
+            root_styles.max_width = Some("1180px".to_string());
+            root_styles.margin = Some(make_spacing("0", "auto", "0", "auto"));
+
+            let archive_heading = make_node(
+                "archive-header-title",
+                NodeKind::Heading {
+                    text: "{{archive.title}}".to_string(),
+                    level: 1,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let archive_desc = make_node(
+                "archive-header-desc",
+                NodeKind::Text {
+                    content_html: "<p>{{archive.description}}</p>".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let loop_grid = make_node(
+                "archive-loop-grid",
+                NodeKind::LoopGrid {
+                    post_type: "post".to_string(),
+                    posts_per_page: 9,
+                    columns: 3,
+                    show_thumbnail: true,
+                    show_excerpt: true,
+                    show_meta: true,
+                    show_pagination: true,
+                    taxonomy: None,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+
+            let root = make_node(
+                "magazine-archive-root",
+                NodeKind::Section,
+                root_styles,
+                vec![archive_heading, archive_desc, loop_grid],
+            );
+            let layout = DaypressLayout {
+                version: 1,
+                root,
+                global_styles: None,
+            };
+
+            Some(CreateTemplateRequest {
+                title: "Magazine Archive Loop Grid".to_string(),
+                template_type: TemplateType::Archive,
+                status: Some("publish".to_string()),
+                layout: Some(layout),
+                layout_json: None,
+                settings: Some(TemplateSettings::default()),
+                priority: Some(10),
+                is_active: Some(true),
+                conditions: Some(vec![CreateConditionDto {
+                    id: None,
+                    condition_type: ConditionType::Include,
+                    rule_target: RuleTarget::EntireSite,
+                    target_id: String::new(),
+                    priority: 10,
+                }]),
+            })
+        }
+        "modern-error-404" => {
+            let mut root_styles = StyleProperties::default();
+            root_styles.padding = Some(make_spacing("72px", "24px", "72px", "24px"));
+            root_styles.max_width = Some("680px".to_string());
+            root_styles.margin = Some(make_spacing("0", "auto", "0", "auto"));
+            root_styles.text_align = Some("center".to_string());
+
+            let heading = make_node(
+                "error-404-heading",
+                NodeKind::Heading {
+                    text: "404 — Page Not Found on {{site.title}}".to_string(),
+                    level: 1,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let desc = make_node(
+                "error-404-desc",
+                NodeKind::Text {
+                    content_html:
+                        "<p>The page you requested could not be found or may have moved.</p>"
+                            .to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let btn = make_node(
+                "error-404-home-btn",
+                NodeKind::Button {
+                    text: "Return to Homepage".to_string(),
+                    url: "/".to_string(),
+                    target: "_self".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+
+            let root = make_node(
+                "modern-error-404-root",
+                NodeKind::Section,
+                root_styles,
+                vec![heading, desc, btn],
+            );
+            let layout = DaypressLayout {
+                version: 1,
+                root,
+                global_styles: None,
+            };
+
+            Some(CreateTemplateRequest {
+                title: "Modern 404 Recovery Page".to_string(),
+                template_type: TemplateType::Error404,
                 status: Some("publish".to_string()),
                 layout: Some(layout),
                 layout_json: None,

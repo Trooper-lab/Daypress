@@ -1041,6 +1041,10 @@ impl Database {
                     target: item.target.clone(),
                     parent: item.parent,
                     menu_order: item.menu_order,
+                    icon: item.icon.clone(),
+                    badge: item.badge.clone(),
+                    description: item.description.clone(),
+                    mega_menu_template_id: item.mega_menu_template_id,
                 })
                 .collect();
 

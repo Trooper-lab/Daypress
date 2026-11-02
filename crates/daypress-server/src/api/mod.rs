@@ -370,6 +370,12 @@ fn daypress_v1_routes() -> Router<Database> {
         )
         // Theme Template Builder REST API
         .merge(crate::theme_builder::routes::theme_builder_routes())
+        // Media Library DAM Upgrade (v0.5)
+        .merge(media_dam_routes())
+        // Cloud Storage (S3/R2) & SQLite Replica Streaming (v0.5)
+        .merge(crate::storage_s3::s3_storage_routes())
+        // Automatic ACME / Let's Encrypt TLS (v0.5)
+        .merge(crate::acme_tls::acme_tls_routes())
 }
 
 pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {

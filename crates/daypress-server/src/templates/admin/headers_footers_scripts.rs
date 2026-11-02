@@ -36,7 +36,7 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                 document.getElementById('tabPanelTemplates').style.display = tab === 'templates' ? 'block' : 'none';
                 document.getElementById('tabPanelMatrix').style.display = tab === 'matrix' ? 'block' : 'none';
                 document.getElementById('tabPanelLayouts').style.display = tab === 'layouts' ? 'block' : 'none';
-                document.getElementById('templatesTypeFilterBar').style.display = tab === 'templates' ? 'flex' : 'none';
+                document.getElementById('templatesTypeFilterBar').style.display = (tab === 'templates' || tab === 'layouts') ? 'flex' : 'none';
             }}
 
             function setTemplateFilter(type, btn) {{
@@ -45,12 +45,22 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                     b.style.background = '';
                     b.style.color = '';
                 }});
+                if (!btn) {{
+                    btn = document.querySelector(`.hf-filter-pill[data-type="${{type}}"]`);
+                }}
                 if (btn) {{
                     btn.style.background = 'var(--ink)';
                     btn.style.color = 'var(--paper-raised)';
                 }}
+                const isOtherType = ['single_post', 'single_page', 'archive', '404_page', 'section_symbol', 'popup'].includes(type);
+                if (isOtherType && currentMainTab !== 'layouts') {{
+                    switchMainTab('layouts');
+                }} else if ((type === 'header' || type === 'footer') && currentMainTab !== 'templates') {{
+                    switchMainTab('templates');
+                }}
                 document.getElementById('headersSectionWrap').style.display = (type === 'all' || type === 'header') ? 'block' : 'none';
                 document.getElementById('footersSectionWrap').style.display = (type === 'all' || type === 'footer') ? 'block' : 'none';
+                renderAllViews();
             }}
 
             function renderAllViews() {{
@@ -58,6 +68,10 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                 const headers = templates.filter(t => t.template_type === 'header');
                 const footers = templates.filter(t => t.template_type === 'footer');
                 const others = templates.filter(t => t.template_type !== 'header' && t.template_type !== 'footer');
+                const isOtherType = ['single_post', 'single_page', 'archive', '404_page', 'section_symbol', 'popup'].includes(currentTemplateFilter);
+                const filteredOthers = isOtherType
+                    ? others.filter(t => t.template_type === currentTemplateFilter)
+                    : others;
 
                 const activeH = headers.filter(t => t.is_active && t.status === 'publish').length;
                 const activeF = footers.filter(t => t.is_active && t.status === 'publish').length;
@@ -77,14 +91,16 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
 
                 renderTemplateCards(document.getElementById('headersCardsContainer'), headers, 'header');
                 renderTemplateCards(document.getElementById('footersCardsContainer'), footers, 'footer');
-                renderTemplateCards(document.getElementById('otherLayoutsCardsContainer'), others, 'layout');
+                renderTemplateCards(document.getElementById('otherLayoutsCardsContainer'), filteredOthers, isOtherType ? currentTemplateFilter : 'layout');
                 renderMatrixTables();
             }}
 
             function renderTemplateCards(container, list, kindLabel) {{
                 if (!container) return;
                 if (!list || list.length === 0) {{
-                    const defaultType = kindLabel === 'footer' ? 'footer' : (kindLabel === 'header' ? 'header' : 'single_post');
+                    const defaultType = ['header','footer','single_post','single_page','archive','404_page','section_symbol','popup'].includes(kindLabel)
+                        ? kindLabel
+                        : 'single_post';
                     container.innerHTML = `
                         <div class="day-card" style="grid-column: 1 / -1; padding: 28px; text-align: center; background: var(--paper-raised); border: 1px dashed var(--rule-strong);">
                             <div style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px;">No ${{escHtml(kindLabel)}} templates created yet</div>
@@ -117,6 +133,21 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                     }} else if (t.template_type === 'footer' && t.settings) {{
                         if (t.settings.sticky_footer) behaviorBadges += `<span class="hf-chip" style="background:var(--press-wash);color:var(--press);border:1px solid var(--press);">Sticky Footer</span>`;
                         if (t.settings.reveal_on_scroll) behaviorBadges += `<span class="hf-chip" style="background:var(--press-wash);color:var(--press);border:1px solid var(--press);">Reveal</span>`;
+                    }} else if (t.template_type === 'popup' && t.settings) {{
+                        const pVar = t.settings.popup_variant || 'modal';
+                        const pTrig = t.settings.trigger || 'on_load';
+                        behaviorBadges += `<span class="hf-chip" style="background:var(--press-wash);color:var(--press);border:1px solid var(--press);">Variant: ${{escHtml(pVar)}}</span>`;
+                        behaviorBadges += `<span class="hf-chip" style="background:var(--moss-wash);color:var(--moss);border:1px solid var(--moss);">Trigger: ${{escHtml(pTrig)}}</span>`;
+                        if (pTrig === 'on_load' && t.settings.delay_sec != null) {{
+                            behaviorBadges += `<span class="hf-chip hf-chip-rule">Delay: ${{t.settings.delay_sec}}s</span>`;
+                        }} else if (pTrig === 'on_scroll' && t.settings.scroll_pct != null) {{
+                            behaviorBadges += `<span class="hf-chip hf-chip-rule">Scroll: ${{t.settings.scroll_pct}}%</span>`;
+                        }}
+                        if (t.settings.dismiss_days != null) {{
+                            behaviorBadges += `<span class="hf-chip hf-chip-rule">Dismiss: ${{t.settings.dismiss_days}}d</span>`;
+                        }}
+                    }} else if (t.template_type === 'section_symbol') {{
+                        behaviorBadges += `<span class="hf-chip" style="background:var(--press-wash);color:var(--press);border:1px solid var(--press);">Synced Global Symbol / Mega Menu Panel</span>`;
                     }}
 
                     const condPills = (t.conditions && t.conditions.length > 0)
@@ -465,16 +496,11 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
             // -------------------------------------------------------------
             function openCreateModal(defaultType) {{
                 const typeSel = document.getElementById('createTplType');
-                const titleInput = document.getElementById('createTplTitle');
                 if (typeSel && defaultType) typeSel.value = defaultType;
                 onCreateTypeChange();
-                if (titleInput) {{
-                    const t = typeSel ? typeSel.value : 'header';
-                    titleInput.value = t === 'header' ? 'Custom Site Header' : (t === 'footer' ? 'Custom Site Footer' : 'Custom Layout Template');
-                }}
                 populateCreatePageOptions();
                 document.getElementById('hfCreateModal').classList.add('open');
-                setTimeout(() => titleInput?.focus(), 20);
+                setTimeout(() => document.getElementById('createTplTitle')?.focus(), 20);
             }}
 
             function closeCreateModal() {{
@@ -488,6 +514,39 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                 hfStarters.filter(s => s.template_type === t).forEach(s => {{
                     starterSel.innerHTML += `<option value="${{escHtml(s.id)}}">Starter: ${{escHtml(s.title)}}</option>`;
                 }});
+                const titleInput = document.getElementById('createTplTitle');
+                const targetSel = document.getElementById('createTplTarget');
+                const popupBox = document.getElementById('createPopupBehaviors');
+                if (popupBox) {{
+                    popupBox.style.display = t === 'popup' ? 'flex' : 'none';
+                }}
+                const defaultTitles = {{
+                    header: 'Custom Site Header',
+                    footer: 'Custom Site Footer',
+                    single_post: 'Single Blog Post Layout',
+                    single_page: 'Single Static Page Layout',
+                    archive: 'Category & Author Archive Layout',
+                    '404_page': 'Custom 404 Error Page',
+                    section_symbol: 'Synced Global Section Symbol',
+                    popup: 'Site Announcement / Promo Popup'
+                }};
+                const defaultTargets = {{
+                    header: 'entire_site',
+                    footer: 'entire_site',
+                    single_post: 'all_posts',
+                    single_page: 'all_pages',
+                    archive: 'archive',
+                    '404_page': 'not_found',
+                    section_symbol: 'unassigned',
+                    popup: 'entire_site'
+                }};
+                if (titleInput && defaultTitles[t]) {{
+                    titleInput.value = defaultTitles[t];
+                }}
+                if (targetSel && defaultTargets[t]) {{
+                    targetSel.value = defaultTargets[t];
+                    onCreateTargetChange();
+                }}
             }}
 
             function onCreateStarterChange() {{
@@ -530,6 +589,17 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                     conditions = [{{ condition_type: 'include', rule_target: ruleTarget, target_id: '', priority }}];
                 }}
 
+                let initialSettings = {{}};
+                if (template_type === 'popup') {{
+                    initialSettings = {{
+                        popup_variant: document.getElementById('createTplPopupVariant')?.value || 'modal',
+                        trigger: document.getElementById('createTplPopupTrigger')?.value || 'on_load',
+                        delay_sec: parseInt(document.getElementById('createTplPopupDelaySec')?.value, 10) || 0,
+                        scroll_pct: parseInt(document.getElementById('createTplPopupScrollPct')?.value, 10) || 50,
+                        dismiss_days: parseInt(document.getElementById('createTplPopupDismissDays')?.value, 10) || 7
+                    }};
+                }}
+
                 try {{
                     let created = null;
                     if (starter !== 'blank') {{
@@ -545,7 +615,7 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                             method: 'PUT',
                             headers: {{ 'Content-Type': 'application/json' }},
                             credentials: 'same-origin',
-                            body: JSON.stringify({{ title, priority, conditions }})
+                            body: JSON.stringify({{ title, priority, conditions, settings: Object.assign({{}}, created.settings || {{}}, initialSettings) }})
                         }});
                     }} else {{
                         const res = await fetch('/wp-json/daypress/v1/templates', {{
@@ -559,6 +629,7 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                                 is_active: true,
                                 priority,
                                 conditions,
+                                settings: initialSettings,
                                 layout: {{ version: 1, root: {{ id: 'root', type: 'Root', children: [] }} }}
                             }})
                         }});
@@ -722,8 +793,27 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                 document.getElementById('setTplRevealScroll').checked = !!s.reveal_on_scroll;
                 document.getElementById('setTplCustomCss').value = s.custom_css || '';
 
+                if (document.getElementById('setTplPopupVariant')) {{
+                    document.getElementById('setTplPopupVariant').value = s.popup_variant || 'modal';
+                }}
+                if (document.getElementById('setTplPopupTrigger')) {{
+                    document.getElementById('setTplPopupTrigger').value = s.trigger || 'on_load';
+                }}
+                if (document.getElementById('setTplPopupDelaySec')) {{
+                    document.getElementById('setTplPopupDelaySec').value = s.delay_sec != null ? s.delay_sec : 0;
+                }}
+                if (document.getElementById('setTplPopupScrollPct')) {{
+                    document.getElementById('setTplPopupScrollPct').value = s.scroll_pct != null ? s.scroll_pct : 50;
+                }}
+                if (document.getElementById('setTplPopupDismissDays')) {{
+                    document.getElementById('setTplPopupDismissDays').value = s.dismiss_days != null ? s.dismiss_days : 7;
+                }}
+
                 document.getElementById('setHeaderBehaviors').style.display = tpl.template_type === 'header' ? 'flex' : 'none';
                 document.getElementById('setFooterBehaviors').style.display = tpl.template_type === 'footer' ? 'flex' : 'none';
+                if (document.getElementById('setPopupBehaviors')) {{
+                    document.getElementById('setPopupBehaviors').style.display = tpl.template_type === 'popup' ? 'flex' : 'none';
+                }}
 
                 document.getElementById('hfSettingsModal').classList.add('open');
             }}
@@ -742,6 +832,9 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                 const status = document.getElementById('setTplStatus').value;
                 const priority = parseInt(document.getElementById('setTplPriority').value, 10) || 10;
                 const zVal = parseInt(document.getElementById('setTplZIndex').value, 10);
+                const delayVal = parseInt(document.getElementById('setTplPopupDelaySec')?.value, 10);
+                const scrollVal = parseInt(document.getElementById('setTplPopupScrollPct')?.value, 10);
+                const dismissVal = parseInt(document.getElementById('setTplPopupDismissDays')?.value, 10);
 
                 const settings = Object.assign({{}}, tpl.settings || {{}}, {{
                     sticky: document.getElementById('setTplSticky').checked,
@@ -750,6 +843,11 @@ pub fn render_headers_footers_script(initial_matrix_json: &str, starters_json: &
                     z_index: isNaN(zVal) ? null : zVal,
                     sticky_footer: document.getElementById('setTplStickyFooter').checked,
                     reveal_on_scroll: document.getElementById('setTplRevealScroll').checked,
+                    popup_variant: document.getElementById('setTplPopupVariant')?.value || 'modal',
+                    trigger: document.getElementById('setTplPopupTrigger')?.value || 'on_load',
+                    delay_sec: isNaN(delayVal) ? 0 : delayVal,
+                    scroll_pct: isNaN(scrollVal) ? 50 : scrollVal,
+                    dismiss_days: isNaN(dismissVal) ? 7 : dismissVal,
                     custom_css: document.getElementById('setTplCustomCss').value
                 }});
 

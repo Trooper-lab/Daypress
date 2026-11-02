@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::comments::DaypressCommentResponse;
 use super::common::{DaypressGuid, DaypressRenderedText};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DaypressPostResponse {
     pub id: i64,
     pub date: String,

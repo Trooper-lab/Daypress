@@ -407,6 +407,13 @@ impl From<NodeKindRepr> for NodeKind {
             NodeKindRepr::IconList { items } => NodeKind::IconList { items },
             NodeKindRepr::Audio { url } => NodeKind::Audio { url },
             NodeKindRepr::MenuAnchor { anchor_id } => NodeKind::MenuAnchor { anchor_id },
+            NodeKindRepr::SymbolInstance {
+                symbol_id,
+                overrides,
+            } => NodeKind::SymbolInstance {
+                symbol_id,
+                overrides,
+            },
             NodeKindRepr::CustomHtml { raw } => NodeKind::CustomHtml { raw },
             NodeKindRepr::ShortcodeFallback {
                 tag,

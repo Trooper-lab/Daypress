@@ -110,8 +110,10 @@ fn term_archive_response(
     if let Some((title, subtitle, req_ctx, posts)) = found {
         let (page_posts, total_pages) = templates::pagination::paginate(&posts, page, per_page);
         if (1..=total_pages).contains(&page) {
-            let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, &settings);
             let nav = templates::pagination::render_pagination(&base_path, page, total_pages);
+            let partials = SsrInjector::resolve_and_hydrate_archive_partials(
+                db, &req_ctx, &settings, &title, &subtitle, page_posts, &nav,
+            );
             let html = templates::render_archive_page_paginated(
                 &title,
                 &subtitle,

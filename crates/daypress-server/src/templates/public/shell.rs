@@ -279,6 +279,22 @@ pub fn render_base_layout(
         })
         .unwrap_or_default();
 
+    let theme_popups_css = partials
+        .and_then(|p| p.popups_css.as_ref())
+        .filter(|css| !css.trim().is_empty())
+        .map(|css| {
+            format!(
+                "\n\t<style id=\"dp-theme-popups-css\">\n{}\n\t</style>",
+                css
+            )
+        })
+        .unwrap_or_default();
+
+    let theme_popups_html = partials
+        .and_then(|p| p.popups_html.as_ref())
+        .map(|html| html.as_str())
+        .unwrap_or("");
+
     let theme_head_assets = if !settings.theme_assets_html.trim().is_empty() {
         settings.theme_assets_html.as_str()
     } else {
@@ -430,7 +446,7 @@ pub fn render_base_layout(
 
 	<style>
 		{public_theme_css}
-	</style>{daystudio_kit_css_block}{custom_css_block}{theme_header_css}{theme_footer_css}{theme_head_assets}
+	</style>{daystudio_kit_css_block}{custom_css_block}{theme_header_css}{theme_footer_css}{theme_popups_css}{theme_head_assets}
 </head>
 <body class="{full_body_class}">
 	{admin_bar_html}
@@ -447,6 +463,7 @@ pub fn render_base_layout(
 	{site_footer_html}
 
 	{daystudio_popups_html}
+	{theme_popups_html}
 	<div id="dp-lightbox-modal" class="dp-lightbox-modal" role="dialog" aria-modal="true">
 		<div class="dp-lightbox-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
 		<button type="button" class="dp-lightbox-close" aria-label="Close" onclick="document.getElementById('dp-lightbox-modal').classList.remove('active')">&times;</button>
@@ -477,10 +494,12 @@ pub fn render_base_layout(
         custom_css_block = custom_css_block,
         theme_header_css = theme_header_css,
         theme_footer_css = theme_footer_css,
+        theme_popups_css = theme_popups_css,
         theme_head_assets = theme_head_assets,
         site_header_html = site_header_html,
         site_footer_html = site_footer_html,
         daystudio_popups_html = settings.daystudio_popups_html,
+        theme_popups_html = theme_popups_html,
         content = content,
         full_body_class = full_body_class,
         admin_bar_html = admin_bar_html,

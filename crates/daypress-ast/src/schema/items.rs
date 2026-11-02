@@ -86,6 +86,19 @@ pub struct TestimonialSlide {
     pub rating: Option<f32>,
 }
 
+/// Per-child override entry for a Figma-style Synced Global Component (`SymbolInstance`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct SymbolOverride {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
 /// Navigation menu item for WordPress/Daypress navigation menus.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct NavMenuItem {
@@ -101,6 +114,16 @@ pub struct NavMenuItem {
     pub parent: i64,
     #[serde(default)]
     pub order: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mega_menu_template_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mega_menu_html: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<NavMenuItem>,
 }

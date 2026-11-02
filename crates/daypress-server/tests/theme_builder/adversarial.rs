@@ -126,6 +126,12 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
             },
         ],
         nav_menus: HashMap::new(),
+        db: Some(&db),
+        archive_title: None,
+        archive_subtitle: None,
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
     };
 
     // Assert zero panics on hydration
@@ -229,6 +235,12 @@ fn test_adversarial_placeholder_hydration_with_none_post_and_empty_title() {
         settings: &settings,
         breadcrumbs: vec![],
         nav_menus: HashMap::new(),
+        db: Some(&db),
+        archive_title: None,
+        archive_subtitle: None,
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
     };
 
     SsrInjector::hydrate_layout(&mut layout, &hyd_ctx);
@@ -251,6 +263,12 @@ fn test_adversarial_placeholder_hydration_with_none_post_and_empty_title() {
         settings: &settings,
         breadcrumbs: vec![],
         nav_menus: HashMap::new(),
+        db: Some(&db),
+        archive_title: None,
+        archive_subtitle: None,
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
     };
     let mut layout_none = layout.clone();
     SsrInjector::hydrate_layout(&mut layout_none, &hyd_ctx_none);
@@ -276,6 +294,12 @@ fn test_adversarial_dynamic_tokens_replacement() {
         settings: &settings,
         breadcrumbs: vec![],
         nav_menus: HashMap::new(),
+        db: Some(&db),
+        archive_title: None,
+        archive_subtitle: None,
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
     };
 
     let template_text = "Article: {{post_title}} by {{post_author}} on {{post_date}} | Copyright {{current_year}} {{site_title}} - {{site_description}}";
