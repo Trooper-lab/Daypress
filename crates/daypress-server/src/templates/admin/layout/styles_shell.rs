@@ -131,6 +131,7 @@ pub fn get_styles_shell() -> &'static str {
 			width: var(--sidebar-w);
 			background: var(--desk);
 			color: var(--desk-ink);
+			border-right: 1px solid var(--desk-rule);
 			position: fixed;
 			top: 0;
 			bottom: 0;
@@ -139,6 +140,7 @@ pub fn get_styles_shell() -> &'static str {
 			flex-direction: column;
 			z-index: 100;
 			overflow-y: auto;
+			transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 		}
 
 		.desk-brand {

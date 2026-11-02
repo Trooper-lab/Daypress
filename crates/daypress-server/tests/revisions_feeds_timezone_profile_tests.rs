@@ -360,7 +360,7 @@ async fn test_complete_user_profile_settings_and_session_invalidation() {
     assert_eq!(updated["show_admin_bar_front"], false);
     assert_eq!(updated["avatar_url"], "/uploads/grace.png");
 
-    // 2. Verify /d-admin/profile renders the saved settings and admin_color
+    // 2. Verify /d-admin/profile renders the saved settings, softer Daypress theme swatches, and admin_color
     let res = app
         .clone()
         .oneshot(admin_req("GET", "/d-admin/profile", None))
@@ -369,8 +369,72 @@ async fn test_complete_user_profile_settings_and_session_invalidation() {
     assert_eq!(res.status(), StatusCode::OK);
     let profile_html = body_text(res).await;
     assert!(profile_html.contains("data-admin-color=\"midnight\""));
+    assert!(profile_html.contains("lang=\"nl-NL\""));
+    assert!(profile_html.contains("Warm Linen"));
+    assert!(profile_html.contains("Botanical Sage"));
+    assert!(profile_html.contains("Nordic Mist"));
+    assert!(profile_html.contains("Velvet Dusk"));
     assert!(profile_html.contains("Pioneer of compiler engineering."));
     assert!(profile_html.contains("Log Out Everywhere Else"));
+    assert!(profile_html.contains("Upload Image"));
+    assert!(profile_html.contains("Choose from Media Library"));
+    assert!(profile_html.contains("id=\"avatarMediaModal\""));
+
+    // 2a. Verify direct multipart profile avatar upload (/wp-json/daypress/v1/users/1/avatar)
+    let boundary = "----DaypressAvatarBoundary";
+    let png_bytes: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];
+    let mut mp_body = Vec::new();
+    mp_body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"my-avatar.png\"\r\nContent-Type: image/png\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    mp_body.extend_from_slice(png_bytes);
+    mp_body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+    let upload_req = Request::builder()
+        .method("POST")
+        .uri("/wp-json/daypress/v1/users/1/avatar")
+        .header(header::COOKIE, &old_cookie)
+        .header(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(Body::from(mp_body))
+        .unwrap();
+    let upload_res = app.clone().oneshot(upload_req).await.unwrap();
+    assert_eq!(upload_res.status(), StatusCode::CREATED);
+    let upload_json: Value = serde_json::from_str(&body_text(upload_res).await).unwrap();
+    let uploaded_url = upload_json["url"].as_str().unwrap_or("");
+    assert!(uploaded_url.starts_with("/uploads/"));
+    assert!(uploaded_url.ends_with("my-avatar.png"));
+    assert_eq!(upload_json["user"]["avatar_url"], uploaded_url);
+    if let Some(rel) = uploaded_url.strip_prefix('/') {
+        let _ = std::fs::remove_file(rel);
+    }
+
+    // 2b. Verify switching to one of the new softer Daypress themes ("sage") persists and renders
+    let res_sage = app
+        .clone()
+        .oneshot(admin_req(
+            "POST",
+            "/wp-json/wp/v2/users/me",
+            Some(json!({ "admin_color": "sage" })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res_sage.status(), StatusCode::OK);
+    let updated_sage: Value = serde_json::from_str(&body_text(res_sage).await).unwrap();
+    assert_eq!(updated_sage["admin_color"], "sage");
+
+    let res_prof2 = app
+        .clone()
+        .oneshot(admin_req("GET", "/d-admin/profile", None))
+        .await
+        .unwrap();
+    let prof2_html = body_text(res_prof2).await;
+    assert!(prof2_html.contains("data-admin-color=\"sage\""));
 
     // 3. Verify old session cookie works before destroy-others, and is rejected after destroy-others
     let req_before = Request::builder()

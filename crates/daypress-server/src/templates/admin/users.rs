@@ -1,4 +1,4 @@
-//! Admin Users & Profile Views (`/d-admin/users`, `/d-admin/user-new`, `/d-admin/profile`).
+//! Admin Users & Profile Views (`/d-admin/users`, `/d-admin/user-new`, `/d-admin/profile`, `/d-admin/user-edit`).
 
 use super::layout::render_admin_shell;
 use crate::models::{DaypressSettingsResponse, DaypressUserDetail, UserListItem};
@@ -31,7 +31,8 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
             <tr id="user-row-{id}">
                 <td>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <div class="user-avatar" style="width: 32px; height: 32px; font-size: 12px; font-weight: 700;">{initial}</div>
+                        <img src="{avatar_url}" alt="{username}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--rule);" />
+                        <div class="user-avatar" style="display: none; width: 32px; height: 32px; font-size: 12px; font-weight: 700;">{initial}</div>
                         <div>
                             <strong style="color: var(--ink);">{username}</strong>
                             <div style="font-size: 12px; color: var(--ink-muted);">{display_name}</div>
@@ -43,7 +44,7 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
                 <td><strong>{post_count}</strong></td>
                 <td>
                     <div style="display: flex; gap: 6px;">
-                        <a href="/d-admin/profile?user_id={id}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit Profile</a>
+                        <a href="/d-admin/user-edit?user_id={id}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit User</a>
                         {delete_btn}
                     </div>
                 </td>
@@ -51,6 +52,7 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
             "##,
             id = u.id,
             initial = initial,
+            avatar_url = escape_html(&u.avatar_url),
             username = escape_html(&u.username),
             display_name = escape_html(&u.display_name),
             email = escape_html(&u.email),
@@ -164,7 +166,7 @@ pub fn render_user_new_view(settings: &DaypressSettingsResponse) -> String {
 
                     <div>
                         <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Website</label>
-                        <input type="url" id="newUrl" name="url" placeholder="https://" class="input" style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
+                        <input type="text" id="newUrl" name="url" placeholder="https://" class="input" style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
                     </div>
 
                     <div>
@@ -218,7 +220,10 @@ pub fn render_user_new_view(settings: &DaypressSettingsResponse) -> String {
                 const email = document.getElementById('newEmail').value.trim();
                 const firstName = document.getElementById('newFirstName').value.trim();
                 const lastName = document.getElementById('newLastName').value.trim();
-                const url = document.getElementById('newUrl').value.trim();
+                let url = document.getElementById('newUrl').value.trim();
+                if (url && !/^https?:\/\//i.test(url) && !url.startsWith('/')) {
+                    url = 'https://' + url;
+                }
                 const password = document.getElementById('newPassword').value;
                 const role = document.getElementById('newRole').value;
 
@@ -263,7 +268,7 @@ pub fn render_user_new_view(settings: &DaypressSettingsResponse) -> String {
         </script>
         "##.to_string();
 
-    render_admin_shell("users", "Add New User", &body, settings)
+    render_admin_shell("user-new", "Add New User", &body, settings)
 }
 
 // 8b. User Profile View (/d-admin/profile and /d-admin/user-edit)
@@ -313,51 +318,52 @@ pub fn render_profile_view(
     let schemes: &[(&str, &str, [&str; 4])] = &[
         (
             "default",
-            "Default",
-            ["#1d2327", "#2c3338", "#2271b1", "#72aee6"],
+            "Daylight & Ink",
+            ["#1a1c1f", "#f3eee4", "#a8401b", "#2a3bd0"],
         ),
         (
-            "light",
-            "Light",
-            ["#e5e5e5", "#999999", "#d64e07", "#04a4cc"],
+            "linen",
+            "Warm Linen",
+            ["#e8e1d3", "#f8f5ee", "#b05a3c", "#4a6b9c"],
         ),
         (
-            "modern",
-            "Modern",
-            ["#1e1e1e", "#3858e9", "#33f078", "#2145e6"],
-        ),
-        ("blue", "Blue", ["#096484", "#4796b3", "#52accc", "#74b6ce"]),
-        (
-            "coffee",
-            "Coffee",
-            ["#46403c", "#59524c", "#c7a589", "#9ea476"],
+            "studio",
+            "Studio Slate",
+            ["#252830", "#4f5bd5", "#6c8ebf", "#f4f5f8"],
         ),
         (
-            "ectoplasm",
-            "Ectoplasm",
-            ["#413256", "#523f6d", "#a3b745", "#d46f15"],
+            "nordic",
+            "Nordic Mist",
+            ["#283642", "#3b6e8c", "#7ba6bc", "#f1f5f7"],
         ),
         (
-            "midnight",
-            "Midnight",
-            ["#25282b", "#363b3f", "#69a8bb", "#e14d43"],
+            "espresso",
+            "Roast & Oat",
+            ["#362e29", "#473d36", "#9e5f3b", "#d49b72"],
         ),
         (
-            "ocean",
-            "Ocean",
-            ["#627c83", "#738e96", "#9ebaa0", "#aa9d88"],
+            "sage",
+            "Botanical Sage",
+            ["#26332c", "#33443b", "#48755b", "#8fb399"],
         ),
         (
-            "sunrise",
-            "Sunrise",
-            ["#b43c38", "#cf4944", "#dd823b", "#ccaf0b"],
+            "dusk",
+            "Velvet Dusk",
+            ["#2e2938", "#3d364a", "#7b5285", "#c98a78"],
+        ),
+        (
+            "harbor",
+            "Harbor Fog",
+            ["#2f3e44", "#457371", "#8ab0ab", "#f2f5f4"],
+        ),
+        (
+            "terracotta",
+            "Sunlit Clay",
+            ["#422b27", "#563833", "#b8563d", "#e08b63"],
         ),
     ];
-    let active_color = if user.admin_color.trim().is_empty() {
-        "default"
-    } else {
-        user.admin_color.trim()
-    };
+    let active_color =
+        crate::adapters::database::users::canonical_daypress_theme(&user.admin_color);
     let mut color_scheme_cards = String::new();
     for (id, label, swatches) in schemes {
         let checked = if id.eq_ignore_ascii_case(active_color) {
@@ -366,7 +372,7 @@ pub fn render_profile_view(
             ""
         };
         let border_style = if !checked.is_empty() {
-            "border-color: var(--press); background: var(--press-wash);"
+            "border-color: var(--oxide); background: var(--oxide-wash);"
         } else {
             "border-color: var(--rule);"
         };
@@ -376,7 +382,7 @@ pub fn render_profile_view(
                     <input type="radio" name="admin_color" value="{id}" {checked} onchange="previewAdminColorScheme('{id}')" />
                     <span>{label}</span>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);height:14px;border-radius:3px;overflow:hidden;">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);height:14px;border-radius:3px;overflow:hidden;border:1px solid rgba(0,0,0,0.08);">
                     <span style="background:{c0};"></span>
                     <span style="background:{c1};"></span>
                     <span style="background:{c2};"></span>
@@ -492,10 +498,21 @@ pub fn render_profile_view(
 
     let gravatar_default =
         crate::adapters::database::users::gravatar_url_for_email(&user.email, 128);
-    let resolved_avatar = if !user.avatar_url.trim().is_empty() {
-        user.avatar_url.trim().to_string()
-    } else {
+    let raw_avatar = user.avatar_url.trim();
+    let is_auto_gravatar = raw_avatar.is_empty()
+        || (raw_avatar.starts_with("https://www.gravatar.com/avatar/")
+            && raw_avatar.contains("d=identicon"));
+    let custom_avatar_input = if is_auto_gravatar { "" } else { raw_avatar };
+    let resolved_avatar = if is_auto_gravatar {
         gravatar_default.clone()
+    } else {
+        raw_avatar.to_string()
+    };
+
+    let back_to_users_btn = if !is_self {
+        r#"<a href="/d-admin/users" class="btn btn-secondary">&larr; Back to Users</a>"#
+    } else {
+        ""
     };
 
     let body = format!(
@@ -505,7 +522,8 @@ pub fn render_profile_view(
                 <h1 class="page-title">{page_heading}</h1>
                 <p class="page-subtitle">Personal options, public author identity, security credentials, active sessions, and REST Application Passwords</p>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                {back_to_users_btn}
                 <a href="/author/{username}/" target="_blank" class="btn btn-secondary">View Author Archive &nearr;</a>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('profileFormSubmit').click()">Update Profile</button>
             </div>
@@ -523,8 +541,8 @@ pub fn render_profile_view(
                     </div>
                     <div>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <h2 style="font-size: 20px; font-weight: 700; color: var(--ink); margin: 0;">{display_name}</h2>
-                            <span class="badge badge-published">{role}</span>
+                            <h2 id="headerDisplayName" style="font-size: 20px; font-weight: 700; color: var(--ink); margin: 0;">{display_name}</h2>
+                            <span id="headerRoleBadge" class="badge badge-published">{role}</span>
                         </div>
                         <div style="color: var(--ink-muted); font-size: 13px; margin-top: 4px;">
                             Username: <code style="font-family: var(--font-mono); background: var(--paper-sunk); padding: 2px 6px; border-radius: 4px; color: var(--ink);">{username}</code> &bull; Registered: {registered}
@@ -637,7 +655,7 @@ pub fn render_profile_view(
 
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label class="form-label" for="url">Website</label>
-                                <input type="url" id="url" class="form-input" value="{url}" placeholder="https://yourwebsite.com" />
+                                <input type="text" id="url" class="form-input" value="{url}" placeholder="https://yourwebsite.com" />
                             </div>
                         </div>
                     </div>
@@ -655,14 +673,16 @@ pub fn render_profile_view(
 
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label class="form-label" for="avatar_url">Profile Picture</label>
-                                <div style="display: flex; align-items: center; gap: 16px;">
-                                    <img id="avatarPreviewImg" src="{resolved_avatar}" alt="Profile Picture" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 1px solid var(--rule); flex-shrink: 0;" />
+                                <div style="display: flex; align-items: flex-start; gap: 16px;">
+                                    <img id="avatarPreviewImg" src="{resolved_avatar}" alt="Profile Picture" style="width: 68px; height: 68px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--rule); flex-shrink: 0;" />
                                     <div style="flex: 1;">
-                                        <input type="text" id="avatar_url" class="form-input" value="{avatar_url}" placeholder="Leave blank for automatic Gravatar ({gravatar_default})" oninput="updateAvatarPreview()" />
-                                        <div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;">
-                                            <button type="button" class="btn btn-secondary" style="font-size: 11.5px; padding: 4px 10px;" onclick="resetAvatarToGravatar()">Use Default Gravatar</button>
-                                            <span style="font-size: 11.5px; color: var(--ink-muted);">Paste any image or `/uploads/...` URL, or leave blank for Gravatar.</span>
+                                        <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" onchange="handleAvatarFileUpload(event)" />
+                                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;">
+                                            <button type="button" id="btnUploadAvatar" class="btn btn-primary" style="font-size: 12px; padding: 5px 12px;" onclick="document.getElementById('avatarFileInput').click()">Upload Image</button>
+                                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;" onclick="openAvatarMediaModal()">Choose from Media Library</button>
+                                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;" onclick="resetAvatarToGravatar()">Use Default Gravatar</button>
                                         </div>
+                                        <input type="text" id="avatar_url" class="form-input" value="{custom_avatar_input}" placeholder="Or paste an image / /uploads/... URL (leave blank for automatic Gravatar)" oninput="updateAvatarPreview()" />
                                     </div>
                                 </div>
                             </div>
@@ -769,18 +789,47 @@ pub fn render_profile_view(
             </div>
         </form>
 
+        <!-- Media Library Picker Modal for Profile Picture -->
+        <div id="avatarMediaModal" onclick="if(event.target === this) closeAvatarMediaModal();" style="display: none; position: fixed; inset: 0; background: rgba(22,23,26,0.55); z-index: 9999; align-items: center; justify-content: center; padding: 24px;">
+            <div style="background: var(--paper-raised); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 8px; width: 100%; max-width: 760px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.28);">
+                <div style="padding: 16px 20px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; font-family: var(--font-serif);">Select Profile Picture</h3>
+                        <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--ink-muted);">Choose an existing image from the Media Library or upload a new photo</p>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="search" id="avatarMediaSearch" class="form-input" placeholder="Search media..." oninput="renderAvatarMediaGrid()" style="width: 190px; padding: 5px 10px; font-size: 12.5px;" />
+                        <button type="button" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;" onclick="document.getElementById('avatarFileInput').click()">+ Upload New</button>
+                        <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 10px;" onclick="closeAvatarMediaModal()">Close</button>
+                    </div>
+                </div>
+                <div id="avatarMediaGrid" style="padding: 18px 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; min-height: 220px;">
+                    <div style="grid-column: 1 / -1; text-align: center; color: var(--ink-muted); padding: 40px 0;">Loading media library...</div>
+                </div>
+            </div>
+        </div>
+
         <script>
             const profileUserId = {id};
             const profileSaveEndpoint = '{save_endpoint}';
             const defaultGravatarUrl = '{gravatar_default}';
 
+            function restHeaders(withJson = false) {{
+                const h = {{
+                    'X-WP-Nonce': (window.wpApiSettings && window.wpApiSettings.nonce) || ''
+                }};
+                if (withJson) h['Content-Type'] = 'application/json';
+                return h;
+            }}
+
             function previewAdminColorScheme(scheme) {{
+                document.documentElement.setAttribute('data-admin-color', scheme);
                 document.body.setAttribute('data-admin-color', scheme);
                 document.querySelectorAll('.admin-color-option').forEach(lbl => {{
                     const radio = lbl.querySelector('input[name="admin_color"]');
                     if (radio && radio.value === scheme) {{
-                        lbl.style.borderColor = 'var(--press)';
-                        lbl.style.background = 'var(--press-wash)';
+                        lbl.style.borderColor = 'var(--oxide)';
+                        lbl.style.background = 'var(--oxide-wash)';
                     }} else {{
                         lbl.style.borderColor = 'var(--rule)';
                         lbl.style.background = 'transparent';
@@ -802,19 +851,20 @@ pub fn render_profile_view(
                     const t = (v || '').trim();
                     if (t && !candidates.includes(t)) candidates.push(t);
                 }};
-                addUnique(username);
-                addUnique(nick);
-                addUnique(first);
-                addUnique(last);
                 if (first && last) {{
                     addUnique(first + ' ' + last);
                     addUnique(last + ' ' + first);
                 }}
+                addUnique(first);
+                addUnique(last);
+                addUnique(nick);
+                addUnique(username);
                 addUnique(currentVal);
 
+                const preferred = candidates.includes(currentVal) ? currentVal : (candidates[0] || username);
                 sel.innerHTML = candidates.map(c => {{
                     const esc = c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-                    const selected = c === currentVal ? ' selected' : '';
+                    const selected = c === preferred ? ' selected' : '';
                     return '<option value="' + esc + '"' + selected + '>' + esc + '</option>';
                 }}).join('');
             }}
@@ -836,7 +886,136 @@ pub fn render_profile_view(
             function resetAvatarToGravatar() {{
                 document.getElementById('avatar_url').value = '';
                 updateAvatarPreview();
+                persistAvatarUrl('');
                 showToast('✓ Reverted to automatic Gravatar');
+            }}
+
+            async function persistAvatarUrl(avatarUrl) {{
+                try {{
+                    await fetch(profileSaveEndpoint, {{
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: restHeaders(true),
+                        body: JSON.stringify({{ avatar_url: avatarUrl }})
+                    }});
+                }} catch (_) {{}}
+            }}
+
+            async function handleAvatarFileUpload(event) {{
+                const fileInput = event.target;
+                if (!fileInput || !fileInput.files || !fileInput.files.length) return;
+                const file = fileInput.files[0];
+                const btn = document.getElementById('btnUploadAvatar');
+                if (btn) {{
+                    btn.disabled = true;
+                    btn.textContent = 'Uploading...';
+                }}
+                try {{
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/avatar', {{
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: restHeaders(false),
+                        body: formData
+                    }});
+                    const data = await res.json().catch(() => ({{}}));
+                    if (res.ok && data.url) {{
+                        document.getElementById('avatar_url').value = data.url;
+                        updateAvatarPreview();
+                        closeAvatarMediaModal();
+                        showToast('✓ Profile picture uploaded and saved!');
+                    }} else {{
+                        showToast(data.message || 'Failed to upload profile picture', true);
+                    }}
+                }} catch (err) {{
+                    showToast('Upload error: ' + err, true);
+                }} finally {{
+                    fileInput.value = '';
+                    if (btn) {{
+                        btn.disabled = false;
+                        btn.textContent = 'Upload Image';
+                    }}
+                }}
+            }}
+
+            let cachedAvatarMediaItems = [];
+
+            async function openAvatarMediaModal() {{
+                const modal = document.getElementById('avatarMediaModal');
+                if (!modal) return;
+                modal.style.display = 'flex';
+                const grid = document.getElementById('avatarMediaGrid');
+                if (grid) {{
+                    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--ink-muted); padding: 40px 0;">Loading media library...</div>';
+                }}
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/media?per_page=100', {{
+                        credentials: 'same-origin',
+                        headers: restHeaders(false)
+                    }});
+                    if (res.ok) {{
+                        const items = await res.json();
+                        cachedAvatarMediaItems = (Array.isArray(items) ? items : []).filter(m => {{
+                            const mime = (m.mime_type || '').toLowerCase();
+                            const url = (m.source_url || '').toLowerCase();
+                            return mime.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(url);
+                        }});
+                        renderAvatarMediaGrid();
+                    }} else {{
+                        if (grid) grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--oxide); padding: 40px 0;">Could not load media library.</div>';
+                    }}
+                }} catch (err) {{
+                    if (grid) grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--oxide); padding: 40px 0;">Network error loading media library.</div>';
+                }}
+            }}
+
+            function closeAvatarMediaModal() {{
+                const modal = document.getElementById('avatarMediaModal');
+                if (modal) modal.style.display = 'none';
+            }}
+
+            function renderAvatarMediaGrid() {{
+                const grid = document.getElementById('avatarMediaGrid');
+                if (!grid) return;
+                const searchInput = document.getElementById('avatarMediaSearch');
+                const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
+                const currentUrl = document.getElementById('avatar_url').value.trim();
+
+                const filtered = cachedAvatarMediaItems.filter(m => {{
+                    if (!q) return true;
+                    const title = ((m.title && m.title.rendered) ? m.title.rendered : (m.title || '')).toLowerCase();
+                    const url = (m.source_url || '').toLowerCase();
+                    return title.includes(q) || url.includes(q);
+                }});
+
+                if (!filtered.length) {{
+                    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--ink-muted); padding: 40px 0;">No matching images in the Media Library. Click <strong>+ Upload New</strong> above to upload a photo.</div>';
+                    return;
+                }}
+
+                grid.innerHTML = filtered.map(m => {{
+                    const url = m.source_url || '';
+                    const rawTitle = (m.title && m.title.rendered) ? m.title.rendered : (m.slug || 'Image');
+                    const escUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    const escTitle = String(rawTitle).replace(/<[^>]*>/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+                    const isSelected = currentUrl === url;
+                    const border = isSelected ? '2px solid var(--oxide)' : '1px solid var(--rule)';
+                    return '<button type="button" onclick="selectAvatarFromMedia(\'' + escUrl + '\')" style="display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--paper);border:' + border + ';border-radius:6px;cursor:pointer;text-align:left;transition:transform 0.12s, border-color 0.12s;">'
+                        + '<div style="width:100%;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:var(--paper-sunk);display:flex;align-items:center;justify-content:center;">'
+                        + '<img src="' + escUrl + '" alt="' + escTitle + '" loading="lazy" style="width:100%;height:100%;object-fit:cover;" />'
+                        + '</div>'
+                        + '<span style="font-size:11px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">' + escTitle + '</span>'
+                        + '</button>';
+                }}).join('');
+            }}
+
+            function selectAvatarFromMedia(url) {{
+                document.getElementById('avatar_url').value = url;
+                updateAvatarPreview();
+                persistAvatarUrl(url);
+                closeAvatarMediaModal();
+                showToast('✓ Profile picture selected from Media Library!');
             }}
 
             function evaluatePasswordStrength(pw) {{
@@ -891,7 +1070,8 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/sessions/destroy-others', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }}
+                        credentials: 'same-origin',
+                        headers: restHeaders(true)
                     }});
                     const data = await res.json().catch(() => ({{}}));
                     if (res.ok) {{
@@ -909,7 +1089,10 @@ pub fn render_profile_view(
                 const revokeAllWrap = document.getElementById('revokeAllAppPassWrap');
                 if (!tbody) return;
                 try {{
-                    const res = await fetch('/wp-json/wp/v2/users/' + profileUserId + '/application-passwords');
+                    const res = await fetch('/wp-json/wp/v2/users/' + profileUserId + '/application-passwords', {{
+                        credentials: 'same-origin',
+                        headers: restHeaders(false)
+                    }});
                     if (!res.ok) return;
                     const list = await res.json();
                     if (!list || list.length === 0) {{
@@ -938,7 +1121,8 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch('/wp-json/wp/v2/users/' + profileUserId + '/application-passwords', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        credentials: 'same-origin',
+                        headers: restHeaders(true),
                         body: JSON.stringify({{ name: appName }})
                     }});
                     const data = await res.json();
@@ -962,7 +1146,9 @@ pub fn render_profile_view(
                 if (!uuid) return;
                 try {{
                     const res = await fetch('/wp-json/wp/v2/users/' + profileUserId + '/application-passwords/' + uuid, {{
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        headers: restHeaders(false)
                     }});
                     if (res.ok) {{
                         showToast('✓ Application password revoked');
@@ -979,7 +1165,9 @@ pub fn render_profile_view(
                 if (!confirm('Revoke all application passwords for this user?')) return;
                 try {{
                     const res = await fetch('/wp-json/wp/v2/users/' + profileUserId + '/application-passwords', {{
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        headers: restHeaders(false)
                     }});
                     if (res.ok) {{
                         showToast('✓ All application passwords revoked');
@@ -994,12 +1182,17 @@ pub fn render_profile_view(
 
             async function saveProfile(e) {{
                 e.preventDefault();
+                const username = document.getElementById('profile_username').value.trim();
                 const display_name = document.getElementById('display_name').value.trim();
                 const first_name = document.getElementById('first_name').value.trim();
                 const last_name = document.getElementById('last_name').value.trim();
-                const nickname = document.getElementById('nickname').value.trim();
+                const nickname = document.getElementById('nickname').value.trim() || username;
                 const email = document.getElementById('email').value.trim();
-                const url = document.getElementById('url').value.trim();
+                let url = document.getElementById('url').value.trim();
+                if (url && !/^https?:\/\//i.test(url) && !url.startsWith('/')) {{
+                    url = 'https://' + url;
+                    document.getElementById('url').value = url;
+                }}
                 const description = document.getElementById('description').value;
                 const avatar_url = document.getElementById('avatar_url').value.trim();
                 const locale = document.getElementById('locale').value;
@@ -1014,10 +1207,10 @@ pub fn render_profile_view(
                 const password = document.getElementById('password').value;
 
                 const payload = {{
-                    display_name: display_name || undefined,
+                    display_name: display_name || nickname || username,
                     first_name,
                     last_name,
-                    nickname: nickname || undefined,
+                    nickname,
                     email: email || undefined,
                     url,
                     description,
@@ -1035,13 +1228,21 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch(profileSaveEndpoint, {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        credentials: 'same-origin',
+                        headers: restHeaders(true),
                         body: JSON.stringify(payload)
                     }});
 
                     if (res.ok) {{
+                        const saved = await res.json().catch(() => null);
+                        if (saved) {{
+                            const hName = document.getElementById('headerDisplayName');
+                            if (hName && saved.display_name) hName.textContent = saved.display_name;
+                            const hRole = document.getElementById('headerRoleBadge');
+                            if (hRole && saved.role) hRole.textContent = saved.role;
+                        }}
                         showToast('✓ Profile updated and persisted in SQLite!');
-                        setTimeout(() => window.location.reload(), 500);
+                        setTimeout(() => window.location.reload(), 450);
                     }} else {{
                         const err = await res.text();
                         showToast('Failed to update profile: ' + err, true);
@@ -1053,7 +1254,10 @@ pub fn render_profile_view(
 
             async function loadTwoFactorStatus() {{
                 try {{
-                    const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/2fa/status');
+                    const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/2fa/status', {{
+                        credentials: 'same-origin',
+                        headers: restHeaders(false)
+                    }});
                     if (!res.ok) return;
                     const data = await res.json();
                     const badge = document.getElementById('twoFactorBadge');
@@ -1091,7 +1295,8 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/2fa/setup', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }}
+                        credentials: 'same-origin',
+                        headers: restHeaders(true)
                     }});
                     const data = await res.json();
                     if (res.ok && data.secret) {{
@@ -1120,7 +1325,8 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/2fa/enable', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        credentials: 'same-origin',
+                        headers: restHeaders(true),
                         body: JSON.stringify({{ code }})
                     }});
                     const data = await res.json();
@@ -1155,7 +1361,8 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/2fa/recovery-codes', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }}
+                        credentials: 'same-origin',
+                        headers: restHeaders(true)
                     }});
                     const data = await res.json();
                     if (res.ok && data.recovery_codes) {{
@@ -1175,7 +1382,8 @@ pub fn render_profile_view(
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/users/' + profileUserId + '/2fa/disable', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }}
+                        credentials: 'same-origin',
+                        headers: restHeaders(true)
                     }});
                     if (res.ok) {{
                         const setupBox = document.getElementById('twoFactorSetupBox');
@@ -1193,6 +1401,8 @@ pub fn render_profile_view(
             }}
 
             document.addEventListener('DOMContentLoaded', () => {{
+                const activeRadio = document.querySelector('input[name="admin_color"]:checked');
+                if (activeRadio) previewAdminColorScheme(activeRadio.value);
                 loadApplicationPasswords();
                 loadTwoFactorStatus();
             }});
@@ -1203,6 +1413,7 @@ pub fn render_profile_view(
         } else {
             format!("Edit User: {}", escape_html(&user.username))
         },
+        back_to_users_btn = back_to_users_btn,
         totp_badge_class = if user.totp_enabled {
             "badge-published"
         } else {
@@ -1221,7 +1432,7 @@ pub fn render_profile_view(
         last_name = escape_html(&user.last_name),
         nickname = escape_html(nickname_val),
         description = escape_html(&user.description),
-        avatar_url = escape_html(&user.avatar_url),
+        custom_avatar_input = escape_html(custom_avatar_input),
         resolved_avatar = escape_html(&resolved_avatar),
         gravatar_default = escape_html(&gravatar_default),
         email = escape_html(&user.email),
@@ -1239,5 +1450,7 @@ pub fn render_profile_view(
         save_endpoint = save_endpoint,
     );
 
-    render_admin_shell("profile", "Profile", &body, settings)
+    let active_tab = if is_self { "profile" } else { "users" };
+    let title_label = if is_self { "Profile" } else { "Edit User" };
+    render_admin_shell(active_tab, title_label, &body, settings)
 }

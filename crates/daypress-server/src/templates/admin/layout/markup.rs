@@ -51,6 +51,12 @@ pub fn render_admin_shell(
             .map(|a| a.admin_color)
             .unwrap_or_else(|| "default".to_string()),
     );
+    let html_lang = escape_html(
+        &crate::auth::current_admin()
+            .map(|a| a.locale.trim().replace('_', "-"))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "en-US".to_string()),
+    );
     let styles_forms = get_styles_forms();
     let rest_nonce: String = crate::auth::current_admin()
         .map(|a| a.nonce)
@@ -61,7 +67,7 @@ pub fn render_admin_shell(
 
     format!(
         r##"<!DOCTYPE html>
-<html lang="en-US">
+<html lang="{html_lang}" data-admin-color="{admin_color}">
 <head>
 	<meta charset="UTF-8" />
 	<title>{page_title} &bull; {site_name}</title>
@@ -73,14 +79,71 @@ pub fn render_admin_shell(
 {styles_shell}
 {styles_comp}
 {styles_forms}
-body[data-admin-color="light"] {{ --press: #04a4cc; --press-ink: #037c9a; --press-wash: rgba(4,164,204,0.10); }}
-body[data-admin-color="modern"] {{ --press: #3858e9; --press-ink: #2145e6; --press-wash: rgba(56,88,233,0.10); }}
-body[data-admin-color="blue"] {{ --press: #096484; --press-ink: #07526c; --press-wash: rgba(9,100,132,0.10); }}
-body[data-admin-color="coffee"] {{ --press: #c7a589; --press-ink: #59524c; --press-wash: rgba(199,165,137,0.14); }}
-body[data-admin-color="ectoplasm"] {{ --press: #a3b745; --press-ink: #523f6d; --press-wash: rgba(163,183,69,0.14); }}
-body[data-admin-color="midnight"] {{ --press: #e14d43; --press-ink: #363b3f; --press-wash: rgba(225,77,67,0.12); }}
-body[data-admin-color="ocean"] {{ --press: #9ebaa0; --press-ink: #627c83; --press-wash: rgba(158,186,160,0.14); }}
-body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --press-wash: rgba(221,130,59,0.14); }}
+/* Daypress Soft Editorial Backend Themes (plus legacy alias selectors for backward compatibility) */
+:root[data-admin-color="linen"], body[data-admin-color="linen"],
+:root[data-admin-color="light"], body[data-admin-color="light"] {{
+	--desk: #e8e1d3; --desk-raised: #ded5c4; --desk-ink: #2b2621; --desk-muted: #6e655c; --desk-rule: #2b262124; --desk-oxide: #b05a3c;
+	--paper: #f8f5ee; --paper-raised: #fdfbf7; --paper-sunk: #ede7da; --ink: #221f1c; --ink-muted: #686159;
+	--oxide: #b05a3c; --press: #4a6b9c; --moss: #4d6b53; --focus: #4a6b9c;
+	--press-wash: rgba(74,107,156,0.10); --oxide-wash: rgba(176,90,60,0.10);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="studio"], body[data-admin-color="studio"],
+:root[data-admin-color="modern"], body[data-admin-color="modern"] {{
+	--desk: #252830; --desk-raised: #313540; --desk-ink: #eef0f6; --desk-muted: #9da3b4; --desk-rule: #eef0f624; --desk-oxide: #6c8ebf;
+	--paper: #f4f5f8; --paper-raised: #fbfcfe; --paper-sunk: #e8eaf0; --ink: #1b1e26; --ink-muted: #5d6373;
+	--oxide: #4f5bd5; --press: #4f5bd5; --moss: #3d8b6e; --focus: #4f5bd5;
+	--press-wash: rgba(79,91,213,0.10); --oxide-wash: rgba(79,91,213,0.10);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="nordic"], body[data-admin-color="nordic"],
+:root[data-admin-color="blue"], body[data-admin-color="blue"] {{
+	--desk: #283642; --desk-raised: #334554; --desk-ink: #edf2f6; --desk-muted: #9cb0c0; --desk-rule: #edf2f624; --desk-oxide: #7ba6bc;
+	--paper: #f1f5f7; --paper-raised: #f9fbfc; --paper-sunk: #e3ebf0; --ink: #1c262e; --ink-muted: #586975;
+	--oxide: #3b6e8c; --press: #2f6690; --moss: #467362; --focus: #2f6690;
+	--press-wash: rgba(47,102,144,0.10); --oxide-wash: rgba(59,110,140,0.10);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="espresso"], body[data-admin-color="espresso"],
+:root[data-admin-color="coffee"], body[data-admin-color="coffee"] {{
+	--desk: #362e29; --desk-raised: #473d36; --desk-ink: #f3ece4; --desk-muted: #b5a698; --desk-rule: #f3ece424; --desk-oxide: #d49b72;
+	--paper: #f5efe8; --paper-raised: #fcf9f5; --paper-sunk: #e9dfd3; --ink: #26201c; --ink-muted: #695d54;
+	--oxide: #9e5f3b; --press: #7c5840; --moss: #5e7153; --focus: #9e5f3b;
+	--press-wash: rgba(158,95,59,0.11); --oxide-wash: rgba(158,95,59,0.11);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="sage"], body[data-admin-color="sage"],
+:root[data-admin-color="ectoplasm"], body[data-admin-color="ectoplasm"] {{
+	--desk: #26332c; --desk-raised: #33443b; --desk-ink: #ebf1ed; --desk-muted: #9eb0a5; --desk-rule: #ebf1ed24; --desk-oxide: #8fb399;
+	--paper: #f1f4ef; --paper-raised: #f9fbf8; --paper-sunk: #e3e9e0; --ink: #1c2520; --ink-muted: #56665c;
+	--oxide: #48755b; --press: #3b6952; --moss: #48755b; --focus: #3b6952;
+	--press-wash: rgba(72,117,91,0.11); --oxide-wash: rgba(72,117,91,0.11);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="dusk"], body[data-admin-color="dusk"],
+:root[data-admin-color="midnight"], body[data-admin-color="midnight"] {{
+	--desk: #2e2938; --desk-raised: #3d364a; --desk-ink: #f1eef6; --desk-muted: #aca3bd; --desk-rule: #f1eef624; --desk-oxide: #c98a78;
+	--paper: #f5f2f7; --paper-raised: #fcfafe; --paper-sunk: #e8e3ed; --ink: #221e2b; --ink-muted: #645c73;
+	--oxide: #7b5285; --press: #684675; --moss: #4e6e5d; --focus: #7b5285;
+	--press-wash: rgba(123,82,133,0.11); --oxide-wash: rgba(123,82,133,0.11);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="harbor"], body[data-admin-color="harbor"],
+:root[data-admin-color="ocean"], body[data-admin-color="ocean"] {{
+	--desk: #2f3e44; --desk-raised: #3d5057; --desk-ink: #eef3f2; --desk-muted: #a3b5b3; --desk-rule: #eef3f224; --desk-oxide: #8ab0ab;
+	--paper: #f2f5f4; --paper-raised: #fafcfb; --paper-sunk: #e4eae8; --ink: #1f282b; --ink-muted: #5b6b6e;
+	--oxide: #457371; --press: #3b696c; --moss: #527564; --focus: #457371;
+	--press-wash: rgba(69,115,113,0.11); --oxide-wash: rgba(69,115,113,0.11);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
+:root[data-admin-color="terracotta"], body[data-admin-color="terracotta"],
+:root[data-admin-color="sunrise"], body[data-admin-color="sunrise"] {{
+	--desk: #422b27; --desk-raised: #563833; --desk-ink: #f7ede8; --desk-muted: #c4a99e; --desk-rule: #f7ede824; --desk-oxide: #e08b63;
+	--paper: #f7f0e8; --paper-raised: #fdfaf6; --paper-sunk: #ece1d4; --ink: #291d1a; --ink-muted: #6e5853;
+	--oxide: #b8563d; --press: #9e4731; --moss: #597051; --focus: #b8563d;
+	--press-wash: rgba(184,86,61,0.11); --oxide-wash: rgba(184,86,61,0.11);
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+}}
 	</style>
 	<script>
 		// Standard WordPress REST API settings & session initialization
@@ -510,6 +573,7 @@ body[data-admin-color="sunrise"] {{ --press: #dd823b; --press-ink: #cf4944; --pr
         is_publish = nav.is_publish,
         is_engine = nav.is_engine,
         admin_color = admin_color,
+        html_lang = html_lang,
         updates_badge = updates_badge,
         body_content = body_content
     )

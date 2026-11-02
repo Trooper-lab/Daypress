@@ -883,6 +883,7 @@ pub struct AdminContext {
     pub role: String,
     pub nonce: String,
     pub admin_color: String,
+    pub locale: String,
     pub rich_editing: bool,
     pub avatar_url: String,
 }
@@ -933,7 +934,7 @@ fn admin_path_allowed(path: &str, user: &AuthUser) -> bool {
         return true;
     }
     let path = path.trim_end_matches('/');
-    if path == "/d-admin/profile" {
+    if path == "/d-admin/profile" || path == "/d-admin/user-edit" {
         return true;
     }
     match path {
@@ -1037,6 +1038,10 @@ pub async fn admin_session_gate(
             .as_ref()
             .map(|d| d.admin_color.clone())
             .unwrap_or_else(|| "default".to_string()),
+        locale: detail
+            .as_ref()
+            .map(|d| d.locale.clone())
+            .unwrap_or_default(),
         rich_editing: detail.as_ref().map(|d| d.rich_editing).unwrap_or(true),
         avatar_url: detail
             .as_ref()

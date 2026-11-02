@@ -35,6 +35,7 @@ impl PagedQuery {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ProfileQueryParams {
+    #[serde(alias = "id")]
     pub user_id: Option<i64>,
 }
 

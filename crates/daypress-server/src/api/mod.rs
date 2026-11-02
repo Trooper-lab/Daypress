@@ -285,6 +285,10 @@ fn daypress_v1_routes() -> Router<Database> {
             "/users/{id}/sessions/destroy-others",
             axum::routing::post(destroy_other_sessions_handler),
         )
+        .route(
+            "/users/{id}/avatar",
+            axum::routing::post(upload_user_avatar_handler),
+        )
         .route("/users/{id}/2fa/status", get(get_user_2fa_status_handler))
         .route(
             "/users/{id}/2fa/setup",

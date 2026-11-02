@@ -541,3 +541,91 @@ pub(crate) async fn disable_user_2fa_handler(
         "was_enabled": was_enabled
     })))
 }
+
+pub(crate) async fn upload_user_avatar_handler(
+    auth: AuthUser,
+    State(db): State<Database>,
+    AxPath(user_id): AxPath<i64>,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    if auth.user_id != user_id && !auth.is_admin() {
+        return Err(AppError::Forbidden("Permission denied".to_string()));
+    }
+
+    let uploads_dir = Path::new("uploads");
+    if !uploads_dir.exists() {
+        fs::create_dir_all(uploads_dir)?;
+    }
+
+    if let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        let file_name_raw = field.file_name().unwrap_or("avatar.png").to_string();
+        let content_type = field.content_type().unwrap_or("image/png").to_string();
+
+        let clean_name = file_name_raw
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+
+        let lower_name = clean_name.to_ascii_lowercase();
+        let is_image_ext = lower_name.ends_with(".png")
+            || lower_name.ends_with(".jpg")
+            || lower_name.ends_with(".jpeg")
+            || lower_name.ends_with(".webp")
+            || lower_name.ends_with(".gif")
+            || lower_name.ends_with(".svg")
+            || lower_name.ends_with(".avif");
+        if !content_type.starts_with("image/") && !is_image_ext {
+            return Err(AppError::BadRequest(
+                "Avatar must be an image file (PNG, JPG, WebP, GIF, SVG, or AVIF).".to_string(),
+            ));
+        }
+
+        let data = field
+            .bytes()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if data.is_empty() {
+            return Err(AppError::BadRequest("Uploaded file is empty".to_string()));
+        }
+        let file_size = data.len() as u64;
+
+        let timestamp = chrono::Utc::now().timestamp();
+        let final_file_name = format!("{}_avatar_{}_{}", timestamp, user_id, clean_name);
+        let dest_path = uploads_dir.join(&final_file_name);
+        fs::write(&dest_path, &data)?;
+
+        let url = format!("/uploads/{}", final_file_name);
+        let title = format!("Avatar #{}", user_id);
+        let media =
+            db.create_attachment(&title, &final_file_name, &content_type, file_size, &url)?;
+        let req = UpdateUserRequest {
+            avatar_url: Some(url.clone()),
+            ..Default::default()
+        };
+        let updated_user = db.update_user_detail(user_id, &req)?;
+
+        return Ok((
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "success": true,
+                "url": url,
+                "media": media,
+                "user": updated_user
+            })),
+        ));
+    }
+
+    Err(AppError::BadRequest(
+        "No image file uploaded in form data".to_string(),
+    ))
+}

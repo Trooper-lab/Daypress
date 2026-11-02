@@ -12,6 +12,22 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+/// Maps any stored `admin_color` identifier (including legacy imported values) to its canonical
+/// Daypress softer backend theme slug for UI selection.
+pub fn canonical_daypress_theme(raw: &str) -> &'static str {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "linen" | "light" => "linen",
+        "studio" | "modern" => "studio",
+        "nordic" | "blue" => "nordic",
+        "espresso" | "coffee" => "espresso",
+        "sage" | "ectoplasm" => "sage",
+        "dusk" | "midnight" => "dusk",
+        "harbor" | "ocean" => "harbor",
+        "terracotta" | "sunrise" => "terracotta",
+        _ => "default",
+    }
+}
+
 /// Computes a standard Gravatar URL (SHA-256 hex of trimmed lowercase email) with `identicon` fallback.
 pub fn gravatar_url_for_email(email: &str, size: u32) -> String {
     let clean = email.trim().to_ascii_lowercase();
@@ -388,9 +404,11 @@ impl Database {
             )?;
         }
         if let Some(color) = &req.admin_color {
-            let valid = match color.trim() {
-                "light" | "modern" | "blue" | "coffee" | "ectoplasm" | "midnight" | "ocean"
-                | "sunrise" => color.trim(),
+            let trimmed = color.trim().to_ascii_lowercase();
+            let valid = match trimmed.as_str() {
+                "default" | "linen" | "studio" | "nordic" | "espresso" | "sage" | "dusk"
+                | "harbor" | "terracotta" | "light" | "modern" | "blue" | "coffee"
+                | "ectoplasm" | "midnight" | "ocean" | "sunrise" => trimmed.as_str(),
                 _ => "default",
             };
             Self::upsert_usermeta(&conn, id, "admin_color", valid)?;
@@ -404,7 +422,16 @@ impl Database {
             )?;
         }
         if let Some(avatar) = &req.avatar_url {
-            Self::upsert_usermeta(&conn, id, "daypress_avatar_url", avatar.trim())?;
+            let clean_av = avatar.trim();
+            // Do not lock in the auto-generated Gravatar fallback URL as a custom avatar override
+            let store_av = if clean_av.starts_with("https://www.gravatar.com/avatar/")
+                && clean_av.contains("d=identicon")
+            {
+                ""
+            } else {
+                clean_av
+            };
+            Self::upsert_usermeta(&conn, id, "daypress_avatar_url", store_av)?;
         }
 
         drop(conn);
