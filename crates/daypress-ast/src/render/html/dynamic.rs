@@ -1,7 +1,7 @@
 use super::RenderArgs;
 use crate::render::forms::{render_login_form_html, render_search_form_html};
 use crate::render::sanitizer::{escape_attr, with_extra_classes};
-use crate::schema::{NavMenuItem, NodeKind};
+use crate::schema::{DaypressNode, NavMenuItem, NodeKind};
 
 pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
     let RenderArgs {
@@ -21,6 +21,32 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             mobile_hamburger,
             items,
         } => {
+            let mut custom_vars = String::new();
+            for (k, css_var) in [
+                ("hamburger_color", "--dp-hamburger-color"),
+                ("hamburger_bg", "--dp-hamburger-bg"),
+                ("mobile_menu_bg", "--dp-mobile-menu-bg"),
+                ("mobile_menu_text", "--dp-mobile-menu-text"),
+            ] {
+                if let Some(val) = node
+                    .styles
+                    .raw_settings
+                    .as_ref()
+                    .and_then(|m| m.get(k))
+                    .and_then(|v| v.as_str())
+                {
+                    if !val.trim().is_empty() {
+                        custom_vars.push_str(&format!("{}:{};", css_var, escape_attr(val.trim())));
+                    }
+                }
+            }
+            let merged_style = if custom_vars.is_empty() {
+                style_attr.to_string()
+            } else if css.is_empty() {
+                format!(" style=\"{}\"", custom_vars)
+            } else {
+                format!(" style=\"{}{}\"", css, custom_vars)
+            };
             let hamburger_html = if *mobile_hamburger {
                 "<button type=\"button\" class=\"dp-menu-toggle\" aria-label=\"Menu\" onclick=\"this.nextElementSibling.classList.toggle('is-open');\"><span></span><span></span><span></span></button>\n"
             } else {
@@ -31,7 +57,7 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                 escape_attr(layout),
                 escape_attr(align)
             );
-            list_html.push_str(&render_nav_items_recursive(items));
+            list_html.push_str(&render_nav_items_recursive(items, &node.children));
             list_html.push_str("</ul>");
 
             let cls = with_extra_classes("dp-nav-menu", extra_cls);
@@ -40,7 +66,7 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                 escape_attr(&node.id),
                 escape_attr(&cls),
                 escape_attr(menu_slug),
-                style_attr,
+                merged_style,
                 hamburger_html,
                 list_html
             ))
@@ -204,16 +230,37 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
     }
 }
 
-fn render_nav_items_recursive(items: &[NavMenuItem]) -> String {
+fn render_nav_items_recursive(items: &[NavMenuItem], nav_children: &[DaypressNode]) -> String {
     let mut out = String::new();
     for item in items {
         let has_children = !item.children.is_empty();
-        let has_mega = item
-            .mega_menu_html
+        let inline_mega_node = item
+            .mega_menu_node_id
             .as_deref()
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false)
-            || item.mega_menu_template_id.unwrap_or(0) > 0;
+            .filter(|id| !id.trim().is_empty())
+            .and_then(|id| nav_children.iter().find(|c| c.id == id));
+
+        let resolved_mega_html: Option<String> = if let Some(mega_node) = inline_mega_node {
+            let rendered = super::render_node_to_html(mega_node);
+            if !rendered.trim().is_empty() {
+                Some(rendered)
+            } else {
+                item.mega_menu_html
+                    .as_ref()
+                    .filter(|s| !s.trim().is_empty())
+                    .cloned()
+            }
+        } else {
+            item.mega_menu_html
+                .as_ref()
+                .filter(|s| !s.trim().is_empty())
+                .cloned()
+        };
+
+        let has_mega = resolved_mega_html.is_some()
+            || item.mega_menu_template_id.unwrap_or(0) > 0
+            || inline_mega_node.is_some();
+
         let li_class = if has_mega {
             "menu-item menu-item-has-children menu-item-has-megamenu dp-nav-item"
         } else if has_children {
@@ -249,27 +296,45 @@ fn render_nav_items_recursive(items: &[NavMenuItem]) -> String {
             .filter(|s| !s.trim().is_empty())
             .map(|d| format!(r#"<span class="dp-nav-desc">{}</span>"#, escape_attr(d)))
             .unwrap_or_default();
+        let caret_html = if has_mega || has_children {
+            r#" <i class="fa-solid fa-chevron-down dp-nav-caret" aria-hidden="true"></i>"#
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            r#"<li class="{}"><a href="{}" class="dp-nav-link"{}>{}{}{}{}</a>"#,
+            r#"<li class="{}"><a href="{}" class="dp-nav-link"{}>{}{}{}{}{}</a>"#,
             li_class,
             escape_attr(&item.url),
             target_attr,
             icon_html,
             escape_attr(&item.title),
             badge_html,
+            caret_html,
             desc_html
         ));
-        if let Some(ref mega_html) = item.mega_menu_html {
-            if !mega_html.trim().is_empty() {
-                out.push_str(&format!(
-                    r#"<div class="dp-megamenu-dropdown" data-mega-template-id="{}">{}</div>"#,
-                    item.mega_menu_template_id.unwrap_or(0),
-                    mega_html
-                ));
-            }
+        if let Some(ref mega_html) = resolved_mega_html {
+            let width_style = item
+                .mega_menu_width
+                .as_deref()
+                .filter(|w| !w.trim().is_empty())
+                .map(|w| format!(r#" style="width: {}; max-width: 94vw;""#, escape_attr(w)))
+                .unwrap_or_default();
+            let node_id_attr = item
+                .mega_menu_node_id
+                .as_deref()
+                .filter(|id| !id.trim().is_empty())
+                .map(|id| format!(r#" data-mega-node-id="{}""#, escape_attr(id)))
+                .unwrap_or_default();
+            out.push_str(&format!(
+                r#"<div class="dp-megamenu-dropdown" data-mega-template-id="{}"{}{}>{}</div>"#,
+                item.mega_menu_template_id.unwrap_or(0),
+                node_id_attr,
+                width_style,
+                mega_html
+            ));
         } else if has_children {
             out.push_str(r#"<ul class="sub-menu">"#);
-            out.push_str(&render_nav_items_recursive(&item.children));
+            out.push_str(&render_nav_items_recursive(&item.children, nav_children));
             out.push_str("</ul>");
         }
         out.push_str("</li>\n");

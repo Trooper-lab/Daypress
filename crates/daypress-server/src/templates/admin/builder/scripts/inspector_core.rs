@@ -20,7 +20,11 @@ pub const JS_INSPECTOR_CORE: &str = r###"
 
         if (window.applyForcedState) window.applyForcedState();
 
-        if (!node) {
+        if (!node || node.id === "root") {
+            if (window.renderBodyPageInspector) {
+                window.renderBodyPageInspector(inspector);
+                return;
+            }
             inspector.innerHTML = `
                 <div class="inspector-empty-state">
                     <i class="fa-solid fa-arrow-pointer inspector-empty-icon"></i>

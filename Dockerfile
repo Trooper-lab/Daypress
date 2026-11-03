@@ -2,12 +2,13 @@
 
 # ---- Build stage -------------------------------------------------------------------------
 FROM rust:1-bookworm AS build
+ARG TARGETPLATFORM
 WORKDIR /src
 COPY . .
 # The cache mounts keep the crate registry and build output between builds; the binary is
 # copied out because cache mounts are not part of the image.
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/src/target \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/src/target,id=daypress-target-${TARGETPLATFORM},sharing=locked \
     cargo build --release --locked -p daypress-server --bin daypress \
     && cp target/release/daypress /usr/local/bin/daypress
 

@@ -65,6 +65,7 @@ pub const JS_CANVAS_RENDER: &str = r###"
 
         const state = window.DayStudioState;
         if (!state.pageAst || !state.pageAst.root) return;
+        if (window.applyRootBodyStylesToCanvas) window.applyRootBodyStylesToCanvas();
 
         for (const child of (state.pageAst.root.children || [])) {
             const childEl = buildDomNode(child);
@@ -95,6 +96,7 @@ pub const JS_CANVAS_RENDER: &str = r###"
         el.classList.add("daystudio-node", "node-" + (node.type || "unknown").toLowerCase());
 
         if (window.applyNodeStyles) window.applyNodeStyles(el, node);
+        if (window.applyDynamicCanvasPreview) window.applyDynamicCanvasPreview(el, node);
 
         const isLocked = node.data && node.data._locked;
         if (node.id !== "root" && !isLocked) {
@@ -134,7 +136,7 @@ pub const JS_CANVAS_RENDER: &str = r###"
             e.dataTransfer.dropEffect = window._draggedPaletteType ? "copy" : "move";
             const rect = el.getBoundingClientRect();
             const relY = e.clientY - rect.top;
-            const isContainer = ["Section", "Container", "Column", "Grid", "Flex"].includes(node.type);
+            const isContainer = ["Section", "Container", "Column", "Grid", "Flex", "MegaMenuContainer"].includes(node.type);
             let pos = relY < rect.height * 0.5 ? "before" : "after";
             if (isContainer && relY >= rect.height * 0.25 && relY <= rect.height * 0.75) {
                 pos = "inside";
@@ -188,6 +190,10 @@ pub const JS_CANVAS_RENDER: &str = r###"
         if (["Heading", "Text", "Button"].includes(node.type) && !isLocked) {
             el.addEventListener("dblclick", (e) => {
                 e.stopPropagation();
+                if (node.styles && node.styles.raw_settings && node.styles.raw_settings["data-dynamic"]) {
+                    if (window.showToast) window.showToast("Bound to Dynamic Field — unbind in Inspector to edit static text", "info");
+                    return;
+                }
                 el.contentEditable = "true";
                 el.focus();
                 const onBlur = () => {
@@ -324,8 +330,11 @@ pub const JS_CANVAS_RENDER: &str = r###"
             case "Video": {
                 el = document.createElement("div");
                 el.className = "dp-video";
-                const url = (node.data && node.data.url) || "https://www.youtube.com/embed/dQw4w9WgXcQ";
-                el.innerHTML = `<iframe src="${url}" style="width:100%; aspect-ratio: 16/9; border:none; border-radius:8px;" allowfullscreen></iframe>`;
+                let url = (node.data && node.data.url) || "https://www.youtube.com/embed/dQw4w9WgXcQ";
+                const ytMatch = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/.exec(url) || /youtu\.be\/([a-zA-Z0-9_-]+)/.exec(url);
+                if (ytMatch) url = `https://www.youtube.com/embed/${ytMatch[1]}`;
+                const ratio = String((node.data && node.data.aspect_ratio) || "16:9").replace(":", "/");
+                el.innerHTML = `<iframe src="${url}" style="width:100%; aspect-ratio: ${ratio}; border:none; border-radius:8px;" allowfullscreen></iframe>`;
                 break;
             }
             case "Spacer": {
@@ -338,7 +347,8 @@ pub const JS_CANVAS_RENDER: &str = r###"
             case "Divider": {
                 el = document.createElement("hr");
                 el.className = "dp-divider";
-                el.style.borderTop = "1px solid #e2e8f0";
+                const lineStyle = (node.data && node.data.style) || "solid";
+                el.style.borderTop = `1px ${lineStyle} #cbd5e1`;
                 el.style.margin = "20px 0";
                 break;
             }

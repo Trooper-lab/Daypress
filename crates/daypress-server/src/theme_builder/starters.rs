@@ -722,6 +722,68 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
                 }]),
             })
         }
+        "mega-menu-product-symbol" => {
+            let mut root_styles = StyleProperties::default();
+            root_styles.padding = Some(make_spacing("24px", "28px", "24px", "28px"));
+
+            let heading = make_node(
+                "mega-menu-heading",
+                NodeKind::Heading {
+                    text: "Platform Capabilities & Solutions".to_string(),
+                    level: 3,
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let desc = make_node(
+                "mega-menu-desc",
+                NodeKind::Text {
+                    content_html: "<p>Sub-millisecond Rust SSR, visual theme architecture, and 1-click WordPress migration.</p>".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+            let cta = make_node(
+                "mega-menu-cta",
+                NodeKind::Button {
+                    text: "Explore Documentation".to_string(),
+                    url: "/".to_string(),
+                    target: "_self".to_string(),
+                },
+                StyleProperties::default(),
+                vec![],
+            );
+
+            let root = make_node(
+                "mega-menu-symbol-root",
+                NodeKind::Section,
+                root_styles,
+                vec![heading, desc, cta],
+            );
+            let layout = DaypressLayout {
+                version: 1,
+                root,
+                global_styles: None,
+            };
+
+            Some(CreateTemplateRequest {
+                title: "Product Mega Menu Panel Symbol".to_string(),
+                template_type: TemplateType::SectionSymbol,
+                status: Some("publish".to_string()),
+                layout: Some(layout),
+                layout_json: None,
+                settings: Some(TemplateSettings::default()),
+                priority: Some(10),
+                is_active: Some(true),
+                conditions: Some(vec![CreateConditionDto {
+                    id: None,
+                    condition_type: ConditionType::Exclude,
+                    rule_target: RuleTarget::EntireSite,
+                    target_id: String::new(),
+                    priority: 10,
+                }]),
+            })
+        }
         _ => None,
     }
 }

@@ -22,8 +22,8 @@ pub const CSS_BOX_MODEL: &str = r#"
 
 .day-box-margin-outer {
     position: relative;
-    background: rgba(245, 158, 11, 0.06);
-    border: 1px dashed rgba(245, 158, 11, 0.35);
+    background: var(--day-token-tint, rgba(245, 158, 11, 0.06));
+    border: 1px dashed var(--day-token-border, rgba(245, 158, 11, 0.35));
     border-radius: var(--day-radius-sm);
     padding: 24px 34px;
     display: flex;
@@ -33,7 +33,7 @@ pub const CSS_BOX_MODEL: &str = r#"
 }
 
 .day-box-margin-outer:hover {
-    background: rgba(245, 158, 11, 0.10);
+    background: rgba(230, 184, 74, 0.16);
 }
 
 .day-box-label {
@@ -63,7 +63,7 @@ pub const CSS_BOX_MODEL: &str = r#"
 
 .day-box-facet:hover {
     color: var(--day-signal-light);
-    background: rgba(37, 99, 235, 0.18);
+    background: var(--day-signal-subtle);
 }
 
 .day-box-facet.facet-top    { top: 3px; left: 50%; transform: translateX(-50%); height: 18px; min-width: 32px; }
@@ -73,8 +73,8 @@ pub const CSS_BOX_MODEL: &str = r#"
 
 .day-box-padding-inner {
     position: relative;
-    background: rgba(37, 99, 235, 0.07);
-    border: 1px solid rgba(37, 99, 235, 0.35);
+    background: var(--day-signal-tint, rgba(37, 99, 235, 0.07));
+    border: 1px solid var(--day-signal-border, rgba(37, 99, 235, 0.35));
     border-radius: 2px;
     padding: 20px 30px;
     display: flex;
@@ -84,7 +84,7 @@ pub const CSS_BOX_MODEL: &str = r#"
 }
 
 .day-box-padding-inner:hover {
-    background: rgba(37, 99, 235, 0.12);
+    background: var(--day-signal-subtle);
 }
 
 .day-box-content-core {

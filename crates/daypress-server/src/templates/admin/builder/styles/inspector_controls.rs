@@ -224,7 +224,7 @@ pub const CSS_INSPECTOR_CONTROLS: &str = r#"
     line-height: 1.4;
 }
 
-/* Panel header dot when the panel has values on the current layer */
+/* Panel header dot and reset button when the panel has values on the current layer */
 .panel-set-dot {
     display: none;
     width: 5px;
@@ -235,6 +235,54 @@ pub const CSS_INSPECTOR_CONTROLS: &str = r#"
 }
 .cad-panel.has-values .panel-set-dot {
     display: inline-block;
+}
+.panel-reset-btn {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 0 6px;
+    font-size: 9.5px;
+    font-family: var(--day-font-mono);
+    background: rgba(147, 161, 255, 0.1);
+    border: 1px solid rgba(147, 161, 255, 0.28);
+    color: var(--day-signal-light);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+.cad-panel.has-values .panel-reset-btn {
+    display: inline-flex;
+}
+.panel-reset-btn:hover {
+    background: var(--day-crimson-tint);
+    border-color: var(--day-crimson);
+    color: var(--day-crimson);
+}
+.ns-prop-reset {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid rgba(147, 161, 255, 0.28);
+    background: rgba(147, 161, 255, 0.1);
+    color: var(--day-signal-light);
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 11px;
+    line-height: 1;
+    transition: all 0.12s ease;
+}
+.ns-prop-reset.is-active {
+    display: inline-flex;
+}
+.ns-prop-reset:hover {
+    background: var(--day-crimson-tint);
+    border-color: var(--day-crimson);
+    color: var(--day-crimson);
 }
 
 /* Selector bar: layer info, reset, state dots */

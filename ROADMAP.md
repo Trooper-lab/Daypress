@@ -12,7 +12,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
 | **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
 | **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
-| **`0.5.0`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Early preview (Now)** |
+| **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Early preview (Now)** |
 | **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Up next** |
 | **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | Planned |
 | **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |

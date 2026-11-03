@@ -192,9 +192,11 @@ pub const JS_CORE_STATE: &str = r###"
 
         // Hide the static SSR header/footer preview shells when editing a Header or Footer template
         // so the header/footer is never rendered twice on the artboard.
-        const isHeaderOrFooterTpl = (ctx.type === "template" && (ctx.templateType === "header" || ctx.templateType === "footer"))
+        const isHeaderOrFooterTpl = (ctx.type === "template" && ["header", "footer", "section_symbol", "popup"].includes(ctx.templateType))
             || state.postType === "template:header"
-            || state.postType === "template:footer";
+            || state.postType === "template:footer"
+            || state.postType === "template:section_symbol"
+            || state.postType === "template:popup";
         if (ssrHeader) ssrHeader.style.display = isHeaderOrFooterTpl ? "none" : "";
         if (ssrFooter) ssrFooter.style.display = isHeaderOrFooterTpl ? "none" : "";
 

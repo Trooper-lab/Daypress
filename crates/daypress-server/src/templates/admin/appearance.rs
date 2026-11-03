@@ -483,26 +483,50 @@ pub fn render_nav_menus_view(
     let mut existing_menu_cards = String::new();
     if settings.nav_menu_items.is_empty() {
         existing_menu_cards.push_str(
-            r#"<div class="day-card menu-item-card" data-title="Home" data-url="/" style="padding: 12px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;">
-                <span class="menu-item-title" style="font-weight: 600; font-size: 13px;">Home</span>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <span class="menu-item-url" style="font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono);">/</span>
-                    <button onclick="this.closest('.day-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+            r#"<div class="day-card menu-item-card" data-title="Home" data-url="/" data-badge="" data-desc="" data-mega="0" style="padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="text" class="form-input menu-item-title-input" value="Home" style="font-weight: 600; font-size: 13px; width: 180px; padding: 5px 8px;">
+                        <input type="text" class="form-input menu-item-url-input" value="/" style="font-size: 12px; font-family: var(--font-mono); width: 180px; padding: 5px 8px;">
+                    </div>
+                    <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr 220px; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
+                    <input type="text" class="form-input menu-item-badge-input" placeholder="Badge (e.g. New)" value="" style="font-size: 11.5px; padding: 4px 8px;">
+                    <input type="text" class="form-input menu-item-desc-input" placeholder="Optional subtitle / description" value="" style="font-size: 11.5px; padding: 4px 8px;">
+                    <select class="form-select menu-item-mega-select" data-selected-mega="0" style="font-size: 11.5px; padding: 4px 8px;">
+                        <option value="0">Standard Link (No Mega Menu)</option>
+                    </select>
                 </div>
             </div>"#,
         );
     } else {
         for item in &settings.nav_menu_items {
+            let badge = item.badge.as_deref().unwrap_or("");
+            let desc = item.description.as_deref().unwrap_or("");
+            let mega_id = item.mega_menu_template_id.unwrap_or(0);
             existing_menu_cards.push_str(&format!(
-                r#"<div class="day-card menu-item-card" data-title="{title}" data-url="{url}" style="padding: 12px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;">
-                    <span class="menu-item-title" style="font-weight: 600; font-size: 13px;">{title}</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span class="menu-item-url" style="font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono);">{url}</span>
-                        <button onclick="this.closest('.day-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+                r#"<div class="day-card menu-item-card" data-title="{title}" data-url="{url}" data-badge="{badge}" data-desc="{desc}" data-mega="{mega_id}" style="padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <input type="text" class="form-input menu-item-title-input" value="{title}" style="font-weight: 600; font-size: 13px; width: 180px; padding: 5px 8px;">
+                            <input type="text" class="form-input menu-item-url-input" value="{url}" style="font-size: 12px; font-family: var(--font-mono); width: 180px; padding: 5px 8px;">
+                        </div>
+                        <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 140px 1fr 220px; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
+                        <input type="text" class="form-input menu-item-badge-input" placeholder="Badge (e.g. New)" value="{badge}" style="font-size: 11.5px; padding: 4px 8px;">
+                        <input type="text" class="form-input menu-item-desc-input" placeholder="Optional subtitle / description" value="{desc}" style="font-size: 11.5px; padding: 4px 8px;">
+                        <select class="form-select menu-item-mega-select" data-selected-mega="{mega_id}" style="font-size: 11.5px; padding: 4px 8px;">
+                            <option value="0">Standard Link (No Mega Menu)</option>
+                        </select>
                     </div>
                 </div>"#,
                 title = escape_html(&item.title),
                 url = escape_html(&item.url),
+                badge = escape_html(badge),
+                desc = escape_html(desc),
+                mega_id = mega_id,
             ));
         }
     }
@@ -512,14 +536,15 @@ pub fn render_nav_menus_view(
         <div class="page-header">
             <div>
                 <h1 class="page-title">Menus</h1>
-                <p class="page-subtitle">Configure site navigation structures and link hierarchies</p>
+                <p class="page-subtitle">Configure site navigation hierarchy, link badges, and Synced Symbol Mega Menu dropdowns</p>
             </div>
-            <div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <a href="/d-admin/symbols" class="btn btn-secondary">Manage Mega Menu Symbols</a>
                 <button type="button" class="btn btn-primary" onclick="saveNavMenu()">Save Menu</button>
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 340px 1fr; gap: 24px;">
+        <div style="display: grid; grid-template-columns: 320px 1fr; gap: 24px;">
             <!-- Left: Add Items -->
             <div style="display: flex; flex-direction: column; gap: 20px;">
                 <div class="day-card" style="padding: 20px;">
@@ -551,59 +576,115 @@ pub fn render_nav_menus_view(
                         <label style="font-size: 13px; font-weight: 600;">Menu Name:</label>
                         <input type="text" id="menuName" value="Primary Navigation" class="form-input" style="width: 220px;">
                     </div>
-                    <span style="font-size: 12px; color: var(--ink-muted);">Header Location: ✓ Active</span>
+                    <span style="font-size: 12px; color: var(--ink-muted);">Header Location: Active</span>
                 </div>
 
-                <h4 style="font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px;">Menu Structure</h4>
-                <p style="font-size: 12.5px; color: var(--ink-muted); margin-bottom: 16px;">Reorder items by dragging or clicking to organize your site navigation.</p>
+                <h4 style="font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px;">Menu Structure &amp; Mega Menu Panels</h4>
+                <p style="font-size: 12.5px; color: var(--ink-muted); margin-bottom: 16px;">Configure link labels, optional highlight badges, and attach any Synced Symbol as an interactive Mega Menu dropdown panel.</p>
 
-                <div id="menuItemsList" style="display: flex; flex-direction: column; gap: 8px;">
+                <div id="menuItemsList" style="display: flex; flex-direction: column; gap: 10px;">
                     {existing_menu_cards}
                 </div>
             </div>
         </div>
 
         <script>
+            let navAvailableSymbols = [];
+
+            function buildMegaSelectOptionsHtml(selectedId) {{
+                const selNum = Number(selectedId) || 0;
+                let html = `<option value="0" ${{selNum === 0 ? 'selected' : ''}}>Standard Link (No Mega Menu)</option>`;
+                navAvailableSymbols.forEach(s => {{
+                    html += `<option value="${{s.id}}" ${{selNum === Number(s.id) ? 'selected' : ''}}>Mega Menu: ${{s.title}} (#${{s.id}})</option>`;
+                }});
+                return html;
+            }}
+
+            function refreshAllMegaMenuDropdowns() {{
+                document.querySelectorAll('#menuItemsList .menu-item-mega-select').forEach(sel => {{
+                    const cur = sel.getAttribute('data-selected-mega') || sel.value || '0';
+                    sel.innerHTML = buildMegaSelectOptionsHtml(cur);
+                    sel.value = String(Number(cur) || 0);
+                }});
+            }}
+
+            async function loadNavMenuSymbols() {{
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/templates?template_type=section_symbol', {{ credentials: 'same-origin' }});
+                    if (res.ok) {{
+                        const list = await res.json();
+                        navAvailableSymbols = Array.isArray(list) ? list : [];
+                        refreshAllMegaMenuDropdowns();
+                    }}
+                }} catch (e) {{}}
+            }}
+
+            function createMenuItemCard(title, url) {{
+                const item = document.createElement('div');
+                item.className = 'day-card menu-item-card';
+                item.style = 'padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;';
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <input type="text" class="form-input menu-item-title-input" value="" style="font-weight: 600; font-size: 13px; width: 180px; padding: 5px 8px;">
+                            <input type="text" class="form-input menu-item-url-input" value="" style="font-size: 12px; font-family: var(--font-mono); width: 180px; padding: 5px 8px;">
+                        </div>
+                        <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 140px 1fr 220px; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
+                        <input type="text" class="form-input menu-item-badge-input" placeholder="Badge (e.g. New)" value="" style="font-size: 11.5px; padding: 4px 8px;">
+                        <input type="text" class="form-input menu-item-desc-input" placeholder="Optional subtitle / description" value="" style="font-size: 11.5px; padding: 4px 8px;">
+                        <select class="form-select menu-item-mega-select" data-selected-mega="0" style="font-size: 11.5px; padding: 4px 8px;">
+                            ${{buildMegaSelectOptionsHtml(0)}}
+                        </select>
+                    </div>
+                `;
+                item.querySelector('.menu-item-title-input').value = title;
+                item.querySelector('.menu-item-url-input').value = url;
+                return item;
+            }}
+
             function addSelectedPages() {{
                 const list = document.getElementById('menuItemsList');
                 document.querySelectorAll('.page-menu-chk:checked').forEach(chk => {{
                     const title = chk.getAttribute('data-title');
                     const url = chk.getAttribute('data-url');
-                    const item = document.createElement('div');
-                    item.className = 'day-card menu-item-card';
-                    item.setAttribute('data-title', title);
-                    item.setAttribute('data-url', url);
-                    item.style = 'padding: 12px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;';
-                    item.innerHTML = '<span class="menu-item-title" style="font-weight: 600; font-size: 13px;">' + title + '</span><div style="display: flex; gap: 8px; align-items: center;"><span class="menu-item-url" style="font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono);">' + url + '</span><button onclick="this.closest(\'.day-card\').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button></div>';
-                    list.appendChild(item);
+                    list.appendChild(createMenuItemCard(title, url));
                     chk.checked = false;
                 }});
-                showToast('✓ Pages added to menu');
+                showToast('Pages added to menu');
             }}
+
             function addCustomLink() {{
                 const url = document.getElementById('customLinkUrl').value;
                 const text = document.getElementById('customLinkText').value;
                 if (!text || !url) return;
                 const list = document.getElementById('menuItemsList');
-                const item = document.createElement('div');
-                item.className = 'day-card menu-item-card';
-                item.setAttribute('data-title', text);
-                item.setAttribute('data-url', url);
-                item.style = 'padding: 12px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;';
-                item.innerHTML = '<span class="menu-item-title" style="font-weight: 600; font-size: 13px;">' + text + '</span><div style="display: flex; gap: 8px; align-items: center;"><span class="menu-item-url" style="font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono);">' + url + '</span><button onclick="this.closest(\'.day-card\').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button></div>';
-                list.appendChild(item);
+                list.appendChild(createMenuItemCard(text, url));
                 document.getElementById('customLinkText').value = '';
-                showToast('✓ Custom link added to menu');
+                showToast('Custom link added to menu');
             }}
+
             async function saveNavMenu() {{
-                const items = Array.from(document.querySelectorAll('#menuItemsList .menu-item-card')).map((card, idx) => ({{
-                    id: idx + 1,
-                    title: card.getAttribute('data-title') || card.querySelector('.menu-item-title').textContent.trim(),
-                    url: card.getAttribute('data-url') || card.querySelector('.menu-item-url').textContent.trim(),
-                    target: '',
-                    parent: 0,
-                    menu_order: idx + 1
-                }}));
+                const items = Array.from(document.querySelectorAll('#menuItemsList .menu-item-card')).map((card, idx) => {{
+                    const title = card.querySelector('.menu-item-title-input')?.value.trim() || card.getAttribute('data-title') || 'Item';
+                    const url = card.querySelector('.menu-item-url-input')?.value.trim() || card.getAttribute('data-url') || '/';
+                    const badge = card.querySelector('.menu-item-badge-input')?.value.trim() || '';
+                    const desc = card.querySelector('.menu-item-desc-input')?.value.trim() || '';
+                    const megaVal = parseInt(card.querySelector('.menu-item-mega-select')?.value || '0', 10) || 0;
+                    const dto = {{
+                        id: idx + 1,
+                        title,
+                        url,
+                        target: '',
+                        parent: 0,
+                        menu_order: idx + 1
+                    }};
+                    if (badge) dto.badge = badge;
+                    if (desc) dto.description = desc;
+                    if (megaVal > 0) dto.mega_menu_template_id = megaVal;
+                    return dto;
+                }});
                 try {{
                     const res = await fetch('/d-admin/api/menus', {{
                         method: 'POST',
@@ -611,7 +692,7 @@ pub fn render_nav_menus_view(
                         body: JSON.stringify({{ items }})
                     }});
                     if (res.ok) {{
-                        showToast('✓ Navigation menu updated and saved in SQLite!');
+                        showToast('Navigation menu and Mega Menu bindings saved to SQLite');
                     }} else {{
                         showToast('Failed to save navigation menu', true);
                     }}
@@ -619,6 +700,8 @@ pub fn render_nav_menus_view(
                     showToast('Network error: ' + e, true);
                 }}
             }}
+
+            document.addEventListener('DOMContentLoaded', loadNavMenuSymbols);
         </script>
         "##,
         page_items = page_items,

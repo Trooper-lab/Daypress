@@ -36,8 +36,9 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
                         <select class="btn-unit-cycle" id="btn-cycle-box-unit" title="Default unit for scrubbing and unit-less values">${unitOpts}</select>
                     </div>
                     <div style="display:flex;gap:4px;">
-                        <button class="btn-link-quads" id="btn-box-center" title="Center horizontally (margin-left/right: auto)"><i class="fa-solid fa-arrows-left-right-to-line"></i></button>
-                        <button class="btn-link-quads ${isLinked ? 'is-linked' : ''}" id="btn-toggle-box-link" title="Link all 4 sides"><i class="fa-solid fa-link"></i></button>
+                        <button type="button" class="btn-link-quads" id="btn-box-center" title="Center horizontally (margin-left/right: auto)"><i class="fa-solid fa-arrows-left-right-to-line"></i></button>
+                        <button type="button" class="btn-link-quads ${isLinked ? 'is-linked' : ''}" id="btn-toggle-box-link" title="Link all 4 sides"><i class="fa-solid fa-link"></i></button>
+                        <button type="button" class="btn-link-quads" id="btn-box-reset" title="Reset all Margin & Padding on this layer"><i class="fa-solid fa-rotate-left"></i></button>
                     </div>
                 </div>
             </div>
@@ -60,6 +61,13 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
             window.setLocalStyles({ margin_left: "auto", margin_right: "auto" }, { commit: true });
             paint(boxContainer, node);
         };
+        boxContainer.querySelector("#btn-box-reset").onclick = () => {
+            const map = {};
+            SIDES.forEach(s => { map["margin_" + s] = ""; map["padding_" + s] = ""; });
+            window.setLocalStyles(map, { commit: true });
+            paint(boxContainer, node);
+            if (window.showToast) window.showToast("Reset margin & padding");
+        };
     }
     window.renderBoxModelWidget = renderBoxModelWidget;
 
@@ -77,16 +85,19 @@ pub const JS_INSPECTOR_BOX_MODEL: &str = r###"
     }
 
     function paint(container, node) {
+        let anySet = false;
         container.querySelectorAll(".day-box-facet").forEach(f => {
             const prop = f.dataset.prop;
             const val = window.getLayerValue(node, prop);
             const inh = window.getInheritedValue(node, prop);
             const span = f.querySelector(".day-val");
             f.classList.remove("is-set", "is-inherited", "is-computed");
-            if (val) { span.textContent = displayVal(val); f.classList.add("is-set"); }
+            if (val) { span.textContent = displayVal(val); f.classList.add("is-set"); anySet = true; }
             else if (inh) { span.textContent = displayVal(inh); f.classList.add("is-inherited"); }
             else { span.textContent = computedPx(node, prop); f.classList.add("is-computed"); }
         });
+        const rstBtn = container.querySelector("#btn-box-reset");
+        if (rstBtn) rstBtn.classList.toggle("is-linked", anySet);
         const el = window.NSInspector ? window.NSInspector.canvasEl(node) : null;
         const core = container.querySelector(".day-box-content-core");
         if (core) core.innerHTML = el ? `${Math.round(el.offsetWidth)} &times; ${Math.round(el.offsetHeight)}` : "&mdash;";

@@ -51,9 +51,25 @@ pub const JS_API_CLIENT: &str = r###"
                 });
 
                 if (res.ok) {
+                    if (state.currentContext.type !== "template" && state.pageMetaDirty && state.postId > 0) {
+                        const rootData = (state.pageAst && state.pageAst.root && state.pageAst.root.data) || {};
+                        const wpRestCollection = state.postType === "post" ? "posts" : "pages";
+                        await fetch(`/wp-json/wp/v2/${wpRestCollection}/${state.postId}`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "X-WP-Nonce": restNonce() },
+                            credentials: "include",
+                            body: JSON.stringify({
+                                title: state.currentContext.title,
+                                slug: state.currentContext.slug,
+                                status: rootData.status || "publish",
+                                excerpt: rootData.seo_description || ""
+                            })
+                        }).catch(() => {});
+                        state.pageMetaDirty = false;
+                    }
                     window.markDirty(false);
                     if (btnSaveText) btnSaveText.textContent = "Publish";
-                    if (window.showToast) window.showToast("Layout saved to SQLite successfully");
+                    if (window.showToast) window.showToast("Layout & Page Settings saved to SQLite");
                 } else {
                     const errJson = await res.json().catch(() => ({}));
                     console.error("Save error response:", errJson);

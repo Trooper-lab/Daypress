@@ -244,6 +244,9 @@ pub fn render_admin_shell(
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/headers-footers" class="nav-subitem {sub_app_hf}">Header &amp; Footer</a>
+					<a href="/d-admin/theme-layouts" class="nav-subitem {sub_app_layouts}">Theme Layouts</a>
+					<a href="/d-admin/symbols" class="nav-subitem {sub_app_symbols}">Synced Symbols</a>
+					<a href="/d-admin/popups" class="nav-subitem {sub_app_popups}">Popups &amp; Bars</a>
 					<a href="/d-admin/customize" class="nav-subitem {sub_app_cust}">Customize</a>
 					<a href="/d-admin/nav-menus" class="nav-subitem {sub_app_menus}">Menus</a>
 				</div>
@@ -377,7 +380,13 @@ pub fn render_admin_shell(
 		['Categories', '/d-admin/edit-tags?taxonomy=category'], ['Tags', '/d-admin/edit-tags?taxonomy=post_tag'],
 		['Media Library', '/d-admin/upload'], ['Upload Media', '/d-admin/media-new'],
 		['All Pages', '/d-admin/edit?post_type=page'], ['Add New Page', '/d-admin/post-new?post_type=page'],
-		['Comments', '/d-admin/edit-comments'], ['Themes', '/d-admin/themes'], ['Header & Footer Manager', '/d-admin/headers-footers'], ['Customize', '/d-admin/customize'],
+		['Comments', '/d-admin/edit-comments'], ['Themes', '/d-admin/themes'],
+		['Header & Footer Manager', '/d-admin/headers-footers'],
+		['Page Assignment Matrix', '/d-admin/headers-footers?tab=matrix'],
+		['Theme Layouts', '/d-admin/theme-layouts'],
+		['Synced Symbols', '/d-admin/symbols'],
+		['Popups & Announcement Bars', '/d-admin/popups'],
+		['Customize', '/d-admin/customize'],
 		['Widgets', '/d-admin/widgets'], ['Menus', '/d-admin/nav-menus'], ['Theme File Editor', '/d-admin/theme-editor'],
 		['Installed Plugins', '/d-admin/plugins'], ['Add New Plugin', '/d-admin/plugin-install'],
 		['Forms Studio', '/d-admin/forms'], ['Users', '/d-admin/users'], ['Add New User', '/d-admin/user-new'],
@@ -547,6 +556,9 @@ pub fn render_admin_shell(
         is_appearance = nav.is_appearance,
         is_app_open = nav.is_app_open,
         sub_app_hf = nav.sub_app_hf,
+        sub_app_layouts = nav.sub_app_layouts,
+        sub_app_symbols = nav.sub_app_symbols,
+        sub_app_popups = nav.sub_app_popups,
         sub_app_cust = nav.sub_app_cust,
         sub_app_menus = nav.sub_app_menus,
         is_plugins = nav.is_plugins,

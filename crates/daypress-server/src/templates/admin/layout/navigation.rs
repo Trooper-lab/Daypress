@@ -81,6 +81,9 @@ pub struct NavState {
     pub is_app_open: &'static str,
     pub sub_app_themes: &'static str,
     pub sub_app_hf: &'static str,
+    pub sub_app_layouts: &'static str,
+    pub sub_app_symbols: &'static str,
+    pub sub_app_popups: &'static str,
     pub sub_app_cust: &'static str,
     pub sub_app_widg: &'static str,
     pub sub_app_menus: &'static str,
@@ -206,6 +209,9 @@ impl NavState {
             || current_tab == "themes"
             || current_tab == "headers-footers"
             || current_tab == "theme-builder"
+            || current_tab == "theme-layouts"
+            || current_tab == "symbols"
+            || current_tab == "popups"
             || current_tab == "customize"
             || current_tab == "widgets"
             || current_tab == "menus"
@@ -225,7 +231,22 @@ impl NavState {
         } else {
             ""
         };
-        let sub_app_hf = if current_tab == "headers-footers" || current_tab == "theme-builder" {
+        let sub_app_hf = if current_tab == "headers-footers" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_app_layouts = if current_tab == "theme-layouts" || current_tab == "theme-builder" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_app_symbols = if current_tab == "symbols" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_app_popups = if current_tab == "popups" {
             "active"
         } else {
             ""
@@ -435,6 +456,9 @@ impl NavState {
             is_app_open,
             sub_app_themes,
             sub_app_hf,
+            sub_app_layouts,
+            sub_app_symbols,
+            sub_app_popups,
             sub_app_cust,
             sub_app_widg,
             sub_app_menus,

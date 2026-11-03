@@ -785,3 +785,322 @@ async fn test_header_footer_manager_matrix_page_assignments_and_ssr() {
     assert!(pages_table_html.contains("Header &amp; Footer"));
     assert!(pages_table_html.contains("Built-in Theme Header"));
 }
+
+#[tokio::test]
+async fn test_dedicated_theme_layouts_symbols_popups_admin_pages_and_mega_menu_binding() {
+    let db = Database::new_in_memory().expect("Failed in-memory DB");
+    let app = create_app(db.clone());
+
+    // 1. Install Mega Menu Product Symbol starter
+    let sym_resp = app
+        .clone()
+        .oneshot(auth_post(
+            "/wp-json/daypress/v1/templates/starter",
+            serde_json::json!({ "starter_id": "mega-menu-product-symbol" }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(sym_resp.status(), StatusCode::CREATED);
+    let sym_record: ThemeTemplateRecord =
+        serde_json::from_slice(&to_bytes(sym_resp.into_body(), usize::MAX).await.unwrap()).unwrap();
+    assert_eq!(sym_record.template_type, TemplateType::SectionSymbol);
+
+    // 2. Bind Symbol to a Primary Navigation Menu item via /d-admin/api/menus
+    let menu_save_resp = app
+        .clone()
+        .oneshot(auth_post(
+            "/d-admin/api/menus",
+            serde_json::json!({
+                "items": [
+                    {
+                        "id": 1,
+                        "title": "Products",
+                        "url": "/products/",
+                        "badge": "New",
+                        "description": "Platform capabilities",
+                        "mega_menu_template_id": sym_record.id
+                    }
+                ]
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(menu_save_resp.status(), StatusCode::OK);
+
+    // 3. Verify /d-admin/theme-layouts renders its dedicated screen
+    let layouts_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/theme-layouts")
+                .header("Authorization", auth_header())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(layouts_resp.status(), StatusCode::OK);
+    let layouts_html = String::from_utf8(
+        to_bytes(layouts_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(layouts_html.contains("<h1 class=\"page-title\">Theme Layouts</h1>"));
+    assert!(layouts_html.contains("{{post.title}}"));
+    assert!(layouts_html.contains("{{archive.title}}"));
+
+    // 4. Verify /d-admin/symbols renders its dedicated screen with the bound Mega Menu item
+    let symbols_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/symbols")
+                .header("Authorization", auth_header())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(symbols_resp.status(), StatusCode::OK);
+    let symbols_html = String::from_utf8(
+        to_bytes(symbols_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(symbols_html.contains("<h1 class=\"page-title\">Synced Symbols</h1>"));
+    assert!(symbols_html.contains("Product Mega Menu Panel Symbol"));
+    assert!(symbols_html.contains("mega_menu_template_id"));
+
+    // 5. Verify /d-admin/popups renders its dedicated screen
+    let popups_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/popups")
+                .header("Authorization", auth_header())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(popups_resp.status(), StatusCode::OK);
+    let popups_html = String::from_utf8(
+        to_bytes(popups_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(popups_html.contains("<h1 class=\"page-title\">Popups &amp; Announcement Bars</h1>"));
+    assert!(popups_html.contains("saveInlinePopupSettings"));
+
+    // 6. Verify /d-admin/headers-footers includes the Unified Slot Matrix & Blueprint Bar
+    let hf_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/headers-footers")
+                .header("Authorization", auth_header())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(hf_resp.status(), StatusCode::OK);
+    let hf_html = String::from_utf8(
+        to_bytes(hf_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(hf_html.contains("globalDefaultHeaderSelect"));
+    assert!(hf_html.contains("unifiedMatrixTbody"));
+    assert!(hf_html.contains("applyBulkMatrixAssignment"));
+}
+
+#[tokio::test]
+async fn test_daystudio_visual_megamenu_section_ssr_and_icon_picker_ui() {
+    let db = Database::new_in_memory().expect("Failed in-memory DB");
+    let app = create_app(db.clone());
+
+    // 1. Create a Header template with a NavMenu whose item has an inline Visual Mega Menu Section (`mega_menu_node_id`)
+    let mega_section_node = DaypressNode {
+        id: "mega_sec_products".to_string(),
+        kind: NodeKind::MegaMenuContainer {
+            trigger: "hover".to_string(),
+            width: Some("980px".to_string()),
+        },
+        styles: StyleProperties::default(),
+        children: vec![DaypressNode {
+            id: "mega_grid_3col".to_string(),
+            kind: NodeKind::Grid {
+                columns: 3,
+                gap: 18,
+            },
+            styles: StyleProperties::default(),
+            children: vec![DaypressNode {
+                id: "mega_col_1".to_string(),
+                kind: NodeKind::Column,
+                styles: StyleProperties::default(),
+                children: vec![
+                    DaypressNode {
+                        id: "mega_h1".to_string(),
+                        kind: NodeKind::Heading {
+                            level: 5,
+                            text: "Visual AST Studio".to_string(),
+                        },
+                        styles: StyleProperties::default(),
+                        children: Vec::new(),
+                    },
+                    DaypressNode {
+                        id: "mega_btn_cta".to_string(),
+                        kind: NodeKind::Button {
+                            text: "Explore 2026 Platform".to_string(),
+                            url: "/platform".to_string(),
+                            target: String::new(),
+                        },
+                        styles: StyleProperties::default(),
+                        children: Vec::new(),
+                    },
+                ],
+            }],
+        }],
+    };
+
+    let nav_node = DaypressNode {
+        id: "header_nav_mega".to_string(),
+        kind: NodeKind::NavMenu {
+            menu_slug: "primary".to_string(),
+            layout: "horizontal".to_string(),
+            align: "left".to_string(),
+            mobile_hamburger: true,
+            items: vec![daypress_ast::NavMenuItem {
+                id: 1,
+                title: "Products".to_string(),
+                url: "/products".to_string(),
+                target: String::new(),
+                parent: 0,
+                order: 0,
+                icon: Some("fa-solid fa-layer-group".to_string()),
+                badge: Some("2026".to_string()),
+                description: Some("Core Engine".to_string()),
+                mega_menu_template_id: None,
+                mega_menu_node_id: Some("mega_sec_products".to_string()),
+                mega_menu_width: Some("980px".to_string()),
+                mega_menu_html: None,
+                children: Vec::new(),
+            }],
+        },
+        styles: StyleProperties::default(),
+        children: vec![mega_section_node],
+    };
+
+    let mut hdr_layout = DaypressLayout::default();
+    hdr_layout.root.children.push(nav_node);
+
+    let create_hdr_resp = app
+        .clone()
+        .oneshot(auth_post(
+            "/wp-json/daypress/v1/templates",
+            serde_json::json!({
+                "title": "2026 Mega Menu Header",
+                "template_type": "header",
+                "status": "publish",
+                "is_active": true,
+                "priority": 20,
+                "layout": hdr_layout,
+                "conditions": [{
+                    "condition_type": "include",
+                    "rule_target": "entire_site",
+                    "target_id": "",
+                    "priority": 20
+                }]
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(create_hdr_resp.status(), StatusCode::CREATED);
+
+    // 2. Request the public home page and verify the inline Visual Mega Menu Section renders inside .dp-megamenu-dropdown
+    let home_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(home_resp.status(), StatusCode::OK);
+    let home_html = String::from_utf8(
+        to_bytes(home_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(home_html.contains("menu-item-has-megamenu"));
+    assert!(home_html.contains("data-mega-node-id=\"mega_sec_products\""));
+    assert!(home_html.contains("Visual AST Studio"));
+    assert!(home_html.contains("Explore 2026 Platform"));
+    assert!(home_html.contains("fa-solid fa-layer-group dp-nav-icon"));
+
+    // 3. Request DayStudio Visual Builder (/d-admin/builder) and verify unified CAD styles, Icon Picker & Mega Menu Section Builder
+    let builder_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/builder")
+                .header("Authorization", auth_header())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(builder_resp.status(), StatusCode::OK);
+    let builder_html = String::from_utf8(
+        to_bytes(builder_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(builder_html.contains("openDayStudioIconPicker"));
+    assert!(builder_html.contains("enhanceIconInput"));
+    assert!(builder_html.contains("DAYSTUDIO_ICON_CATALOG"));
+    assert!(builder_html.contains("ensureMegaMenuContainerForItem"));
+    assert!(builder_html.contains("addMegaMenuColumnToItem"));
+    assert!(builder_html.contains(".cad-btn.primary"));
+    assert!(builder_html.contains(".dp-icon-modal"));
+
+    // Verify new DayStudio brand wordmark, Navigator color coding, Context Menu, Media Picker, Dark Mode & Mobile Hamburger
+    assert!(builder_html.contains(r#"<span class="day-dot" aria-hidden="true"></span>"#));
+    assert!(builder_html.contains(r#"<span class="brand-name">daystudio</span>"#));
+    assert!(builder_html.contains(r#"data-node-cat="section""#));
+    assert!(builder_html.contains(r#"data-node-cat="container""#));
+    assert!(builder_html.contains("openNodeContextMenu"));
+    assert!(builder_html.contains("wrapNodeIn"));
+    assert!(builder_html.contains("copyNode"));
+    assert!(builder_html.contains("cutNode"));
+    assert!(builder_html.contains("pasteNode"));
+    assert!(builder_html.contains("expandNavigatorToNode"));
+    assert!(builder_html.contains("onNodeHover"));
+    assert!(builder_html.contains("openDayStudioMediaPicker"));
+    assert!(builder_html.contains("enhanceMediaInput"));
+    assert!(builder_html.contains("uploadFileToMediaLibrary"));
+    assert!(builder_html.contains(r#"#daystudio-artboard[data-theme="dark"]"#));
+    assert!(builder_html.contains("#daystudio-artboard.artboard-mobile .dp-menu-toggle"));
+    assert!(builder_html.contains("Mobile Hamburger &amp; Drawer Styling"));
+}

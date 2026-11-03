@@ -160,6 +160,7 @@ pub fn render_site_header(
 				<span class="badge-day">CMS</span>
 				<span>{brand_display}</span>
 			</a>
+			<button type="button" class="dp-menu-toggle day-header-hamburger" aria-label="Toggle Menu" onclick="this.closest('.header-container').classList.toggle('is-mobile-open')"><span></span><span></span><span></span></button>
 			<nav class="day-nav">
 				{nav_links_html}
 			</nav>
@@ -254,7 +255,7 @@ pub fn render_site_footer(
 				&copy; 2026 {brand_display}. Powered by Daypress Native Rust CMS.{privacy_link_html}
 			</div>
 			<div class="engine-chip">
-				<span>⚡</span> Daypress AST &bull; Embedded SQLite WAL
+				<span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:#e8744a;" aria-hidden="true"></span> Daypress AST &bull; Embedded SQLite WAL
 			</div>
 		</div>
 	</footer>"##,

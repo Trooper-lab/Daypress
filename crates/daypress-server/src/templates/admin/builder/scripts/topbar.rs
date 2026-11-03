@@ -45,7 +45,8 @@ pub const JS_TOPBAR: &str = r###"
                 else hudDim.textContent = "1200 × 800 px";
             }
 
-            // Re-resolve every node's breakpoint cascade so tablet/mobile overrides show on the artboard
+            // Re-render dynamic widgets (e.g., mobile hamburger menu) and re-resolve every node's breakpoint cascade
+            if (window.renderCanvas) window.renderCanvas();
             if (window.refreshAllNodeStyles) window.refreshAllNodeStyles();
             if (window.renderInspector) window.renderInspector();
             if (window.updateSelectionChrome) window.updateSelectionChrome();
@@ -121,8 +122,16 @@ pub const JS_TOPBAR: &str = r###"
         function setCanvasTheme(mode) {
             const next = mode === "dark" ? "dark" : "light";
             window.DayStudioState.canvasTheme = next;
-            if (artboard) artboard.setAttribute("data-theme", next);
-            if (canvas) canvas.setAttribute("data-theme", next);
+            if (artboard) {
+                artboard.setAttribute("data-theme", next);
+                artboard.classList.toggle("dark", next === "dark");
+                artboard.classList.toggle("light", next === "light");
+            }
+            if (canvas) {
+                canvas.setAttribute("data-theme", next);
+                canvas.classList.toggle("dark", next === "dark");
+                canvas.classList.toggle("light", next === "light");
+            }
             document.documentElement.setAttribute("data-theme", next);
             if (btnTheme) btnTheme.classList.toggle("active", next === "dark");
             if (iconTheme) iconTheme.className = next === "dark" ? "fa-solid fa-moon" : "fa-solid fa-sun";
@@ -130,6 +139,7 @@ pub const JS_TOPBAR: &str = r###"
             document.querySelectorAll("#daystudio-artboard .tt button[data-t]").forEach(b => {
                 b.setAttribute("aria-pressed", b.dataset.t === next ? "true" : "false");
             });
+            if (window.renderCanvas) window.renderCanvas();
         }
 
         // Default artboard preview to Light mode on initial load so site background is always visible
@@ -181,6 +191,24 @@ pub const JS_TOPBAR: &str = r###"
                 if (window.DayStudioState.activeElementId) {
                     e.preventDefault();
                     if (window.duplicateNode) window.duplicateNode(window.DayStudioState.activeElementId);
+                }
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C")) {
+                const targetTag = e.target ? e.target.tagName : "";
+                if (targetTag !== "INPUT" && targetTag !== "TEXTAREA" && !e.target.isContentEditable && window.DayStudioState.activeElementId) {
+                    e.preventDefault();
+                    if (window.copyNode) window.copyNode(window.DayStudioState.activeElementId);
+                }
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === "x" || e.key === "X") && !e.shiftKey) {
+                const targetTag = e.target ? e.target.tagName : "";
+                if (targetTag !== "INPUT" && targetTag !== "TEXTAREA" && !e.target.isContentEditable && window.DayStudioState.activeElementId) {
+                    e.preventDefault();
+                    if (window.cutNode) window.cutNode(window.DayStudioState.activeElementId);
+                }
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V")) {
+                const targetTag = e.target ? e.target.tagName : "";
+                if (targetTag !== "INPUT" && targetTag !== "TEXTAREA" && !e.target.isContentEditable && (window._dayStudioClipboard || window._daystudioClipboard)) {
+                    e.preventDefault();
+                    if (window.pasteNode) window.pasteNode(window.DayStudioState.activeElementId || "root");
                 }
             } else if (e.key === "Delete" || e.key === "Backspace") {
                 const targetTag = e.target ? e.target.tagName : "";

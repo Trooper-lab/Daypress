@@ -898,7 +898,7 @@ impl SsrInjector {
                     _ => {}
                 }
             }
-            "post_author" | "author.name" => {
+            "post_author" | "author_name" | "author.name" => {
                 let author_name = ctx
                     .post
                     .map(|p| {

@@ -243,6 +243,16 @@ async fn test_public_ssr_rendering() {
     assert!(home_html.contains("Howdy, <span class=\"display-name\">admin</span>"));
     assert!(home_html.contains("Customize"));
     assert!(home_html.contains("Dashboard"));
+    assert!(home_html.contains("--ab-bg: #1a1c1f"));
+    assert!(home_html.contains("--ab-oxide: #e8744a"));
+    assert!(home_html.contains("dayAbOpenQuickSearch"));
+    assert!(home_html.contains("dayAbPurgeCache"));
+    assert!(!home_html.contains("Connect AI Agent"));
+    assert!(!home_html.contains("/d-admin/publish"));
+    assert!(!home_html.contains("✨"));
+    assert!(!home_html.contains("⚡"));
+    assert!(!home_html.contains("&#128640;"));
+    assert!(!home_html.contains("&#9889;"));
 
     // Logged-in user on single post (renders topbar with Edit with Visual Builder)
     let logged_in_single = app

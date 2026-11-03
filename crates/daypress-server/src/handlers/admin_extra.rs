@@ -53,6 +53,34 @@ pub async fn handle_admin_headers_footers(State(db): State<Database>) -> Html<St
     ))
 }
 
+/// 4b. Dynamic Theme Layouts Manager (`/d-admin/theme-layouts`)
+pub async fn handle_admin_theme_layouts(State(db): State<Database>) -> Html<String> {
+    let settings = db.get_settings().unwrap_or_default();
+    let matrix = crate::theme_builder::build_header_footer_matrix(&db);
+    let starters = crate::theme_builder::get_starter_catalog();
+    Html(templates::render_theme_layouts_view(
+        &settings, &matrix, &starters,
+    ))
+}
+
+/// 4c. Synced Global Symbols & Mega Menu Panels Manager (`/d-admin/symbols`)
+pub async fn handle_admin_symbols(State(db): State<Database>) -> Html<String> {
+    let settings = db.get_settings().unwrap_or_default();
+    let matrix = crate::theme_builder::build_header_footer_matrix(&db);
+    let starters = crate::theme_builder::get_starter_catalog();
+    Html(templates::render_symbols_view(
+        &settings, &matrix, &starters,
+    ))
+}
+
+/// 4d. Site-Wide Popups, Slide-Ins & Announcement Bars Manager (`/d-admin/popups`)
+pub async fn handle_admin_popups(State(db): State<Database>) -> Html<String> {
+    let settings = db.get_settings().unwrap_or_default();
+    let matrix = crate::theme_builder::build_header_footer_matrix(&db);
+    let starters = crate::theme_builder::get_starter_catalog();
+    Html(templates::render_popups_view(&settings, &matrix, &starters))
+}
+
 pub fn template_to_builder_post(
     tpl: &crate::theme_builder::ThemeTemplateRecord,
 ) -> crate::models::DaypressPostResponse {

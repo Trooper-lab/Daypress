@@ -67,7 +67,6 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
                         ${optGroup("System Font Stacks", SYSTEM_FONTS)}
                         <option value="__custom__">Custom font / CSS var…</option>
                     </select>
-                    <button type="button" class="ns-clear" data-clear="font_family" title="Reset font family">&times;</button>
                 </div>
                 <input type="text" class="cad-input font-mono ns-font-custom" placeholder="e.g. 'Newsreader', serif or var(--serif)" spellcheck="false" autocomplete="off" style="display:none;width:100%;">
             </div>
@@ -244,9 +243,9 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
             ]), "Fixed", "background_attachment", N.select("background_attachment", [["scroll", "Scroll"], ["fixed", "Fixed (parallax)"], ["local", "Local"]]), IMG)}
             ${N.row("Gradient", "background_gradient", N.input("background_gradient", "linear-gradient(…)"))}
             <div class="cad-row ns-presets">
-                <button type="button" class="ns-chip" data-grad="linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)" style="background:linear-gradient(135deg,#2563eb,#7c3aed)">&nbsp;</button>
-                <button type="button" class="ns-chip" data-grad="linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" style="background:linear-gradient(180deg,#0f172a,#1e293b)">&nbsp;</button>
-                <button type="button" class="ns-chip" data-grad="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="linear-gradient(135deg, #93a1ff 0%, #c2c9ff 100%)" style="background:linear-gradient(135deg,#93a1ff,#c2c9ff)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="linear-gradient(180deg, #0e1014 0%, #1b1e24 100%)" style="background:linear-gradient(180deg,#0e1014,#1b1e24)">&nbsp;</button>
+                <button type="button" class="ns-chip" data-grad="linear-gradient(135deg, #e8744a 0%, #e6b84a 100%)" style="background:linear-gradient(135deg,#e8744a,#e6b84a)">&nbsp;</button>
                 <button type="button" class="ns-chip" data-grad="linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 100%)" title="Dark overlay (combine with an image)" style="background:linear-gradient(180deg,#555,#000)">&nbsp;</button>
                 <button type="button" class="ns-chip" data-grad="" title="Remove gradient">None</button>
             </div>
@@ -260,6 +259,10 @@ pub const JS_INSPECTOR_STYLES: &str = r###"
         });
         bindTokenChips(bgPanel, node);
         N.bind(bgPanel, node);
+        const bgImgInput = bgPanel.querySelector('[data-prop="background_image"]');
+        if (bgImgInput && window.enhanceMediaInput) {
+            window.enhanceMediaInput(bgImgInput, { cssUrlWrap: true });
+        }
 
         // ---------------------------------------------------------
         // 3. BORDERS

@@ -99,7 +99,7 @@ pub const CSS_CANVAS: &str = r#"
 }
 
 .artboard-handle:hover, .artboard-handle.is-dragging {
-    background: rgba(37, 99, 235, 0.12);
+    background: var(--day-signal-subtle);
 }
 
 .artboard-handle-left {
@@ -163,6 +163,80 @@ pub const CSS_CANVAS: &str = r#"
     line-height: 1.5;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #111827;
+}
+
+/* -------------------------------------------------------------
+   ARTBOARD DARK MODE FULL ELEMENT ADAPTATION
+   ------------------------------------------------------------- */
+#daystudio-artboard[data-theme="dark"],
+#daystudio-artboard.dark {
+    --bg-base: #0b0f19;
+    --bg-panel: #111827;
+    --bg-card: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: #263147;
+    --dp-color-heading: #f8fafc;
+    --dp-color-text: #cbd5e1;
+    --e-global-color-secondary: #f8fafc;
+    --e-global-color-text: #cbd5e1;
+    --e-global-color-background: #0b0f19;
+    background-color: #0b0f19;
+    color: #f8fafc;
+}
+
+#daystudio-artboard[data-theme="dark"] #daystudio-canvas,
+#daystudio-artboard.dark #daystudio-canvas {
+    background-color: transparent;
+    color: #f8fafc;
+}
+
+#daystudio-artboard[data-theme="dark"] .dp-heading:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] h1:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] h2:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] h3:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] h4:not([style*="color"]) {
+    color: #f8fafc;
+}
+
+#daystudio-artboard[data-theme="dark"] .dp-text:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] p:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] li:not([style*="color"]) {
+    color: #cbd5e1;
+}
+
+#daystudio-artboard[data-theme="dark"] .dp-card:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-price-card:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-price-table:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-testimonial:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-accordion-item:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-toc:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-login-form:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-loop-grid article:not([style*="background"]) {
+    background-color: #151c2c !important;
+    border-color: #263147 !important;
+    color: #f8fafc !important;
+}
+
+#daystudio-artboard[data-theme="dark"] #daystudio-ssr-header header.day-header:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] #daystudio-ssr-footer footer:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] .dp-daystudio-header:not([style*="background"]) {
+    background-color: rgba(15, 23, 42, 0.92) !important;
+    border-color: #263147 !important;
+    color: #f8fafc !important;
+}
+
+#daystudio-artboard[data-theme="dark"] .dp-nav-menu-link:not([style*="color"]),
+#daystudio-artboard[data-theme="dark"] header.day-header a:not([style*="color"]) {
+    color: #e2e8f0;
+}
+
+#daystudio-artboard[data-theme="dark"] input:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] textarea:not([style*="background"]),
+#daystudio-artboard[data-theme="dark"] select:not([style*="background"]) {
+    background-color: #0f172a;
+    border-color: #334155;
+    color: #f8fafc;
 }
 
 /* -------------------------------------------------------------

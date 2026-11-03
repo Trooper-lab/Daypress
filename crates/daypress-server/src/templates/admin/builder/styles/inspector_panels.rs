@@ -275,4 +275,68 @@ pub const CSS_INSPECTOR_PANELS: &str = r#"
 .repeater-remove-btn:hover {
     color: var(--day-crimson);
 }
+
+/* Unified DayStudio CAD Buttons */
+.cad-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 28px; padding: 0 10px; background: var(--day-surface-elevated);
+    border: 1px solid var(--day-rule); border-radius: var(--day-radius-sm);
+    color: var(--day-ink); font-family: var(--day-font-ui); font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.12s ease; white-space: nowrap; text-decoration: none;
+}
+.cad-btn:hover { background: var(--day-surface-hover); border-color: var(--day-muted-dark); color: var(--day-ink); }
+.cad-btn.primary { background: var(--day-signal); border-color: var(--day-signal); color: #0A0B0C; }
+.cad-btn.primary:hover { background: var(--day-signal-hover); border-color: var(--day-signal-hover); color: #0A0B0C; }
+.cad-btn.secondary { background: var(--day-surface-inset); border-color: var(--day-rule); color: var(--day-ink); }
+.cad-btn.secondary:hover { border-color: var(--day-signal); color: var(--day-signal); }
+.cad-btn.danger { background: rgba(240, 108, 108, 0.08); border-color: rgba(240, 108, 108, 0.3); color: var(--day-crimson); }
+.cad-btn.danger:hover { background: var(--day-crimson); border-color: var(--day-crimson); color: #0A0B0C; }
+.cad-btn.sm { height: 24px; padding: 0 8px; font-size: 10.5px; }
+
+/* Visual Icon Selector Module & Popover Modal */
+.cad-icon-field-wrap { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.cad-icon-preview-btn {
+    width: 26px; height: 26px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--day-surface-inset); border: 1px solid var(--day-rule);
+    border-radius: var(--day-radius-sm); color: var(--day-signal); font-size: 12px;
+    cursor: pointer; transition: all 0.12s ease;
+}
+.cad-icon-preview-btn:hover { border-color: var(--day-signal); background: var(--day-signal-subtle); }
+.dp-icon-modal-backdrop {
+    position: fixed; inset: 0; z-index: 99999; background: rgba(10, 11, 12, 0.76);
+    backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.dp-icon-modal {
+    width: 560px; max-width: 94vw; max-height: 82vh; background: var(--day-surface);
+    border: 1px solid var(--day-rule); border-radius: var(--day-radius-lg);
+    box-shadow: var(--day-shadow-float); display: flex; flex-direction: column;
+    overflow: hidden; color: var(--day-ink);
+}
+.dp-icon-modal-cats {
+    display: flex; gap: 4px; padding: 8px 14px;
+    border-bottom: 1px solid var(--day-rule-subtle); background: var(--day-chassis); overflow-x: auto;
+}
+.dp-icon-cat-pill {
+    padding: 4px 9px; border-radius: var(--day-radius-sm); border: 1px solid transparent;
+    background: transparent; color: var(--day-muted); font-size: 10.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+}
+.dp-icon-cat-pill.active, .dp-icon-cat-pill:hover {
+    background: var(--day-surface-elevated); border-color: var(--day-rule); color: var(--day-ink);
+}
+.dp-icon-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+    gap: 6px; padding: 12px 14px; overflow-y: auto; max-height: 360px;
+}
+.dp-icon-tile {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 10px 6px; background: var(--day-surface-inset);
+    border: 1px solid var(--day-rule-subtle); border-radius: var(--day-radius-sm);
+    color: var(--day-ink); cursor: pointer; transition: all 0.12s ease; text-align: center;
+}
+.dp-icon-tile i { font-size: 16px; color: var(--day-ink); transition: transform 0.12s ease, color 0.12s ease; }
+.dp-icon-tile span { font-size: 9.5px; color: var(--day-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.dp-icon-tile:hover, .dp-icon-tile.active { border-color: var(--day-signal); background: var(--day-signal-subtle); }
+.dp-icon-tile:hover i, .dp-icon-tile.active i { color: var(--day-signal); transform: scale(1.1); }
 "#;

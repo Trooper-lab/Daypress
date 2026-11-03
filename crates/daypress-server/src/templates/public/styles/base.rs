@@ -316,36 +316,37 @@ pub fn render_base_css(brand_color: &str) -> String {
 			font-size: 11px;
 		}}
 
-		/* WordPress Live Admin Bar */
+		/* Daypress Live Admin Bar */
 		#wpadminbar {{
 			direction: ltr;
-			color: #c3c4c7;
-			font-size: 13px;
-			font-weight: 400;
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			line-height: 32px;
-			height: 32px;
+			color: #efe9de;
+			font-size: 12.5px;
+			font-weight: 500;
+			font-family: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+			line-height: 36px;
+			height: 36px;
 			position: fixed;
 			top: 0;
 			left: 0;
 			width: 100%;
 			z-index: 999999;
-			background: #1d2327;
-			box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+			background: #1a1c1f;
+			border-bottom: 1px solid rgba(239, 233, 222, 0.16);
+			box-shadow: none;
 		}}
 		body.admin-bar {{
-			margin-top: 32px !important;
+			margin-top: 36px !important;
 		}}
 		body.admin-bar header.day-header {{
-			top: 32px !important;
+			top: 36px !important;
 		}}
 		#wpadminbar .quicklinks {{
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
-			height: 32px;
+			height: 35px;
 			max-width: 100%;
-			padding: 0 12px;
+			padding: 0 8px;
 		}}
 		#wpadminbar ul {{
 			list-style: none;
@@ -353,47 +354,52 @@ pub fn render_base_css(brand_color: &str) -> String {
 			padding: 0;
 			display: flex;
 			align-items: center;
-			height: 32px;
+			height: 35px;
 		}}
 		#wpadminbar li {{
 			position: relative;
-			display: inline-block;
-			height: 32px;
+			display: inline-flex;
+			align-items: center;
+			height: 35px;
 		}}
 		#wpadminbar .ab-item {{
-			display: flex;
+			display: inline-flex;
 			align-items: center;
 			gap: 6px;
-			padding: 0 10px;
-			color: #c3c4c7;
-			font-size: 13px;
-			height: 32px;
-			line-height: 32px;
+			padding: 0 9px;
+			color: #efe9de;
+			font-size: 12.5px;
+			height: 28px;
+			line-height: 28px;
+			border-radius: 3px;
 		}}
 		#wpadminbar li:hover > .ab-item {{
-			background: #2c3338;
-			color: #72aee6;
+			background: #26282c;
+			color: #efe9de;
 		}}
 		#wpadminbar .ab-btn-builder {{
-			background: rgba(224, 38, 96, 0.2);
-			color: #f472b6 !important;
+			background: rgba(232, 116, 74, 0.12);
+			border: 1px solid rgba(232, 116, 74, 0.35);
+			color: #efe9de !important;
 			font-weight: 600;
-			border-radius: 4px;
+			border-radius: 3px;
 			margin: 0 4px;
-			height: 24px;
+			height: 26px;
 			line-height: 24px;
 		}}
 		#wpadminbar .ab-sub-wrapper {{
 			display: none;
 			position: absolute;
-			top: 32px;
+			top: 35px;
 			left: 0;
-			min-width: 190px;
-			background: #2c3338;
-			box-shadow: 0 4px 14px rgba(0,0,0,0.6);
-			border-radius: 0 0 6px 6px;
+			min-width: 196px;
+			background: #1a1c1f;
+			border: 1px solid rgba(239, 233, 222, 0.16);
+			border-top: 2px solid #e8744a;
+			box-shadow: 0 12px 28px rgba(0,0,0,0.42);
+			border-radius: 0 0 4px 4px;
 			z-index: 1000000;
-			padding: 4px 0;
+			padding: 5px 0;
 		}}
 		#wpadminbar li:hover > .ab-sub-wrapper {{
 			display: block;
@@ -405,13 +411,14 @@ pub fn render_base_css(brand_color: &str) -> String {
 		}}
 		#wpadminbar .ab-sub-wrapper li {{
 			width: 100%;
-			height: 28px;
+			height: auto;
 		}}
 		#wpadminbar .ab-sub-wrapper .ab-item {{
-			height: 28px;
-			line-height: 28px;
-			padding: 0 14px;
-			font-size: 12px;
+			height: auto;
+			line-height: 1.4;
+			padding: 6px 14px;
+			font-size: 12.5px;
+			color: #a7a297;
 		}}
 		#wpadminbar .ab-top-secondary {{
 			margin-left: auto;

@@ -5,9 +5,9 @@ pub fn render_shell() -> &'static str {
     <!-- Top Studio Bar (40px) -->
     <header id="daystudio-topbar">
         <div class="topbar-left">
-            <a href="/d-admin/" class="topbar-brand" title="Exit to Daypress Dashboard">
-                <span class="brand-glyph"><i class="fa-solid fa-cube"></i></span>
-                <span class="brand-name">DAYSTUDIO</span>
+            <a href="/d-admin/" class="topbar-brand" title="Exit to Daypress Desk">
+                <span class="day-dot" aria-hidden="true"></span>
+                <span class="brand-name">daystudio</span>
             </a>
             <div class="topbar-divider"></div>
             <div class="topbar-switcher" id="topbar-template-switcher">

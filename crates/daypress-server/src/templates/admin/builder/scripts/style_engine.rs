@@ -258,7 +258,7 @@ pub const JS_STYLE_ENGINE: &str = r###"
     }
     function updateStateRules(node) {
         const s = node.styles || {};
-        const sel = `[data-node-id="${String(node.id).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
+        const sel = `#daystudio-canvas [data-node-id="${String(node.id).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
         let css = "";
         STATE_LAYERS.forEach(([layer, pseudo]) => {
             if (!s[layer]) return;

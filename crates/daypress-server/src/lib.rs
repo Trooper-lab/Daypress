@@ -186,7 +186,10 @@ pub fn create_app(database: Database) -> Router {
             "/d-admin/headers-footers",
             get(handle_admin_headers_footers),
         )
-        .route("/d-admin/theme-builder", get(handle_admin_headers_footers))
+        .route("/d-admin/theme-layouts", get(handle_admin_theme_layouts))
+        .route("/d-admin/theme-builder", get(handle_admin_theme_layouts))
+        .route("/d-admin/symbols", get(handle_admin_symbols))
+        .route("/d-admin/popups", get(handle_admin_popups))
         .route("/d-admin/customize", get(handle_admin_customize))
         .route(
             "/d-admin/widgets",

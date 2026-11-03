@@ -20,15 +20,19 @@ pub mod command_palette;
 pub mod core_state;
 pub mod css_drawer;
 pub mod drawers;
+pub mod icon_picker;
 pub mod inspector_box_model;
 pub mod inspector_content;
 pub mod inspector_controls;
 pub mod inspector_core;
 pub mod inspector_effects;
 pub mod inspector_layout;
+pub mod inspector_page_settings;
 pub mod inspector_styles;
+pub mod media_picker;
 pub mod modals;
 pub mod navigator;
+pub mod navigator_context_menu;
 pub mod palette_defaults;
 pub mod style_engine;
 pub mod theme_drawer;
@@ -46,6 +50,8 @@ pub fn get_scripts() -> &'static str {
             style_engine::JS_STYLE_ENGINE,
             core_state::JS_CORE_STATE,
             api_client::JS_API_CLIENT,
+            icon_picker::JS_ICON_PICKER,
+            media_picker::JS_MEDIA_PICKER,
             topbar::JS_TOPBAR,
             topbar_switcher::JS_TOPBAR_SWITCHER,
             canvas_render::JS_CANVAS_RENDER,
@@ -61,6 +67,7 @@ pub fn get_scripts() -> &'static str {
             canvas_overlays::JS_CANVAS_OVERLAYS,
             canvas_drag::JS_CANVAS_DRAG,
             navigator::JS_NAVIGATOR,
+            navigator_context_menu::JS_NAVIGATOR_CONTEXT_MENU,
             palette_defaults::JS_PALETTE_DEFAULTS,
             tokens_drawer::JS_TOKENS_DRAWER,
             css_drawer::JS_CSS_DRAWER,
@@ -68,6 +75,7 @@ pub fn get_scripts() -> &'static str {
             theme_drawer::JS_THEME_DRAWER,
             command_palette::JS_COMMAND_PALETTE,
             inspector_core::JS_INSPECTOR_CORE,
+            inspector_page_settings::JS_INSPECTOR_PAGE_SETTINGS,
             inspector_controls::JS_INSPECTOR_CONTROLS,
             inspector_box_model::JS_INSPECTOR_BOX_MODEL,
             inspector_layout::JS_INSPECTOR_LAYOUT,

@@ -28,63 +28,39 @@ pub const CSS_TOPBAR: &str = r#"
 }
 
 .topbar-brand {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     color: var(--day-ink);
     text-decoration: none;
-    font-weight: 700;
-    font-size: var(--day-text-sub);
-    letter-spacing: 0.08em;
+    font: 450 18.5px/1 var(--day-font-serif, "Newsreader", Georgia, serif);
+    letter-spacing: -0.02em;
+    padding: 2px 4px;
 }
 
-.brand-glyph {
-    color: var(--day-signal);
-    font-size: 14px;
+.topbar-brand .day-dot {
+    width: 8px; height: 8px; border-radius: 999px;
+    background: var(--day-oxide, #e8744a);
+    box-shadow: 0 0 8px rgba(232, 116, 74, 0.35); flex-shrink: 0;
 }
-
-.topbar-divider {
-    width: 1px;
-    height: 18px;
-    background: var(--day-rule);
-    margin: 0 4px;
-}
+.brand-glyph { color: var(--day-oxide, #e8744a); font-size: 14px; }
+.topbar-divider { width: 1px; height: 18px; background: var(--day-rule); margin: 0 4px; }
 
 .switcher-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--day-surface);
-    border: 1px solid var(--day-rule);
-    border-radius: var(--day-radius-sm);
-    padding: 2px 8px;
-    height: var(--day-control-sm-h);
-    color: var(--day-ink);
-    font-size: var(--day-text-sub);
-    cursor: pointer;
-    transition: border-color 0.15s ease;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--day-surface); border: 1px solid var(--day-rule);
+    border-radius: var(--day-radius-sm); padding: 2px 8px;
+    height: var(--day-control-sm-h); color: var(--day-ink);
+    font-size: var(--day-text-sub); cursor: pointer; transition: border-color 0.15s ease;
 }
-
-.switcher-btn:hover {
-    border-color: var(--day-signal);
-}
+.switcher-btn:hover { border-color: var(--day-signal); }
 
 .template-type-badge {
-    background: var(--day-violet-tint);
-    color: var(--day-violet);
-    font-size: var(--day-text-micro);
-    font-weight: 600;
-    padding: 1px 5px;
-    border-radius: 2px;
-    text-transform: uppercase;
+    background: var(--day-violet-tint); color: var(--day-violet);
+    font-size: var(--day-text-micro); font-weight: 600;
+    padding: 1px 5px; border-radius: 2px; text-transform: uppercase;
 }
-
-.template-title {
-    max-width: 140px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+.template-title { max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .switcher-caret { font-size: 9px; color: var(--day-muted); }
 .topbar-switcher { position: relative; }
@@ -131,7 +107,7 @@ pub const CSS_TOPBAR: &str = r#"
 .switcher-item-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switcher-item .template-type-badge { flex-shrink: 0; }
 .switcher-item:hover, .switcher-item.kbd-active { background: var(--day-surface-hover); }
-.switcher-item.active { background: rgba(37, 99, 235, 0.16); box-shadow: inset 0 0 0 1px var(--day-signal); }
+.switcher-item.active { background: var(--day-signal-subtle); box-shadow: inset 0 0 0 1px var(--day-signal); }
 .switcher-empty { padding: 12px 10px; font-size: 11px; color: var(--day-muted); text-align: center; }
 .switcher-empty.is-error { color: var(--day-crimson); }
 .switcher-footer { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--day-rule); background: var(--day-surface); flex-shrink: 0; }

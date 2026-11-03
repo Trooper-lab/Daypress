@@ -311,6 +311,7 @@ pub const JS_THEME_DRAWER: &str = r###"
             listContainer.innerHTML = `<p style="color:var(--day-crimson);">Error: ${e.message}</p>`;
         }
     }
+    window.openConditionsModal = openConditionsModal;
 
     function renderConditionsRows(container, conditions) {
         container.innerHTML = "";
@@ -385,12 +386,10 @@ pub const JS_THEME_DRAWER: &str = r###"
         if (btnCancel) btnCancel.onclick = () => document.getElementById("modal-conditions").classList.remove("open");
         if (btnClose) btnClose.onclick = () => document.getElementById("modal-conditions").classList.remove("open");
     }
-
     function getConditionsFromModal() {
         const list = [];
         document.querySelectorAll(".condition-rule-row").forEach(r => {
-            const rt = r.querySelector(".cond-target").value;
-            const idEl = r.querySelector(".cond-target-id");
+            const rt = r.querySelector(".cond-target").value, idEl = r.querySelector(".cond-target-id");
             const tid = (rt === "page" || rt === "post") && idEl ? idEl.value : "";
             list.push({ condition_type: r.querySelector(".cond-type").value, rule_target: rt, target_id: tid, priority: parseInt(r.querySelector(".cond-priority").value, 10) || 10 });
         });

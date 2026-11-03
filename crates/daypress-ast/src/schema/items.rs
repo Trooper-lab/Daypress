@@ -123,6 +123,10 @@ pub struct NavMenuItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mega_menu_template_id: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mega_menu_node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mega_menu_width: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mega_menu_html: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<NavMenuItem>,

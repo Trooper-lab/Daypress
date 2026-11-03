@@ -11,7 +11,7 @@ pub const JS_CANVAS_OVERLAYS: &str = r###"
             return;
         }
 
-        const el = document.querySelector(`[data-node-id="${nodeId}"]`);
+        const el = document.querySelector(`#daystudio-canvas [data-node-id="${nodeId}"]`);
         if (!el) {
             overlays.style.display = "none";
             return;

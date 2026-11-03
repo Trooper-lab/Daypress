@@ -136,6 +136,12 @@ fn rewrite_root_compound(compound: &str, html_class: Option<&str>) -> Option<Str
     if matches!(c.as_str(), "html" | ":root" | "html:root") {
         return Some(":scope".to_string());
     }
+    if matches!(c.as_str(), "html.dark" | ":root.dark") {
+        return Some(":scope.dark".to_string());
+    }
+    if matches!(c.as_str(), "html.light" | ":root.light") {
+        return Some(":scope.light".to_string());
+    }
     if html_class
         .map(|cls| c == format!("html.{}", cls.to_ascii_lowercase()))
         .unwrap_or(false)

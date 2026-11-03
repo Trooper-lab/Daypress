@@ -1,109 +1,72 @@
-//! Dynamic & Theme/Form Pro Blocks Canvas DOM Builders — Part 2: Symbol Clone, Save, Insert, Detach & Dynamic Binding (`scripts/canvas_pro_symbols_actions.rs`).
+//! DayStudio 0.5 Global Symbol Actions: Convert to Symbol, Collect Overrideable Nodes & Detach (`scripts/canvas_pro_symbols_actions.rs`).
 
 pub const JS_CANVAS_PRO_SYMBOLS_ACTIONS: &str = r###"
-    function applyOverridesToClonedTree(node, overridesMap, regenerateIds) {
+(function() {
+    function collectSymbolOverrideableNodes(children, out) {
+        if (!Array.isArray(children)) return out || [];
+        const list = out || [];
+        children.forEach(node => {
+            if (!node || typeof node !== "object") return;
+            const d = node.data || {};
+            if (["Heading", "Text", "Button", "Image"].includes(node.type)) {
+                list.push({
+                    id: node.id,
+                    type: node.type,
+                    text: node.type === "Text" ? (d.content_html || "") : (d.text || ""),
+                    src: d.src || "",
+                    alt: d.alt || "",
+                    url: d.url || ""
+                });
+            }
+            if (Array.isArray(node.children)) {
+                collectSymbolOverrideableNodes(node.children, list);
+            }
+        });
+        return list;
+    }
+    window.collectSymbolOverrideableNodes = collectSymbolOverrideableNodes;
+
+    function bakeOverridesIntoTree(node, overrides) {
         if (!node || typeof node !== "object") return node;
         const origId = String(node.id || "");
-        const ov = (overridesMap && origId && overridesMap[origId]) ? overridesMap[origId] : null;
+        const ov = (overrides && origId && overrides[origId]) ? overrides[origId] : null;
         if (!node.data) node.data = {};
-
         if (ov && typeof ov === "object") {
-            if (ov.text != null && ov.text !== "") {
-                if ("text" in node) node.text = ov.text;
-                if ("content" in node) node.content = ov.text;
-                node.data.text = ov.text;
-                node.data.content = ov.text;
-                if (node.type === "Button" || "label" in node.data) node.data.label = ov.text;
+            if (ov.text) {
+                if (node.type === "Text") node.data.content_html = ov.text;
+                else node.data.text = ov.text;
             }
-            if (ov.src != null && ov.src !== "") {
-                node.src = ov.src;
-                node.data.src = ov.src;
-            }
-            if (ov.alt != null && ov.alt !== "") {
-                node.alt = ov.alt;
-                node.data.alt = ov.alt;
-            }
-            if (ov.url != null && ov.url !== "") {
-                node.url = ov.url;
-                node.href = ov.url;
-                node.data.url = ov.url;
-                node.data.href = ov.url;
-            }
+            if (ov.src && node.type === "Image") node.data.src = ov.src;
+            if (ov.alt && node.type === "Image") node.data.alt = ov.alt;
+            if (ov.url) node.data.url = ov.url;
         }
-
-        if (regenerateIds && node.id && node.id !== "root") {
-            node.id = node.id + "-det-" + Math.random().toString(36).slice(2, 6);
+        if (node.id && node.id !== "root") {
+            node.id = window.generateId ? window.generateId(String(node.type || "el").toLowerCase()) : (node.id + "-det-" + Math.random().toString(36).slice(2, 6));
         }
-
         if (Array.isArray(node.children)) {
-            node.children.forEach(function(child) {
-                applyOverridesToClonedTree(child, overridesMap, regenerateIds);
-            });
+            node.children.forEach(child => bakeOverridesIntoTree(child, overrides));
         }
         return node;
     }
 
-    function renderSymbolAstPreviewHtml(node, overridesMap) {
-        if (!node || typeof node !== "object") return "";
-        const t = node.type || node.kind || "Container";
-        const data = node.data || {};
-        const ov = (overridesMap && node.id && overridesMap[node.id]) ? overridesMap[node.id] : {};
+    async function convertActiveNodeToSymbol(nodeOrId) {
+        const state = window.DayStudioState;
+        const targetNode = (typeof nodeOrId === "string" ? (window.findNodeById && window.findNodeById(nodeOrId)) : nodeOrId)
+            || (state && state.activeElementId && window.findNodeById ? window.findNodeById(state.activeElementId) : null);
 
-        const textVal = (ov.text != null && ov.text !== "")
-            ? ov.text
-            : (node.text ?? node.content ?? data.text ?? data.content ?? data.label ?? data.title ?? "");
-        const srcVal = (ov.src != null && ov.src !== "")
-            ? ov.src
-            : (node.src ?? data.src ?? "");
-        const altVal = (ov.alt != null && ov.alt !== "")
-            ? ov.alt
-            : (node.alt ?? data.alt ?? "");
-        const urlVal = (ov.url != null && ov.url !== "")
-            ? ov.url
-            : (node.url ?? node.href ?? data.url ?? data.href ?? "#");
-
-        const childrenHtml = Array.isArray(node.children)
-            ? node.children.map(function(c) { return renderSymbolAstPreviewHtml(c, overridesMap); }).join("")
-            : "";
-
-        if (t === "Root") return childrenHtml;
-        if (t === "Heading") {
-            const tag = data.tag || node.tag || "h3";
-            return `<${tag} data-symbol-child-id="${escHtml(node.id)}" style="margin:0 0 8px 0;font-weight:700;color:#0f172a;">${escHtml(textVal || "Symbol Heading")}</${tag}>`;
-        }
-        if (t === "Text" || t === "Paragraph" || t === "RichText") {
-            return `<p data-symbol-child-id="${escHtml(node.id)}" style="margin:0 0 8px 0;font-size:14px;color:#475569;line-height:1.6;">${escHtml(textVal || "Symbol paragraph text")}</p>`;
-        }
-        if (t === "Button") {
-            return `<a href="${escHtml(urlVal)}" data-symbol-child-id="${escHtml(node.id)}" style="display:inline-block;padding:8px 16px;background:var(--day-signal,#2563eb);color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">${escHtml(textVal || "Action")}</a>`;
-        }
-        if (t === "Image") {
-            return srcVal
-                ? `<img src="${escHtml(srcVal)}" alt="${escHtml(altVal)}" data-symbol-child-id="${escHtml(node.id)}" style="max-width:100%;height:auto;border-radius:6px;display:block;" />`
-                : `<div data-symbol-child-id="${escHtml(node.id)}" style="height:100px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:12px;"><i class="fa-regular fa-image" style="margin-right:6px;"></i>${escHtml(altVal || "Symbol Image")}</div>`;
-        }
-        return `<div data-symbol-child-id="${escHtml(node.id)}" style="padding:8px;border:1px dashed rgba(124,58,237,0.2);border-radius:6px;margin-bottom:6px;">${textVal ? `<div style="font-size:13px;margin-bottom:4px;">${escHtml(textVal)}</div>` : ""}${childrenHtml}</div>`;
-    }
-
-    async function saveSelectedSectionAsGlobalSymbol() {
-        const selNode = getSelectedNode();
-        if (!selNode || selNode.id === "root" || selNode.type === "Root") {
-            notifyUser("Select a Section, Container, or Element on the canvas first", true);
+        if (!targetNode || targetNode.id === "root" || targetNode.type === "Root") {
+            if (window.showToast) window.showToast("Select a Section, Container, or Block on the canvas first", "warning");
             return;
         }
-        const defaultName = (selNode.data && (selNode.data.label || selNode.data.title))
-            || (selNode.type ? selNode.type + " Symbol (" + selNode.id + ")" : "Global Section Symbol");
-        const symbolTitle = window.prompt("Enter a name for this Synced Global Symbol:", defaultName);
+        const defaultName = (targetNode.data && (targetNode.data._name || targetNode.data.label || targetNode.data.title))
+            || `${targetNode.type} Symbol (${targetNode.id})`;
+        const symbolTitle = window.prompt("Name for this Synced Global Symbol:", defaultName);
         if (!symbolTitle || !symbolTitle.trim()) return;
 
-        const clonedNode = JSON.parse(JSON.stringify(selNode));
+        const clonedNode = JSON.parse(JSON.stringify(targetNode));
         const symbolLayout = {
             version: 1,
-            root: {
-                id: "root",
-                type: "Root",
-                children: [clonedNode]
-            }
+            root: { id: "root", type: "Root", children: [clonedNode] }
         };
 
         try {
@@ -121,179 +84,229 @@ pub const JS_CANVAS_PRO_SYMBOLS_ACTIONS: &str = r###"
                     layout: symbolLayout
                 })
             });
-            if (!res.ok) {
-                throw new Error("Server returned " + res.status);
-            }
+            if (!res.ok) throw new Error("Server returned " + res.status);
             const created = await res.json();
-            symbolsCache[created.id] = created;
-            await fetchSectionSymbols(true);
+            if (window.loadSymbolTemplatesCache) await window.loadSymbolTemplatesCache(true);
 
             const symInstanceNode = {
-                id: "sym-" + Date.now().toString(36),
+                id: window.generateId ? window.generateId("symbol") : ("sym-" + Date.now().toString(36)),
                 type: "SymbolInstance",
-                symbol_id: Number(created.id),
-                overrides: {},
                 data: {
                     symbol_id: Number(created.id),
-                    symbol_title: created.title || symbolTitle.trim(),
+                    label: created.title || symbolTitle.trim(),
                     overrides: {}
                 },
                 styles: {},
-                children: []
+                children: [JSON.parse(JSON.stringify(clonedNode))]
             };
-            knownNodesMap.set(symInstanceNode.id, symInstanceNode);
 
-            const root = getStudioAstRoot();
-            const loc = root ? findParentAndIndex(root, selNode.id) : null;
-            if (loc && loc.parent && Array.isArray(loc.parent.children)) {
-                loc.parent.children.splice(loc.index, 1, symInstanceNode);
-            } else {
-                Object.keys(selNode).forEach(function(k) { delete selNode[k]; });
-                Object.assign(selNode, symInstanceNode);
+            const parent = window.findParentNode ? window.findParentNode(targetNode.id) : null;
+            if (parent && Array.isArray(parent.children)) {
+                const idx = parent.children.findIndex(c => c.id === targetNode.id);
+                if (idx !== -1) parent.children.splice(idx, 1, symInstanceNode);
             }
 
-            notifyStudioMutation(symInstanceNode.id);
-            renderSymbolsDrawerContent();
-            notifyUser('✓ Saved Global Symbol "' + (created.title || symbolTitle.trim()) + '" (#' + created.id + ')');
+            if (window.markDirty) window.markDirty(true);
+            if (window.pushHistorySnapshot) window.pushHistorySnapshot();
+            if (window.renderCanvas) window.renderCanvas();
+            if (window.updateNavigator) window.updateNavigator();
+            if (window.selectElement) window.selectElement(symInstanceNode.id);
+            if (window.showToast) window.showToast(`Saved Global Symbol "${created.title || symbolTitle.trim()}" (#${created.id})`);
         } catch (err) {
-            notifyUser("Failed to save global symbol: " + err.message, true);
+            if (window.showToast) window.showToast("Failed to save global symbol: " + err.message, "error");
         }
     }
+    window.convertActiveNodeToSymbol = convertActiveNodeToSymbol;
+    window.convertToGlobalSymbol = (nodeId) => convertActiveNodeToSymbol(nodeId);
 
-    async function insertSymbolInstanceOntoCanvas(symbolId) {
-        await fetchSectionSymbols(false);
-        const numId = Number(symbolId);
-        const symTpl = symbolsCache[numId] || symbolsList.find(function(s) { return Number(s.id) === numId; });
-        if (!symTpl && symbolsList.length > 0 && !numId) {
-            return insertSymbolInstanceOntoCanvas(symbolsList[0].id);
-        }
+    async function detachSymbolInstance(nodeOrId) {
+        const state = window.DayStudioState;
+        const instNode = (typeof nodeOrId === "string" ? (window.findNodeById && window.findNodeById(nodeOrId)) : nodeOrId)
+            || (state && state.activeElementId && window.findNodeById ? window.findNodeById(state.activeElementId) : null);
 
-        const newInstance = {
-            id: "sym-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 5),
-            type: "SymbolInstance",
-            symbol_id: numId || 0,
-            overrides: {},
-            data: {
-                symbol_id: numId || 0,
-                symbol_title: symTpl ? symTpl.title : "Global Symbol",
-                overrides: {}
-            },
-            styles: {},
-            children: []
-        };
-        knownNodesMap.set(newInstance.id, newInstance);
-
-        const root = getStudioAstRoot();
-        const selNode = getSelectedNode();
-        if (selNode && Array.isArray(selNode.children) && ["Root", "Section", "Container", "Column", "Div"].includes(selNode.type)) {
-            selNode.children.push(newInstance);
-        } else if (root && Array.isArray(root.children)) {
-            root.children.push(newInstance);
-        }
-
-        notifyStudioMutation(newInstance.id);
-        notifyUser("✓ Inserted Synced Symbol #" + (numId || "") + " onto canvas");
-    }
-
-    async function detachSymbolInstance(instanceNodeId) {
-        const instNode = findAstNodeById(instanceNodeId) || getSelectedNode();
         if (!instNode || instNode.type !== "SymbolInstance") {
-            notifyUser("Select a SymbolInstance node to detach", true);
+            if (window.showToast) window.showToast("Select a SymbolInstance node to detach", "warning");
             return;
         }
-        await fetchSectionSymbols(false);
-        const symbolId = Number(instNode.symbol_id ?? (instNode.data && instNode.data.symbol_id) ?? 0);
-        const overrides = instNode.overrides || (instNode.data && instNode.data.overrides) || {};
-        const symTpl = symbolsCache[symbolId] || symbolsList.find(function(s) { return Number(s.id) === symbolId; });
+
+        const list = window.loadSymbolTemplatesCache ? await window.loadSymbolTemplatesCache(false) : [];
+        const symbolId = Number((instNode.data && instNode.data.symbol_id) || instNode.symbol_id || 0);
+        const overrides = (instNode.data && instNode.data.overrides) || instNode.overrides || {};
+        const symTpl = list.find(s => Number(s.id) === symbolId);
 
         let masterChildren = [];
-        if (symTpl && symTpl.layout) {
-            const layoutObj = typeof symTpl.layout === "string" ? JSON.parse(symTpl.layout) : symTpl.layout;
-            if (layoutObj && layoutObj.root && Array.isArray(layoutObj.root.children)) {
-                masterChildren = JSON.parse(JSON.stringify(layoutObj.root.children));
-            }
+        if (Array.isArray(instNode.children) && instNode.children.length > 0) {
+            masterChildren = JSON.parse(JSON.stringify(instNode.children));
+        } else if (symTpl && symTpl.layout && symTpl.layout.root && Array.isArray(symTpl.layout.root.children)) {
+            masterChildren = JSON.parse(JSON.stringify(symTpl.layout.root.children));
         }
         if (masterChildren.length === 0) {
             masterChildren = [{
-                id: "sec-" + Date.now().toString(36),
+                id: window.generateId ? window.generateId("sec") : ("sec-" + Date.now().toString(36)),
                 type: "Section",
-                data: { label: "Detached Symbol Section" },
+                data: { _name: "Detached Symbol Section" },
                 styles: { padding_top: "32px", padding_bottom: "32px" },
                 children: []
             }];
         }
 
-        const bakedChildren = masterChildren.map(function(child) {
-            const baked = applyOverridesToClonedTree(child, overrides, true);
-            indexAstSubtree(baked);
-            return baked;
-        });
-
-        const root = getStudioAstRoot();
-        const loc = root ? findParentAndIndex(root, instNode.id) : null;
-        if (loc && loc.parent && Array.isArray(loc.parent.children)) {
-            loc.parent.children.splice(loc.index, 1, ...bakedChildren);
-            notifyStudioMutation(bakedChildren[0].id);
-        } else {
-            const first = bakedChildren[0];
-            Object.keys(instNode).forEach(function(k) { delete instNode[k]; });
-            Object.assign(instNode, first);
-            notifyStudioMutation(instNode.id);
+        const bakedChildren = masterChildren.map(child => bakeOverridesIntoTree(child, overrides));
+        const parent = window.findParentNode ? window.findParentNode(instNode.id) : null;
+        if (parent && Array.isArray(parent.children)) {
+            const idx = parent.children.findIndex(c => c.id === instNode.id);
+            if (idx !== -1) parent.children.splice(idx, 1, ...bakedChildren);
         }
-        notifyUser("✓ Detached SymbolInstance into independent AST nodes with overrides baked in");
+
+        if (window.markDirty) window.markDirty(true);
+        if (window.pushHistorySnapshot) window.pushHistorySnapshot();
+        if (window.renderCanvas) window.renderCanvas();
+        if (window.updateNavigator) window.updateNavigator();
+        if (window.selectElement && bakedChildren[0]) window.selectElement(bakedChildren[0].id);
+        if (window.showToast) window.showToast("Detached SymbolInstance into independent blocks");
+    }
+    window.detachSymbolInstance = detachSymbolInstance;
+
+    function uid(prefix) {
+        return window.generateId
+            ? window.generateId(prefix)
+            : (prefix + "_" + Math.random().toString(36).slice(2, 8));
     }
 
-    function applyDynamicTokenToSelection(token) {
-        const selNode = getSelectedNode();
-        if (!token) return;
-
-        const inspector = document.getElementById("daystudio-inspector");
-        let targetInput = lastFocusedInspectorInput;
-        if (!targetInput || !inspector || !inspector.contains(targetInput) || targetInput.classList.contains("dp-ignore-dynamic-target")) {
-            if (inspector) {
-                targetInput = inspector.querySelector(
-                    'input[type="text"]:not(.dp-ignore-dynamic-target), textarea:not(.dp-ignore-dynamic-target), input[type="url"]:not(.dp-ignore-dynamic-target)'
-                );
-            }
-        }
-
-        if (targetInput) {
-            targetInput.value = token;
-            targetInput.dispatchEvent(new Event("input", { bubbles: true }));
-            targetInput.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-
-        if (selNode) {
-            if (!selNode.data) selNode.data = {};
-            if (!selNode.attributes) selNode.attributes = {};
-            selNode.data["data-dynamic"] = token;
-            selNode.data.dynamic_binding = token;
-            selNode.attributes["data-dynamic"] = token;
-
-            const nodeType = selNode.type || selNode.kind || "";
-            if (nodeType === "Image" || token === "{{post.featured_image}}") {
-                selNode.src = token;
-                selNode.data.src = token;
-            } else if (["Heading", "Text", "Paragraph", "RichText", "Button"].includes(nodeType)) {
-                if ("text" in selNode) selNode.text = token;
-                if ("content" in selNode) selNode.content = token;
-                selNode.data.text = token;
-                selNode.data.content = token;
-                if (nodeType === "Button") selNode.data.label = token;
-            }
-        }
-
-        const selId = getSelectedNodeId();
-        if (selId) {
-            const canvasNodeEl = document.querySelector(
-                `#daystudio-canvas [data-id="${CSS.escape(selId)}"], #daystudio-canvas [data-node-id="${CSS.escape(selId)}"]`
-            );
-            if (canvasNodeEl) {
-                canvasNodeEl.setAttribute("data-dynamic", token);
-            }
-        }
-
-        notifyStudioMutation(selId);
-        notifyUser("✓ Bound field to " + token);
+    function makeFeatureCard(icon, title, desc, url) {
+        return {
+            id: uid("cont"),
+            type: "Container",
+            data: { html_tag: "a" },
+            styles: {
+                display: "flex", flex_direction: "row", align_items: "flex-start", gap: "12px",
+                padding_top: "10px", padding_right: "12px", padding_bottom: "10px", padding_left: "12px",
+                border_radius: "8px", background_color: "rgba(255,255,255,0.03)"
+            },
+            children: [
+                {
+                    id: uid("icon"), type: "Icon", data: { name: icon, icon: icon, url: url || "#" },
+                    styles: { text_color: "#60a5fa", font_size: "16px", margin_top: "2px" }, children: []
+                },
+                {
+                    id: uid("col"), type: "Column", data: {}, styles: { gap: "3px" },
+                    children: [
+                        {
+                            id: uid("h"), type: "Heading", data: { text: title, level: 5 },
+                            styles: { text_color: "#f8fafc", font_size: "13.5px", font_weight: "700", margin_bottom: "0px" }, children: []
+                        },
+                        {
+                            id: uid("t"), type: "Text", data: { content_html: `<p>${desc}</p>` },
+                            styles: { text_color: "#94a3b8", font_size: "12px", line_height: "1.45" }, children: []
+                        }
+                    ]
+                }
+            ]
+        };
     }
+    window.makeMegaMenuFeatureCard = makeFeatureCard;
+
+    function buildMegaMenuPresetChildren(presetKey, itemTitle) {
+        const title = itemTitle || "Platform";
+        if (presetKey === "enterprise_4col") {
+            const cols = [
+                { head: "CORE PLATFORM", items: [["fa-solid fa-bolt", "Edge Runtime", "Sub-millisecond Rust SSR"], ["fa-solid fa-database", "SQLite Engine", "Zero-dependency persistence"]] },
+                { head: "SOLUTIONS", items: [["fa-solid fa-shield-halved", "Zero-Trust Security", "TOTP 2FA & RBAC policies"], ["fa-solid fa-cloud-arrow-up", "Edge Publisher", "1-click R2 & CDN sync"]] },
+                { head: "DEVELOPERS", items: [["fa-solid fa-code", "REST & MCP API", "WP v2 + AI agent tools"], ["fa-solid fa-terminal", "CLI & Docker", "Single-binary containers"]] },
+                { head: "RESOURCES", items: [["fa-solid fa-book-open", "Documentation", "Full architecture guides"], ["fa-solid fa-gauge-high", "Benchmarks", "Live latency telemetry"]] }
+            ].map(group => ({
+                id: uid("col"), type: "Column", data: {}, styles: { gap: "10px" },
+                children: [
+                    {
+                        id: uid("h"), type: "Heading", data: { text: group.head, level: 6 },
+                        styles: { text_color: "#93A1FF", font_size: "11px", font_weight: "700", letter_spacing: "0.08em" }, children: []
+                    },
+                    ...group.items.map(it => makeFeatureCard(it[0], it[1], it[2], "#"))
+                ]
+            }));
+            return [
+                {
+                    id: uid("grid"), type: "Grid", data: {},
+                    styles: { display: "grid", grid_template_columns: "repeat(4, 1fr)", gap: "16px" }, children: cols
+                },
+                {
+                    id: uid("bar"), type: "Container", data: {},
+                    styles: {
+                        display: "flex", flex_direction: "row", align_items: "center", justify_content: "space-between",
+                        margin_top: "16px", padding_top: "12px", padding_right: "16px", padding_bottom: "12px", padding_left: "16px",
+                        background_color: "rgba(59,130,246,0.1)", border_radius: "8px"
+                    },
+                    children: [
+                        {
+                            id: uid("t"), type: "Text",
+                            data: { content_html: `<p><strong>Ready to migrate your fleet?</strong> Import any WordPress site in 1 click.</p>` },
+                            styles: { text_color: "#e2e8f0", font_size: "12.5px" }, children: []
+                        },
+                        {
+                            id: uid("btn"), type: "Button",
+                            data: { text: "Start Free Migration", url: "/migrate", icon: "fa-solid fa-arrow-right" },
+                            styles: { background_color: "#2563eb", text_color: "#ffffff", font_size: "12px", border_radius: "6px", padding_top: "8px", padding_bottom: "8px", padding_left: "14px", padding_right: "14px" },
+                            children: []
+                        }
+                    ]
+                }
+            ];
+        }
+
+        if (presetKey === "blank_row") {
+            return [{
+                id: uid("grid"), type: "Grid", data: {},
+                styles: { display: "grid", grid_template_columns: "repeat(3, 1fr)", gap: "18px" },
+                children: [1, 2, 3].map(n => ({
+                    id: uid("col"), type: "Column", data: {},
+                    styles: {
+                        gap: "10px", padding_top: "14px", padding_right: "14px", padding_bottom: "14px", padding_left: "14px",
+                        border_radius: "8px", background_color: "rgba(255,255,255,0.03)"
+                    },
+                    children: [
+                        { id: uid("h"), type: "Heading", data: { text: `${title} Column ${n}`, level: 5 }, styles: { text_color: "#f8fafc", font_size: "14px", font_weight: "700" }, children: [] },
+                        { id: uid("t"), type: "Text", data: { content_html: "<p>Drop buttons, icons, links, or cards into this column.</p>" }, styles: { text_color: "#94a3b8", font_size: "12px" }, children: [] }
+                    ]
+                }))
+            }];
+        }
+
+        return [{
+            id: uid("grid"), type: "Grid", data: {},
+            styles: { display: "grid", grid_template_columns: "1fr 1fr 1.1fr", gap: "18px" },
+            children: [
+                {
+                    id: uid("col"), type: "Column", data: {}, styles: { gap: "10px" },
+                    children: [
+                        { id: uid("h"), type: "Heading", data: { text: `${title.toUpperCase()} SUITE`, level: 6 }, styles: { text_color: "#93A1FF", font_size: "11px", font_weight: "700", letter_spacing: "0.08em" }, children: [] },
+                        makeFeatureCard("fa-solid fa-layer-group", "Visual AST Studio", "Real-time CAD artboard & responsive breakpoints", "#"),
+                        makeFeatureCard("fa-solid fa-bolt", "Sub-50µs Hot Cache", "DashMap memory cache with instant invalidation", "#"),
+                        makeFeatureCard("fa-solid fa-clone", "Synced Global Symbols", "Figma-style master components with overrides", "#")
+                    ]
+                },
+                {
+                    id: uid("col"), type: "Column", data: {}, styles: { gap: "10px" },
+                    children: [
+                        { id: uid("h"), type: "Heading", data: { text: "WORKFLOWS & SCALE", level: 6 }, styles: { text_color: "#93A1FF", font_size: "11px", font_weight: "700", letter_spacing: "0.08em" }, children: [] },
+                        makeFeatureCard("fa-solid fa-wand-magic-sparkles", "1-Click WP Migration", "Elementor, Divi & Gutenberg AST transpiler", "#"),
+                        makeFeatureCard("fa-solid fa-shield-halved", "Enterprise Security", "TOTP 2FA, RBAC capabilities & audit trails", "#"),
+                        makeFeatureCard("fa-solid fa-cloud-arrow-up", "Edge R2 & Auto-TLS", "Zero-config ACME certificates & object storage", "#")
+                    ]
+                },
+                {
+                    id: uid("col"), type: "Column", data: {},
+                    styles: {
+                        gap: "12px", padding_top: "18px", padding_right: "18px", padding_bottom: "18px", padding_left: "18px",
+                        border_radius: "10px", background_color: "#1e293b", border_width: "1px", border_style: "solid", border_color: "#334155"
+                    },
+                    children: [
+                        { id: uid("h"), type: "Heading", data: { text: "Daypress 0.5 Release", level: 4 }, styles: { text_color: "#ffffff", font_size: "16px", font_weight: "800" }, children: [] },
+                        { id: uid("t"), type: "Text", data: { content_html: "<p>Design full-bleed 2026 Mega Menus, Theme Layouts, Synced Symbols, and Pop-ups directly on the visual canvas.</p>" }, styles: { text_color: "#cbd5e1", font_size: "12.5px", line_height: "1.55" }, children: [] },
+                        { id: uid("btn"), type: "Button", data: { text: "Explore What's New", url: "/changelog", icon: "fa-solid fa-rocket" }, styles: { background_color: "#2563eb", text_color: "#ffffff", font_size: "12.5px", border_radius: "6px", padding_top: "9px", padding_bottom: "9px", padding_left: "14px", padding_right: "14px" }, children: [] }
+                    ]
+                }
+            ]
+        }];
+    }
+    window.buildMegaMenuPresetChildren = buildMegaMenuPresetChildren;
+})();
 "###;

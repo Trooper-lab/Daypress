@@ -28,7 +28,10 @@ pub const JS_DRAWERS: &str = r###"
         });
 
         const btnSettings = document.getElementById("rail-btn-settings");
-        if (btnSettings) btnSettings.onclick = () => document.getElementById("settings-modal")?.classList.add("open");
+        if (btnSettings) btnSettings.onclick = () => {
+            if (window.selectElement) window.selectElement("root");
+            if (window.showToast) window.showToast("Selected Body — Page, Template & SEO settings opened in Inspector");
+        };
         const btnHelp = document.getElementById("rail-btn-help");
         if (btnHelp) btnHelp.onclick = () => document.getElementById("modal-shortcuts")?.classList.add("open");
 
@@ -40,6 +43,10 @@ pub const JS_DRAWERS: &str = r###"
         if (drawerId === "elements") renderElementsDrawer(container);
         else if (drawerId === "navigator") window.renderNavigatorDrawer && window.renderNavigatorDrawer(container);
         else if (drawerId === "templates") window.renderThemeDrawer && window.renderThemeDrawer(container);
+        else if (drawerId === "symbols") {
+            container.innerHTML = `<div class="drawer-header"><span class="drawer-title">Global Symbols</span></div><div class="drawer-scroll-body" id="symbols-drawer-body"></div>`;
+            if (window.renderSymbolsLibraryIntoDrawer) window.renderSymbolsLibraryIntoDrawer(container.querySelector("#symbols-drawer-body"));
+        }
         else if (drawerId === "tokens") window.renderTokensDrawer && window.renderTokensDrawer(container);
         else if (drawerId === "css") window.renderCssDrawer && window.renderCssDrawer(container);
         else if (drawerId === "history") renderHistoryDrawer(container);
@@ -90,6 +97,7 @@ pub const JS_DRAWERS: &str = r###"
             category: "Dynamic & Theme",
             items: [
                 { type: "NavMenu", title: "Nav Menu", icon: "fa-solid fa-bars" },
+                { type: "SymbolInstance", title: "Global Symbol", icon: "fa-solid fa-clone" },
                 { type: "LoopGrid", title: "Loop Grid", icon: "fa-solid fa-table-cells" },
                 { type: "TableOfContents", title: "TOC Index", icon: "fa-solid fa-list-ol" },
                 { type: "Breadcrumbs", title: "Breadcrumbs", icon: "fa-solid fa-angle-right" },
@@ -180,9 +188,15 @@ pub const JS_DRAWERS: &str = r###"
         const state = window.DayStudioState;
         const newNode = createNodeFromPaletteType(type);
         const currentId = state.activeElementId;
-        const current = currentId ? window.findNodeById(currentId) : null;
+        let current = currentId ? window.findNodeById(currentId) : null;
 
-        if (current && ["Container", "Section", "Column", "Grid", "Flex"].includes(current.type)) {
+        // If a NavMenu is currently selected and has an open Mega Menu canvas tray, insert directly into that Mega Menu container!
+        if (current && current.type === "NavMenu" && window.getActiveMegaMenuContainerForNav) {
+            const megaCont = window.getActiveMegaMenuContainerForNav(current);
+            if (megaCont) current = megaCont;
+        }
+
+        if (current && ["Container", "Section", "Column", "Grid", "Flex", "MegaMenuContainer"].includes(current.type)) {
             current.children = current.children || [];
             current.children.push(newNode);
         } else if (current) {
@@ -232,7 +246,7 @@ pub const JS_DRAWERS: &str = r###"
             return;
         }
 
-        if (position === "inside" || (["Section", "Container", "Column", "Grid", "Flex"].includes(targetNode.type) && position !== "before" && position !== "after")) {
+        if (position === "inside" || (["Section", "Container", "Column", "Grid", "Flex", "MegaMenuContainer"].includes(targetNode.type) && position !== "before" && position !== "after")) {
             targetNode.children = targetNode.children || [];
             targetNode.children.push(newNode);
         } else {

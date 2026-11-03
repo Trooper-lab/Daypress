@@ -1,308 +1,286 @@
-//! Dynamic & Theme/Form Pro Blocks Canvas DOM Builders — Part 1: State & Symbol API (`scripts/canvas_pro_dynamic_render.rs`).
+//! DayStudio 0.5 Canvas Renderers for Dynamic & Theme Blocks (`scripts/canvas_pro_dynamic_render.rs`).
 
 pub const JS_CANVAS_PRO_DYNAMIC_RENDER: &str = r###"
 (function() {
-    const DYNAMIC_TOKENS = [
-        { token: "{{post.title}}", label: "Post Title", category: "Post" },
-        { token: "{{post.date}}", label: "Post Date", category: "Post" },
-        { token: "{{post.excerpt}}", label: "Post Excerpt", category: "Post" },
-        { token: "{{post.featured_image}}", label: "Featured Image", category: "Post" },
-        { token: "{{post.content}}", label: "Post Content", category: "Post" },
-        { token: "{{author.name}}", label: "Author Name", category: "Author" },
-        { token: "{{archive.title}}", label: "Archive Title", category: "Archive" },
-        { token: "{{archive.description}}", label: "Archive Description", category: "Archive" },
-        { token: "{{site.title}}", label: "Site Title", category: "Site" }
-    ];
+    window._dpSymbolTemplatesCache = null;
 
-    let symbolsCache = {};
-    let symbolsList = [];
-    let megaMenuTemplatesList = [];
-    let symbolsLoaded = false;
-    let symbolsLoadingPromise = null;
-    let knownNodesMap = new Map();
-    let capturedAstRoot = null;
-    let lastFocusedInspectorInput = null;
-    let isEnhancingInspector = false;
-    let isEnhancingDrawer = false;
+    async function loadSymbolTemplatesCache(force) {
+        if (window._dpSymbolTemplatesCache && !force) return window._dpSymbolTemplatesCache;
+        try {
+            if (window.StudioApi && window.StudioApi.getTemplates) {
+                const list = await window.StudioApi.getTemplates("section_symbol");
+                window._dpSymbolTemplatesCache = Array.isArray(list) ? list : [];
+            } else {
+                const res = await fetch("/wp-json/daypress/v1/templates?template_type=section_symbol", { credentials: "include" });
+                window._dpSymbolTemplatesCache = res.ok ? await res.json() : [];
+            }
+        } catch (e) {
+            window._dpSymbolTemplatesCache = [];
+        }
+        return window._dpSymbolTemplatesCache;
+    }
+    window.loadSymbolTemplatesCache = loadSymbolTemplatesCache;
 
-    function escHtml(s) {
-        return String(s == null ? "" : s).replace(/[&<>"']/g, function(c) {
-            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    function resolveActiveMegaMenuIndex(navNode, items) {
+        const state = window.DayStudioState;
+        const activeId = state ? state.activeElementId : null;
+
+        // 1. If the currently selected element on canvas is inside one of navNode's MegaMenuContainer children, keep that item's Mega Menu open!
+        if (activeId && Array.isArray(navNode.children)) {
+            for (let idx = 0; idx < items.length; idx++) {
+                const megaNodeId = items[idx] && items[idx].mega_menu_node_id;
+                if (!megaNodeId) continue;
+                if (activeId === megaNodeId || (window.isDescendant && window.isDescendant(megaNodeId, activeId))) {
+                    window._activeMegaMenuState = { navNodeId: navNode.id, itemIndex: idx };
+                    return idx;
+                }
+            }
+        }
+
+        // 2. Otherwise check explicit open state
+        if (window._activeMegaMenuState && window._activeMegaMenuState.navNodeId === navNode.id) {
+            const idx = window._activeMegaMenuState.itemIndex;
+            if (idx >= 0 && idx < items.length) return idx;
+        }
+        return -1;
+    }
+
+    function renderProNavMenuWidget(node) {
+        const d = node.data || {};
+        const el = document.createElement("nav");
+        el.className = "dp-pro-block dp-nav-menu";
+        el.style.cssText = "display:flex;flex-direction:column;gap:10px;width:100%;position:relative;";
+
+        const rawItems = Array.isArray(d.items) && d.items.length
+            ? d.items
+            : [
+                { title: "Products", url: "/products", icon: "fa-solid fa-layer-group", badge: "2026" },
+                { title: "Solutions", url: "/solutions", icon: "fa-solid fa-bolt" },
+                { title: "Developers", url: "/docs", icon: "fa-solid fa-code" },
+                { title: "Pricing", url: "/pricing", icon: "" }
+            ];
+
+        const activeMegaIdx = resolveActiveMegaMenuIndex(node, rawItems);
+        const isMobileBp = (window.DayStudioState && window.DayStudioState.currentBreakpoint === "mobile") || !!d.mobile_force_open;
+        const mobileHamburgerEnabled = d.mobile_hamburger !== false;
+
+        if (isMobileBp && mobileHamburgerEnabled) {
+            if (!window._mobileMenuOpenMap) window._mobileMenuOpenMap = {};
+            if (window._mobileMenuOpenMap[node.id] === undefined) window._mobileMenuOpenMap[node.id] = true;
+            const isDrawerOpen = !!window._mobileMenuOpenMap[node.id];
+
+            const hamColor = d.hamburger_color || "currentColor";
+            const hamBg = d.hamburger_bg || "rgba(147,161,255,0.14)";
+            const drawerBg = d.mobile_menu_bg || "#0f172a";
+            const drawerText = d.mobile_menu_text || "#f8fafc";
+
+            const mobHeader = document.createElement("div");
+            mobHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;";
+            const btnToggle = document.createElement("button");
+            btnToggle.type = "button";
+            btnToggle.className = "dp-menu-toggle";
+            btnToggle.style.cssText = `display:inline-flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;background:${hamBg};color:${hamColor};border:1px solid rgba(148,163,184,0.28);border-radius:6px;padding:8px 10px;cursor:pointer;`;
+            btnToggle.innerHTML = `<span style="display:block;width:18px;height:2px;background:${hamColor};border-radius:2px;"></span><span style="display:block;width:18px;height:2px;background:${hamColor};border-radius:2px;"></span><span style="display:block;width:18px;height:2px;background:${hamColor};border-radius:2px;"></span>`;
+            btnToggle.onclick = (e) => {
+                e.stopPropagation();
+                window._mobileMenuOpenMap[node.id] = !isDrawerOpen;
+                if (window.selectElement) window.selectElement(node.id);
+                if (window.renderCanvas) window.renderCanvas();
+            };
+
+            const mobHint = document.createElement("span");
+            mobHint.style.cssText = "font-size:10px;font-family:var(--day-font-mono);color:var(--day-signal,#93A1FF);opacity:0.85;";
+            mobHint.textContent = isDrawerOpen ? "Mobile Hamburger (Open)" : "Mobile Hamburger (Closed)";
+            mobHeader.appendChild(mobHint);
+            mobHeader.appendChild(btnToggle);
+            el.appendChild(mobHeader);
+
+            if (isDrawerOpen) {
+                const drawer = document.createElement("div");
+                drawer.className = "dp-nav-menu-list is-open";
+                drawer.style.cssText = `display:flex;flex-direction:column;gap:8px;width:100%;background:${drawerBg};color:${drawerText};padding:14px;border-radius:10px;border:1px solid rgba(148,163,184,0.22);box-sizing:border-box;position:static;`;
+                rawItems.forEach((it) => {
+                    const label = (typeof it === "string") ? it : (it.title || it.label || "Link");
+                    const icon = (typeof it === "object" && it && it.icon) ? `<i class="${it.icon}" style="margin-right:8px;opacity:0.85;"></i>` : "";
+                    const badge = (typeof it === "object" && it && it.badge) ? `<span class="dp-nav-badge" style="margin-left:auto;">${it.badge}</span>` : "";
+                    const rowLink = document.createElement("a");
+                    rowLink.href = (typeof it === "object" && it.url) || "#";
+                    rowLink.style.cssText = `display:flex;align-items:center;padding:8px 10px;border-radius:6px;color:${drawerText};text-decoration:none;font-weight:600;font-size:13.5px;background:rgba(255,255,255,0.03);`;
+                    rowLink.innerHTML = `${icon}<span>${label}</span>${badge}`;
+                    rowLink.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (window.selectElement) window.selectElement(node.id);
+                    };
+                    drawer.appendChild(rowLink);
+                });
+                el.appendChild(drawer);
+            }
+            return el;
+        }
+
+        const barRow = document.createElement("div");
+        const alignMap = { left: "flex-start", center: "center", right: "flex-end", justify: "space-between" };
+        const justify = alignMap[d.align || "left"] || "flex-start";
+        barRow.style.cssText = `display:flex;align-items:center;justify-content:${justify};gap:22px;flex-wrap:wrap;width:100%;`;
+
+        rawItems.forEach((it, idx) => {
+            const label = (typeof it === "string") ? it : (it.title || it.label || "Link");
+            const icon = (typeof it === "object" && it && it.icon) ? `<i class="${it.icon} dp-nav-icon" style="margin-right:5px;"></i>` : "";
+            const badge = (typeof it === "object" && it && it.badge) ? `<span class="dp-nav-badge" style="margin-left:5px;">${it.badge}</span>` : "";
+            const desc = (typeof it === "object" && it && it.description) ? `<span class="dp-nav-desc">${it.description}</span>` : "";
+            const hasInlineMega = !!(typeof it === "object" && it && it.mega_menu_node_id && Array.isArray(node.children) && node.children.some(c => c.id === it.mega_menu_node_id));
+            const hasTemplateMega = !!(typeof it === "object" && it && Number(it.mega_menu_template_id || 0) > 0);
+            const hasMega = hasInlineMega || hasTemplateMega;
+            const isOpen = idx === activeMegaIdx;
+
+            const itemWrap = document.createElement("div");
+            itemWrap.className = "dp-nav-item" + (hasMega ? " menu-item-has-megamenu" : "");
+            itemWrap.style.cssText = "display:inline-flex;align-items:center;gap:4px;position:relative;";
+
+            const linkEl = document.createElement("a");
+            linkEl.href = (typeof it === "object" && it.url) || "#";
+            linkEl.className = "dp-nav-link";
+            linkEl.style.cssText = `color:inherit;text-decoration:none;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:4px;padding:6px 8px;border-radius:6px;transition:all 0.15s ease;${isOpen ? "background:rgba(147,161,255,0.14);color:var(--day-signal,#93A1FF);" : ""}`;
+            const caret = hasMega
+                ? `<i class="fa-solid fa-chevron-${isOpen ? 'up' : 'down'}" style="font-size:10px;opacity:0.75;margin-left:3px;color:${isOpen ? 'var(--day-signal,#93A1FF)' : 'inherit'};"></i>`
+                : "";
+            linkEl.innerHTML = `<span>${icon}${label}${badge}${caret}${desc}</span>`;
+
+            linkEl.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (hasMega) {
+                    window._activeMegaMenuState = isOpen ? null : { navNodeId: node.id, itemIndex: idx };
+                    if (window.selectElement) window.selectElement(node.id);
+                    if (window.renderCanvas) window.renderCanvas();
+                } else {
+                    if (window.selectElement) window.selectElement(node.id);
+                }
+            };
+
+            itemWrap.appendChild(linkEl);
+            barRow.appendChild(itemWrap);
         });
-    }
 
-    function notifyUser(msg, isError) {
-        if (typeof showToast === "function") {
-            showToast(msg, !!isError);
-            return;
-        }
-        if (typeof window.showToast === "function") {
-            window.showToast(msg, !!isError);
-            return;
-        }
-        const statusEl = document.getElementById("lbl-save-status");
-        if (statusEl) {
-            statusEl.textContent = msg;
-        }
-    }
+        el.appendChild(barRow);
 
-    function indexAstSubtree(node) {
-        if (!node || typeof node !== "object") return;
-        if (node.id) {
-            knownNodesMap.set(String(node.id), node);
-        }
-        if (Array.isArray(node.children)) {
-            node.children.forEach(indexAstSubtree);
-        }
-    }
+        if (activeMegaIdx >= 0 && rawItems[activeMegaIdx] && typeof rawItems[activeMegaIdx] === "object") {
+            const activeItem = rawItems[activeMegaIdx];
+            const megaNode = (activeItem.mega_menu_node_id && Array.isArray(node.children))
+                ? node.children.find(c => c.id === activeItem.mega_menu_node_id)
+                : null;
 
-    function getStudioAstRoot() {
-        try {
-            if (typeof state !== "undefined" && state) {
-                if (state.ast && state.ast.root) return state.ast.root;
-                if (state.layout && state.layout.root) return state.layout.root;
-                if (state.root && Array.isArray(state.root.children)) return state.root;
-            }
-        } catch (_) {}
-        try {
-            if (typeof studioState !== "undefined" && studioState) {
-                if (studioState.ast && studioState.ast.root) return studioState.ast.root;
-                if (studioState.layout && studioState.layout.root) return studioState.layout.root;
-                if (studioState.root) return studioState.root;
-            }
-        } catch (_) {}
-        try {
-            if (typeof ast !== "undefined" && ast) {
-                if (ast.root) return ast.root;
-                if (Array.isArray(ast.children)) return ast;
-            }
-        } catch (_) {}
-        if (window.state) {
-            if (window.state.ast && window.state.ast.root) return window.state.ast.root;
-            if (window.state.layout && window.state.layout.root) return window.state.layout.root;
-            if (window.state.root) return window.state.root;
-        }
-        if (window.DayStudio && window.DayStudio.ast && window.DayStudio.ast.root) {
-            return window.DayStudio.ast.root;
-        }
-        if (capturedAstRoot && Array.isArray(capturedAstRoot.children)) {
-            return capturedAstRoot;
-        }
-        if (knownNodesMap.has("root")) {
-            return knownNodesMap.get("root");
-        }
-        return null;
-    }
+            const tray = document.createElement("div");
+            tray.className = "dp-megamenu-canvas-tray";
+            tray.style.cssText = "width:100%;margin-top:8px;border:1px solid var(--day-signal,#93A1FF);border-radius:12px;background:#0f172a;box-shadow:0 20px 50px rgba(0,0,0,0.45);overflow:hidden;";
 
-    function getSelectedNodeId() {
-        try {
-            if (typeof state !== "undefined" && state) {
-                const sid = state.selectedId || state.selectedNodeId || (state.selected && state.selected.id);
-                if (sid) return String(sid);
-            }
-        } catch (_) {}
-        try {
-            if (typeof selectedNodeId !== "undefined" && selectedNodeId) return String(selectedNodeId);
-        } catch (_) {}
-        try {
-            if (typeof selectedId !== "undefined" && selectedId) return String(selectedId);
-        } catch (_) {}
-        if (window.selectedNodeId) return String(window.selectedNodeId);
-        if (window.selectedId) return String(window.selectedId);
+            const toolbar = document.createElement("div");
+            toolbar.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:var(--day-chassis,#111214);border-bottom:1px solid var(--day-rule,#393836);flex-wrap:wrap;";
+            toolbar.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--day-signal,#93A1FF);">
+                        <i class="fa-solid fa-table-columns"></i> Mega Menu Canvas: "${activeItem.title || 'Item'}"
+                    </span>
+                    <span style="font-size:10px;color:var(--day-muted,#A7A297);">Click any element inside or drag blocks from Left (+) Drawer</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <button type="button" class="cad-btn sm secondary" data-mega-act="add-col" title="Add a new Column to this Mega Menu"><i class="fa-solid fa-plus"></i> Add Column</button>
+                    <button type="button" class="cad-btn sm secondary" data-mega-act="preset-saas" title="Apply 2026 SaaS 3-Column + Spotlight Preset"><i class="fa-solid fa-wand-magic-sparkles"></i> 3-Col SaaS</button>
+                    <button type="button" class="cad-btn sm secondary" data-mega-act="preset-matrix" title="Apply 4-Column Enterprise Matrix + Footer Bar"><i class="fa-solid fa-grip"></i> 4-Col Matrix</button>
+                    <button type="button" class="cad-btn sm secondary" data-mega-act="select-surface" title="Select Mega Menu Container to style background, padding & border"><i class="fa-solid fa-Sliders"></i> Style Surface</button>
+                    <button type="button" class="cad-btn sm danger" data-mega-act="close" title="Close Mega Menu Canvas"><i class="fa-solid fa-xmark"></i> Close</button>
+                </div>
+            `;
 
-        const badgeIdEl = document.getElementById("sel-badge-id");
-        const chromeEl = document.getElementById("daystudio-selection-chrome");
-        if (badgeIdEl && (!chromeEl || chromeEl.style.display !== "none")) {
-            const raw = (badgeIdEl.textContent || "").trim().replace(/^#/, "");
-            if (raw && raw !== "node") return raw;
-        }
-
-        const bcItems = document.querySelectorAll("#daystudio-breadcrumbs .bc-item[data-id]");
-        if (bcItems.length > 0) {
-            const lastBc = bcItems[bcItems.length - 1];
-            const bcId = lastBc.getAttribute("data-id");
-            if (bcId) return bcId;
-        }
-
-        const selCanvasEl = document.querySelector("#daystudio-canvas .selected[data-id], #daystudio-canvas .is-selected[data-id], #daystudio-canvas [data-node-id].selected");
-        if (selCanvasEl) {
-            return selCanvasEl.getAttribute("data-id") || selCanvasEl.getAttribute("data-node-id");
-        }
-        return null;
-    }
-
-    function findNodeInTree(root, targetId) {
-        if (!root || !targetId) return null;
-        if (String(root.id) === String(targetId)) return root;
-        if (Array.isArray(root.children)) {
-            for (let i = 0; i < root.children.length; i++) {
-                const found = findNodeInTree(root.children[i], targetId);
-                if (found) return found;
-            }
-        }
-        return null;
-    }
-
-    function findParentAndIndex(root, targetId) {
-        if (!root || !targetId || !Array.isArray(root.children)) return null;
-        for (let i = 0; i < root.children.length; i++) {
-            const child = root.children[i];
-            if (child && String(child.id) === String(targetId)) {
-                return { parent: root, index: i, node: child };
-            }
-            const nested = findParentAndIndex(child, targetId);
-            if (nested) return nested;
-        }
-        return null;
-    }
-
-    function findAstNodeById(targetId) {
-        if (!targetId) return null;
-        try {
-            if (typeof findNodeById === "function") {
-                const n = findNodeById(targetId);
-                if (n) return n;
-            }
-        } catch (_) {}
-        try {
-            if (typeof findNode === "function") {
-                const root = getStudioAstRoot();
-                const n = root ? findNode(root, targetId) : findNode(targetId);
-                if (n) return n;
-            }
-        } catch (_) {}
-        const root = getStudioAstRoot();
-        if (root) {
-            const found = findNodeInTree(root, targetId);
-            if (found) return found;
-        }
-        if (knownNodesMap.has(String(targetId))) {
-            return knownNodesMap.get(String(targetId));
-        }
-        return null;
-    }
-
-    function getSelectedNode() {
-        const id = getSelectedNodeId();
-        return id ? findAstNodeById(id) : null;
-    }
-
-    function notifyStudioMutation(selectIdAfter) {
-        try {
-            if (typeof pushHistory === "function") pushHistory();
-            else if (typeof recordHistory === "function") recordHistory();
-        } catch (_) {}
-        try {
-            if (typeof markDirty === "function") markDirty();
-        } catch (_) {}
-
-        const pill = document.getElementById("status-save-pill");
-        const lbl = document.getElementById("lbl-save-status");
-        if (pill) {
-            pill.classList.remove("saved");
-            pill.classList.add("unsaved");
-        }
-        if (lbl) lbl.textContent = "Unsaved";
-
-        try {
-            if (typeof renderCanvas === "function") renderCanvas();
-            else if (typeof window.renderCanvas === "function") window.renderCanvas();
-        } catch (_) {}
-        try {
-            if (typeof renderNavigator === "function") renderNavigator();
-            else if (typeof window.renderNavigator === "function") window.renderNavigator();
-        } catch (_) {}
-        if (selectIdAfter) {
-            try {
-                if (typeof selectNode === "function") selectNode(selectIdAfter);
-                else if (typeof window.selectNode === "function") window.selectNode(selectIdAfter);
-            } catch (_) {}
-        }
-        try {
-            if (typeof renderInspector === "function") renderInspector();
-            else if (typeof window.renderInspector === "function") window.renderInspector();
-        } catch (_) {}
-        setTimeout(enhanceInspectorPanel, 20);
-    }
-
-    async function fetchSectionSymbols(forceRefresh) {
-        if (symbolsLoaded && !forceRefresh) return symbolsList;
-        if (symbolsLoadingPromise && !forceRefresh) return symbolsLoadingPromise;
-
-        symbolsLoadingPromise = (async function() {
-            try {
-                const res = await fetch("/wp-json/daypress/v1/templates?type=section_symbol", {
-                    credentials: "same-origin"
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const rawList = Array.isArray(data) ? data : (data.templates || []);
-                    symbolsList = rawList.filter(function(t) {
-                        return !t.template_type || t.template_type === "section_symbol";
-                    });
-                    symbolsList.forEach(function(s) {
-                        symbolsCache[s.id] = s;
-                    });
+            toolbar.onclick = (e) => e.stopPropagation();
+            toolbar.querySelector("[data-mega-act='add-col']").onclick = (e) => {
+                e.stopPropagation();
+                if (window.addMegaMenuColumnToItem) window.addMegaMenuColumnToItem(node, activeMegaIdx);
+            };
+            toolbar.querySelector("[data-mega-act='preset-saas']").onclick = (e) => {
+                e.stopPropagation();
+                if (window.ensureMegaMenuContainerForItem) {
+                    window.ensureMegaMenuContainerForItem(node, activeMegaIdx, "saas_3col");
+                    if (window.renderCanvas) window.renderCanvas();
+                    if (window.updateNavigator) window.updateNavigator();
                 }
+            };
+            toolbar.querySelector("[data-mega-act='preset-matrix']").onclick = (e) => {
+                e.stopPropagation();
+                if (window.ensureMegaMenuContainerForItem) {
+                    window.ensureMegaMenuContainerForItem(node, activeMegaIdx, "enterprise_4col");
+                    if (window.renderCanvas) window.renderCanvas();
+                    if (window.updateNavigator) window.updateNavigator();
+                }
+            };
+            toolbar.querySelector("[data-mega-act='select-surface']").onclick = (e) => {
+                e.stopPropagation();
+                if (megaNode && window.selectElement) window.selectElement(megaNode.id);
+            };
+            toolbar.querySelector("[data-mega-act='close']").onclick = (e) => {
+                e.stopPropagation();
+                window._activeMegaMenuState = null;
+                if (window.selectElement) window.selectElement(node.id);
+                if (window.renderCanvas) window.renderCanvas();
+            };
 
-                const allRes = await fetch("/wp-json/daypress/v1/templates", {
-                    credentials: "same-origin"
-                });
-                if (allRes.ok) {
-                    const allData = await allRes.json();
-                    const allRaw = Array.isArray(allData) ? allData : (allData.templates || []);
-                    megaMenuTemplatesList = allRaw.filter(function(t) {
-                        return t.template_type === "section_symbol" || t.template_type === "header";
-                    });
-                    allRaw.forEach(function(t) {
-                        if (t.template_type === "section_symbol") {
-                            symbolsCache[t.id] = t;
-                            if (!symbolsList.some(function(existing) { return existing.id === t.id; })) {
-                                symbolsList.push(t);
-                            }
+            tray.appendChild(toolbar);
+
+            const bodyWrap = document.createElement("div");
+            bodyWrap.style.cssText = "padding:16px;";
+
+            if (megaNode && window.buildDomNode) {
+                const liveDom = window.buildDomNode(megaNode);
+                if (liveDom) bodyWrap.appendChild(liveDom);
+            } else if (Number(activeItem.mega_menu_template_id || 0) > 0) {
+                const tplId = Number(activeItem.mega_menu_template_id);
+                const cachedSym = (window._dpSymbolTemplatesCache || []).find(s => Number(s.id) === tplId);
+                bodyWrap.innerHTML = `
+                    <div style="padding:18px;border:1px dashed var(--day-rule,#393836);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                        <div>
+                            <div style="font-size:12px;font-weight:700;color:var(--day-ink,#EFE9DE);"><i class="fa-solid fa-clone" style="color:var(--day-violet);"></i> Linked to Global Symbol: ${cachedSym ? cachedSym.title : ('Template #' + tplId)}</div>
+                            <div style="font-size:11px;color:var(--day-muted,#A7A297);margin-top:2px;">Convert to an inline Visual Mega Menu Section to edit columns and blocks directly below this navbar.</div>
+                        </div>
+                        <button type="button" class="cad-btn primary" id="btn-convert-tpl-to-inline-mega"><i class="fa-solid fa-wand-magic-sparkles"></i> Edit Inline on Canvas</button>
+                    </div>
+                `;
+                const convBtn = bodyWrap.querySelector("#btn-convert-tpl-to-inline-mega");
+                if (convBtn) {
+                    convBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (window.ensureMegaMenuContainerForItem) {
+                            window.ensureMegaMenuContainerForItem(node, activeMegaIdx, "from_symbol");
+                            if (window.renderCanvas) window.renderCanvas();
                         }
-                    });
+                    };
                 }
-                symbolsLoaded = true;
-            } catch (err) {
-                console.error("Failed to fetch section_symbol templates:", err);
-            } finally {
-                symbolsLoadingPromise = null;
             }
-            return symbolsList;
-        })();
 
-        return symbolsLoadingPromise;
+            tray.appendChild(bodyWrap);
+            el.appendChild(tray);
+        }
+
+        return el;
     }
+    window.renderProNavMenuWidget = renderProNavMenuWidget;
 
-    function collectOverridableSymbolChildren(node, outList) {
-        outList = outList || [];
-        if (!node || typeof node !== "object") return outList;
-        const t = node.type || node.kind || "";
-        const data = node.data || {};
-        if (node.id && node.id !== "root" && t !== "Root") {
-            const defaultText = node.text ?? node.content ?? data.text ?? data.content ?? data.label ?? data.title ?? "";
-            const defaultSrc = node.src ?? data.src ?? data.url ?? "";
-            const defaultAlt = node.alt ?? data.alt ?? "";
-            const defaultUrl = node.url ?? node.href ?? data.url ?? data.href ?? "";
-            const isLeafOrContent = ["Heading", "Text", "Paragraph", "RichText", "Button", "Image", "Icon", "Counter", "Badge"].includes(t)
-                || defaultText !== "" || defaultSrc !== "" || defaultUrl !== "";
-            if (isLeafOrContent || !Array.isArray(node.children) || node.children.length === 0) {
-                outList.push({
-                    id: String(node.id),
-                    type: t || "Element",
-                    text: String(defaultText || ""),
-                    src: String(defaultSrc || ""),
-                    alt: String(defaultAlt || ""),
-                    url: String(defaultUrl || "")
-                });
+    function applyClientSymbolOverrides(node, overrides) {
+        if (!node || !overrides) return;
+        const ov = overrides[node.id];
+        if (ov && node.data) {
+            if (ov.text) {
+                if (node.type === "Text") node.data.content_html = ov.text;
+                else node.data.text = ov.text;
             }
+            if (ov.src && node.type === "Image") node.data.src = ov.src;
+            if (ov.alt && node.type === "Image") node.data.alt = ov.alt;
+            if (ov.url) node.data.url = ov.url;
         }
         if (Array.isArray(node.children)) {
-            node.children.forEach(function(c) {
-                collectOverridableSymbolChildren(c, outList);
-            });
+            node.children.forEach(c => applyClientSymbolOverrides(c, overrides));
         }
-        return outList;
     }
+    window.applyClientSymbolOverrides = applyClientSymbolOverrides;
+})();
 "###;

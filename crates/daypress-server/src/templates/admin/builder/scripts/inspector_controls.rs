@@ -64,17 +64,15 @@ pub const JS_INSPECTOR_CONTROLS: &str = r###"
         const panel = document.createElement("div");
         panel.className = "cad-panel" + (open ? " open" : "");
         panel.dataset.panelId = id;
-        panel.innerHTML = `<div class="cad-panel-header"><span class="cad-panel-title"><i class="fa-solid ${icon}"></i> ${title}<span class="panel-set-dot" title="Has values on this layer"></span></span><i class="fa-solid fa-chevron-right cad-panel-chevron"></i></div><div class="cad-panel-body">${bodyHtml}</div>`;
-        panel.querySelector(".cad-panel-header").onclick = () => { panelOpen[id] = panel.classList.toggle("open"); };
+        panel.innerHTML = `<div class="cad-panel-header"><span class="cad-panel-title"><i class="fa-solid ${icon}"></i> ${title}<span class="panel-set-dot" title="Has values on this layer"></span></span><div style="display:flex;align-items:center;gap:6px;"><button type="button" class="panel-reset-btn" title="Reset all styles in ${title}"><i class="fa-solid fa-rotate-left"></i> Reset</button><i class="fa-solid fa-chevron-right cad-panel-chevron"></i></div></div><div class="cad-panel-body">${bodyHtml}</div>`;
+        panel.querySelector(".cad-panel-header").onclick = (e) => { if (!e.target.closest(".panel-reset-btn")) panelOpen[id] = panel.classList.toggle("open"); };
         container.appendChild(panel);
         return panel;
     };
 
-    NSI.row = (label, props, inner, attrs) =>
-        `<div class="cad-row ns-row" ${attrs || ""}><span class="cad-label" data-label-for="${props}">${label}</span><div class="ns-ctl">${inner}</div></div>`;
-
-    NSI.pair = (l1, p1, c1, l2, p2, c2, attrs) =>
-        `<div class="cad-row ns-pair" ${attrs || ""}><span class="cad-label" data-label-for="${p1}">${l1}</span><div class="ns-ctl">${c1}</div><span class="cad-label" data-label-for="${p2}">${l2}</span><div class="ns-ctl">${c2}</div></div>`;
+    const rstBtn = (props) => `<button type="button" class="ns-prop-reset" data-reset-props="${props}" title="Reset ${props} to default">&#x21ba;</button>`;
+    NSI.row = (label, props, inner, attrs) => `<div class="cad-row ns-row" ${attrs || ""}><span class="cad-label" data-label-for="${props}">${label}</span><div class="ns-ctl">${inner}${rstBtn(props)}</div></div>`;
+    NSI.pair = (l1, p1, c1, l2, p2, c2, attrs) => `<div class="cad-row ns-pair" ${attrs || ""}><span class="cad-label" data-label-for="${p1}">${l1}</span><div class="ns-ctl">${c1}${rstBtn(p1)}</div><span class="cad-label" data-label-for="${p2}">${l2}</span><div class="ns-ctl">${c2}${rstBtn(p2)}</div></div>`;
 
     NSI.input = (prop, ph, list) => {
         const units = UNIT_PROPS[prop];
@@ -85,24 +83,11 @@ pub const JS_INSPECTOR_CONTROLS: &str = r###"
         return `<input type="text" class="cad-input font-mono ns-input" data-prop="${prop}" data-ph="${esc(ph || "")}" spellcheck="false" autocomplete="off" ${list ? `list="${list}"` : ""}>`;
     };
 
-    NSI.select = (prop, options) =>
-        `<select class="cad-select ns-select" data-prop="${prop}"><option value="">—</option>${options.map(o => {
-            const [v, l] = Array.isArray(o) ? o : [o, o];
-            return `<option value="${esc(v)}">${l}</option>`;
-        }).join("")}</select>`;
-
-    NSI.seg = (prop, options) =>
-        `<div class="cad-segmented ns-seg" data-prop="${prop}">${options.map(([v, html, title]) =>
-            `<button type="button" class="seg-btn" data-val="${esc(v)}" title="${esc(title || v)}">${html}</button>`).join("")}</div>`;
-
-    NSI.color = (prop) =>
-        `<div class="ns-color"><input type="color" class="color-swatch-box" data-swatch="${prop}">${NSI.input(prop)}<button type="button" class="ns-clear" data-clear="${prop}" title="Clear">&times;</button></div>`;
-
-    NSI.range = (prop, min, max, step) =>
-        `<div class="ns-range"><input type="range" min="${min}" max="${max}" step="${step}" data-range="${prop}">${NSI.input(prop)}</div>`;
-
-    NSI.textarea = (prop, ph) =>
-        `<textarea class="cad-textarea font-mono ns-textarea" data-prop="${prop}" data-ph="${esc(ph || "")}" placeholder="${esc(ph || "")}" spellcheck="false"></textarea>`;
+    NSI.select = (prop, options) => `<select class="cad-select ns-select" data-prop="${prop}"><option value="">—</option>${options.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}">${l}</option>`; }).join("")}</select>`;
+    NSI.seg = (prop, options) => `<div class="cad-segmented ns-seg" data-prop="${prop}">${options.map(([v, html, title]) => `<button type="button" class="seg-btn" data-val="${esc(v)}" title="${esc(title || v)}">${html}</button>`).join("")}</div>`;
+    NSI.color = (prop) => `<div class="ns-color"><input type="color" class="color-swatch-box" data-swatch="${prop}">${NSI.input(prop)}</div>`;
+    NSI.range = (prop, min, max, step) => `<div class="ns-range"><input type="range" min="${min}" max="${max}" step="${step}" data-range="${prop}">${NSI.input(prop)}</div>`;
+    NSI.textarea = (prop, ph) => `<textarea class="cad-textarea font-mono ns-textarea" data-prop="${prop}" data-ph="${esc(ph || "")}" placeholder="${esc(ph || "")}" spellcheck="false"></textarea>`;
 
     function normalizeValue(prop, raw, activeUnit) {
         let v = String(raw === undefined || raw === null ? "" : raw).trim();
@@ -208,16 +193,22 @@ pub const JS_INSPECTOR_CONTROLS: &str = r###"
             lbl.classList.toggle("is-scrubbable", !!scrubbable && !set);
             lbl.title = set ? "Set on this layer — click to reset (or drag horizontally to scrub)" : (scrubbable ? "Drag horizontally to scrub value" : (inherited ? "Inherited from another layer" : ""));
         });
+        root.querySelectorAll("[data-reset-props]").forEach(btn => {
+            const props = btn.dataset.resetProps.split(",").filter(Boolean);
+            btn.classList.toggle("is-active", props.some(p => window.getLayerValue(node, p)));
+        });
         root.querySelectorAll("[data-show-if]").forEach(row => {
             const m = /^(\w+)(!?=)(.*)$/.exec(row.dataset.showIf);
             if (!m) return;
             const hit = m[3].split("|").includes(effective(node, m[1]));
             row.style.display = (m[2] === "=" ? hit : !hit) ? "" : "none";
         });
-        root.querySelectorAll(".cad-panel").forEach(p => {
-            const any = Array.from(p.querySelectorAll("[data-prop]")).some(c => window.getLayerValue(node, c.dataset.prop));
+        const checkPanel = (p) => {
+            const any = Array.from(p.querySelectorAll("[data-prop], [data-font-select]")).some(c => window.getLayerValue(node, c.dataset.prop || c.dataset.fontSelect));
             p.classList.toggle("has-values", any);
-        });
+        };
+        if (root.classList && root.classList.contains("cad-panel")) checkPanel(root);
+        root.querySelectorAll(".cad-panel").forEach(checkPanel);
     };
 
     NSI.bind = function(root, node) {
@@ -225,6 +216,28 @@ pub const JS_INSPECTOR_CONTROLS: &str = r###"
         const set = (prop, v, commit) => { window.setLocalStyle(prop, v, { commit: !!commit }); refreshSoon(); };
         let commitTimer = 0;
         const commitSoon = () => { clearTimeout(commitTimer); commitTimer = setTimeout(() => window.commitStyleChange(), 450); };
+        const resetPanel = (p) => {
+            const map = {};
+            p.querySelectorAll("[data-prop], [data-font-select]").forEach(c => {
+                const prop = c.dataset.prop || c.dataset.fontSelect;
+                if (prop) map[prop] = "";
+            });
+            window.setLocalStyles(map, { commit: true });
+            refreshSoon();
+            if (window.repaintBoxModel) window.repaintBoxModel();
+        };
+        if (root.classList && root.classList.contains("cad-panel")) {
+            const pBtn = root.querySelector(".panel-reset-btn");
+            if (pBtn) pBtn.onclick = (e) => { e.stopPropagation(); resetPanel(root); };
+        }
+        root.querySelectorAll("[data-reset-props]").forEach(btn => btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const map = {};
+            btn.dataset.resetProps.split(",").filter(Boolean).forEach(p => { map[p] = ""; });
+            window.setLocalStyles(map, { commit: true });
+            refreshSoon();
+            if (window.repaintBoxModel) window.repaintBoxModel();
+        }));
 
         root.querySelectorAll("input.ns-input[data-prop], textarea.ns-textarea[data-prop]").forEach(ctl => {
             const prop = ctl.dataset.prop, unitSel = root.querySelector(`[data-unit-prop="${prop}"]`);

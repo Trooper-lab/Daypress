@@ -49,6 +49,7 @@ pub const JS_CANVAS_DRAG: &str = r###"
                         artboard.classList.remove("artboard-desktop", "artboard-tablet", "artboard-mobile");
                         artboard.classList.add("artboard-" + nextBp);
                         bpButtons.forEach(b => b.classList.toggle("active", b.dataset.bp === nextBp));
+                        if (window.renderCanvas) window.renderCanvas();
                         if (window.refreshAllNodeStyles) window.refreshAllNodeStyles();
                         if (window.renderInspector) window.renderInspector();
                     }
@@ -194,6 +195,14 @@ pub const JS_CANVAS_DRAG: &str = r###"
         if (btnOpenStarters) {
             btnOpenStarters.onclick = () => {
                 if (window.openCreateTemplateModal) window.openCreateTemplateModal(null, true);
+            };
+        }
+
+        const btnOpenSymbols = document.getElementById("btn-open-symbols-prompt");
+        if (btnOpenSymbols) {
+            btnOpenSymbols.onclick = () => {
+                const symRailBtn = document.getElementById("rail-btn-symbols");
+                if (symRailBtn) symRailBtn.click();
             };
         }
 

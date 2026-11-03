@@ -26,6 +26,8 @@ fn hides_site_chrome(post: &DaypressPostResponse) -> bool {
         || post.template == "leeg.php"
         || post.post_type == "template:header"
         || post.post_type == "template:footer"
+        || post.post_type == "template:section_symbol"
+        || post.post_type == "template:popup"
 }
 
 pub fn build_site_preview(

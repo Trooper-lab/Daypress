@@ -16,8 +16,117 @@ pub const CSS_OVERLAYS: &str = r#"
     inset: 0;
     border: 2px solid var(--day-signal);
     border-radius: 1px;
-    box-shadow: 0 0 0 1px rgba(13, 15, 18, 0.6), 0 0 10px rgba(37, 99, 235, 0.25);
+    box-shadow: 0 0 0 1px rgba(13, 15, 18, 0.6), 0 0 10px var(--day-signal-tint);
     pointer-events: none;
+}
+
+/* Bidirectional Navigator <-> Canvas Hover & Click Pulse Highlight */
+#daystudio-canvas .dp-section {
+    outline: 1px dashed rgba(230, 184, 74, 0.35);
+    outline-offset: -1px;
+    min-height: 48px;
+}
+
+#daystudio-canvas .dp-container {
+    outline: 1px dashed rgba(147, 161, 255, 0.38);
+    outline-offset: -2px;
+    min-height: 36px;
+}
+
+#daystudio-canvas .dp-column {
+    outline: 1px dashed rgba(94, 201, 152, 0.35);
+    outline-offset: -2px;
+    min-height: 32px;
+}
+
+.daystudio-node.is-hovered,
+.daystudio-node.is-nav-hovered {
+    outline: 2px dashed var(--day-token) !important;
+    outline-offset: -1px !important;
+}
+
+.daystudio-node.node-section.is-hovered,
+.daystudio-node.node-section.is-selected {
+    outline: 2px solid var(--day-token) !important;
+    outline-offset: -2px !important;
+}
+
+.daystudio-node.node-container.is-hovered,
+.daystudio-node.node-container.is-selected {
+    outline: 2px solid var(--day-signal) !important;
+    outline-offset: -2px !important;
+}
+
+.daystudio-node.node-column.is-hovered,
+.daystudio-node.node-column.is-selected {
+    outline: 2px solid var(--day-emerald) !important;
+    outline-offset: -2px !important;
+}
+
+#daystudio-selection-chrome[data-sel-type="section"] .selection-outline {
+    border-color: var(--day-token);
+}
+#daystudio-selection-chrome[data-sel-type="section"] .selection-badge {
+    background: var(--day-token);
+    color: #111214;
+}
+#daystudio-selection-chrome[data-sel-type="section"] .badge-kind,
+#daystudio-selection-chrome[data-sel-type="section"] .badge-id,
+#daystudio-selection-chrome[data-sel-type="section"] .badge-action-btn {
+    color: #111214;
+}
+
+#daystudio-selection-chrome[data-sel-type="column"] .selection-outline {
+    border-color: var(--day-emerald);
+}
+#daystudio-selection-chrome[data-sel-type="column"] .selection-badge {
+    background: var(--day-emerald);
+    color: #111214;
+}
+
+#daystudio-selection-chrome.badge-inside .selection-badge {
+    top: 2px;
+    left: 2px;
+    border-radius: var(--day-radius-sm);
+}
+
+@keyframes dayNodePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(230, 184, 74, 0.65); }
+    70%  { box-shadow: 0 0 0 10px rgba(230, 184, 74, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(230, 184, 74, 0); }
+}
+
+.daystudio-node.is-flash-highlight {
+    animation: dayNodePulse 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dynamic Field Binding Visual Indicator & Live Preview Badge */
+.daystudio-node.is-dynamic-bound {
+    position: relative;
+    outline: 1.5px dashed rgba(230, 184, 74, 0.75);
+    outline-offset: 2px;
+    background-image: linear-gradient(90deg, rgba(230, 184, 74, 0.06), transparent 60%);
+}
+
+.daystudio-node.is-dynamic-bound::after {
+    content: attr(data-dynamic-badge);
+    position: absolute;
+    top: -21px;
+    right: 0;
+    background: rgba(18, 16, 11, 0.94);
+    color: #E6B84A;
+    border: 1px solid rgba(230, 184, 74, 0.55);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-family: var(--day-font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 20;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
 .selection-badge {
