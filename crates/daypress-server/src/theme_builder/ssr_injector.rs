@@ -22,11 +22,64 @@ pub struct HydrationContext<'a> {
     pub archive_posts: Vec<DaypressPostResponse>,
     pub pagination_html: Option<String>,
     pub symbol_depth: u8,
+    pub collection_tax: Option<String>,
+    pub collection_term: Option<String>,
+    pub collection_sort: Option<String>,
+    pub collection_search: Option<String>,
+    pub collection_page: Option<usize>,
 }
 
 pub struct SsrInjector;
 
 impl SsrInjector {
+    /// Hydrates a post or page's own `layout_json` (containing `LoopGrid`, `SymbolInstance`, or `{{acf.*}}` / `{{post.*}}` tokens)
+    /// so canvas-built pages render live SQLite collections and dynamic fields on SSR.
+    pub fn hydrate_post_layout_json(
+        db: &Database,
+        req_ctx: &RequestContext,
+        settings: &DaypressSettingsResponse,
+        post: Option<&DaypressPostResponse>,
+        layout_json: Option<&str>,
+    ) -> Option<String> {
+        Self::hydrate_post_layout_json_with_query(
+            db,
+            req_ctx,
+            settings,
+            post,
+            layout_json,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn hydrate_post_layout_json_with_query(
+        db: &Database,
+        req_ctx: &RequestContext,
+        settings: &DaypressSettingsResponse,
+        post: Option<&DaypressPostResponse>,
+        layout_json: Option<&str>,
+        dp_tax: Option<String>,
+        dp_term: Option<String>,
+        dp_sort: Option<String>,
+        dp_q: Option<String>,
+        dp_page: Option<usize>,
+    ) -> Option<String> {
+        let raw = layout_json?;
+        let mut layout: DaypressLayout = serde_json::from_str(raw).ok()?;
+        let mut hyd_ctx = Self::create_hydration_context(req_ctx, settings, post);
+        hyd_ctx.db = Some(db);
+        hyd_ctx.collection_tax = dp_tax;
+        hyd_ctx.collection_term = dp_term;
+        hyd_ctx.collection_sort = dp_sort;
+        hyd_ctx.collection_search = dp_q;
+        hyd_ctx.collection_page = dp_page;
+        Self::hydrate_layout(&mut layout, &hyd_ctx);
+        serde_json::to_string(&layout).ok()
+    }
     /// Resolves active Header, Footer, and layout templates, hydrates dynamic placeholders,
     /// and compiles scoped responsive stylesheets.
     pub fn resolve_and_hydrate_partials(
@@ -74,7 +127,7 @@ impl SsrInjector {
         Self::resolve_and_hydrate_with_context(db, req_ctx, None, &hyd_ctx)
     }
 
-    fn resolve_and_hydrate_with_context(
+    pub fn resolve_and_hydrate_with_context(
         db: &Database,
         req_ctx: &RequestContext,
         post: Option<&DaypressPostResponse>,
@@ -453,6 +506,11 @@ impl SsrInjector {
                     archive_posts: ctx.archive_posts.clone(),
                     pagination_html: ctx.pagination_html.clone(),
                     symbol_depth: ctx.symbol_depth + 1,
+                    collection_tax: ctx.collection_tax.clone(),
+                    collection_term: ctx.collection_term.clone(),
+                    collection_sort: ctx.collection_sort.clone(),
+                    collection_search: ctx.collection_search.clone(),
+                    collection_page: ctx.collection_page,
                 };
                 for child in &mut symbol_children {
                     Self::hydrate_node(child, &nested_ctx);
@@ -505,7 +563,7 @@ impl SsrInjector {
             node.kind = NodeKind::CustomHtml { raw: markup };
         }
 
-        // B2. Server-Side LoopGrid Hydration
+        // B2. Server-Side LoopGrid / Filterable CollectionGrid Hydration
         if let NodeKind::LoopGrid {
             post_type,
             posts_per_page,
@@ -514,32 +572,69 @@ impl SsrInjector {
             show_excerpt,
             show_meta,
             show_pagination,
-            ..
+            taxonomy,
+            enable_filter_bar,
+            enable_sort,
+            enable_search,
+            default_sort,
+            card_skin,
+            meta_fields,
         } = &node.kind
         {
-            let posts: Vec<DaypressPostResponse> = if !ctx.archive_posts.is_empty() {
-                ctx.archive_posts.clone()
-            } else if let Some(db) = ctx.db {
-                db.get_posts(
-                    post_type,
-                    Some("publish"),
-                    None,
-                    (*posts_per_page).clamp(1, 50) as i64,
-                )
-                .unwrap_or_default()
+            let has_interactive_toolbar = *enable_filter_bar || *enable_sort || *enable_search;
+            let raw = if let Some(db) = ctx.db {
+                if ctx.archive_posts.is_empty()
+                    || has_interactive_toolbar
+                    || ctx.collection_tax.is_some()
+                    || ctx.collection_term.is_some()
+                    || ctx.collection_sort.is_some()
+                    || ctx.collection_search.is_some()
+                {
+                    Self::render_collection_grid_ssr(
+                        db,
+                        &node.id,
+                        post_type,
+                        *posts_per_page,
+                        *columns,
+                        *show_thumbnail,
+                        *show_excerpt,
+                        *show_meta,
+                        *show_pagination,
+                        taxonomy.as_deref(),
+                        *enable_filter_bar,
+                        *enable_sort,
+                        *enable_search,
+                        default_sort,
+                        card_skin,
+                        meta_fields,
+                        ctx,
+                    )
+                } else {
+                    Self::render_loop_grid_html_with_skin(
+                        &ctx.archive_posts,
+                        *columns,
+                        *show_thumbnail,
+                        *show_excerpt,
+                        *show_meta,
+                        *show_pagination,
+                        ctx.pagination_html.as_deref(),
+                        card_skin,
+                        meta_fields,
+                    )
+                }
             } else {
-                Vec::new()
+                Self::render_loop_grid_html_with_skin(
+                    &ctx.archive_posts,
+                    *columns,
+                    *show_thumbnail,
+                    *show_excerpt,
+                    *show_meta,
+                    *show_pagination,
+                    ctx.pagination_html.as_deref(),
+                    card_skin,
+                    meta_fields,
+                )
             };
-
-            let raw = Self::render_loop_grid_html(
-                &posts,
-                *columns,
-                *show_thumbnail,
-                *show_excerpt,
-                *show_meta,
-                *show_pagination,
-                ctx.pagination_html.as_deref(),
-            );
             node.kind = NodeKind::CustomHtml { raw };
         }
 
@@ -663,6 +758,11 @@ impl SsrInjector {
                                 archive_posts: ctx.archive_posts.clone(),
                                 pagination_html: ctx.pagination_html.clone(),
                                 symbol_depth: ctx.symbol_depth + 1,
+                                collection_tax: ctx.collection_tax.clone(),
+                                collection_term: ctx.collection_term.clone(),
+                                collection_sort: ctx.collection_sort.clone(),
+                                collection_search: ctx.collection_search.clone(),
+                                collection_page: ctx.collection_page,
                             };
                             Self::hydrate_layout(&mut mega_layout, &nested_ctx);
                             let raw_html = render_layout_to_html(&mega_layout);
@@ -694,81 +794,45 @@ impl SsrInjector {
         show_pagination: bool,
         pagination_html: Option<&str>,
     ) -> String {
+        Self::render_loop_grid_html_with_skin(
+            posts,
+            columns,
+            show_thumbnail,
+            show_excerpt,
+            show_meta,
+            show_pagination,
+            pagination_html,
+            "editorial",
+            &[],
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_loop_grid_html_with_skin(
+        posts: &[DaypressPostResponse],
+        columns: u8,
+        show_thumbnail: bool,
+        show_excerpt: bool,
+        show_meta: bool,
+        show_pagination: bool,
+        pagination_html: Option<&str>,
+        card_skin: &str,
+        meta_fields: &[String],
+    ) -> String {
         let cols = columns.clamp(1, 6);
-        let mut cards_html = String::new();
-        if posts.is_empty() {
-            cards_html.push_str(
-                r#"<div class="dp-loop-grid-empty" style="grid-column: 1 / -1; text-align: center; padding: 48px 24px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; color: var(--text-muted);">No matching articles or pages found.</div>"#,
-            );
+        let skin = if card_skin.trim().is_empty() {
+            "editorial"
         } else {
-            for post in posts {
-                let thumb_html = if show_thumbnail {
-                    if let Some(ref img_url) = post.featured_image_url {
-                        if !img_url.is_empty() {
-                            format!(
-                                r#"<div class="dp-card-thumb" style="overflow: hidden; border-radius: 8px 8px 0 0;"><img src="{}" alt="{}" class="dp-image" style="width: 100%; height: 200px; object-fit: cover; display: block;" loading="lazy" /></div>"#,
-                                html_escape(img_url),
-                                html_escape(&post.title.rendered)
-                            )
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    String::new()
-                };
-
-                let meta_html = if show_meta {
-                    let date_short: String = post.date.chars().take(10).collect();
-                    let author_display = if post.author_name.is_empty() {
-                        "admin".to_string()
-                    } else {
-                        html_escape(&post.author_name)
-                    };
-                    format!(
-                        r#"<div class="dp-card-meta"><span class="dp-badge">{}</span><span>&bull;</span><span>{}</span><span>&bull;</span><span>{}</span></div>"#,
-                        html_escape(&post.post_type),
-                        html_escape(&date_short),
-                        author_display
-                    )
-                } else {
-                    String::new()
-                };
-
-                let excerpt_html = if show_excerpt {
-                    let source = if !post.excerpt.rendered.trim().is_empty() {
-                        &post.excerpt.rendered
-                    } else {
-                        &post.content.rendered
-                    };
-                    let excerpt = plain_excerpt_chars(source, 140);
-                    format!(
-                        r#"<p class="dp-card-excerpt">{}</p>"#,
-                        html_escape(&excerpt)
-                    )
-                } else {
-                    String::new()
-                };
-
-                let card_cls = if post.sticky {
-                    "dp-card sticky"
-                } else {
-                    "dp-card"
-                };
-
-                cards_html.push_str(&format!(
-                    r#"<a href="/{slug}/" class="{card_cls}">{thumb_html}<div class="dp-card-body">{meta_html}<h3 class="dp-card-title">{title}</h3>{excerpt_html}<div class="dp-card-link">Read more &rarr;</div></div></a>"#,
-                    slug = html_escape(&post.slug),
-                    card_cls = card_cls,
-                    thumb_html = thumb_html,
-                    meta_html = meta_html,
-                    title = post.title.rendered,
-                    excerpt_html = excerpt_html,
-                ));
-            }
-        }
+            card_skin.trim()
+        };
+        let cards_html = Self::render_collection_cards_inner(
+            posts,
+            show_thumbnail,
+            show_excerpt,
+            show_meta,
+            skin,
+            meta_fields,
+        );
 
         let pag = if show_pagination {
             pagination_html.unwrap_or("")
@@ -777,10 +841,498 @@ impl SsrInjector {
         };
 
         format!(
-            r#"<div class="dp-loop-grid dp-grid" data-columns="{cols}" style="display: grid; grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: 24px;">{cards_html}</div>{pag}"#,
+            r#"<div class="dp-loop-grid dp-grid" data-columns="{cols}" data-skin="{skin}" style="display: grid; grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: 24px;">{cards_html}</div>{pag}"#,
             cols = cols,
+            skin = html_escape(skin),
             cards_html = cards_html,
             pag = pag
+        )
+    }
+
+    pub fn render_collection_cards_inner(
+        posts: &[DaypressPostResponse],
+        show_thumbnail: bool,
+        show_excerpt: bool,
+        show_meta: bool,
+        skin: &str,
+        meta_fields: &[String],
+    ) -> String {
+        let mut cards_html = String::new();
+        if posts.is_empty() {
+            cards_html.push_str(
+                r#"<div class="dp-loop-grid-empty" style="grid-column: 1 / -1; text-align: center; padding: 48px 24px; background: var(--bg-card, var(--paper-raised)); border: 1px solid var(--border, var(--rule)); border-radius: 8px; color: var(--text-muted, var(--ink-muted));">No matching items found.</div>"#,
+            );
+            return cards_html;
+        }
+
+        for post in posts {
+            let resolved_img_url = post
+                .featured_image_url
+                .as_deref()
+                .filter(|u| !u.is_empty())
+                .map(|u| u.to_string())
+                .or_else(|| {
+                    let meta_obj = post.meta.as_object()?;
+                    for key in [
+                        "banner_image",
+                        "profile_img",
+                        "header_image",
+                        "_thumbnail_id",
+                        "image",
+                    ] {
+                        if let Some(val) = meta_obj.get(key).and_then(|v| v.as_str()) {
+                            if val.starts_with("http://")
+                                || val.starts_with("https://")
+                                || val.starts_with('/')
+                            {
+                                return Some(val.to_string());
+                            }
+                        }
+                    }
+                    None
+                });
+
+            let thumb_html = if show_thumbnail && skin != "minimal" {
+                if let Some(ref img_url) = resolved_img_url {
+                    if !img_url.is_empty() {
+                        let thumb_style = if skin == "horizontal" {
+                            "width: 180px; min-height: 150px; flex-shrink: 0; overflow: hidden;"
+                        } else {
+                            "overflow: hidden; border-radius: 6px 6px 0 0;"
+                        };
+                        format!(
+                            r#"<div class="dp-card-thumb" style="{thumb_style}"><img src="{}" alt="{}" class="dp-image" style="width: 100%; height: 200px; object-fit: cover; display: block;" loading="lazy" /></div>"#,
+                            html_escape(img_url),
+                            html_escape(&post.title.rendered)
+                        )
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+
+            let meta_html = if show_meta {
+                let date_short: String = post.date.chars().take(10).collect();
+                let author_display = if post.author_name.is_empty() {
+                    "admin".to_string()
+                } else {
+                    html_escape(&post.author_name)
+                };
+                format!(
+                    r#"<div class="dp-card-meta"><span class="dp-badge">{}</span><span>&bull;</span><span>{}</span><span>&bull;</span><span>{}</span></div>"#,
+                    html_escape(&post.post_type),
+                    html_escape(&date_short),
+                    author_display
+                )
+            } else {
+                String::new()
+            };
+
+            // Structured field badges from post.acf / post.meta
+            let mut structured_badges = String::new();
+            if let Some(acf_obj) = post.acf.as_object() {
+                let keys_to_show: Vec<String> = if !meta_fields.is_empty() {
+                    meta_fields.to_vec()
+                } else {
+                    acf_obj
+                        .keys()
+                        .filter(|k| {
+                            !k.starts_with('_')
+                                && !matches!(
+                                    k.as_str(),
+                                    "header_height"
+                                        | "header_hoogte"
+                                        | "show_title"
+                                        | "header_title"
+                                        | "show_icon"
+                                        | "header_shape"
+                                        | "header_left"
+                                )
+                        })
+                        .take(3)
+                        .cloned()
+                        .collect()
+                };
+                let mut chips = Vec::new();
+                for k in keys_to_show {
+                    if let Some(val) = acf_obj.get(&k) {
+                        let formatted = format_structured_field_scalar(val);
+                        if !formatted.is_empty() && formatted.chars().count() <= 48 {
+                            chips.push(format!(
+                                r#"<span class="dp-acf-chip" data-field="{}" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:3px;font-size:11px;font-family:var(--font-mono, monospace);background:var(--paper-sunk, rgba(0,0,0,0.05));border:1px solid var(--rule, rgba(0,0,0,0.1));color:var(--ink, inherit);">{}</span>"#,
+                                html_escape(&k),
+                                html_escape(&formatted)
+                            ));
+                        }
+                    }
+                }
+                if !chips.is_empty() {
+                    structured_badges = format!(
+                        r#"<div class="dp-card-structured-fields" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">{}</div>"#,
+                        chips.join("")
+                    );
+                }
+            }
+
+            let excerpt_html = if show_excerpt {
+                let source = if !post.excerpt.rendered.trim().is_empty() {
+                    &post.excerpt.rendered
+                } else {
+                    &post.content.rendered
+                };
+                let excerpt = plain_excerpt_chars(source, 140);
+                format!(
+                    r#"<p class="dp-card-excerpt">{}</p>"#,
+                    html_escape(&excerpt)
+                )
+            } else {
+                String::new()
+            };
+
+            let card_cls = if post.sticky {
+                format!("dp-card dp-card-skin-{} sticky", html_escape(skin))
+            } else {
+                format!("dp-card dp-card-skin-{}", html_escape(skin))
+            };
+
+            let card_inline_style = match skin {
+                "horizontal" => "display: flex; flex-direction: row; align-items: stretch;",
+                "minimal" => "border: none; border-bottom: 1px solid var(--rule, #16171a2e); border-radius: 0; background: transparent; padding: 16px 0;",
+                "boxed" => "border: 1px solid var(--rule-strong, #16171a); border-radius: var(--radius-md, 6px); background: var(--paper-raised, #fbf8f2);",
+                "overlay" => "position: relative; border: 1px solid var(--rule-strong, #16171a); border-radius: var(--radius-md, 6px); background: var(--ink, #16171a); color: var(--paper, #f3eee4); overflow: hidden;",
+                _ => "border-top: 1px solid var(--rule-strong, #16171a); background: var(--paper-raised, #fbf8f2);",
+            };
+
+            let href = if post.post_type != "post" && post.post_type != "page" {
+                format!("/{}/{}/", post.post_type, post.slug)
+            } else if !post.link.is_empty() {
+                post.link.clone()
+            } else {
+                format!("/{}/", post.slug)
+            };
+
+            cards_html.push_str(&format!(
+                r#"<a href="{href}" class="{card_cls}" style="{card_inline_style}">{thumb_html}<div class="dp-card-body">{meta_html}<h3 class="dp-card-title">{title}</h3>{structured_badges}{excerpt_html}<div class="dp-card-link">Read more &rarr;</div></div></a>"#,
+                href = html_escape(&href),
+                card_cls = card_cls,
+                card_inline_style = card_inline_style,
+                thumb_html = thumb_html,
+                meta_html = meta_html,
+                title = post.title.rendered,
+                structured_badges = structured_badges,
+                excerpt_html = excerpt_html,
+            ));
+        }
+
+        cards_html
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_collection_grid_ssr(
+        db: &Database,
+        node_id: &str,
+        post_type: &str,
+        posts_per_page: u32,
+        columns: u8,
+        show_thumbnail: bool,
+        show_excerpt: bool,
+        show_meta: bool,
+        show_pagination: bool,
+        taxonomy: Option<&str>,
+        enable_filter_bar: bool,
+        enable_sort: bool,
+        enable_search: bool,
+        default_sort: &str,
+        card_skin: &str,
+        meta_fields: &[String],
+        ctx: &HydrationContext,
+    ) -> String {
+        let cols = columns.clamp(1, 6);
+        let per_page = posts_per_page.clamp(1, 50) as usize;
+        let skin = if card_skin.trim().is_empty() {
+            "editorial"
+        } else {
+            card_skin.trim()
+        };
+
+        // Resolve filter taxonomy
+        let resolved_tax: Option<String> = taxonomy
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .or_else(|| ctx.collection_tax.clone())
+            .or_else(|| {
+                if enable_filter_bar {
+                    db.get_taxonomies_for_post_type(post_type, None)
+                        .ok()
+                        .and_then(|list| list.into_iter().next().map(|t| t.slug))
+                } else {
+                    None
+                }
+            });
+
+        let active_term = ctx.collection_term.as_deref();
+        let active_search = ctx.collection_search.as_deref();
+        let active_sort = ctx
+            .collection_sort
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(if default_sort.is_empty() {
+                "date_desc"
+            } else {
+                default_sort
+            });
+        let active_page = ctx.collection_page.unwrap_or(1).max(1);
+
+        let (posts, total_items, resolved_filter_tax, term_counts) = db
+            .query_collection_posts(
+                post_type,
+                resolved_tax.as_deref(),
+                active_term,
+                Some(active_sort),
+                active_search,
+                active_page,
+                per_page,
+                &ctx.settings.url,
+            )
+            .unwrap_or_else(|_| (Vec::new(), 0, String::new(), Vec::new()));
+        if resolved_tax.is_none() && !resolved_filter_tax.is_empty() {
+            // Keep resolved_filter_tax for pill links
+        }
+        let resolved_tax = resolved_tax.or(if resolved_filter_tax.is_empty() {
+            None
+        } else {
+            Some(resolved_filter_tax)
+        });
+
+        // Determine meta_fields: if node didn't specify explicit meta_fields, check FieldGroupDefinition show_in_collection_card
+        let effective_meta_fields: Vec<String> = if !meta_fields.is_empty() {
+            meta_fields.to_vec()
+        } else {
+            db.list_field_groups(Some(post_type))
+                .unwrap_or_default()
+                .into_iter()
+                .flat_map(|g| g.fields)
+                .filter(|f| f.show_in_collection_card)
+                .map(|f| f.name)
+                .collect()
+        };
+
+        // Build interactive toolbar if enabled
+        let mut toolbar_html = String::new();
+        if enable_filter_bar || enable_sort || enable_search {
+            let mut pills_html = String::new();
+            if enable_filter_bar {
+                let all_active = active_term.unwrap_or("").is_empty();
+                let all_style = if all_active {
+                    "background:var(--ink, #16171a);color:var(--paper, #f3eee4);border-color:var(--ink, #16171a);"
+                } else {
+                    "background:var(--paper-raised, #fbf8f2);color:var(--ink, #16171a);border-color:var(--rule, #16171a2e);"
+                };
+                pills_html.push_str(&format!(
+                    r#"<a href="?" class="dp-filter-pill{}" data-term="" onclick="return window.dpFilterCollectionGrid ? window.dpFilterCollectionGrid(event, '{}', {{term:''}}) : true;" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius-sm, 2px);border:1px solid;font-size:12.5px;font-weight:600;text-decoration:none;transition:all 0.15s ease;{}">All</a>"#,
+                    if all_active { " active" } else { "" },
+                    html_escape(node_id),
+                    all_style
+                ));
+                let tax_param = resolved_tax.as_deref().unwrap_or("");
+                for (t_slug, t_name, t_count) in &term_counts {
+                    let is_act = active_term.is_some_and(|a| a == t_slug);
+                    let p_style = if is_act {
+                        "background:var(--ink, #16171a);color:var(--paper, #f3eee4);border-color:var(--ink, #16171a);"
+                    } else {
+                        "background:var(--paper-raised, #fbf8f2);color:var(--ink, #16171a);border-color:var(--rule, #16171a2e);"
+                    };
+                    pills_html.push_str(&format!(
+                        r#"<a href="?dp_tax={tax}&amp;dp_term={slug}" class="dp-filter-pill{act}" data-term="{slug}" onclick="return window.dpFilterCollectionGrid ? window.dpFilterCollectionGrid(event, '{nid}', {{term:'{slug}'}}) : true;" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius-sm, 2px);border:1px solid;font-size:12.5px;font-weight:500;text-decoration:none;transition:all 0.15s ease;{style}"><span>{name}</span><span style="font-size:10.5px;opacity:0.7;font-family:var(--font-mono, monospace);">{cnt}</span></a>"#,
+                        tax = html_escape(tax_param),
+                        slug = html_escape(t_slug),
+                        act = if is_act { " active" } else { "" },
+                        nid = html_escape(node_id),
+                        style = p_style,
+                        name = html_escape(t_name),
+                        cnt = t_count,
+                    ));
+                }
+            }
+
+            let mut right_controls = String::new();
+            if enable_search {
+                let q_val = html_escape(active_search.unwrap_or(""));
+                right_controls.push_str(&format!(
+                    r#"<input type="search" class="dp-collection-search" value="{q_val}" placeholder="Filter items..." oninput="window.dpFilterCollectionGrid && window.dpFilterCollectionGrid(null, '{nid}', {{q: this.value}})" style="height:34px;padding:0 12px;border-radius:var(--radius-sm, 2px);border:1px solid var(--rule-strong, #16171a);background:var(--paper-raised, #fbf8f2);color:var(--ink, #16171a);font-size:12.5px;min-width:180px;" />"#,
+                    q_val = q_val,
+                    nid = html_escape(node_id),
+                ));
+            }
+            if enable_sort {
+                let s_desc = if active_sort == "date_desc" {
+                    "selected"
+                } else {
+                    ""
+                };
+                let s_asc = if active_sort == "date_asc" {
+                    "selected"
+                } else {
+                    ""
+                };
+                let s_tasc = if active_sort == "title_asc" {
+                    "selected"
+                } else {
+                    ""
+                };
+                let s_tdesc = if active_sort == "title_desc" {
+                    "selected"
+                } else {
+                    ""
+                };
+                right_controls.push_str(&format!(
+                    r#"<select class="dp-collection-sort" aria-label="Sort collection" onchange="window.dpFilterCollectionGrid && window.dpFilterCollectionGrid(null, '{nid}', {{sort: this.value}})" style="height:34px;padding:0 10px;border-radius:var(--radius-sm, 2px);border:1px solid var(--rule-strong, #16171a);background:var(--paper-raised, #fbf8f2);color:var(--ink, #16171a);font-size:12.5px;">
+                        <option value="date_desc" {s_desc}>Newest First</option>
+                        <option value="date_asc" {s_asc}>Oldest First</option>
+                        <option value="title_asc" {s_tasc}>Title A–Z</option>
+                        <option value="title_desc" {s_tdesc}>Title Z–A</option>
+                    </select>"#,
+                    nid = html_escape(node_id),
+                ));
+            }
+
+            toolbar_html = format!(
+                r#"<div class="dp-collection-toolbar" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--rule, #16171a2e);">
+                    <div class="dp-collection-filters" style="display:flex;flex-wrap:wrap;gap:8px;">{pills_html}</div>
+                    <div class="dp-collection-controls" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">{right_controls}</div>
+                </div>"#
+            );
+        }
+
+        let cards_html = Self::render_collection_cards_inner(
+            &posts,
+            show_thumbnail,
+            show_excerpt,
+            show_meta,
+            skin,
+            &effective_meta_fields,
+        );
+
+        let total_pages = total_items.div_ceil(per_page.max(1)).max(1);
+        let pag_html = if show_pagination {
+            if let Some(existing_pag) = ctx.pagination_html.as_deref() {
+                existing_pag.to_string()
+            } else if total_pages > 1 {
+                let mut page_links = String::new();
+                for p_idx in 1..=total_pages {
+                    let is_curr = p_idx == active_page;
+                    let p_style = if is_curr {
+                        "background:var(--ink, #16171a);color:var(--paper, #f3eee4);border-color:var(--ink, #16171a);"
+                    } else {
+                        "background:var(--paper-raised, #fbf8f2);color:var(--ink, #16171a);border-color:var(--rule, #16171a2e);"
+                    };
+                    page_links.push_str(&format!(
+                        r#"<a href="?dp_page={p_idx}" class="dp-page-link{curr}" onclick="return window.dpFilterCollectionGrid ? window.dpFilterCollectionGrid(event, '{nid}', {{page:{p_idx}}}) : true;" style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 10px;border-radius:var(--radius-sm, 2px);border:1px solid;font-size:12.5px;font-family:var(--font-mono, monospace);text-decoration:none;{p_style}">{p_idx}</a>"#,
+                        p_idx = p_idx,
+                        curr = if is_curr { " active" } else { "" },
+                        nid = html_escape(node_id),
+                        p_style = p_style,
+                    ));
+                }
+                format!(
+                    r#"<nav class="dp-pagination" aria-label="Collection Pagination" style="display:flex;justify-content:center;gap:8px;margin-top:32px;">{page_links}</nav>"#
+                )
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        let meta_fields_attr = html_escape(&effective_meta_fields.join(","));
+        let tax_attr = html_escape(resolved_tax.as_deref().unwrap_or(""));
+        let term_attr = html_escape(active_term.unwrap_or(""));
+        let sort_attr = html_escape(active_sort);
+        let q_attr = html_escape(active_search.unwrap_or(""));
+
+        let controller_script = if enable_filter_bar
+            || enable_sort
+            || enable_search
+            || show_pagination
+        {
+            r#"<script>
+            if (!window.dpFilterCollectionGrid) {
+                window.dpFilterCollectionGrid = function(ev, gridId, patch) {
+                    if (ev && ev.preventDefault) ev.preventDefault();
+                    const wrap = document.getElementById('dp-collection-' + gridId);
+                    if (!wrap) return true;
+                    if (patch.term !== undefined) { wrap.dataset.term = patch.term; wrap.dataset.page = '1'; }
+                    if (patch.sort !== undefined) { wrap.dataset.sort = patch.sort; wrap.dataset.page = '1'; }
+                    if (patch.q !== undefined) { wrap.dataset.q = patch.q; wrap.dataset.page = '1'; }
+                    if (patch.page !== undefined) { wrap.dataset.page = String(patch.page); }
+                    const params = new URLSearchParams({
+                        post_type: wrap.dataset.postType || 'post',
+                        per_page: wrap.dataset.perPage || '6',
+                        columns: wrap.dataset.columns || '3',
+                        taxonomy: wrap.dataset.taxonomy || '',
+                        term: wrap.dataset.term || '',
+                        sort: wrap.dataset.sort || 'date_desc',
+                        q: wrap.dataset.q || '',
+                        page: wrap.dataset.page || '1',
+                        skin: wrap.dataset.skin || 'editorial',
+                        meta_fields: wrap.dataset.metaFields || '',
+                        show_thumbnail: wrap.dataset.showThumbnail || 'true',
+                        show_excerpt: wrap.dataset.showExcerpt || 'true',
+                        show_meta: wrap.dataset.showMeta || 'true'
+                    });
+                    wrap.querySelectorAll('.dp-filter-pill').forEach(p => {
+                        const active = (p.getAttribute('data-term') || '') === (wrap.dataset.term || '');
+                        p.classList.toggle('active', active);
+                        p.style.background = active ? 'var(--ink, #16171a)' : 'var(--paper-raised, #fbf8f2)';
+                        p.style.color = active ? 'var(--paper, #f3eee4)' : 'var(--ink, #16171a)';
+                    });
+                    fetch('/wp-json/daypress/v1/collection-query?' + params.toString())
+                        .then(r => r.json())
+                        .then(data => {
+                            const gridEl = wrap.querySelector('.dp-loop-grid');
+                            if (gridEl && data.cards_html !== undefined) {
+                                gridEl.outerHTML = data.cards_html;
+                            }
+                            const url = new URL(window.location.href);
+                            if (wrap.dataset.term) { url.searchParams.set('dp_term', wrap.dataset.term); } else { url.searchParams.delete('dp_term'); }
+                            if (wrap.dataset.sort && wrap.dataset.sort !== 'date_desc') { url.searchParams.set('dp_sort', wrap.dataset.sort); } else { url.searchParams.delete('dp_sort'); }
+                            if (wrap.dataset.q) { url.searchParams.set('dp_q', wrap.dataset.q); } else { url.searchParams.delete('dp_q'); }
+                            window.history.replaceState({}, '', url.toString());
+                        })
+                        .catch(() => {});
+                    return false;
+                };
+            }
+            </script>"#
+        } else {
+            ""
+        };
+
+        format!(
+            r#"<div id="dp-collection-{nid}" class="dp-collection-container" data-post-type="{pt}" data-per-page="{per_page}" data-columns="{cols}" data-taxonomy="{tax}" data-term="{term}" data-sort="{sort}" data-q="{q}" data-page="{page}" data-skin="{skin}" data-meta-fields="{meta}" data-show-thumbnail="{st}" data-show-excerpt="{se}" data-show-meta="{sm}">{toolbar_html}<div class="dp-loop-grid dp-grid" data-columns="{cols}" data-skin="{skin}" style="display: grid; grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: 24px;">{cards_html}</div>{pag_html}</div>{controller_script}"#,
+            nid = html_escape(node_id),
+            pt = html_escape(post_type),
+            per_page = per_page,
+            cols = cols,
+            tax = tax_attr,
+            term = term_attr,
+            sort = sort_attr,
+            q = q_attr,
+            page = active_page,
+            skin = html_escape(skin),
+            meta = meta_fields_attr,
+            st = show_thumbnail,
+            se = show_excerpt,
+            sm = show_meta,
+            toolbar_html = toolbar_html,
+            cards_html = cards_html,
+            pag_html = pag_html,
+            controller_script = controller_script,
         )
     }
 
@@ -1005,7 +1557,42 @@ impl SsrInjector {
                     _ => node.kind = NodeKind::Text { content_html: desc },
                 }
             }
-            _ => {}
+            other => {
+                let field_key = other
+                    .strip_prefix("acf.")
+                    .or_else(|| other.strip_prefix("acf:"))
+                    .or_else(|| other.strip_prefix("acf_"))
+                    .or_else(|| other.strip_prefix("meta."))
+                    .or_else(|| other.strip_prefix("meta:"));
+                if let Some(key) = field_key {
+                    let resolved = resolve_post_field_token(ctx.post, key);
+                    match &mut node.kind {
+                        NodeKind::Heading { text, .. } => *text = resolved,
+                        NodeKind::Text { content_html } => *content_html = resolved,
+                        NodeKind::CustomHtml { raw } => *raw = resolved,
+                        NodeKind::Image { src, .. } => {
+                            if !resolved.is_empty() {
+                                *src = resolved;
+                            }
+                        }
+                        NodeKind::Button { url, text, .. } => {
+                            if resolved.starts_with("http://")
+                                || resolved.starts_with("https://")
+                                || resolved.starts_with('/')
+                            {
+                                *url = resolved;
+                            } else if !resolved.is_empty() {
+                                *text = resolved;
+                            }
+                        }
+                        _ => {
+                            node.kind = NodeKind::Text {
+                                content_html: resolved,
+                            };
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1090,7 +1677,8 @@ impl SsrInjector {
             .as_deref()
             .unwrap_or(&ctx.settings.description);
 
-        text.replace("{{post.title}}", post_title)
+        let mut out = text
+            .replace("{{post.title}}", post_title)
             .replace("{{post_title}}", post_title)
             .replace("{{post.date}}", &post_date)
             .replace("{{post_date}}", &post_date)
@@ -1112,7 +1700,12 @@ impl SsrInjector {
             .replace("{{site_title}}", &ctx.settings.title)
             .replace("{{site.description}}", &ctx.settings.description)
             .replace("{{site_description}}", &ctx.settings.description)
-            .replace("{{current_year}}", "2026")
+            .replace("{{current_year}}", "2026");
+
+        if out.contains("{{acf.") || out.contains("{{meta.") || out.contains("{{acf_") {
+            out = interpolate_acf_and_meta_tokens(&out, ctx.post);
+        }
+        out
     }
 
     pub fn render_breadcrumbs_html(
@@ -1205,8 +1798,97 @@ impl SsrInjector {
             archive_posts: Vec::new(),
             pagination_html: None,
             symbol_depth: 0,
+            collection_tax: None,
+            collection_term: None,
+            collection_sort: None,
+            collection_search: None,
+            collection_page: None,
         }
     }
+}
+
+fn format_structured_field_scalar(val: &serde_json::Value) -> String {
+    match val {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => if *b { "Yes" } else { "No" }.to_string(),
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|item| {
+                if let Some(s) = item.as_str() {
+                    Some(s.to_string())
+                } else if let Some(obj) = item.as_object() {
+                    let lbl = obj.get("label").and_then(|v| v.as_str()).unwrap_or("");
+                    let v = obj.get("value").and_then(|v| v.as_str()).unwrap_or("");
+                    if !lbl.is_empty() && !v.is_empty() {
+                        Some(format!("{}: {}", lbl, v))
+                    } else if !v.is_empty() {
+                        Some(v.to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        serde_json::Value::Object(obj) => obj
+            .get("title")
+            .or_else(|| obj.get("url"))
+            .or_else(|| obj.get("name"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        serde_json::Value::Null => String::new(),
+    }
+}
+
+fn resolve_post_field_token(post: Option<&DaypressPostResponse>, key: &str) -> String {
+    let Some(p) = post else {
+        return String::new();
+    };
+    let clean_key = key.trim();
+    if let Some(acf_obj) = p.acf.as_object() {
+        if let Some(val) = acf_obj.get(clean_key) {
+            return format_structured_field_scalar(val);
+        }
+    }
+    if let Some(meta_obj) = p.meta.as_object() {
+        if let Some(val) = meta_obj.get(clean_key) {
+            return format_structured_field_scalar(val);
+        }
+    }
+    String::new()
+}
+
+fn interpolate_acf_and_meta_tokens(text: &str, post: Option<&DaypressPostResponse>) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("{{") {
+        result.push_str(&rest[..start]);
+        let after_open = &rest[start + 2..];
+        if let Some(end) = after_open.find("}}") {
+            let token_inner = after_open[..end].trim();
+            let field_key = token_inner
+                .strip_prefix("acf.")
+                .or_else(|| token_inner.strip_prefix("meta."))
+                .or_else(|| token_inner.strip_prefix("acf_"));
+            if let Some(key) = field_key {
+                result.push_str(&resolve_post_field_token(post, key));
+            } else {
+                result.push_str("{{");
+                result.push_str(&after_open[..end]);
+                result.push_str("}}");
+            }
+            rest = &after_open[end + 2..];
+        } else {
+            result.push_str(&rest[start..]);
+            rest = "";
+        }
+    }
+    result.push_str(rest);
+    result
 }
 
 fn plain_excerpt_chars(html: &str, max_chars: usize) -> String {
@@ -1401,6 +2083,12 @@ mod tests {
                 show_meta: true,
                 show_pagination: true,
                 taxonomy: None,
+                enable_filter_bar: false,
+                enable_sort: false,
+                enable_search: false,
+                default_sort: "date_desc".to_string(),
+                card_skin: "editorial".to_string(),
+                meta_fields: Vec::new(),
             },
             styles: StyleProperties::default(),
             children: vec![],

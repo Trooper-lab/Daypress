@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct QueryPostParams {
     pub p: Option<i64>,
     pub page_id: Option<i64>,
@@ -10,12 +10,29 @@ pub struct QueryPostParams {
     pub q: Option<String>,
     /// WordPress `?paged=N` listing page (same as `/page/N/`).
     pub paged: Option<usize>,
+    #[serde(alias = "tax", alias = "taxonomy")]
+    pub dp_tax: Option<String>,
+    #[serde(alias = "term")]
+    pub dp_term: Option<String>,
+    #[serde(alias = "sort")]
+    pub dp_sort: Option<String>,
+    pub dp_q: Option<String>,
+    pub dp_page: Option<usize>,
 }
 
-/// `?paged=N` on archive and posts-page listings.
-#[derive(Debug, Deserialize, Default)]
+/// `?paged=N` and Collection Grid filter parameters on archive and single listings.
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct PagedQuery {
     pub paged: Option<usize>,
+    #[serde(alias = "tax", alias = "taxonomy")]
+    pub dp_tax: Option<String>,
+    #[serde(alias = "term")]
+    pub dp_term: Option<String>,
+    #[serde(alias = "sort")]
+    pub dp_sort: Option<String>,
+    #[serde(alias = "q")]
+    pub dp_q: Option<String>,
+    pub dp_page: Option<usize>,
 }
 
 /// Parses the `N` of a `/page/N/` URL; anything but a positive number is `None` (a 404).

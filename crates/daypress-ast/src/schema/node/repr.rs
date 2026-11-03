@@ -337,7 +337,7 @@ pub(crate) enum NodeKindRepr {
         #[serde(default = "default_true")]
         close_button: bool,
     },
-    #[serde(alias = "PostGrid", alias = "PortfolioGrid")]
+    #[serde(alias = "PostGrid", alias = "PortfolioGrid", alias = "CollectionGrid")]
     LoopGrid {
         #[serde(default = "default_post_type")]
         post_type: String,
@@ -345,16 +345,28 @@ pub(crate) enum NodeKindRepr {
         posts_per_page: u32,
         #[serde(default = "default_grid_columns")]
         columns: u8,
-        #[serde(default = "default_true")]
+        #[serde(default = "default_true", alias = "show_featured_image")]
         show_thumbnail: bool,
         #[serde(default = "default_true")]
         show_excerpt: bool,
-        #[serde(default = "default_true")]
+        #[serde(default = "default_true", alias = "show_date")]
         show_meta: bool,
         #[serde(default = "default_true")]
         show_pagination: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         taxonomy: Option<String>,
+        #[serde(default)]
+        enable_filter_bar: bool,
+        #[serde(default)]
+        enable_sort: bool,
+        #[serde(default)]
+        enable_search: bool,
+        #[serde(default = "default_loop_sort")]
+        default_sort: String,
+        #[serde(default = "default_card_skin")]
+        card_skin: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        meta_fields: Vec<String>,
     },
     TableOfContents {
         #[serde(default = "default_toc_title")]

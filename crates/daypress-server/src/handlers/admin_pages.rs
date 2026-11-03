@@ -123,8 +123,9 @@ pub async fn handle_admin_post_new(
     let taxonomies = db
         .get_taxonomies_for_post_type(&ptype, target_id)
         .unwrap_or_default();
+    let field_groups = db.list_field_groups(Some(&ptype)).unwrap_or_default();
 
-    Html(templates::render_post_new_view(
+    Html(templates::render_post_new_view_with_fields(
         &settings,
         &ptype,
         existing_post.as_ref(),
@@ -134,6 +135,7 @@ pub async fn handle_admin_post_new(
         &media,
         has_visual_layout,
         &taxonomies,
+        &field_groups,
     ))
     .into_response()
 }
@@ -317,4 +319,27 @@ pub async fn handle_admin_publish(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let status = db.compute_publish_status();
     Html(templates::render_publish_view(&settings, &status))
+}
+
+#[derive(serde::Deserialize, Default)]
+pub struct ContentModelQueryParams {
+    pub tab: Option<String>,
+}
+
+pub async fn handle_admin_content_types(
+    State(db): State<Database>,
+    Query(params): Query<ContentModelQueryParams>,
+) -> Html<String> {
+    let settings = db.get_settings().unwrap_or_default();
+    let post_types = db.list_post_type_definitions().unwrap_or_default();
+    let taxonomies = db.list_custom_taxonomy_definitions().unwrap_or_default();
+    let field_groups = db.list_field_groups(None).unwrap_or_default();
+    let active_tab = params.tab.as_deref().unwrap_or("post_types");
+    Html(templates::render_content_model_page(
+        &post_types,
+        &taxonomies,
+        &field_groups,
+        active_tab,
+        &settings,
+    ))
 }

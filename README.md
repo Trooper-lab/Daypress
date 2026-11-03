@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.5.1).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.6.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -31,7 +31,8 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 
 **Writing and managing content**
 - Posts, pages, categories, tags, and navigation menus.
-- A post editor with visual, block, and HTML source modes, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
+- **Zero-Code Content Model Hub (`/d-admin/content-types` — CPT UI + ACF Parity)**: visual Custom Post Type (CPT) & Custom Taxonomy builder with 7 1-click starter blueprints (`Case Studies`, `Team`, `Docs`, `Jobs`, `Events`, `Portfolio`, `Testimonials`), typed Structured Field Groups (`text`, `textarea`, `wysiwyg`, `number`, `date`, `url`, `true_false`, `select`, `checkbox`, `media`, `post_object`, and nested `repeater` tables), dynamic REST v2 routes (`/wp-json/wp/v2/{cpt_slug}`), `{{acf.*}}` SSR token bindings, and automatic 1-click ingestion of **Advanced Custom Fields (ACF)** and **Custom Post Type UI** schemas during WXR/JSON migrations.
+- A post editor with visual, block, and HTML source modes, schema-driven Structured Field Group cards, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
 - **Media Library DAM (`/d-admin/upload`)**: virtual media folders & tags, 1-click **Replace Media File Without Changing URL/ID** (`Enable Media Replace` parity), dual **AVIF + WebP** encoding alongside thumbnail/medium crops, interactive focal-point crop picker (`object-position`), sanitized SVG uploads, and an Unused Asset Scanner.
 - Comments with moderation and discussion settings (who can comment, manual approval).
 - Users with application passwords, Two-Factor Authentication (RFC 6238 TOTP authenticator app + single-use backup recovery codes on `/d-admin/profile`), fine-grained WordPress-parity role capabilities (`Administrator`, `Editor`, `Author`, `Contributor`, `Subscriber`), per-user session sign-out ("Log Out Everywhere Else" on `/d-admin/profile`), plus personal data export and erase tools.
@@ -43,7 +44,7 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 **Designing the site**
 - **DayStudio**, a drag-and-drop page builder: sections, containers, grids, headings, text, buttons, images, video, and more. Layouts are stored as JSON and rendered on the server.
 - The DayStudio canvas loads the site's header, footer, and theme CSS, and matches the published page across desktop (`1200px`), tablet (`768px`), and mobile (`375px`) breakpoints, including root-level (`body`, `:root`, `html`) container queries and font-stack parity.
-- **Dynamic Theme Templates, Synced Components (Symbols), Visual Mega Menus & Site-Wide Modals (`/d-admin/headers-footers` & DayStudio)**: visual Single Post, Single Page, Archive, Category, Author, and 404 templates with dynamic field bindings (`{{post.title}}`, `{{post.date}}`, `{{author.name}}`, `{{post.featured_image}}`), Figma-style Synced Global Components (`SymbolInstance`) with per-instance text/media/link overrides and 1-click detach, visual Mega Menu dropdown panels (`mega_menu_template_id`), and site-wide Announcement Bars / Slide-In Modals.
+- **Dynamic Theme Templates, Synced Components (Symbols), Visual Mega Menus, Site-Wide Modals & Filterable Collection Grids (`/d-admin/headers-footers` & DayStudio)**: visual Single Post, Single Page, Archive, Category, Author, and 404 templates with dynamic field bindings (`{{post.title}}`, `{{post.date}}`, `{{author.name}}`, `{{post.featured_image}}`, `{{acf.*}}`), Figma-style Synced Global Components (`SymbolInstance`) with per-instance text/media/link overrides and 1-click detach, visual Mega Menu dropdown panels (`mega_menu_template_id`), site-wide Announcement Bars / Slide-In Modals, and interactive **Collection Grids** (`LoopGrid` / `CollectionGrid`) with taxonomy filter bar pills, sort dropdowns, instant keyword search, card skins (`editorial`, `boxed`, `minimal`, `horizontal`), and structured field badges.
 - A customizer for colors, fonts, and custom CSS.
 
 **Built-in site features**
@@ -129,9 +130,9 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
 | **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
 | **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
-| **`0.5.0`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Early preview (Now)** |
-| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Up next** |
-| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | Planned |
+| **`0.5.0`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
+| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Early preview (Now)** |
+| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Up next** |
 | **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
 | **`1.0`** | First Stable Release | Planned |
@@ -335,7 +336,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 361 tests
+cargo test --workspace                                  # 365 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

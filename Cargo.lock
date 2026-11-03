@@ -614,7 +614,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "daypress-ast"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "regex",
  "serde",
@@ -624,7 +624,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-server"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "argon2",
  "axum",
@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-transpiler"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "clap",
  "regex",
@@ -944,7 +944,7 @@ dependencies = [
 
 [[package]]
 name = "generated_slugify"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "regex",
  "serde",

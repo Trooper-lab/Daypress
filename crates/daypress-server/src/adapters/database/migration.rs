@@ -595,7 +595,15 @@ impl Database {
         }
 
         for p in &req.posts {
-            if matches!(p.post_type.as_str(), "wpcf7_contact_form" | "wpforms") {
+            if matches!(
+                p.post_type.as_str(),
+                "wpcf7_contact_form"
+                    | "wpforms"
+                    | "acf-field-group"
+                    | "acf-field"
+                    | "acf-post-type"
+                    | "acf-taxonomy"
+            ) {
                 continue;
             }
             let bundle_tz = req
@@ -1158,7 +1166,18 @@ impl Database {
             ));
         }
 
-        // 11. Universal WordPress Plugin Options Convergence
+        // 11. Universal WordPress Plugin Options Convergence + ACF / CPT UI Schema Ingestion
+        if let Ok(mut acf_converged) =
+            crate::importer::acf_cpt_ingest::ingest_acf_and_cpt_from_bundle(
+                &tx,
+                &req.posts,
+                &req.plugin_options,
+            )
+        {
+            converged_plugins.append(&mut acf_converged);
+        }
+        let _ = crate::importer::acf_cpt_ingest::finalize_acf_and_cpt_migration(&tx, &post_id_map);
+
         if !req.plugin_options.is_empty() {
             let mut from_opts =
                 crate::convergence::converge_plugin_options(&tx, &req.plugin_options);

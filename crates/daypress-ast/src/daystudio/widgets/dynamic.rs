@@ -105,6 +105,12 @@ pub(crate) fn map_dynamic_widget(
                 show_meta,
                 show_pagination,
                 taxonomy,
+                enable_filter_bar: false,
+                enable_sort: false,
+                enable_search: false,
+                default_sort: "date_desc".to_string(),
+                card_skin: "editorial".to_string(),
+                meta_fields: Vec::new(),
             })
         }
         "table-of-contents" => {

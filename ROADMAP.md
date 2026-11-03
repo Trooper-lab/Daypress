@@ -12,9 +12,9 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
 | **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
 | **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
-| **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Early preview (Now)** |
-| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Up next** |
-| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | Planned |
+| **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
+| **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
+| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Up next** |
 | **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
 | **`1.0`** | First Stable Release | Planned |
@@ -68,7 +68,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 - [x] **Production Performance & Cache Hardening**:
   - [x] Pre-compressed Gzip in-memory SSR hot cache (`<50µs` P99 latency) with ETag / `304 Not Modified`, `X-Daypress-Cache: HIT|MISS|BYPASS`, automatic invalidation, and Cloudflare CDN cache purge on save
 
-### `0.5.0` — Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 (`Early preview — Now`)
+### `0.5.1` — Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 (`Shipped`)
 - [x] Visual Single Post, Archive, Category, Author, and 404 templates in Daystudio with dynamic field bindings (`{{post.title}}`, `{{post.date}}`, `{{author.name}}`, `{{post.featured_image}}`)
 - [x] Figma-style **Synced Global Components (Symbols)** in Daystudio with per-instance text/media/link overrides
 - [x] Visual **Mega Menus** & site-wide **Announcement Bars / Slide-In Modals**
@@ -81,13 +81,13 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
   - [x] S3 & Cloudflare R2 media offload + continuous SQLite replica streaming
   - [x] Code-signed release binaries and `.deb` / `.rpm` / Homebrew packages
 
-### `0.6` — Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids (`Up next`)
-- [ ] Zero-code Custom Post Type (CPT) & Custom Taxonomy builder in `/d-admin/` (Case Studies, Team, Docs, Jobs, Events, Portfolio, Testimonials)
-- [ ] Typed Structured Field Schemas (text, rich text, number, date, media, select, repeater, relational post link)
-- [ ] Automatic 1-click migration of **Advanced Custom Fields (ACF)** and **Custom Post Type UI** schemas & postmeta
-- [ ] Filterable, sortable, and paginated **Daystudio Collection Grids** bound to any CPT or taxonomy
+### `0.6.0` — Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids (`Shipped`)
+- [x] Zero-code Custom Post Type (CPT) & Custom Taxonomy builder in `/d-admin/` (`/d-admin/content-types`) with 1-click starter blueprints (Case Studies, Team, Docs, Jobs, Events, Portfolio, Testimonials)
+- [x] Typed Structured Field Schemas (`text`, `textarea`, `wysiwyg`, `number`, `date`, `url`, `true_false`, `select`, `checkbox`, `media`, `post_object`, `repeater`) with dynamic `{{acf.*}}` SSR token bindings
+- [x] Automatic 1-click migration of **Advanced Custom Fields (ACF)** (`acf-field-group`, `acf-field`, `acf-post-type`, `acf-taxonomy`) and **Custom Post Type UI** (`cptui_post_types`, `cptui_taxonomies`) schemas & flattened repeater postmeta
+- [x] Filterable, sortable, searchable, and paginated **Daystudio Collection Grids** (`LoopGrid` / `CollectionGrid`) bound to any CPT or taxonomy
 
-### `0.7` — SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter (`Planned`)
+### `0.7` — SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter (`Up next`)
 - [ ] Native **SQLite FTS5** full-text search index with BM25 ranking, typo tolerance, snippet highlighting, and a drop-in `Cmd+K` public search modal widget
 - [ ] Automatic Rust-rendered **OpenGraph Social Share Cards (`og:image`)** generated dynamically from post title, kicker, author, and brand tokens
 - [ ] Rich **Schema.org JSON-LD** generator (`Article`, `FAQPage`, `LocalBusiness`, `Product`, `BreadcrumbList`) + Auto Table of Contents (TOC) & reading-time widget

@@ -132,6 +132,11 @@ fn test_adversarial_placeholder_hydration_unicode_and_special_chars() {
         archive_posts: Vec::new(),
         pagination_html: None,
         symbol_depth: 0,
+        collection_tax: None,
+        collection_term: None,
+        collection_sort: None,
+        collection_search: None,
+        collection_page: None,
     };
 
     // Assert zero panics on hydration
@@ -241,6 +246,11 @@ fn test_adversarial_placeholder_hydration_with_none_post_and_empty_title() {
         archive_posts: Vec::new(),
         pagination_html: None,
         symbol_depth: 0,
+        collection_tax: None,
+        collection_term: None,
+        collection_sort: None,
+        collection_search: None,
+        collection_page: None,
     };
 
     SsrInjector::hydrate_layout(&mut layout, &hyd_ctx);
@@ -269,6 +279,11 @@ fn test_adversarial_placeholder_hydration_with_none_post_and_empty_title() {
         archive_posts: Vec::new(),
         pagination_html: None,
         symbol_depth: 0,
+        collection_tax: None,
+        collection_term: None,
+        collection_sort: None,
+        collection_search: None,
+        collection_page: None,
     };
     let mut layout_none = layout.clone();
     SsrInjector::hydrate_layout(&mut layout_none, &hyd_ctx_none);
@@ -300,6 +315,11 @@ fn test_adversarial_dynamic_tokens_replacement() {
         archive_posts: Vec::new(),
         pagination_html: None,
         symbol_depth: 0,
+        collection_tax: None,
+        collection_term: None,
+        collection_sort: None,
+        collection_search: None,
+        collection_page: None,
     };
 
     let template_text = "Article: {{post_title}} by {{post_author}} on {{post_date}} | Copyright {{current_year}} {{site_title}} - {{site_description}}";

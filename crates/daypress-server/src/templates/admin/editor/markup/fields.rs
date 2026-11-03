@@ -119,3 +119,51 @@ pub(super) fn render_featured_image_preview(
     <button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12px;" onclick="openMediaPicker('featured')">+ Set Featured Image</button>"#.to_string()
     }
 }
+
+pub(super) fn render_media_picker_items(all_media: &[DaypressMediaResponse]) -> String {
+    let mut media_picker_items = String::new();
+    for m in all_media {
+        let url_esc = escape_html(&m.source_url);
+        let title_esc = escape_html(&m.title.rendered);
+        if m.mime_type.starts_with("image/") {
+            media_picker_items.push_str(&format!(
+                r#"<div class="media-pick-item" onclick="selectMediaItem({}, '{}', '{}')" style="cursor: pointer; border: 2px solid transparent; border-radius: var(--radius-sm); overflow: hidden; height: 110px; background: var(--ink); position: relative; transition: all 0.15s ease;" onmouseover="this.style.borderColor='var(--press)'" onmouseout="this.style.borderColor='transparent'">
+                    <img src="{}" alt="{}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" />
+                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(15,23,42,0.85); color: var(--paper-raised); font-size: 10px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{}</div>
+                </div>"#,
+                m.id, url_esc, title_esc, url_esc, title_esc, title_esc
+            ));
+        }
+    }
+    media_picker_items
+}
+
+pub(super) fn render_tag_chips_and_json(
+    all_tags: &[DaypressCategoryResponse],
+    initial_tags: &[i64],
+) -> (String, String, String) {
+    let mut popular_tag_chips = String::new();
+    for t in all_tags.iter().take(6) {
+        let t_name = escape_html(&t.name);
+        popular_tag_chips.push_str(&format!(
+            r#"<span class="tag-chip" onclick="addTagChip('{}')" style="background: var(--paper-sunk); color: var(--ink-muted); font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; border: 1px solid var(--rule-strong);">+ {}</span>"#,
+            t_name, t_name
+        ));
+    }
+    let initial_tag_names: Vec<String> = all_tags
+        .iter()
+        .filter(|t| initial_tags.contains(&t.id))
+        .map(|t| t.name.clone())
+        .collect();
+    let initial_tag_str = initial_tag_names.join(", ");
+    let mut known_tags_entries = Vec::new();
+    for t in all_tags {
+        known_tags_entries.push(format!(
+            r#""{}": {}"#,
+            escape_html(&t.name.to_lowercase()),
+            t.id
+        ));
+    }
+    let known_tags_json = format!("{{{}}}", known_tags_entries.join(", "));
+    (popular_tag_chips, initial_tag_str, known_tags_json)
+}

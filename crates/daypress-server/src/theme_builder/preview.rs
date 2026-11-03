@@ -62,6 +62,7 @@ pub async fn preview_template_handler(
         template: "".to_string(),
         format: "standard".to_string(),
         meta: serde_json::json!({}),
+        acf: serde_json::json!({}),
         categories: vec![],
         tags: vec![],
         parent: 0,
@@ -104,6 +105,11 @@ pub async fn preview_template_handler(
         archive_posts: Vec::new(),
         pagination_html: None,
         symbol_depth: 0,
+        collection_tax: None,
+        collection_term: None,
+        collection_sort: None,
+        collection_search: None,
+        collection_page: None,
     };
 
     let mut layout = template.layout.clone();

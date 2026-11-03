@@ -164,30 +164,43 @@ fn test_flat_visual_builder_extended_blocks() {
         _ => panic!("Expected Alert variant for Notice alias"),
     }
 
-    // 2. PostGrid alias for LoopGrid
+    // 2. PostGrid / CollectionGrid alias for LoopGrid
     let flat_grid = r#"{
         "id": "grid_flat_1",
-        "type": "PostGrid",
+        "type": "CollectionGrid",
         "post_type": "portfolio",
         "posts_per_page": 12,
         "columns": 4,
-        "taxonomy": "genre:sci-fi"
+        "taxonomy": "genre:sci-fi",
+        "enable_filter_bar": true,
+        "enable_sort": true,
+        "card_skin": "boxed",
+        "meta_fields": ["client", "year"]
     }"#;
-    let node_gr: DaypressNode = serde_json::from_str(flat_grid).expect("PostGrid alias failed");
+    let node_gr: DaypressNode =
+        serde_json::from_str(flat_grid).expect("CollectionGrid alias failed");
     match &node_gr.kind {
         NodeKind::LoopGrid {
             post_type,
             posts_per_page,
             columns,
             taxonomy,
+            enable_filter_bar,
+            enable_sort,
+            card_skin,
+            meta_fields,
             ..
         } => {
             assert_eq!(post_type, "portfolio");
             assert_eq!(*posts_per_page, 12);
             assert_eq!(*columns, 4);
             assert_eq!(taxonomy.as_deref(), Some("genre:sci-fi"));
+            assert!(*enable_filter_bar);
+            assert!(*enable_sort);
+            assert_eq!(card_skin, "boxed");
+            assert_eq!(meta_fields, &vec!["client".to_string(), "year".to_string()]);
         }
-        _ => panic!("Expected LoopGrid variant for PostGrid alias"),
+        _ => panic!("Expected LoopGrid variant for PostGrid/CollectionGrid alias"),
     }
 
     // 3. Icon with "icon" alias (using raw literal with double hashes)

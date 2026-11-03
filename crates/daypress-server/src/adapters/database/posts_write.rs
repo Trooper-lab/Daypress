@@ -193,22 +193,31 @@ impl Database {
             }
         }
 
-        // Persist custom / ACF postmeta fields when provided in `req.meta`
-        if let Some(serde_json::Value::Object(ref meta_map)) = req.meta {
-            for (mk, mv) in meta_map {
-                let k = mk.trim();
-                if k.is_empty() || k.starts_with("_tax_") || k == "_daypress_layout" || mv.is_null()
-                {
-                    continue;
+        // Persist custom / ACF postmeta fields when provided in `req.meta` or `req.acf`
+        for src_meta in [&req.meta, &req.acf] {
+            if let Some(serde_json::Value::Object(ref meta_map)) = src_meta {
+                for (mk, mv) in meta_map {
+                    let k = mk.trim();
+                    if k.is_empty()
+                        || k.starts_with("_tax_")
+                        || k == "_daypress_layout"
+                        || mv.is_null()
+                    {
+                        continue;
+                    }
+                    let val_str = match mv {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let _ = conn.execute(
+                        "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = ?2",
+                        params![id, k],
+                    );
+                    let _ = conn.execute(
+                        "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
+                        params![id, k, val_str],
+                    );
                 }
-                let val_str = match mv {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                };
-                let _ = conn.execute(
-                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
-                    params![id, k, val_str],
-                );
             }
         }
 
@@ -492,26 +501,28 @@ impl Database {
             }
         }
 
-        // Persist custom / ACF postmeta fields when provided in `req.meta`
-        if let Some(serde_json::Value::Object(ref meta_map)) = req.meta {
-            for (mk, mv) in meta_map {
-                let k = mk.trim();
-                if k.is_empty() || k.starts_with("_tax_") || k == "_daypress_layout" {
-                    continue;
-                }
-                let _ = tx.execute(
-                    "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = ?2",
-                    params![id, k],
-                );
-                if !mv.is_null() {
-                    let val_str = match mv {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    };
+        // Persist custom / ACF postmeta fields when provided in `req.meta` or `req.acf`
+        for src_meta in [&req.meta, &req.acf] {
+            if let Some(serde_json::Value::Object(ref meta_map)) = src_meta {
+                for (mk, mv) in meta_map {
+                    let k = mk.trim();
+                    if k.is_empty() || k.starts_with("_tax_") || k == "_daypress_layout" {
+                        continue;
+                    }
                     let _ = tx.execute(
-                        "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
-                        params![id, k, val_str],
+                        "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = ?2",
+                        params![id, k],
                     );
+                    if !mv.is_null() {
+                        let val_str = match mv {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        };
+                        let _ = tx.execute(
+                            "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, ?2, ?3)",
+                            params![id, k, val_str],
+                        );
+                    }
                 }
             }
         }

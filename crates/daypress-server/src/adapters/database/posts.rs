@@ -18,11 +18,21 @@ impl Database {
         base_url: &str,
     ) {
         let base_trimmed = base_url.trim_end_matches('/');
-        post.link = if matches!(
+        post.link = if !matches!(
             post.post_type.as_str(),
-            "trainingen" | "vacatures" | "cases" | "kandidaten"
-        ) {
-            format!("{}/{}/{}/", base_trimmed, post.post_type, post.slug)
+            "post" | "page" | "attachment" | "nav_menu_item" | "revision"
+        ) && !post.post_type.is_empty()
+        {
+            let rewrite_prefix: String = conn
+                .query_row(
+                    "SELECT rewrite_slug FROM daypress_post_types WHERE slug = ?1",
+                    params![&post.post_type],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| post.post_type.clone());
+            format!("{}/{}/{}/", base_trimmed, rewrite_prefix, post.slug)
         } else {
             format!("{}/{}/", base_trimmed, post.slug)
         };
@@ -124,6 +134,12 @@ impl Database {
                 serde_json::Value::String(label.clone()),
             );
         }
+        post.acf = Self::resolve_post_structured_fields_with_conn(
+            conn,
+            &post.post_type,
+            &meta_obj,
+            base_url,
+        );
         post.meta = serde_json::Value::Object(meta_obj);
 
         let tag_pairs: Vec<(i64, String)> = conn
@@ -309,6 +325,7 @@ impl Database {
             template: String::new(),
             format: "standard".to_string(),
             meta: serde_json::json!({}),
+            acf: serde_json::json!({}),
             categories: vec![1],
             tags: vec![],
             parent,

@@ -383,3 +383,109 @@ pub(crate) async fn delete_post_revision_handler(
         "previous": prev
     })))
 }
+
+fn resolve_rest_cpt_slug(db: &Database, raw_slug: &str) -> Result<String, AppError> {
+    let clean = raw_slug.trim().to_ascii_lowercase();
+    if clean.is_empty() {
+        return Err(AppError::NotFound("Invalid post type".to_string()));
+    }
+    if let Ok(defs) = db.list_post_type_definitions() {
+        if let Some(def) = defs.into_iter().find(|d| {
+            d.slug.eq_ignore_ascii_case(&clean)
+                || (!d.rewrite_slug.is_empty() && d.rewrite_slug.eq_ignore_ascii_case(&clean))
+        }) {
+            return Ok(def.slug);
+        }
+    }
+    let sanitized = crate::handlers::sanitize_key(&clean);
+    if !sanitized.is_empty() {
+        return Ok(sanitized);
+    }
+    Err(AppError::NotFound(format!(
+        "Post type '{}' not found",
+        raw_slug
+    )))
+}
+
+pub(crate) async fn list_cpt_posts(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
+    State(db): State<Database>,
+    AxPath(cpt_slug): AxPath<String>,
+    Query(mut params): Query<PostQueryParams>,
+) -> Result<(HeaderMap, Json<Vec<DaypressPostResponse>>), AppError> {
+    let post_type = resolve_rest_cpt_slug(&db, &cpt_slug)?;
+    restrict_status_for_visitor(&mut params, user.as_ref());
+    let per_page = params.per_page.unwrap_or(10).clamp(1, 500) as usize;
+    let page = params.page.unwrap_or(1).max(1) as usize;
+    let offset = params
+        .offset
+        .map(|o| o.max(0) as usize)
+        .unwrap_or_else(|| (page - 1) * per_page);
+    let cats = parse_id_list(params.categories.as_deref());
+    let tags = parse_id_list(params.tags.as_deref());
+
+    let (items, total) = db.query_posts(
+        &post_type,
+        params.status.as_deref(),
+        params.search.as_deref(),
+        params.slug.as_deref(),
+        params.author,
+        params.parent,
+        &cats,
+        &tags,
+        params.orderby.as_deref(),
+        params.order.as_deref(),
+        offset,
+        per_page,
+    )?;
+    Ok(rest_list_response(items, total as i64, per_page as i64))
+}
+
+pub(crate) async fn get_cpt_post(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
+    State(db): State<Database>,
+    AxPath((cpt_slug, id)): AxPath<(String, i64)>,
+) -> Result<Json<DaypressPostResponse>, AppError> {
+    let post_type = resolve_rest_cpt_slug(&db, &cpt_slug)?;
+    match db.get_post_by_id(id)? {
+        Some(item)
+            if item.post_type.eq_ignore_ascii_case(&post_type)
+                && crate::auth::can_view_status(&item.status, user.as_ref()) =>
+        {
+            Ok(Json(item))
+        }
+        _ => Err(AppError::NotFound(format!(
+            "{} {} not found",
+            post_type, id
+        ))),
+    }
+}
+
+pub(crate) async fn create_cpt_post(
+    auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath(cpt_slug): AxPath<String>,
+    Json(mut payload): Json<CreatePostRequest>,
+) -> Result<(StatusCode, Json<DaypressPostResponse>), AppError> {
+    let post_type = resolve_rest_cpt_slug(&db, &cpt_slug)?;
+    payload.post_type = post_type;
+    create_post(auth, State(db), Json(payload)).await
+}
+
+pub(crate) async fn update_cpt_post(
+    auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((_cpt_slug, id)): AxPath<(String, i64)>,
+    payload: Json<UpdatePostRequest>,
+) -> Result<Json<DaypressPostResponse>, AppError> {
+    update_post(auth, State(db), AxPath(id), payload).await
+}
+
+pub(crate) async fn delete_cpt_post(
+    auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((_cpt_slug, id)): AxPath<(String, i64)>,
+    query: Query<DeleteQueryParams>,
+) -> Result<Json<Value>, AppError> {
+    delete_post(auth, State(db), AxPath(id), query).await
+}

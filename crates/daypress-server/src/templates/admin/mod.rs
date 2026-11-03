@@ -1,6 +1,7 @@
 pub mod appearance;
 pub mod builder;
 pub mod comments;
+pub mod content_model;
 pub mod dashboard;
 pub mod editor;
 pub mod headers_footers;
@@ -19,6 +20,7 @@ pub mod users;
 pub use appearance::*;
 pub use builder::*;
 pub use comments::*;
+pub use content_model::*;
 pub use dashboard::*;
 pub use editor::*;
 pub use headers_footers::*;

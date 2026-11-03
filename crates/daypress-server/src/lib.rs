@@ -170,6 +170,8 @@ pub fn create_app(database: Database) -> Router {
         .route("/d-admin/studio", get(handle_admin_builder))
         .route("/studio", get(handle_admin_builder))
         .route("/d-admin/edit-tags", get(handle_admin_tags))
+        .route("/d-admin/content-types", get(handle_admin_content_types))
+        .route("/d-admin/content-model", get(handle_admin_content_types))
         // 3. Media
         .route("/d-admin/upload", get(handle_admin_media))
         .route("/d-admin/media-new", get(handle_admin_media_new))

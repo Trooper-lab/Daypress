@@ -287,6 +287,56 @@ CREATE TABLE IF NOT EXISTS daypress_media_folders (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_media_folders_parent ON daypress_media_folders(parent_id);
+
+-- Native Subsystems: Content Model Registry (Custom Post Types, Taxonomies & Structured Field Groups)
+CREATE TABLE IF NOT EXISTS daypress_post_types (
+    slug TEXT PRIMARY KEY,
+    label_singular TEXT NOT NULL,
+    label_plural TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL DEFAULT 'fa-solid fa-folder-open',
+    menu_position INTEGER NOT NULL DEFAULT 25,
+    public INTEGER NOT NULL DEFAULT 1,
+    has_archive INTEGER NOT NULL DEFAULT 1,
+    hierarchical INTEGER NOT NULL DEFAULT 0,
+    rewrite_slug TEXT NOT NULL DEFAULT '',
+    supports_json TEXT NOT NULL DEFAULT '["title","editor","thumbnail","excerpt","custom-fields"]',
+    taxonomies_json TEXT NOT NULL DEFAULT '[]',
+    show_in_rest INTEGER NOT NULL DEFAULT 1,
+    preset_key TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS daypress_taxonomies (
+    slug TEXT PRIMARY KEY,
+    label_singular TEXT NOT NULL,
+    label_plural TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    hierarchical INTEGER NOT NULL DEFAULT 1,
+    public INTEGER NOT NULL DEFAULT 1,
+    rewrite_slug TEXT NOT NULL DEFAULT '',
+    post_types_json TEXT NOT NULL DEFAULT '[]',
+    show_in_rest INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS daypress_field_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_key TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    location_rules_json TEXT NOT NULL DEFAULT '[]',
+    fields_json TEXT NOT NULL DEFAULT '[]',
+    position TEXT NOT NULL DEFAULT 'normal',
+    menu_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_field_groups_active ON daypress_field_groups(is_active, menu_order);
 "#;
 
 /// Single-use "Lost your password?" links. Only the SHA-256 of each token is stored, so a

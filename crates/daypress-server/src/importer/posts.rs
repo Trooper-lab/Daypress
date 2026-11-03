@@ -68,7 +68,15 @@ pub fn ingest_posts_pass1(
     }
 
     for mut item in posts {
-        if matches!(item.post_type.as_str(), "wpcf7_contact_form" | "wpforms") {
+        if matches!(
+            item.post_type.as_str(),
+            "wpcf7_contact_form"
+                | "wpforms"
+                | "acf-field-group"
+                | "acf-field"
+                | "acf-post-type"
+                | "acf-taxonomy"
+        ) {
             continue;
         }
         if !item.content.contains("[et_pb_")

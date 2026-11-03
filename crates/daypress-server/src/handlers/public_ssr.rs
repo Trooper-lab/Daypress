@@ -56,7 +56,13 @@ pub async fn handle_home_or_query(
         format!("/?paged={}", page_num)
     };
 
-    if user.is_none() {
+    let has_dp_filter = params.dp_tax.is_some()
+        || params.dp_term.is_some()
+        || params.dp_sort.is_some()
+        || params.dp_q.is_some()
+        || params.dp_page.is_some();
+
+    if user.is_none() && !has_dp_filter {
         if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
             return hit;
         }
@@ -71,7 +77,7 @@ pub async fn handle_home_or_query(
             .flatten()
             .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
         {
-            let layout_json = db.get_post_layout(id).unwrap_or(None);
+            let raw_layout = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
             let expanded = crate::plugins::expand_shortcodes_in_content(
                 &post.content.rendered,
@@ -89,6 +95,19 @@ pub async fn handle_home_or_query(
                 settings.page_on_front > 0 && post.id == settings.page_on_front,
                 terms,
             );
+            let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&post),
+                raw_layout.as_deref(),
+                params.dp_tax.clone(),
+                params.dp_term.clone(),
+                params.dp_sort.clone(),
+                params.dp_q.clone(),
+                params.dp_page,
+            )
+            .or(raw_layout);
             let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                 &db,
                 &req_ctx,
@@ -104,9 +123,12 @@ pub async fn handle_home_or_query(
             );
             let final_html =
                 crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
-            return db
-                .hot_cache
-                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
+            return db.hot_cache.store_and_serve(
+                &cache_key,
+                &headers,
+                user.is_some() || has_dp_filter,
+                final_html,
+            );
         } else {
             let req_ctx = RequestContext::for_404(&format!("/?p={}", id));
             let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
@@ -129,7 +151,7 @@ pub async fn handle_home_or_query(
             .flatten()
             .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
         {
-            let layout_json = db.get_post_layout(id).unwrap_or(None);
+            let raw_layout = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&page));
             let expanded = crate::plugins::expand_shortcodes_in_content(
                 &page.content.rendered,
@@ -146,6 +168,19 @@ pub async fn handle_home_or_query(
                 settings.page_on_front > 0 && page.id == settings.page_on_front,
                 vec![],
             );
+            let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&page),
+                raw_layout.as_deref(),
+                params.dp_tax.clone(),
+                params.dp_term.clone(),
+                params.dp_sort.clone(),
+                params.dp_q.clone(),
+                params.dp_page,
+            )
+            .or(raw_layout);
             let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                 &db,
                 &req_ctx,
@@ -161,9 +196,12 @@ pub async fn handle_home_or_query(
             );
             let final_html =
                 crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&page), html);
-            return db
-                .hot_cache
-                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
+            return db.hot_cache.store_and_serve(
+                &cache_key,
+                &headers,
+                user.is_some() || has_dp_filter,
+                final_html,
+            );
         } else {
             let req_ctx = RequestContext::for_404(&format!("/?page_id={}", id));
             let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
@@ -186,7 +224,7 @@ pub async fn handle_home_or_query(
             .flatten()
             .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
         {
-            let layout_json = db.get_post_layout(front_page.id).unwrap_or(None);
+            let raw_layout = db.get_post_layout(front_page.id).unwrap_or(None);
             let hooks =
                 crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&front_page));
             let expanded = crate::plugins::expand_shortcodes_in_content(
@@ -199,6 +237,19 @@ pub async fn handle_home_or_query(
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
             let req_ctx = RequestContext::for_front_page_post(front_page.id, &front_page.post_type);
+            let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&front_page),
+                raw_layout.as_deref(),
+                params.dp_tax.clone(),
+                params.dp_term.clone(),
+                params.dp_sort.clone(),
+                params.dp_q.clone(),
+                params.dp_page,
+            )
+            .or(raw_layout);
             let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                 &db,
                 &req_ctx,
@@ -218,9 +269,12 @@ pub async fn handle_home_or_query(
                 Some(&front_page),
                 html,
             );
-            return db
-                .hot_cache
-                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
+            return db.hot_cache.store_and_serve(
+                &cache_key,
+                &headers,
+                user.is_some() || has_dp_filter,
+                final_html,
+            );
         }
     }
 
@@ -297,12 +351,32 @@ pub async fn handle_single_paged(
             &cache_key,
             &headers,
         ),
-        None => not_found_response(
-            &db,
-            &settings,
-            user.as_ref(),
-            &format!("/{}/page/{}/", slug.trim_matches('/'), raw_page),
-        ),
+        None => {
+            if page >= 1 {
+                let pq = PagedQuery {
+                    paged: Some(page),
+                    dp_page: Some(page),
+                    ..Default::default()
+                };
+                if let Some(archive_resp) =
+                    crate::handlers::archives_ssr::try_handle_cpt_archive_with_query(
+                        &db,
+                        slug.trim_matches('/'),
+                        &settings,
+                        user.as_ref(),
+                        &pq,
+                    )
+                {
+                    return archive_resp;
+                }
+            }
+            not_found_response(
+                &db,
+                &settings,
+                user.as_ref(),
+                &format!("/{}/page/{}/", slug.trim_matches('/'), raw_page),
+            )
+        }
     }
 }
 
@@ -410,12 +484,17 @@ pub async fn handle_single(
     }
 
     let page_num = paged.page();
+    let has_dp_filter = paged.dp_tax.is_some()
+        || paged.dp_term.is_some()
+        || paged.dp_sort.is_some()
+        || paged.dp_q.is_some()
+        || paged.dp_page.is_some();
     let cache_key = if page_num <= 1 {
         req_path.clone()
     } else {
         format!("{}?paged={}", req_path, page_num)
     };
-    if user.is_none() {
+    if user.is_none() && !has_dp_filter {
         if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
             return hit;
         }
@@ -445,11 +524,11 @@ pub async fn handle_single(
                 post.content.rendered,
             );
         }
-        let layout_json = db.get_post_layout(post.id).unwrap_or(None);
+        let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
         if settings.show_on_front == "page"
             && settings.page_for_posts > 0
             && post.id == settings.page_for_posts
-            && layout_json.is_none()
+            && raw_layout.is_none()
             && post.content.rendered.trim().is_empty()
         {
             return posts_page_response(
@@ -478,6 +557,19 @@ pub async fn handle_single(
             settings.page_on_front > 0 && post.id == settings.page_on_front,
             terms,
         );
+        let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
+            &db,
+            &req_ctx,
+            &settings,
+            Some(&post),
+            raw_layout.as_deref(),
+            paged.dp_tax.clone(),
+            paged.dp_term.clone(),
+            paged.dp_sort.clone(),
+            paged.dp_q.clone(),
+            paged.dp_page,
+        )
+        .or(raw_layout);
         let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
             &db,
             &req_ctx,
@@ -494,16 +586,20 @@ pub async fn handle_single(
         );
         let final_html =
             crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
-        return db
-            .hot_cache
-            .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
+        return db.hot_cache.store_and_serve(
+            &cache_key,
+            &headers,
+            user.is_some() || has_dp_filter,
+            final_html,
+        );
     }
 
-    if let Some(archive_resp) = crate::handlers::archives_ssr::try_handle_cpt_archive(
+    if let Some(archive_resp) = crate::handlers::archives_ssr::try_handle_cpt_archive_with_query(
         &db,
         clean_slug,
         &settings,
         user.as_ref(),
+        &paged,
     ) {
         return archive_resp;
     }

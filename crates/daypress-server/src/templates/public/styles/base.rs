@@ -15,6 +15,20 @@ pub fn render_base_css(brand_color: &str) -> String {
 		@font-face {{ font-family: "IBM Plex Mono"; src: url("/static/fonts/IBMPlexMono-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }}
 
 		:root {{
+			--paper: #f3eee4;
+			--paper-raised: #fbf8f2;
+			--paper-sunk: #e7e0d1;
+			--ink: #16171a;
+			--ink-muted: #5a5852;
+			--rule: #16171a2e;
+			--rule-strong: #16171a;
+			--oxide: #a8401b;
+			--on-oxide: #fff8f0;
+			--press: #2a3bd0;
+			--on-press: #ffffff;
+			--moss: #3d5a39;
+			--ochre: #d9a42a;
+			--on-ochre: #16171a;
 			--bg-base: #f3eee4;
 			--bg-panel: #fbf8f2;
 			--bg-card: #fbf8f2;

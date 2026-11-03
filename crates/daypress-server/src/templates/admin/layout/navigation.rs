@@ -39,17 +39,81 @@ pub fn render_cpt_navigation(current_tab: &str, custom_post_types: &[String]) ->
     for slug in custom_post_types {
         let label = format_cpt_title(slug);
         let active_cls = if current_tab == slug { "active" } else { "" };
+        let open_cls = if current_tab == slug { "open" } else { "" };
         cpt_html.push_str(&format!(
             r#"
-			<div class="nav-group">
+			<div class="nav-group {open_cls}">
 				<a href="/d-admin/edit?post_type={slug}" class="nav-item {active_cls}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
 					<span>{label}</span>
 				</a>
+				<div class="nav-submenu">
+					<a href="/d-admin/edit?post_type={slug}" class="nav-subitem {active_cls}">All {label}</a>
+					<a href="/d-admin/post-new?post_type={slug}" class="nav-subitem">Add New</a>
+					<a href="/d-admin/content-types?tab=fields&amp;post_type={slug}" class="nav-subitem">Structured Fields</a>
+				</div>
 			</div>"#,
             slug = slug,
             active_cls = active_cls,
+            open_cls = open_cls,
             label = label
+        ));
+    }
+    cpt_html
+}
+
+/// Renders rich CPT navigation with plural labels, linked custom taxonomies, and schema shortcuts.
+pub fn render_cpt_navigation_full(
+    current_tab: &str,
+    settings: &crate::models::DaypressSettingsResponse,
+) -> String {
+    if settings.cpt_definitions.is_empty() {
+        return render_cpt_navigation(current_tab, &settings.custom_post_types);
+    }
+    let mut cpt_html = String::new();
+    for def in &settings.cpt_definitions {
+        let slug = &def.slug;
+        let label = if def.label_plural.trim().is_empty() {
+            format_cpt_title(slug)
+        } else {
+            def.label_plural.clone()
+        };
+        let active_cls = if current_tab == slug { "active" } else { "" };
+        let open_cls = if current_tab == slug { "open" } else { "" };
+
+        let mut tax_links = String::new();
+        for tslug in &def.taxonomies {
+            let tlabel = settings
+                .custom_taxonomies
+                .iter()
+                .find(|t| &t.slug == tslug)
+                .map(|t| t.label_plural.clone())
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| format_cpt_title(tslug));
+            tax_links.push_str(&format!(
+                r#"<a href="/d-admin/edit-tags?taxonomy={tslug}" class="nav-subitem">{tlabel}</a>"#
+            ));
+        }
+
+        cpt_html.push_str(&format!(
+            r#"
+			<div class="nav-group {open_cls}">
+				<a href="/d-admin/edit?post_type={slug}" class="nav-item {active_cls}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+					<span>{label}</span>
+				</a>
+				<div class="nav-submenu">
+					<a href="/d-admin/edit?post_type={slug}" class="nav-subitem {active_cls}">All {label}</a>
+					<a href="/d-admin/post-new?post_type={slug}" class="nav-subitem">Add New</a>
+					{tax_links}
+					<a href="/d-admin/content-types?tab=fields&amp;post_type={slug}" class="nav-subitem">Structured Fields</a>
+				</div>
+			</div>"#,
+            slug = slug,
+            active_cls = active_cls,
+            open_cls = open_cls,
+            label = label,
+            tax_links = tax_links,
         ));
     }
     cpt_html
@@ -121,6 +185,7 @@ pub struct NavState {
     pub sub_set_priv: &'static str,
     pub is_publish: &'static str,
     pub is_engine: &'static str,
+    pub is_content_model: &'static str,
 }
 
 impl NavState {
@@ -431,6 +496,12 @@ impl NavState {
             ""
         };
 
+        let is_content_model = if current_tab == "content-types" || current_tab == "content-model" {
+            "active"
+        } else {
+            ""
+        };
+
         Self {
             is_dash,
             is_dash_open,
@@ -496,6 +567,7 @@ impl NavState {
             sub_set_priv,
             is_publish,
             is_engine,
+            is_content_model,
         }
     }
 }

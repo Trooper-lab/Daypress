@@ -7,62 +7,45 @@ pub fn render_actions_script(
 ) -> String {
     format!(
         r#"
+            function getEditorPostPath(slug) {{
+                const pt = '{post_type}';
+                return (pt && pt !== 'post' && pt !== 'page') ? ('/' + pt + '/' + slug + '/') : ('/' + slug + '/');
+            }}
             function copyPermalink() {{
-                const slug = slugInput.value;
-                const url = window.location.origin + '/' + slug + '/';
+                const url = window.location.origin + getEditorPostPath(slugInput.value);
                 navigator.clipboard.writeText(url);
                 showToast('✓ Permalink copied: ' + url);
             }}
-
             function previewPage() {{
-                const slug = slugInput.value;
-                if (!slug) {{
-                    showToast('Please enter a title or slug first', true);
-                    return;
-                }}
-                window.open('/' + slug + '/', '_blank');
+                if (!slugInput.value) {{ showToast('Please enter a title or slug first', true); return; }}
+                window.open(getEditorPostPath(slugInput.value), '_blank');
             }}
 
-            // Media Picker Modal
-            function openMediaPicker(target) {{
-                currentMediaTarget = target;
-                document.getElementById('mediaPickerModal').style.display = 'flex';
-            }}
-
-            function closeMediaPicker() {{
-                document.getElementById('mediaPickerModal').style.display = 'none';
-            }}
-
+            function openMediaPicker(target) {{ currentMediaTarget = target; document.getElementById('mediaPickerModal').style.display = 'flex'; }}
+            function closeMediaPicker() {{ document.getElementById('mediaPickerModal').style.display = 'none'; }}
             function switchMediaTab(tab) {{
-                if (tab === 'library') {{
-                    document.getElementById('mediaTabLibrary').style.display = 'block';
-                    document.getElementById('mediaTabUpload').style.display = 'none';
-                    document.getElementById('tabLibraryBtn').className = 'btn btn-primary';
-                    document.getElementById('tabUploadBtn').className = 'btn btn-secondary';
-                }} else {{
-                    document.getElementById('mediaTabLibrary').style.display = 'none';
-                    document.getElementById('mediaTabUpload').style.display = 'block';
-                    document.getElementById('tabLibraryBtn').className = 'btn btn-secondary';
-                    document.getElementById('tabUploadBtn').className = 'btn btn-primary';
-                }}
+                const isLib = tab === 'library';
+                document.getElementById('mediaTabLibrary').style.display = isLib ? 'block' : 'none';
+                document.getElementById('mediaTabUpload').style.display = isLib ? 'none' : 'block';
+                document.getElementById('tabLibraryBtn').className = isLib ? 'btn btn-primary' : 'btn btn-secondary';
+                document.getElementById('tabUploadBtn').className = isLib ? 'btn btn-secondary' : 'btn btn-primary';
             }}
 
             function selectMediaItem(id, url, title) {{
-                if (currentMediaTarget === 'featured') {{
+                if (currentMediaTarget && currentMediaTarget.startsWith('acf:')) {{
+                    const fieldKey = currentMediaTarget.substring(4);
+                    const acfInput = document.getElementById('acf_media_' + fieldKey);
+                    if (acfInput) {{ acfInput.value = url; onAcfFieldChange(); }}
+                    showToast('✓ Media assigned to ' + fieldKey);
+                }} else if (currentMediaTarget === 'featured') {{
                     document.getElementById('featured_media').value = id;
-                    const elem = document.getElementById('featuredImgElem');
-                    elem.src = url;
+                    document.getElementById('featuredImgElem').src = url;
                     document.getElementById('featuredImgContainer').style.display = 'block';
                     showToast('✓ Featured image assigned!');
                 }} else {{
                     const imgHtml = '<figure style="margin: 16px 0;"><img src="' + url + '" alt="' + (title || 'Image') + '" style="max-width: 100%; height: auto; border-radius: var(--radius-sm); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);" /><figcaption style="font-size: 12px; color: var(--ink-muted); margin-top: 6px; text-align: center;">' + (title || '') + '</figcaption></figure><p></p>';
-                    if (currentMode === 'visual') {{
-                        visualEditor.focus();
-                        document.execCommand('insertHTML', false, imgHtml);
-                        syncVisualToTextarea();
-                    }} else {{
-                        insertRaw('\n' + imgHtml + '\n');
-                    }}
+                    if (currentMode === 'visual') {{ visualEditor.focus(); document.execCommand('insertHTML', false, imgHtml); syncVisualToTextarea(); }}
+                    else {{ insertRaw('\n' + imgHtml + '\n'); }}
                     showToast('✓ Image inserted into {type_singular}');
                 }}
                 markDirty();
@@ -84,67 +67,38 @@ pub fn render_actions_script(
                 try {{
                     const res = await fetch('/wp-json/wp/v2/media', {{ method: 'POST', body: formData }});
                     const data = await res.json();
-                    if (res.ok && data.source_url) {{
-                        selectMediaItem(data.id, data.source_url, data.slug);
-                    }} else {{
-                        showToast('Error uploading image', true);
-                    }}
-                }} catch(e) {{
-                    showToast('Upload failed: ' + e, true);
-                }}
+                    if (res.ok && data.source_url) selectMediaItem(data.id, data.source_url, data.slug);
+                    else showToast('Error uploading image', true);
+                }} catch(e) {{ showToast('Upload failed: ' + e, true); }}
             }}
-
-            async function uploadEditorImage(file) {{
-                uploadModalImage(file);
-            }}
+            async function uploadEditorImage(file) {{ uploadModalImage(file); }}
 
             async function duplicateCurrentPost() {{
                 if (!activePostId) return;
                 showToast('Cloning #' + activePostId + '...');
                 try {{
-                    const res = await fetch('/wp-json/daypress/v1/posts/' + activePostId + '/duplicate', {{
-                        method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }}
-                    }});
+                    const res = await fetch('/wp-json/daypress/v1/posts/' + activePostId + '/duplicate', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }} }});
                     if (res.ok) {{
                         const cloned = await res.json();
                         showToast('✓ Cloned! Redirecting to Draft #' + cloned.id + '...');
-                        setTimeout(() => {{
-                            window.location.href = '/d-admin/post?post=' + cloned.id + '&action=edit';
-                        }}, 500);
-                    }} else {{
-                        showToast('Failed to duplicate item', true);
-                    }}
-                }} catch (e) {{
-                    showToast('Network error: ' + e, true);
-                }}
+                        setTimeout(() => {{ window.location.href = '/d-admin/post?post=' + cloned.id + '&action=edit'; }}, 500);
+                    }} else showToast('Failed to duplicate item', true);
+                }} catch (e) {{ showToast('Network error: ' + e, true); }}
             }}
 
             async function trashPost() {{
-                const existingId = activePostId;
-                if (!existingId) return;
-                if (!confirm('Are you sure you want to permanently delete this {type_singular}?')) return;
+                if (!activePostId || !confirm('Are you sure you want to permanently delete this {type_singular}?')) return;
                 try {{
-                    const res = await fetch('/wp-json/wp/v2/posts/' + existingId, {{ method: 'DELETE' }});
+                    const res = await fetch('/wp-json/wp/v2/posts/' + activePostId, {{ method: 'DELETE' }});
                     if (res.ok) {{
                         showToast('✓ {type_singular} deleted');
-                        setTimeout(() => {{
-                            window.location.href = '/d-admin/edit' + ('{post_type}' === 'page' ? '?post_type=page' : '');
-                        }}, 400);
+                        setTimeout(() => {{ window.location.href = '/d-admin/edit' + ('{post_type}' !== 'post' ? '?post_type={post_type}' : ''); }}, 400);
                     }}
-                }} catch(e) {{
-                    showToast('Error: ' + e, true);
-                }}
+                }} catch(e) {{ showToast('Error: ' + e, true); }}
             }}
 
-            async function savePost(e) {{
-                if (e) e.preventDefault();
-                await submitData(document.getElementById('post_status').value || 'publish');
-            }}
-
-            async function saveDraft() {{
-                await submitData('draft');
-            }}
+            async function savePost(e) {{ if (e) e.preventDefault(); await submitData(document.getElementById('post_status').value || 'publish'); }}
+            async function saveDraft() {{ await submitData('draft'); }}
 
             async function submitData(status) {{
                 const scheduleFields = dpScheduleOverrides(status, false);
@@ -169,7 +123,7 @@ pub fn render_actions_script(
                 const template = tplEl ? tplEl.value : 'default';
 
                 const knownTags = {known_tags_json};
-                const tagsEl = document.getElementById('post_tags') || document.getElementById('post-tags-input');
+                const tagsEl = document.getElementById('post_tags') || document.getElementById('post-tags-input') || document.getElementById('taxonomy_input_post_tag');
                 const tagsRaw = tagsEl ? tagsEl.value : '';
                 const tagNames = tagsRaw.split(',').map(s => s.trim()).filter(Boolean);
                 const tags = [];
@@ -210,6 +164,41 @@ pub fn render_actions_script(
                 const seo_noindex = document.getElementById('seo_noindex') ? document.getElementById('seo_noindex').checked : false;
                 const seo_schema_type = document.getElementById('seo_schema_type') ? document.getElementById('seo_schema_type').value : 'Article';
 
+                const taxonomies = collectTaxonomies();
+                const flatInputs = Array.from(document.querySelectorAll('.taxonomy-flat-input[data-taxonomy]'));
+                for (const flatEl of flatInputs) {{
+                    const taxSlug = flatEl.getAttribute('data-taxonomy');
+                    if (!taxSlug || taxSlug === 'post_tag') continue;
+                    let knownMap = {{}};
+                    try {{
+                        knownMap = JSON.parse(flatEl.getAttribute('data-known-terms') || '{{}}');
+                    }} catch (_) {{}}
+                    const termNames = (flatEl.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                    const resolvedIds = [];
+                    for (const tName of termNames) {{
+                        const lower = tName.toLowerCase();
+                        if (knownMap[lower]) {{
+                            resolvedIds.push(knownMap[lower]);
+                        }} else {{
+                            try {{
+                                const tRes = await fetch('/wp-json/wp/v2/taxonomies/' + encodeURIComponent(taxSlug) + '/terms', {{
+                                    method: 'POST',
+                                    headers: {{ 'Content-Type': 'application/json' }},
+                                    body: JSON.stringify({{ name: tName }})
+                                }});
+                                if (tRes.ok) {{
+                                    const tData = await tRes.json();
+                                    if (tData && tData.id) {{
+                                        knownMap[lower] = tData.id;
+                                        resolvedIds.push(tData.id);
+                                    }}
+                                }}
+                            }} catch (_) {{}}
+                        }}
+                    }}
+                    taxonomies[taxSlug] = resolvedIds;
+                }}
+
                 const payload = {{
                     title: title || 'Untitled',
                     slug: slug || undefined,
@@ -231,7 +220,7 @@ pub fn render_actions_script(
                     seo_noindex,
                     seo_schema_type,
                     meta: collectAcfMeta(),
-                    taxonomies: collectTaxonomies(),
+                    taxonomies,
                     ...scheduleFields
                 }};
 

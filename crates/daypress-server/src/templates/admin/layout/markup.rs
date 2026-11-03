@@ -1,7 +1,7 @@
 //! Admin Shell HTML Markup and template rendering.
 
 use crate::models::DaypressSettingsResponse;
-use crate::templates::admin::layout::navigation::{render_cpt_navigation, NavState};
+use crate::templates::admin::layout::navigation::{render_cpt_navigation_full, NavState};
 use crate::templates::admin::layout::styles_components::get_styles_components;
 use crate::templates::admin::layout::styles_forms::get_styles_forms;
 use crate::templates::admin::layout::styles_shell::{
@@ -43,7 +43,7 @@ pub fn render_admin_shell(
     };
 
     let nav = NavState::compute(current_tab);
-    let custom_post_types_nav = render_cpt_navigation(current_tab, &settings.custom_post_types);
+    let custom_post_types_nav = render_cpt_navigation_full(current_tab, settings);
     let styles_shell = get_styles_shell();
     let styles_comp = get_styles_components();
     let admin_color = escape_html(
@@ -218,6 +218,14 @@ pub fn render_admin_shell(
 
 			<!-- 5. DYNAMIC CUSTOM POST TYPES -->
 			{custom_post_types_nav}
+
+			<!-- 5a. CONTENT MODEL (CPTs, Taxonomies & Structured Fields) -->
+			<div class="nav-group">
+				<a href="/d-admin/content-types" class="nav-item {is_content_model}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+					<span>Content Model</span>
+				</a>
+			</div>
 
 			<!-- 5b. DAYSTUDIO -->
 			<div class="nav-group">
@@ -398,6 +406,7 @@ pub fn render_admin_shell(
 		['Discussion Settings', '/d-admin/options-discussion'], ['Media Settings', '/d-admin/options-media'],
 		['Permalink Settings', '/d-admin/options-permalink'], ['Privacy Settings', '/d-admin/options-privacy'],
 		['Publish & Hosting', '/d-admin/publish'],
+		['Content Model (CPTs & ACF)', '/d-admin/content-types'],
 		['Engine Telemetry', '/d-admin/daypress-engine'], ['Analytics', '/d-admin/analytics']
 	];
 	let dayQsItems = [];
@@ -593,6 +602,7 @@ pub fn render_admin_shell(
         sub_set_priv = nav.sub_set_priv,
         is_publish = nav.is_publish,
         is_engine = nav.is_engine,
+        is_content_model = nav.is_content_model,
         admin_color = admin_color,
         html_lang = html_lang,
         updates_badge = updates_badge,

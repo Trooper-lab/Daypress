@@ -194,12 +194,18 @@ pub const JS_PALETTE_DEFAULTS: &str = r###"
 
         LoopGrid: {
             post_type: "post",
-            posts_per_page: 3,
+            posts_per_page: 6,
             columns: 3,
             show_thumbnail: true,
             show_excerpt: true,
             show_meta: true,
-            show_pagination: false
+            show_pagination: true,
+            enable_filter_bar: true,
+            enable_sort: true,
+            enable_search: true,
+            default_sort: "date_desc",
+            card_skin: "editorial",
+            meta_fields: []
         },
 
         TableOfContents: {

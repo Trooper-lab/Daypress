@@ -1,11 +1,13 @@
 //! Universal CPT Archive page rendering and media/taxonomy resolution.
 
+use super::PagedQuery;
 use crate::db::Database;
 use crate::models::{self, DaypressPostResponse};
 use crate::templates;
 use crate::templates::admin::layout::format_cpt_title;
 use crate::theme_builder::models::RequestContext;
-use crate::theme_builder::ssr_injector::SsrInjector;
+use crate::theme_builder::ssr_injector::{HydrationContext, SsrInjector};
+use std::collections::HashMap;
 
 pub fn render_cpt_archive(
     db: &Database,
@@ -13,11 +15,33 @@ pub fn render_cpt_archive(
     settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
 ) -> Option<String> {
+    render_cpt_archive_with_query(db, cpt_slug, settings, user, &PagedQuery::default())
+}
+
+pub fn render_cpt_archive_with_query(
+    db: &Database,
+    cpt_slug: &str,
+    settings: &models::DaypressSettingsResponse,
+    user: Option<&crate::auth::AuthUser>,
+    query: &PagedQuery,
+) -> Option<String> {
+    let cpt_def = db.list_post_type_definitions().ok().and_then(|defs| {
+        defs.into_iter().find(|d| {
+            d.slug.eq_ignore_ascii_case(cpt_slug)
+                || (!d.rewrite_slug.is_empty() && d.rewrite_slug.eq_ignore_ascii_case(cpt_slug))
+        })
+    });
+    if let Some(ref def) = cpt_def {
+        if !def.has_archive || !def.public {
+            return None;
+        }
+    }
+
     let posts = db
         .get_posts(cpt_slug, Some("publish"), None, 100)
         .unwrap_or_default();
 
-    if posts.is_empty() {
+    if posts.is_empty() && cpt_def.is_none() {
         let is_cpt = if let Ok(conn) = db.conn.lock() {
             conn.query_row(
                 "SELECT 1 FROM posts WHERE post_type = ?1 LIMIT 1",
@@ -33,8 +57,59 @@ pub fn render_cpt_archive(
         }
     }
 
-    let title_cpt = format_cpt_title(cpt_slug);
-    let page_title = format!("{} Archive &bull; {}", title_cpt, settings.title);
+    let title_cpt = cpt_def
+        .as_ref()
+        .filter(|d| !d.label_plural.trim().is_empty())
+        .map(|d| d.label_plural.clone())
+        .unwrap_or_else(|| format_cpt_title(cpt_slug));
+    let subtitle_cpt = cpt_def
+        .as_ref()
+        .filter(|d| !d.description.trim().is_empty())
+        .map(|d| d.description.clone())
+        .unwrap_or_else(|| format!("{} Collection Archive", title_cpt));
+    let page_title = format!("{} &bull; {}", title_cpt, settings.title);
+
+    let per_page = settings.posts_per_page.clamp(1, 100) as u32;
+    let active_page = query.dp_page.or(query.paged).unwrap_or(1).max(1);
+
+    let req_ctx = RequestContext::for_archive(cpt_slug, 0, cpt_slug);
+    let hyd_ctx = HydrationContext {
+        db: Some(db),
+        post: None,
+        settings,
+        breadcrumbs: req_ctx.build_breadcrumbs(),
+        nav_menus: HashMap::new(),
+        archive_title: Some(title_cpt.clone()),
+        archive_subtitle: Some(subtitle_cpt.clone()),
+        archive_posts: Vec::new(),
+        pagination_html: None,
+        symbol_depth: 0,
+        collection_tax: query.dp_tax.clone(),
+        collection_term: query.dp_term.clone(),
+        collection_sort: query.dp_sort.clone(),
+        collection_search: query.dp_q.clone(),
+        collection_page: Some(active_page),
+    };
+
+    let collection_grid_html = SsrInjector::render_collection_grid_ssr(
+        db,
+        &format!("cpt-archive-{}", cpt_slug),
+        cpt_slug,
+        per_page,
+        3,
+        true,
+        true,
+        true,
+        true,
+        query.dp_tax.as_deref(),
+        true,
+        true,
+        true,
+        "date_desc",
+        "editorial",
+        &[],
+        &hyd_ctx,
+    );
 
     let taxonomies = get_cpt_taxonomies(db, cpt_slug);
     let mut filters_html = String::new();
@@ -59,70 +134,29 @@ pub fn render_cpt_archive(
         filters_html.push_str("</div></div>");
     }
 
-    let mut cards_html = String::new();
-    for p in &posts {
-        let (img_url, img_alt) = resolve_cpt_card_media(db, p);
-        let excerpt = if !p.excerpt.rendered.trim().is_empty() {
-            p.excerpt.rendered.clone()
-        } else {
-            let meta_sub = get_postmeta_value(db, p.id, "samenvatting");
-            if !meta_sub.is_empty() {
-                format!("<p>{}</p>", meta_sub)
-            } else {
-                let plain: String = p.content.rendered.chars().take(140).collect();
-                if plain.is_empty() {
-                    String::new()
-                } else {
-                    format!("<p>{}...</p>", plain)
-                }
-            }
-        };
-
-        let card_img = if !img_url.is_empty() {
-            format!(
-                r#"<div class="card-media"><img src="{}" alt="{}" loading="lazy" class="img-fluid" /></div>"#,
-                img_url, img_alt
-            )
-        } else {
-            String::new()
-        };
-
-        let post_url = format!("/{}/{}/", cpt_slug, p.slug);
-        cards_html.push_str(&format!(
-            r#"<article class="col-md-4 col-sm-6 mb-4 card-col facetwp-template-item">
-                <div class="archive-card h-100">
-                    {card_img}
-                    <div class="card-body">
-                        <h3 class="card-title"><a href="{url}">{title}</a></h3>
-                        <div class="card-excerpt">{excerpt}</div>
-                        <a href="{url}" class="readmore btn-link">Read more &rarr;</a>
-                    </div>
-                </div>
-            </article>"#,
-            card_img = card_img,
-            url = post_url,
-            title = p.title.rendered,
-            excerpt = excerpt
-        ));
-    }
-
     let body_html = format!(
-        r#"<div class="cpt-archive-wrapper container py-5">
-            <header class="archive-header mb-4">
-                <h1 class="archive-title">{title_cpt}</h1>
-            </header>
-            {filters}
-            <div class="row archive-grid facetwp-template">
-                {cards}
+        r#"<section class="dp-section cpt-archive-wrapper container py-5">
+            <div class="dp-container" style="max-width: 1180px; margin: 0 auto;">
+                <header class="archive-header mb-4" style="margin-bottom: 32px;">
+                    <span class="dp-badge" style="margin-bottom: 8px; display: inline-block; text-transform: uppercase;">{cpt_slug}</span>
+                    <h1 class="archive-title">{title_cpt}</h1>
+                    <p style="color: var(--text-muted, var(--ink-muted)); margin: 0; font-size: 16px;">{subtitle_cpt}</p>
+                </header>
+                {filters_html}
+                {collection_grid_html}
             </div>
-        </div>"#,
-        title_cpt = title_cpt,
-        filters = filters_html,
-        cards = cards_html
+        </section>"#,
+        cpt_slug = templates::utils::escape_html(cpt_slug),
+        title_cpt = templates::utils::escape_html(&title_cpt),
+        subtitle_cpt = templates::utils::escape_html(&subtitle_cpt),
+        filters_html = filters_html,
+        collection_grid_html = collection_grid_html,
     );
 
-    let req_ctx = RequestContext::for_archive(cpt_slug, 0, cpt_slug);
-    let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, settings);
+    let partials = SsrInjector::resolve_and_hydrate_with_context(db, &req_ctx, None, &hyd_ctx);
+
+    // Ensure resolve_cpt_card_media remains linked for legacy media meta fallback
+    let _ = resolve_cpt_card_media;
 
     Some(templates::public::shell::render_base_layout(
         &page_title,
@@ -147,7 +181,7 @@ fn get_postmeta_value(db: &Database, post_id: i64, key: &str) -> String {
     }
 }
 
-fn resolve_cpt_card_media(db: &Database, post: &DaypressPostResponse) -> (String, String) {
+pub fn resolve_cpt_card_media(db: &Database, post: &DaypressPostResponse) -> (String, String) {
     if post.featured_media > 0 {
         if let Ok(Some(media_post)) = db.get_post_by_id(post.featured_media) {
             return (media_post.guid.rendered, media_post.title.rendered);

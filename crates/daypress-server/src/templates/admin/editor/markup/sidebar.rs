@@ -83,7 +83,7 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                         </div>
                         <div style="border-top: 1px solid var(--rule); padding-top: 10px;">
                             <div style="display: flex; gap: 6px;">
-                                <input type="text" id="new_term_{tax_slug}" placeholder="New {tax_name}..." class="form-input" style="height: 28px; font-size: 12px;" />
+                                <input type="text" id="new_term_{tax_slug}" placeholder="New {tax_name}..." class="form-input" style="height: 28px; font-size: 12px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddTaxonomyTerm('{tax_slug}');}}" />
                                 <button type="button" class="btn btn-secondary" style="height: 28px; font-size: 11.5px; padding: 0 8px;" onclick="inlineAddTaxonomyTerm('{tax_slug}')">Add</button>
                             </div>
                         </div>
@@ -100,6 +100,14 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                 .collect();
             let initial_val = escape_html(&assigned_names.join(", "));
 
+            let mut known_map = serde_json::Map::new();
+            for term in &tax.terms {
+                known_map.insert(term.name.to_lowercase(), serde_json::json!(term.id));
+            }
+            let known_terms_esc = escape_html(
+                &serde_json::to_string(&known_map).unwrap_or_else(|_| "{}".to_string()),
+            );
+
             let mut chips_html = String::new();
             for term in tax.terms.iter().take(12) {
                 let t_esc = escape_html(&term.name);
@@ -114,7 +122,7 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                         <h2 class="day-card-title">{tax_name}</h2>
                     </div>
                     <div class="day-card-body">
-                        <input type="text" id="taxonomy_input_{tax_slug}" class="form-input taxonomy-flat-input" data-taxonomy="{tax_slug}" value="{initial_val}" placeholder="Separate with commas..." style="margin-bottom: 8px;" />
+                        <input type="text" id="taxonomy_input_{tax_slug}" class="form-input taxonomy-flat-input" data-taxonomy="{tax_slug}" data-known-terms="{known_terms_esc}" value="{initial_val}" placeholder="Separate with commas..." style="margin-bottom: 8px;" />
                         <small style="color: var(--ink-muted); font-size: 11.5px; margin-bottom: 10px; display: block;">Separate {tax_name} with commas.</small>
                         <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px;">Popular {tax_name}:</div>
                         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
@@ -146,7 +154,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                     </div>
                     <div style="border-top: 1px solid var(--rule); padding-top: 10px;">
                         <div style="display: flex; gap: 6px;">
-                            <input type="text" id="newCatName" placeholder="New category..." class="form-input" style="height: 28px; font-size: 12px;" />
+                            <input type="text" id="newCatName" placeholder="New category..." class="form-input" style="height: 28px; font-size: 12px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddCategory();}}" />
                             <button type="button" class="btn btn-secondary" style="height: 28px; font-size: 11.5px; padding: 0 8px;" onclick="inlineAddCategory()">Add</button>
                         </div>
                     </div>

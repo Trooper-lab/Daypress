@@ -341,6 +341,77 @@ pub fn mcp_tools_manifest() -> Value {
                     "type": "object",
                     "properties": {}
                 }
+            },
+            {
+                "name": "daypress_list_post_types",
+                "description": "List all registered Custom Post Types (CPTs) with their labels, rewrite slugs, taxonomies, and item counts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "daypress_save_post_type",
+                "description": "Create or update a Custom Post Type definition in SQLite (`daypress_post_types`).",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["slug", "singular_label", "plural_label"],
+                    "properties": {
+                        "slug": { "type": "string", "description": "Machine key (e.g. 'case_study')" },
+                        "singular_label": { "type": "string" },
+                        "plural_label": { "type": "string" },
+                        "description": { "type": "string" },
+                        "menu_icon": { "type": "string", "default": "dashicons-portfolio" },
+                        "public": { "type": "boolean", "default": true },
+                        "has_archive": { "type": "boolean", "default": true },
+                        "hierarchical": { "type": "boolean", "default": false },
+                        "show_in_rest": { "type": "boolean", "default": true },
+                        "rest_base": { "type": "string" },
+                        "rewrite_slug": { "type": "string" },
+                        "supports": { "type": "array", "items": { "type": "string" } },
+                        "taxonomies": { "type": "array", "items": { "type": "string" } }
+                    }
+                }
+            },
+            {
+                "name": "daypress_provision_cpt_preset",
+                "description": "Provision a complete 1-click Custom Post Type blueprint ('case_studies', 'team', 'docs', 'jobs', 'events', 'portfolio', or 'testimonials') including linked taxonomies, ACF structured field group, and single/archive theme templates.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["preset"],
+                    "properties": {
+                        "preset": { "type": "string", "description": "Preset key ('case_studies', 'team', 'docs', 'jobs', 'events', 'portfolio', 'testimonials')" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_list_field_groups",
+                "description": "List all Structured Field Groups (ACF parity) with their field schemas and location rules.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "post_type": { "type": "string", "description": "Optional post_type filter" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_save_field_group",
+                "description": "Create or update a Structured Field Group (`daypress_field_groups`) with typed fields ('text', 'textarea', 'wysiwyg', 'number', 'date', 'url', 'true_false', 'select', 'checkbox', 'media', 'post_object', 'repeater') and location rules.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["title", "fields"],
+                    "properties": {
+                        "id": { "type": "integer" },
+                        "group_key": { "type": "string" },
+                        "title": { "type": "string" },
+                        "description": { "type": "string" },
+                        "position": { "type": "string", "default": "normal" },
+                        "menu_order": { "type": "integer", "default": 0 },
+                        "is_active": { "type": "boolean", "default": true },
+                        "location_rules": { "type": "array" },
+                        "fields": { "type": "array" }
+                    }
+                }
             }
         ]
     })
@@ -869,6 +940,54 @@ fn dispatch_tool_call(
                 cfg.secret_access_key = crate::storage_s3::MASKED_SECRET_PLACEHOLDER.to_string();
             }
             Ok(serde_json::to_value(cfg).unwrap_or(Value::Null))
+        }
+        "daypress_list_post_types" => {
+            let defs = service.options_repo().list_post_type_definitions()?;
+            Ok(serde_json::to_value(defs).unwrap_or(Value::Null))
+        }
+        "daypress_save_post_type" => {
+            let def: crate::domain::models::CustomPostTypeDefinition = serde_json::from_value(args)
+                .map_err(|e| {
+                    DomainError::Validation(format!("Invalid save_post_type args: {e}"))
+                })?;
+            let saved = service.options_repo().save_post_type_definition(&def)?;
+            Ok(serde_json::to_value(saved).unwrap_or(Value::Null))
+        }
+        "daypress_provision_cpt_preset" => {
+            let preset = args
+                .get("preset")
+                .or_else(|| args.get("preset_key"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| DomainError::Validation("'preset' is required".into()))?;
+            let res = service
+                .options_repo()
+                .provision_content_type_preset(preset)?;
+            Ok(serde_json::to_value(res).unwrap_or(Value::Null))
+        }
+        "daypress_list_field_groups" => {
+            let post_type_filter = args
+                .get("post_type")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let mut groups = service.options_repo().list_field_group_definitions()?;
+            if let Some(pt) = post_type_filter {
+                groups.retain(|g| {
+                    g.location_rules.is_empty()
+                        || g.location_rules
+                            .iter()
+                            .any(|r| r.param == "post_type" && r.value.eq_ignore_ascii_case(pt))
+                });
+            }
+            Ok(serde_json::to_value(groups).unwrap_or(Value::Null))
+        }
+        "daypress_save_field_group" => {
+            let group: crate::domain::models::FieldGroupDefinition = serde_json::from_value(args)
+                .map_err(|e| {
+                DomainError::Validation(format!("Invalid save_field_group args: {e}"))
+            })?;
+            let saved = service.options_repo().save_field_group_definition(&group)?;
+            Ok(serde_json::to_value(saved).unwrap_or(Value::Null))
         }
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"

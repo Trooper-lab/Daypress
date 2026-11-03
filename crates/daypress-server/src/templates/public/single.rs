@@ -27,8 +27,17 @@ pub fn render_single_post(
         .map(daypress_ast::compile_layout_css)
         .unwrap_or_default();
 
-    let has_ast_layout = ast_rendered.is_some();
-    let theme_single_html = if !has_ast_layout {
+    let is_page = post.post_type == "page";
+    let has_section_ast = parsed_layout.as_ref().is_some_and(|l| {
+        l.root.children.iter().any(|n| {
+            matches!(
+                n.kind,
+                daypress_ast::NodeKind::Section | daypress_ast::NodeKind::Container
+            )
+        })
+    });
+    let has_visual_canvas_layout = (is_page && ast_rendered.is_some()) || has_section_ast;
+    let theme_single_html = if !has_visual_canvas_layout {
         partials
             .and_then(|p| p.single_html.as_ref())
             .filter(|s| !s.trim().is_empty())
@@ -36,7 +45,6 @@ pub fn render_single_post(
         None
     };
     let clean_content = ast_rendered.unwrap_or_else(|| clean_post_content(&post.content.rendered));
-    let is_page = post.post_type == "page";
     let site_name = if settings.title.trim().is_empty() {
         "Home"
     } else {
@@ -65,7 +73,7 @@ pub fn render_single_post(
     }
 
     // Full-bleed Visual Builder page vs standard article/page with header shell
-    let is_full_bleed_visual = has_ast_layout
+    let is_full_bleed_visual = has_visual_canvas_layout
         || (is_page
             && (clean_content.contains("elem_hero_sec")
                 || clean_content.contains("divi_section_")
@@ -83,17 +91,79 @@ pub fn render_single_post(
         || clean_content.contains("<section class=\"section ")
         || clean_content.contains("<section class=\"dp-section");
 
+    // Render structured field summary block for Custom Post Types if `post.acf` has values
+    let acf_summary_html = if post.post_type != "post" && post.post_type != "page" {
+        if let Some(acf_obj) = post.acf.as_object() {
+            let mut items = Vec::new();
+            for (k, v) in acf_obj {
+                if k.starts_with('_') {
+                    continue;
+                }
+                match v {
+                    serde_json::Value::String(s)
+                        if !s.trim().is_empty() && s.chars().count() <= 140 =>
+                    {
+                        let label = k.replace('_', " ");
+                        items.push(format!(
+                            r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted, var(--ink-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--text-main, var(--ink));">{}</strong></div>"#,
+                            escape_html(&label),
+                            escape_html(s.trim())
+                        ));
+                    }
+                    serde_json::Value::Number(n) => {
+                        let label = k.replace('_', " ");
+                        items.push(format!(
+                            r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted, var(--ink-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--text-main, var(--ink));">{}</strong></div>"#,
+                            escape_html(&label),
+                            escape_html(&n.to_string())
+                        ));
+                    }
+                    serde_json::Value::Array(arr) => {
+                        for elem in arr {
+                            if let Some(obj) = elem.as_object() {
+                                let lbl = obj.get("label").and_then(|x| x.as_str()).unwrap_or("");
+                                let val = obj.get("value").and_then(|x| x.as_str()).unwrap_or("");
+                                if !lbl.is_empty() && !val.is_empty() {
+                                    items.push(format!(
+                                        r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted, var(--ink-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--text-main, var(--ink));">{}</strong></div>"#,
+                                        escape_html(lbl),
+                                        escape_html(val)
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if !items.is_empty() {
+                format!(
+                    r#"<div class="dp-single-acf-summary" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:16px;padding:16px 20px;margin:24px auto;max-width:880px;background:var(--paper-raised, #fbf8f2);border:1px solid var(--rule, #16171a2e);border-top:2px solid var(--rule-strong, #16171a);border-radius:2px;">{}</div>"#,
+                    items.join("")
+                )
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
     let content = if let Some(tpl_html) = theme_single_html {
         tpl_html.clone()
     } else if is_section_layout {
-        clean_content
+        format!("{acf_summary_html}{clean_content}")
     } else if is_full_bleed_visual {
         format!(
             r##"
             <div class="dp-visual-canvas">
+                {acf_summary_html}
                 {body}
             </div>
             "##,
+            acf_summary_html = acf_summary_html,
             body = clean_content
         )
     } else if is_page && has_daystudio_theme {
@@ -292,6 +362,8 @@ pub fn render_single_post(
                         <h1 class="dp-heading">{title}</h1>
                     </div>
 
+                    {acf_summary_html}
+
                     {featured_img_html}
 
                     <div class="dp-text">
@@ -310,6 +382,7 @@ pub fn render_single_post(
             post_type = escape_html(&post.post_type),
             author_display = author_display,
             categories_html = categories_html,
+            acf_summary_html = acf_summary_html,
             featured_img_html = featured_img_html,
             tags_html = tags_html,
             comments_section_html = comments_section_html,

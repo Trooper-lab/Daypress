@@ -143,6 +143,12 @@ pub fn map_dynamic_module(
                 show_meta: true,
                 show_pagination,
                 taxonomy,
+                enable_filter_bar: divi.tag == "et_pb_filterable_portfolio",
+                enable_sort: false,
+                enable_search: false,
+                default_sort: "date_desc".to_string(),
+                card_skin: "editorial".to_string(),
+                meta_fields: Vec::new(),
             })
         }
         "et_pb_blog" => {
@@ -172,6 +178,12 @@ pub fn map_dynamic_module(
                 show_meta: true,
                 show_pagination,
                 taxonomy,
+                enable_filter_bar: false,
+                enable_sort: false,
+                enable_search: false,
+                default_sort: "date_desc".to_string(),
+                card_skin: "editorial".to_string(),
+                meta_fields: Vec::new(),
             })
         }
         "et_pb_shop" => {
@@ -197,6 +209,12 @@ pub fn map_dynamic_module(
                 show_meta: true,
                 show_pagination: true,
                 taxonomy,
+                enable_filter_bar: false,
+                enable_sort: false,
+                enable_search: false,
+                default_sort: "date_desc".to_string(),
+                card_skin: "editorial".to_string(),
+                meta_fields: Vec::new(),
             })
         }
         "et_pb_gallery" => {

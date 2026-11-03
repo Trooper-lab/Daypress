@@ -48,7 +48,7 @@ pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> Str
                             <span class="badge custom-meta-type-badge" style="font-size: 10px; background: var(--paper-sunk); color: var(--ink-muted); text-transform: uppercase;">{type_badge}</span>
                         </td>
                         <td style="padding: 8px 10px; width: 10%; text-align: center;">
-                            <button type="button" class="btn btn-secondary btn-delete-meta" onclick="deleteCustomMetaRow(this)" title="Delete Custom Field" style="height: 26px; padding: 0 6px; font-size: 12px; color: var(--oxide); border-color: var(--oxide); cursor: pointer;"></button>
+                            <button type="button" class="btn btn-secondary btn-delete-meta" onclick="deleteCustomMetaRow(this)" title="Delete Custom Field" style="height: 26px; padding: 0 6px; font-size: 12px; color: var(--oxide); border-color: var(--oxide); cursor: pointer;">✕</button>
                         </td>
                     </tr>"#
                 ));

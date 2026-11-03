@@ -340,27 +340,68 @@ pub(crate) async fn search_content_handler(
     Ok(rest_list_response(results, total as i64, per_page))
 }
 
-pub(crate) async fn get_post_types_handler() -> Json<Value> {
-    Json(serde_json::json!({
-        "post": {
+pub(crate) async fn get_post_types_handler(State(db): State<Database>) -> Json<Value> {
+    let mut map = serde_json::Map::new();
+    map.insert(
+        "post".to_string(),
+        serde_json::json!({
             "name": "Posts",
             "slug": "post",
             "hierarchical": false,
-            "rest_base": "posts"
-        },
-        "page": {
+            "rest_base": "posts",
+            "taxonomies": ["category", "post_tag"]
+        }),
+    );
+    map.insert(
+        "page".to_string(),
+        serde_json::json!({
             "name": "Pages",
             "slug": "page",
             "hierarchical": true,
-            "rest_base": "pages"
-        },
-        "attachment": {
+            "rest_base": "pages",
+            "taxonomies": []
+        }),
+    );
+    map.insert(
+        "attachment".to_string(),
+        serde_json::json!({
             "name": "Media",
             "slug": "attachment",
             "hierarchical": false,
-            "rest_base": "media"
+            "rest_base": "media",
+            "taxonomies": []
+        }),
+    );
+
+    if let Ok(defs) = db.list_post_type_definitions() {
+        for def in defs {
+            if def.public && def.show_in_rest {
+                let rest_base = if def.rewrite_slug.is_empty() {
+                    def.slug.clone()
+                } else {
+                    def.rewrite_slug.clone()
+                };
+                map.insert(
+                    def.slug.clone(),
+                    serde_json::json!({
+                        "name": def.label_plural,
+                        "singular_name": def.label_singular,
+                        "description": def.description,
+                        "slug": def.slug,
+                        "icon": def.icon,
+                        "has_archive": def.has_archive,
+                        "hierarchical": def.hierarchical,
+                        "rest_base": rest_base,
+                        "rewrite_slug": def.rewrite_slug,
+                        "supports": def.supports,
+                        "taxonomies": def.taxonomies
+                    }),
+                );
+            }
         }
-    }))
+    }
+
+    Json(Value::Object(map))
 }
 
 pub(crate) async fn get_post_statuses_handler() -> Json<Value> {
@@ -397,26 +438,128 @@ pub(crate) async fn get_taxonomies_handler(State(db): State<Database>) -> Json<V
         }),
     );
 
-    if let Ok(conn) = db.conn.lock() {
-        if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT taxonomy FROM term_taxonomy WHERE taxonomy NOT IN ('nav_menu', 'link_category', 'post_format', 'category', 'post_tag')") {
-            if let Ok(rows) = stmt.query_map([], |r| r.get::<_, String>(0)) {
-                for slug in rows.flatten() {
-                    let name = crate::adapters::database::taxonomies_discovery::format_taxonomy_display_name(&slug);
-                    let hierarchical = !(slug.ends_with("_tag") || slug.ends_with("_tags"));
-                    map.insert(
-                        slug.clone(),
-                        serde_json::json!({
-                            "name": name,
-                            "slug": slug,
-                            "types": ["post"],
-                            "hierarchical": hierarchical,
-                            "rest_base": slug
-                        }),
-                    );
-                }
+    if let Ok(custom_tax) = db.list_custom_taxonomy_definitions() {
+        for tax in custom_tax {
+            if tax.public && tax.show_in_rest {
+                let rest_base = if tax.rewrite_slug.is_empty() {
+                    tax.slug.clone()
+                } else {
+                    tax.rewrite_slug.clone()
+                };
+                map.insert(
+                    tax.slug.clone(),
+                    serde_json::json!({
+                        "name": tax.label_plural,
+                        "singular_name": tax.label_singular,
+                        "slug": tax.slug,
+                        "types": tax.post_types,
+                        "hierarchical": tax.hierarchical,
+                        "rest_base": rest_base
+                    }),
+                );
             }
         }
     }
 
     Json(Value::Object(map))
+}
+
+fn normalize_taxonomy_slug(tax: &str) -> String {
+    match tax.trim() {
+        "categories" | "category" => "category".to_string(),
+        "tags" | "post_tag" => "post_tag".to_string(),
+        other => crate::handlers::sanitize_key(other),
+    }
+}
+
+pub(crate) async fn list_taxonomy_terms_handler(
+    State(db): State<Database>,
+    AxPath(taxonomy): AxPath<String>,
+) -> Result<(HeaderMap, Json<Vec<DaypressCategoryResponse>>), AppError> {
+    let tax = normalize_taxonomy_slug(&taxonomy);
+    if tax.is_empty() {
+        return Err(AppError::BadRequest("Invalid taxonomy".to_string()));
+    }
+    let terms = db.get_terms(&tax)?;
+    let total = terms.len() as i64;
+    Ok(rest_list_response(terms, total, total.max(10)))
+}
+
+pub(crate) async fn create_taxonomy_term_handler(
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath(taxonomy): AxPath<String>,
+    Json(payload): Json<CreateTermRequest>,
+) -> Result<(StatusCode, Json<DaypressCategoryResponse>), AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to create terms in this taxonomy.".to_string(),
+        ));
+    }
+    let tax = normalize_taxonomy_slug(&taxonomy);
+    if tax.is_empty() {
+        return Err(AppError::BadRequest("Invalid taxonomy".to_string()));
+    }
+    let term = db.create_term(&tax, &payload)?;
+    Ok((StatusCode::CREATED, Json(term)))
+}
+
+pub(crate) async fn get_taxonomy_term_by_id_handler(
+    State(db): State<Database>,
+    AxPath((taxonomy, id)): AxPath<(String, i64)>,
+) -> Result<Json<DaypressCategoryResponse>, AppError> {
+    let tax = normalize_taxonomy_slug(&taxonomy);
+    match db.get_term_by_id(&tax, id)? {
+        Some(t) => Ok(Json(t)),
+        None => Err(AppError::NotFound(format!("Term {} not found", id))),
+    }
+}
+
+pub(crate) async fn update_taxonomy_term_handler(
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((taxonomy, id)): AxPath<(String, i64)>,
+    Json(payload): Json<UpdateTermRequest>,
+) -> Result<Json<DaypressCategoryResponse>, AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to edit terms in this taxonomy.".to_string(),
+        ));
+    }
+    let tax = normalize_taxonomy_slug(&taxonomy);
+    match db.update_term(&tax, id, &payload)? {
+        Some(t) => Ok(Json(t)),
+        None => Err(AppError::NotFound(format!("Term {} not found", id))),
+    }
+}
+
+pub(crate) async fn delete_taxonomy_term_handler(
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
+    State(db): State<Database>,
+    AxPath((taxonomy, id)): AxPath<(String, i64)>,
+) -> Result<Json<Value>, AppError> {
+    if !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to delete terms in this taxonomy.".to_string(),
+        ));
+    }
+    let tax = normalize_taxonomy_slug(&taxonomy);
+    let prev = db.get_term_by_id(&tax, id)?;
+    if db.delete_term(&tax, id)? {
+        Ok(Json(serde_json::json!({
+            "deleted": true,
+            "previous": prev.unwrap_or_else(|| DaypressCategoryResponse {
+                id,
+                count: 0,
+                description: String::new(),
+                link: String::new(),
+                name: String::new(),
+                slug: String::new(),
+                taxonomy: tax,
+                parent: 0,
+            })
+        })))
+    } else {
+        Err(AppError::NotFound(format!("Term {} not found", id)))
+    }
 }

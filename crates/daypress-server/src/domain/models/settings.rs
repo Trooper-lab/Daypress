@@ -60,6 +60,10 @@ pub struct DaypressSettingsResponse {
     #[serde(default)]
     pub custom_post_types: Vec<String>,
     #[serde(default)]
+    pub cpt_definitions: Vec<super::content_model::CustomPostTypeDefinition>,
+    #[serde(default)]
+    pub custom_taxonomies: Vec<super::content_model::CustomTaxonomyDefinition>,
+    #[serde(default)]
     pub theme_assets_html: String,
     #[serde(default)]
     pub update_available: Option<String>,
@@ -130,6 +134,8 @@ impl Default for DaypressSettingsResponse {
             site_logo_url: String::new(),
             site_favicon_url: String::new(),
             custom_post_types: Vec::new(),
+            cpt_definitions: Vec::new(),
+            custom_taxonomies: Vec::new(),
             theme_assets_html: String::new(),
             update_available: None,
             privacy_settings: PrivacySettings::default(),

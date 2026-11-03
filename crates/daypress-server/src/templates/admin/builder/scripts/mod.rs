@@ -6,6 +6,7 @@
 pub mod api_client;
 pub mod canvas_drag;
 pub mod canvas_overlays;
+pub mod canvas_pro_collection_inspector;
 pub mod canvas_pro_commercial;
 pub mod canvas_pro_dynamic;
 pub mod canvas_pro_dynamic_render;
@@ -61,6 +62,7 @@ pub fn get_scripts() -> &'static str {
             canvas_pro_symbols_actions::JS_CANVAS_PRO_SYMBOLS_ACTIONS,
             canvas_pro_symbols_drawer::JS_CANVAS_PRO_SYMBOLS_DRAWER,
             canvas_pro_megamenu_inspector::JS_CANVAS_PRO_MEGAMENU_INSPECTOR,
+            canvas_pro_collection_inspector::JS_CANVAS_PRO_COLLECTION_INSPECTOR,
             canvas_pro_dynamic::JS_CANVAS_PRO_DYNAMIC,
             canvas_pro_widgets::JS_CANVAS_PRO_WIDGETS,
             canvas_selection::JS_CANVAS_SELECTION,

@@ -250,6 +250,11 @@ async fn test_dynamic_placeholder_ast_hydration_and_tokens() {
         archive_posts: Vec::new(),
         pagination_html: None,
         symbol_depth: 0,
+        collection_tax: None,
+        collection_term: None,
+        collection_sort: None,
+        collection_search: None,
+        collection_page: None,
     };
 
     SsrInjector::hydrate_layout(&mut layout, &hyd_ctx);

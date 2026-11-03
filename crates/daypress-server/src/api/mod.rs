@@ -178,6 +178,18 @@ pub fn api_routes() -> Router<Database> {
                 .patch(update_category_handler)
                 .delete(delete_category_handler),
         )
+        .route(
+            "/wp/v2/category",
+            get(list_categories).post(create_category_handler),
+        )
+        .route(
+            "/wp/v2/category/{id}",
+            get(get_category_handler)
+                .put(update_category_handler)
+                .post(update_category_handler)
+                .patch(update_category_handler)
+                .delete(delete_category_handler),
+        )
         .route("/wp/v2/tags", get(list_tags).post(create_tag_handler))
         .route(
             "/wp/v2/tags/{id}",
@@ -186,6 +198,27 @@ pub fn api_routes() -> Router<Database> {
                 .post(update_tag_handler)
                 .patch(update_tag_handler)
                 .delete(delete_tag_handler),
+        )
+        .route("/wp/v2/post_tag", get(list_tags).post(create_tag_handler))
+        .route(
+            "/wp/v2/post_tag/{id}",
+            get(get_tag_handler)
+                .put(update_tag_handler)
+                .post(update_tag_handler)
+                .patch(update_tag_handler)
+                .delete(delete_tag_handler),
+        )
+        .route(
+            "/wp/v2/taxonomies/{taxonomy}/terms",
+            get(list_taxonomy_terms_handler).post(create_taxonomy_term_handler),
+        )
+        .route(
+            "/wp/v2/taxonomies/{taxonomy}/terms/{id}",
+            get(get_taxonomy_term_by_id_handler)
+                .put(update_taxonomy_term_handler)
+                .post(update_taxonomy_term_handler)
+                .patch(update_taxonomy_term_handler)
+                .delete(delete_taxonomy_term_handler),
         )
         .route(
             "/wp/v2/comments",
@@ -213,6 +246,19 @@ pub fn api_routes() -> Router<Database> {
         .route("/wp/v2/types", get(get_post_types_handler))
         .route("/wp/v2/statuses", get(get_post_statuses_handler))
         .route("/wp/v2/taxonomies", get(get_taxonomies_handler))
+        // Dynamic Custom Post Type REST v2 endpoints (/wp-json/wp/v2/{cpt_slug} & /{cpt_slug}/{id})
+        .route(
+            "/wp/v2/{cpt_slug}",
+            get(list_cpt_posts).post(create_cpt_post),
+        )
+        .route(
+            "/wp/v2/{cpt_slug}/{id}",
+            get(get_cpt_post)
+                .put(update_cpt_post)
+                .post(update_cpt_post)
+                .patch(update_cpt_post)
+                .delete(delete_cpt_post),
+        )
         // Application Passwords API (WordPress 5.6+ standard)
         .route(
             "/wp/v2/users/{id}/application-passwords",
@@ -376,6 +422,36 @@ fn daypress_v1_routes() -> Router<Database> {
         .merge(crate::storage_s3::s3_storage_routes())
         // Automatic ACME / Let's Encrypt TLS (v0.5)
         .merge(crate::acme_tls::acme_tls_routes())
+        // Custom Post Types, Custom Taxonomies, Structured Field Groups & Collection Grids (v0.6)
+        .route(
+            "/content-types",
+            get(list_content_types_v1_handler).post(save_content_type_v1_handler),
+        )
+        .route(
+            "/content-types/preset",
+            axum::routing::post(provision_content_type_preset_v1_handler),
+        )
+        .route(
+            "/content-types/{slug}",
+            axum::routing::delete(delete_content_type_v1_handler),
+        )
+        .route(
+            "/custom-taxonomies",
+            get(list_custom_taxonomies_v1_handler).post(save_custom_taxonomy_v1_handler),
+        )
+        .route(
+            "/custom-taxonomies/{slug}",
+            axum::routing::delete(delete_custom_taxonomy_v1_handler),
+        )
+        .route(
+            "/field-groups",
+            get(list_field_groups_v1_handler).post(save_field_group_v1_handler),
+        )
+        .route(
+            "/field-groups/{id}",
+            axum::routing::delete(delete_field_group_v1_handler),
+        )
+        .route("/collection-query", get(collection_query_v1_handler))
 }
 
 pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {

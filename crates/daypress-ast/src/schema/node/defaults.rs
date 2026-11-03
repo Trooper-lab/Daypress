@@ -74,6 +74,12 @@ pub(crate) fn default_post_type() -> String {
 pub(crate) fn default_posts_per_page() -> u32 {
     6
 }
+pub(crate) fn default_loop_sort() -> String {
+    "date_desc".to_string()
+}
+pub(crate) fn default_card_skin() -> String {
+    "editorial".to_string()
+}
 pub(crate) fn default_toc_title() -> String {
     "Table of Contents".to_string()
 }

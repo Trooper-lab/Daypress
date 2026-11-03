@@ -1,6 +1,6 @@
 //! Category, Tag, Author, and Universal CPT Archive SSR Handlers (`src/handlers/archives_ssr.rs`).
 
-use super::cpt_archive_render::render_cpt_archive;
+use super::cpt_archive_render::render_cpt_archive_with_query;
 use super::public_ssr::hydrate_post_terms;
 use super::{PagedQuery, QueryPostParams};
 use crate::auth::OptionalAuthUser;
@@ -279,7 +279,17 @@ pub fn try_handle_cpt_archive(
     settings: &models::DaypressSettingsResponse,
     user: Option<&crate::auth::AuthUser>,
 ) -> Option<Response> {
-    let archive_html = render_cpt_archive(db, cpt_slug, settings, user)?;
+    try_handle_cpt_archive_with_query(db, cpt_slug, settings, user, &PagedQuery::default())
+}
+
+pub fn try_handle_cpt_archive_with_query(
+    db: &Database,
+    cpt_slug: &str,
+    settings: &models::DaypressSettingsResponse,
+    user: Option<&crate::auth::AuthUser>,
+    query: &PagedQuery,
+) -> Option<Response> {
+    let archive_html = render_cpt_archive_with_query(db, cpt_slug, settings, user, query)?;
     let final_html =
         crate::plugins::inject_plugin_hooks_into_html(db, settings, None, archive_html);
     Some((StatusCode::OK, Html(final_html)).into_response())
@@ -375,7 +385,7 @@ pub async fn handle_cpt_single(
                 post.content.rendered,
             );
         }
-        let layout_json = db.get_post_layout(post.id).unwrap_or(None);
+        let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
         let expanded =
             crate::plugins::expand_shortcodes_in_content(&post.content.rendered, &db, &settings);
@@ -385,6 +395,14 @@ pub async fn handle_cpt_single(
         );
         let terms = hydrate_post_terms(&db, &post);
         let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
+        let layout_json = SsrInjector::hydrate_post_layout_json(
+            &db,
+            &req_ctx,
+            &settings,
+            Some(&post),
+            raw_layout.as_deref(),
+        )
+        .or(raw_layout);
         let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
             &db,
             &req_ctx,

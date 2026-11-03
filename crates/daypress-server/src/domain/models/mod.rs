@@ -3,6 +3,7 @@
 mod auth;
 mod comments;
 mod common;
+mod content_model;
 mod import;
 mod media;
 mod plugins;
@@ -14,6 +15,7 @@ mod users;
 pub use auth::*;
 pub use comments::*;
 pub use common::*;
+pub use content_model::*;
 pub use import::*;
 pub use media::*;
 pub use plugins::*;

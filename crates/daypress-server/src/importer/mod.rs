@@ -1,5 +1,6 @@
 //! Modular WordPress WXR & JSON Importer Subsystem.
 
+pub mod acf_cpt_ingest;
 pub mod assets;
 pub mod ast_pass;
 pub mod comments;
@@ -172,6 +173,9 @@ pub fn import_wxr_stream<R: BufRead>(
     // 1. Commit Taxonomies
     let (cat_count, tag_count) = ingest_terms(&tx, terms_to_insert)?;
 
+    // 1b. Ingest ACF Field Groups, ACF Post Types & ACF Taxonomies
+    let _ = crate::importer::acf_cpt_ingest::ingest_acf_and_cpt_from_wxr(&tx, &posts_to_insert);
+
     // 2. Forms & SPB Services Pass
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let (
@@ -220,6 +224,12 @@ pub fn import_wxr_stream<R: BufRead>(
 
     // Remap thumbnail IDs
     remap_post_thumbnails(&tx, &pass1.old_to_new_post_id)?;
+
+    // Finalize CPT / Taxonomy / ACF Field Group synthesis & relational ID remapping
+    let _ = crate::importer::acf_cpt_ingest::finalize_acf_and_cpt_migration(
+        &tx,
+        &pass1.old_to_new_post_id,
+    );
 
     // 4. Ingest Nav Menus
     let menus_by_slug = ingest_nav_menus(

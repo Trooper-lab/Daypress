@@ -305,6 +305,7 @@ mod tests {
                 template: String::new(),
                 format: "standard".into(),
                 meta: serde_json::json!({}),
+                acf: serde_json::json!({}),
                 categories: vec![1],
                 tags: vec![],
                 parent: 0,

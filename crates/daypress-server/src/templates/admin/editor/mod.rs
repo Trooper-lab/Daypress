@@ -5,5 +5,5 @@
 mod markup;
 mod scripts;
 
-pub use markup::render_post_new_view;
+pub use markup::{render_post_new_view, render_post_new_view_with_fields};
 pub use scripts::render_editor_scripts;

@@ -9,12 +9,12 @@ mod sidebar;
 
 use crate::models::{
     DaypressCategoryResponse, DaypressMediaResponse, DaypressPostResponse,
-    DaypressSettingsResponse, TaxonomyInfo,
+    DaypressSettingsResponse, FieldGroupDefinition, TaxonomyInfo,
 };
 use crate::templates::admin::layout::render_admin_shell;
 use crate::templates::utils::escape_html;
 use custom_fields::render_custom_fields_card;
-use meta::render_acf_fields_card;
+use meta::{render_acf_fields_card, render_structured_field_groups};
 use shell::{
     render_editor_card, render_media_picker_modal, render_seo_card, EditorCardParams, SeoCardParams,
 };
@@ -32,8 +32,40 @@ pub fn render_post_new_view(
     has_visual_layout: bool,
     taxonomies: &[TaxonomyInfo],
 ) -> String {
+    render_post_new_view_with_fields(
+        settings,
+        post_type,
+        existing,
+        all_pages,
+        all_categories,
+        all_tags,
+        all_media,
+        has_visual_layout,
+        taxonomies,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn render_post_new_view_with_fields(
+    settings: &DaypressSettingsResponse,
+    post_type: &str,
+    existing: Option<&DaypressPostResponse>,
+    all_pages: &[DaypressPostResponse],
+    all_categories: &[DaypressCategoryResponse],
+    all_tags: &[DaypressCategoryResponse],
+    all_media: &[DaypressMediaResponse],
+    has_visual_layout: bool,
+    taxonomies: &[TaxonomyInfo],
+    field_groups: &[FieldGroupDefinition],
+) -> String {
     let is_page = post_type == "page";
-    let formatted_cpt = crate::templates::admin::layout::format_cpt_title(post_type);
+    let formatted_cpt = settings
+        .cpt_definitions
+        .iter()
+        .find(|d| d.slug == post_type && !d.label_singular.trim().is_empty())
+        .map(|d| d.label_singular.clone())
+        .unwrap_or_else(|| crate::templates::admin::layout::format_cpt_title(post_type));
     let type_singular = match post_type {
         "page" => "Page",
         "post" => "Post",
@@ -116,47 +148,9 @@ pub fn render_post_new_view(
     let cat_checkboxes = fields::render_category_checkboxes(all_categories, &initial_categories);
     let featured_img_preview =
         fields::render_featured_image_preview(all_media, initial_featured_media);
-
-    let mut media_picker_items = String::new();
-    for m in all_media {
-        let url_esc = escape_html(&m.source_url);
-        let title_esc = escape_html(&m.title.rendered);
-        if m.mime_type.starts_with("image/") {
-            media_picker_items.push_str(&format!(
-                r#"<div class="media-pick-item" onclick="selectMediaItem({}, '{}', '{}')" style="cursor: pointer; border: 2px solid transparent; border-radius: var(--radius-sm); overflow: hidden; height: 110px; background: var(--ink); position: relative; transition: all 0.15s ease;" onmouseover="this.style.borderColor='var(--press)'" onmouseout="this.style.borderColor='transparent'">
-                    <img src="{}" alt="{}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" />
-                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(15,23,42,0.85); color: var(--paper-raised); font-size: 10px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{}</div>
-                </div>"#,
-                m.id, url_esc, title_esc, url_esc, title_esc, title_esc
-            ));
-        }
-    }
-
-    let mut popular_tag_chips = String::new();
-    for t in all_tags.iter().take(6) {
-        let t_name = escape_html(&t.name);
-        popular_tag_chips.push_str(&format!(
-            r#"<span class="tag-chip" onclick="addTagChip('{}')" style="background: var(--paper-sunk); color: var(--ink-muted); font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; border: 1px solid var(--rule-strong);">+ {}</span>"#,
-            t_name, t_name
-        ));
-    }
-
-    let initial_tag_names: Vec<String> = all_tags
-        .iter()
-        .filter(|t| initial_tags.contains(&t.id))
-        .map(|t| t.name.clone())
-        .collect();
-    let initial_tag_str = initial_tag_names.join(", ");
-
-    let mut known_tags_entries = Vec::new();
-    for t in all_tags {
-        known_tags_entries.push(format!(
-            r#""{}": {}"#,
-            escape_html(&t.name.to_lowercase()),
-            t.id
-        ));
-    }
-    let known_tags_json = format!("{{{}}}", known_tags_entries.join(", "));
+    let media_picker_items = fields::render_media_picker_items(all_media);
+    let (popular_tag_chips, initial_tag_str, known_tags_json) =
+        fields::render_tag_chips_and_json(all_tags, &initial_tags);
     let initial_template = existing.map(|p| p.template.as_str()).unwrap_or("default");
 
     let theme_preview_css = if !settings.custom_css.is_empty() {
@@ -192,8 +186,15 @@ pub fn render_post_new_view(
         String::new()
     };
 
+    let permalink_prefix = if post_type != "post" && post_type != "page" {
+        format!("{}/", escape_html(post_type))
+    } else {
+        String::new()
+    };
+
     let editor_card = render_editor_card(&EditorCardParams {
         type_singular,
+        permalink_prefix: &permalink_prefix,
         initial_title: &initial_title,
         initial_slug: &initial_slug,
         initial_content: &initial_content,
@@ -207,6 +208,7 @@ pub fn render_post_new_view(
     } else {
         String::new()
     };
+    let structured_fields_card = render_structured_field_groups(existing, field_groups, all_pages);
     // Gutenberg/ACF content opens in the block inspector; everything else in the visual editor.
     let rich_editing = crate::auth::current_admin()
         .map(|a| a.rich_editing)
@@ -218,13 +220,8 @@ pub fn render_post_new_view(
     } else {
         "visual"
     };
-    if false {
-        let _ = "blocks";
-        "blocks"
-    } else {
-        "visual"
-    };
 
+    let sel = |a: &str, b: &str| if a == b { "selected" } else { "" };
     let seo_card = render_seo_card(&SeoCardParams {
         type_singular,
         site_title: &settings.title,
@@ -237,31 +234,11 @@ pub fn render_post_new_view(
         initial_seo_canonical: &initial_seo_canonical,
         initial_seo_og_img: &initial_seo_og_img,
         seo_noindex_checked: if initial_seo_noindex { "checked" } else { "" },
-        schema_art_sel: if initial_seo_schema == "Article" {
-            "selected"
-        } else {
-            ""
-        },
-        schema_web_sel: if initial_seo_schema == "WebPage" {
-            "selected"
-        } else {
-            ""
-        },
-        schema_faq_sel: if initial_seo_schema == "FAQPage" {
-            "selected"
-        } else {
-            ""
-        },
-        schema_prod_sel: if initial_seo_schema == "Product" {
-            "selected"
-        } else {
-            ""
-        },
-        schema_loc_sel: if initial_seo_schema == "LocalBusiness" {
-            "selected"
-        } else {
-            ""
-        },
+        schema_art_sel: sel(&initial_seo_schema, "Article"),
+        schema_web_sel: sel(&initial_seo_schema, "WebPage"),
+        schema_faq_sel: sel(&initial_seo_schema, "FAQPage"),
+        schema_prod_sel: sel(&initial_seo_schema, "Product"),
+        schema_loc_sel: sel(&initial_seo_schema, "LocalBusiness"),
     });
 
     let custom_fields_card = render_custom_fields_card(existing);
@@ -270,21 +247,9 @@ pub fn render_post_new_view(
 
     let sidebar_html = render_editor_sidebar(&SidebarParams {
         btn_text: &btn_text,
-        is_pub_selected: if initial_status == "publish" {
-            "selected"
-        } else {
-            ""
-        },
-        is_draft_selected: if initial_status == "draft" {
-            "selected"
-        } else {
-            ""
-        },
-        is_pending_selected: if initial_status == "pending" {
-            "selected"
-        } else {
-            ""
-        },
+        is_pub_selected: sel(&initial_status, "publish"),
+        is_draft_selected: sel(&initial_status, "draft"),
+        is_pending_selected: sel(&initial_status, "pending"),
         is_private_selected: schedule::selected_if(&initial_status, "private"),
         is_future_selected: schedule::selected_if(&initial_status, "future"),
         schedule_html: &schedule_html,
@@ -298,26 +263,10 @@ pub fn render_post_new_view(
         } else {
             ""
         },
-        tpl_full_sel: if initial_template == "full-width" {
-            "selected"
-        } else {
-            ""
-        },
-        tpl_canvas_sel: if initial_template == "canvas" {
-            "selected"
-        } else {
-            ""
-        },
-        tpl_landing_sel: if initial_template == "landing" {
-            "selected"
-        } else {
-            ""
-        },
-        tpl_editorial_sel: if initial_template == "editorial" {
-            "selected"
-        } else {
-            ""
-        },
+        tpl_full_sel: sel(initial_template, "full-width"),
+        tpl_canvas_sel: sel(initial_template, "canvas"),
+        tpl_landing_sel: sel(initial_template, "landing"),
+        tpl_editorial_sel: sel(initial_template, "editorial"),
         initial_menu_order,
         cat_checkboxes: &cat_checkboxes,
         initial_tag_str: &initial_tag_str,
@@ -362,6 +311,7 @@ pub fn render_post_new_view(
             <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 24px;">
                 <div style="display: flex; flex-direction: column; gap: 20px;">
                     {editor_card}
+                    {structured_fields_card}
                     {acf_card}
                     {custom_fields_card}
                     {seo_card}
@@ -383,6 +333,7 @@ pub fn render_post_new_view(
         btn_text = btn_text,
         initial_featured_media = initial_featured_media,
         editor_card = editor_card,
+        structured_fields_card = structured_fields_card,
         acf_card = acf_card,
         custom_fields_card = custom_fields_card,
         seo_card = seo_card,

@@ -54,48 +54,75 @@ pub fn render_core_script(
                 checkLocalDraftRecovery();
             }});
 
-            function onAcfFieldChange() {{
-                markDirty();
-            }}
-
+            function onAcfFieldChange() {{ markDirty(); }}
             const deletedMetaKeys = [];
 
             function collectAcfMeta() {{
                 const meta = {{}};
                 document.querySelectorAll('[data-acf-key], [data-meta-key]').forEach(el => {{
+                    if (el.classList && el.classList.contains('custom-meta-row')) return;
                     const key = el.getAttribute('data-acf-key') || el.getAttribute('data-meta-key');
-                    if (key) {{
-                        meta[key] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
-                    }}
+                    if (key) meta[key] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+                }});
+                document.querySelectorAll('.acf-checkbox-group[data-acf-checkbox-key]').forEach(grp => {{
+                    const key = grp.getAttribute('data-acf-checkbox-key');
+                    if (!key) return;
+                    const checked = Array.from(grp.querySelectorAll('input.acf-checkbox-option:checked')).map(c => c.value);
+                    meta[key] = checked.join(', ');
+                }});
+                document.querySelectorAll('.acf-repeater-container[data-repeater-key]').forEach(rep => {{
+                    const repKey = rep.getAttribute('data-repeater-key');
+                    if (!repKey) return;
+                    const rows = [];
+                    rep.querySelectorAll('.acf-repeater-row').forEach((rowEl, rIdx) => {{
+                        const rowObj = {{}};
+                        rowEl.querySelectorAll('.acf-repeater-subinput[data-sub-key]').forEach(inp => {{
+                            const subKey = inp.getAttribute('data-sub-key');
+                            if (subKey) {{ rowObj[subKey] = inp.value; meta[repKey + '_' + rIdx + '_' + subKey] = inp.value; }}
+                        }});
+                        if (Object.keys(rowObj).length > 0) rows.push(rowObj);
+                    }});
+                    meta[repKey] = JSON.stringify(rows);
                 }});
                 document.querySelectorAll('.custom-meta-row').forEach(row => {{
                     const keyInput = row.querySelector('.custom-meta-key');
                     const valInput = row.querySelector('.custom-meta-val');
-                    if (keyInput && valInput) {{
-                        const k = keyInput.value.trim();
-                        if (k) {{
-                            meta[k] = valInput.value;
-                        }}
-                    }}
+                    if (keyInput && valInput && keyInput.value.trim()) meta[keyInput.value.trim()] = valInput.value;
                 }});
-                deletedMetaKeys.forEach(k => {{
-                    if (!(k in meta)) {{
-                        meta[k] = null;
-                    }}
-                }});
+                deletedMetaKeys.forEach(k => {{ if (!(k in meta)) meta[k] = null; }});
                 return meta;
+            }}
+
+            function addAcfRepeaterRow(btn) {{
+                const container = btn.closest('.acf-repeater-container');
+                const rowsWrap = container && container.querySelector('.acf-repeater-rows');
+                if (!rowsWrap) return;
+                let subfields = [];
+                try {{ subfields = JSON.parse(container.getAttribute('data-subfields') || '[]'); }} catch (_) {{}}
+                if (!Array.isArray(subfields) || subfields.length === 0) {{
+                    subfields = [{{ name: 'label', label: 'Label' }}, {{ name: 'value', label: 'Value' }}];
+                }}
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'acf-repeater-row';
+                rowDiv.style.cssText = 'display:flex;gap:10px;align-items:flex-end;background:var(--paper-raised);border:1px solid var(--rule);border-radius:4px;padding:10px;margin-bottom:8px;';
+                let inner = '';
+                subfields.forEach(sf => {{
+                    const sfName = sf.name || 'value', sfLabel = sf.label || sfName;
+                    inner += `<div style="flex:1;min-width:140px;"><label style="display:block;font-size:10.5px;color:var(--ink-muted);margin-bottom:3px;font-family:var(--font-mono);">${{sfLabel}} (${{sfName}})</label><input type="text" class="form-input acf-repeater-subinput" data-sub-key="${{sfName}}" value="" oninput="onAcfFieldChange()" style="height:30px;font-size:12px;" /></div>`;
+                }});
+                inner += `<button type="button" class="btn btn-secondary" onclick="this.closest('.acf-repeater-row').remove();onAcfFieldChange();" style="height:30px;padding:0 8px;color:var(--oxide);border-color:var(--oxide);" title="Remove Row">✕</button>`;
+                rowDiv.innerHTML = inner;
+                rowsWrap.appendChild(rowDiv);
+                onAcfFieldChange();
             }}
 
             function deleteCustomMetaRow(btn) {{
                 const row = btn.closest('.custom-meta-row');
-                if (row) {{
-                    const keyInput = row.querySelector('.custom-meta-key');
-                    if (keyInput && keyInput.value.trim()) {{
-                        deletedMetaKeys.push(keyInput.value.trim());
-                    }}
-                    row.remove();
-                    markDirty();
-                }}
+                if (!row) return;
+                const keyInput = row.querySelector('.custom-meta-key');
+                if (keyInput && keyInput.value.trim()) deletedMetaKeys.push(keyInput.value.trim());
+                row.remove();
+                markDirty();
             }}
 
             function addCustomMetaRow() {{
@@ -105,20 +132,7 @@ pub fn render_core_script(
                 if (hint) hint.remove();
                 const tr = document.createElement('tr');
                 tr.className = 'custom-meta-row';
-                tr.innerHTML = `
-                    <td style="padding: 8px 10px; width: 32%;">
-                        <input type="text" class="form-input custom-meta-key" placeholder="meta_key" oninput="markDirty()" style="font-family: var(--font-mono); font-size: 12px; height: 30px;" />
-                    </td>
-                    <td style="padding: 8px 10px; width: 44%;">
-                        <input type="text" class="form-input custom-meta-val" placeholder="meta_value" oninput="updateMetaTypeBadge(this); markDirty()" style="font-size: 12px; height: 30px;" />
-                    </td>
-                    <td style="padding: 8px 10px; width: 14%; text-align: center;">
-                        <span class="badge custom-meta-type-badge" style="font-size: 10px; background: var(--paper-sunk); color: var(--ink-muted); text-transform: uppercase;">TEXT</span>
-                    </td>
-                    <td style="padding: 8px 10px; width: 10%; text-align: center;">
-                        <button type="button" class="btn btn-secondary btn-delete-meta" onclick="deleteCustomMetaRow(this)" title="Delete Custom Field" style="height: 26px; padding: 0 6px; font-size: 12px; color: var(--oxide); border-color: var(--oxide); cursor: pointer;"></button>
-                    </td>
-                `;
+                tr.innerHTML = `<td style="padding: 8px 10px; width: 32%;"><input type="text" class="form-input custom-meta-key" placeholder="meta_key" oninput="markDirty()" style="font-family: var(--font-mono); font-size: 12px; height: 30px;" /></td><td style="padding: 8px 10px; width: 44%;"><input type="text" class="form-input custom-meta-val" placeholder="meta_value" oninput="updateMetaTypeBadge(this); markDirty()" style="font-size: 12px; height: 30px;" /></td><td style="padding: 8px 10px; width: 14%; text-align: center;"><span class="badge custom-meta-type-badge" style="font-size: 10px; background: var(--paper-sunk); color: var(--ink-muted); text-transform: uppercase;">TEXT</span></td><td style="padding: 8px 10px; width: 10%; text-align: center;"><button type="button" class="btn btn-secondary btn-delete-meta" onclick="deleteCustomMetaRow(this)" title="Delete Custom Field" style="height: 26px; padding: 0 6px; font-size: 12px; color: var(--oxide); border-color: var(--oxide); cursor: pointer;">✕</button></td>`;
                 tbody.appendChild(tr);
                 const firstInput = tr.querySelector('.custom-meta-key');
                 if (firstInput) firstInput.focus();
@@ -127,31 +141,21 @@ pub fn render_core_script(
 
             function updateMetaTypeBadge(el) {{
                 const row = el.closest('.custom-meta-row');
-                if (!row) return;
-                const val = row.querySelector('.custom-meta-val')?.value || '';
-                const badge = row.querySelector('.custom-meta-type-badge');
+                const badge = row && row.querySelector('.custom-meta-type-badge');
                 if (!badge) return;
-                const t = val.trim();
+                const t = (row.querySelector('.custom-meta-val')?.value || '').trim();
                 let detected = 'TEXT';
-                if (t === '1' || t === '0' || t === 'true' || t === 'false') {{
-                    detected = 'BOOLEAN';
-                }} else if (t !== '' && !isNaN(Number(t))) {{
-                    detected = 'NUMBER';
-                }} else if ((t.startsWith('{{') && t.endsWith('}}')) || (t.startsWith('[') && t.endsWith(']'))) {{
-                    detected = 'JSON';
-                }}
+                if (t === '1' || t === '0' || t === 'true' || t === 'false') detected = 'BOOLEAN';
+                else if (t !== '' && !isNaN(Number(t))) detected = 'NUMBER';
+                else if ((t.startsWith('{{') && t.endsWith('}}')) || (t.startsWith('[') && t.endsWith(']'))) detected = 'JSON';
                 badge.textContent = detected;
             }}
 
             function collectTaxonomies() {{
                 const taxMap = {{}};
                 document.querySelectorAll('.taxonomy-term-checkbox:checked').forEach(cb => {{
-                    const tax = cb.getAttribute('data-taxonomy');
-                    const tid = parseInt(cb.value);
-                    if (tax && !isNaN(tid)) {{
-                        if (!taxMap[tax]) taxMap[tax] = [];
-                        taxMap[tax].push(tid);
-                    }}
+                    const tax = cb.getAttribute('data-taxonomy'), tid = parseInt(cb.value);
+                    if (tax && !isNaN(tid)) {{ (taxMap[tax] = taxMap[tax] || []).push(tid); }}
                 }});
                 return taxMap;
             }}
@@ -160,41 +164,46 @@ pub fn render_core_script(
                 const inp = document.getElementById('taxonomy_input_' + taxSlug);
                 if (!inp) return;
                 const current = inp.value.split(',').map(s => s.trim()).filter(Boolean);
-                if (!current.includes(termName)) {{
-                    current.push(termName);
-                    inp.value = current.join(', ');
-                    markDirty();
-                }}
+                if (!current.includes(termName)) {{ current.push(termName); inp.value = current.join(', '); markDirty(); }}
             }}
 
             async function inlineAddTaxonomyTerm(taxSlug) {{
                 const inp = document.getElementById('new_term_' + taxSlug);
                 if (!inp || !inp.value.trim()) return;
                 const name = inp.value.trim();
+                const endpoint = taxSlug === 'category' ? '/wp-json/wp/v2/categories' : (taxSlug === 'post_tag' ? '/wp-json/wp/v2/tags' : '/wp-json/wp/v2/taxonomies/' + encodeURIComponent(taxSlug) + '/terms');
                 try {{
-                    const res = await fetch('/wp-json/wp/v2/' + taxSlug, {{
-                        method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                    const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
+                    const res = await fetch(endpoint, {{
+                        method: 'POST', credentials: 'same-origin',
+                        headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': nonce }},
                         body: JSON.stringify({{ name }})
                     }});
-                    const data = await res.json();
+                    const rawText = await res.text();
+                    let data = {{}};
+                    if (rawText) {{ try {{ data = JSON.parse(rawText); }} catch (_) {{}} }}
                     if (res.ok && data.id) {{
                         const list = document.getElementById('taxonomy-list-' + taxSlug);
                         if (list) {{
-                            const label = document.createElement('label');
-                            label.style = 'display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer;';
-                            label.innerHTML = `<input type="checkbox" class="taxonomy-term-checkbox" data-taxonomy="${{taxSlug}}" name="post_category" value="${{data.id}}" checked /> <span>${{name}}</span>`;
-                            list.appendChild(label);
+                            const emptyHint = list.querySelector('p');
+                            if (emptyHint) emptyHint.remove();
+                            const existingCb = list.querySelector(`input.taxonomy-term-checkbox[value="${{data.id}}"]`);
+                            if (existingCb) existingCb.checked = true;
+                            else {{
+                                const label = document.createElement('label');
+                                label.style = 'display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer;';
+                                const cb = document.createElement('input');
+                                cb.type = 'checkbox'; cb.className = 'taxonomy-term-checkbox';
+                                cb.setAttribute('data-taxonomy', taxSlug); cb.name = 'post_category';
+                                cb.value = String(data.id); cb.checked = true;
+                                const span = document.createElement('span');
+                                span.textContent = data.name || name;
+                                label.appendChild(cb); label.appendChild(span); list.appendChild(label);
+                            }}
                         }}
-                        inp.value = '';
-                        markDirty();
-                        showToast('✓ Added ' + name);
-                    }} else {{
-                        showToast('Error adding term: ' + (data.message || 'Server error'), true);
-                    }}
-                }} catch (e) {{
-                    showToast('Failed to add term: ' + e, true);
-                }}
+                        inp.value = ''; markDirty(); showToast('✓ Added ' + (data.name || name));
+                    }} else {{ showToast('Error adding term: ' + (data.message || rawText || ('HTTP ' + res.status)), true); }}
+                }} catch (e) {{ showToast('Failed to add term: ' + e, true); }}
             }}
 
             // Clicking empty visual canvas focuses into first paragraph

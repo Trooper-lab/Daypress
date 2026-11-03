@@ -217,6 +217,12 @@ pub enum NodeKind {
         show_meta: bool,
         show_pagination: bool,
         taxonomy: Option<String>,
+        enable_filter_bar: bool,
+        enable_sort: bool,
+        enable_search: bool,
+        default_sort: String,
+        card_skin: String,
+        meta_fields: Vec<String>,
     },
     TableOfContents {
         title: String,

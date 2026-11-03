@@ -2,6 +2,7 @@
 
 pub struct EditorCardParams<'a> {
     pub type_singular: &'a str,
+    pub permalink_prefix: &'a str,
     pub initial_title: &'a str,
     pub initial_slug: &'a str,
     pub initial_content: &'a str,
@@ -19,12 +20,12 @@ pub fn render_editor_card(p: &EditorCardParams) -> String {
             
             <div style="display: flex; align-items: center; gap: 6px; padding: 10px 0 16px 0; border-bottom: 1px solid var(--rule); margin-bottom: 14px; font-size: 12.5px; color: var(--ink-muted);">
                 <span>Permalink:</span>
-                <span style="font-family: var(--font-mono); color: var(--ink);">http://localhost:8090/</span>
+                <span style="font-family: var(--font-mono); color: var(--ink);">http://localhost:8090/{permalink_prefix}</span>
                 <input type="text" id="post_name" placeholder="slug" value="{initial_slug}" 
                        style="height: 24px; padding: 0 6px; font-size: 12px; font-family: var(--font-mono); background: var(--paper-raised); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 4px; width: 220px;" />
                 <span>/</span>
                 <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" onclick="copyPermalink()">Copy Link</button>
-                <a id="viewPageLink" href="/{initial_slug}/" target="_blank" style="color: var(--press); text-decoration: none; font-size: 11.5px; margin-left: 4px;">Visit Page ↗</a>
+                <a id="viewPageLink" href="/{permalink_prefix}{initial_slug}/" target="_blank" style="color: var(--press); text-decoration: none; font-size: 11.5px; margin-left: 4px;">Visit {type_singular} ↗</a>
             </div>
 
             <div id="draftRecoveryBanner" style="display: none; background: var(--ochre-wash); border: 1px solid var(--ochre); border-radius: var(--radius-sm); padding: 10px 16px; margin-bottom: 14px; font-size: 12.5px; color: var(--ink); align-items: center; justify-content: space-between;">
@@ -130,6 +131,7 @@ pub fn render_editor_card(p: &EditorCardParams) -> String {
             </div>
         </div>"#,
         type_singular = p.type_singular,
+        permalink_prefix = p.permalink_prefix,
         initial_title = p.initial_title,
         initial_slug = p.initial_slug,
         initial_content = p.initial_content,

@@ -202,6 +202,8 @@ impl Database {
                 .get_option("daypress_site_favicon")?
                 .unwrap_or_default(),
             custom_post_types: self.get_registered_post_types().unwrap_or_default(),
+            cpt_definitions: self.list_post_type_definitions().unwrap_or_default(),
+            custom_taxonomies: self.list_custom_taxonomy_definitions().unwrap_or_default(),
             theme_assets_html: self
                 .get_option("daypress_theme_assets")?
                 .map(|raw| {
@@ -220,20 +222,8 @@ impl Database {
     }
 
     pub fn get_registered_post_types(&self) -> Result<Vec<String>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT post_type FROM posts \
-             WHERE post_type NOT IN ('post', 'page', 'attachment', 'revision', 'nav_menu_item', 'wp_global_styles', 'custom_css', 'customize_changeset', 'oembed_cache') \
-               AND post_type IS NOT NULL \
-               AND post_type != '' \
-             ORDER BY post_type ASC"
-        )?;
-        let rows = stmt.query_map([], |r| r.get(0))?;
-        let mut types = Vec::new();
-        for t in rows.flatten() {
-            types.push(t);
-        }
-        Ok(types)
+        let defs = self.list_post_type_definitions()?;
+        Ok(defs.into_iter().map(|d| d.slug).collect())
     }
 
     pub fn vacuum(&self) -> Result<()> {
@@ -406,5 +396,41 @@ impl crate::ports::output::OptionRepository for Database {
     fn scan_unused_media(&self) -> DomainResult<Vec<DaypressMediaResponse>> {
         Database::scan_unused_media_attachments(self)
             .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn list_post_type_definitions(&self) -> DomainResult<Vec<CustomPostTypeDefinition>> {
+        Database::list_post_type_definitions(self).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn save_post_type_definition(
+        &self,
+        def: &CustomPostTypeDefinition,
+    ) -> DomainResult<CustomPostTypeDefinition> {
+        Database::save_post_type_definition(self, def)
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn provision_content_type_preset(&self, preset_key: &str) -> DomainResult<serde_json::Value> {
+        let (post_type, taxonomies, field_group) =
+            Database::provision_content_type_preset(self, preset_key)
+                .map_err(|e| DomainError::Validation(e.to_string()))?;
+        Ok(serde_json::json!({
+            "status": "provisioned",
+            "preset": preset_key,
+            "post_type": post_type,
+            "taxonomies": taxonomies,
+            "field_group": field_group
+        }))
+    }
+
+    fn list_field_group_definitions(&self) -> DomainResult<Vec<FieldGroupDefinition>> {
+        Database::list_field_groups(self, None).map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    fn save_field_group_definition(
+        &self,
+        group: &FieldGroupDefinition,
+    ) -> DomainResult<FieldGroupDefinition> {
+        Database::save_field_group(self, group).map_err(|e| DomainError::Storage(e.to_string()))
     }
 }

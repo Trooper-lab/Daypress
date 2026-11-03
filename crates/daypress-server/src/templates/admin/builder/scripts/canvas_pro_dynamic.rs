@@ -67,20 +67,35 @@ pub const JS_CANVAS_PRO_DYNAMIC: &str = r###"
             case "LoopGrid": {
                 const cols = d.columns || 3;
                 const count = Math.min(d.posts_per_page || 3, 6);
-                el.className = "dp-pro-block dp-loop-grid";
-                el.style.cssText = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:16px;`;
-                let cards = "";
-                for (let i = 1; i <= count; i++) {
-                    cards += `<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-                        ${d.show_thumbnail !== false ? `<div style="height:110px;background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;color:#64748b;font-size:20px;"><i class="fa-regular fa-image"></i></div>` : ""}
-                        <div style="padding:14px;">
-                            ${d.show_meta !== false ? `<div style="font-size:11px;color:#2563eb;font-weight:600;margin-bottom:4px;">${(d.post_type || "post").toUpperCase()} &bull; #${i}</div>` : ""}
-                            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:6px;">Dynamic Post Title #${i}</div>
-                            ${d.show_excerpt !== false ? `<div style="font-size:12px;color:#64748b;line-height:1.4;">Automatically queried from SQLite posts table...</div>` : ""}
+                el.className = "dp-pro-block dp-loop-grid-preview";
+                let toolbarHtml = "";
+                if (d.enable_filter_bar || d.enable_sort || d.enable_search) {
+                    toolbarHtml = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;flex-wrap:wrap;">
+                        <div style="display:flex;gap:6px;">
+                            ${d.enable_filter_bar ? `<span style="background:#0f172a;color:#fff;font-size:11px;font-weight:600;padding:4px 10px;border-radius:3px;">All</span><span style="background:#f8fafc;border:1px solid #cbd5e1;color:#334155;font-size:11px;padding:4px 10px;border-radius:3px;">Category A</span><span style="background:#f8fafc;border:1px solid #cbd5e1;color:#334155;font-size:11px;padding:4px 10px;border-radius:3px;">Category B</span>` : ""}
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            ${d.enable_search ? `<span style="background:#f8fafc;border:1px solid #cbd5e1;color:#64748b;font-size:11px;padding:4px 10px;border-radius:3px;">Search...</span>` : ""}
+                            ${d.enable_sort ? `<span style="background:#f8fafc;border:1px solid #cbd5e1;color:#334155;font-size:11px;padding:4px 10px;border-radius:3px;">Sort: ${d.default_sort || "Newest"} ▾</span>` : ""}
                         </div>
                     </div>`;
                 }
-                el.innerHTML = cards;
+                const chips = Array.isArray(d.meta_fields) && d.meta_fields.length > 0
+                    ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:6px 0;">${d.meta_fields.map(k => `<span style="font-size:10px;font-family:monospace;background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:1px 6px;border-radius:3px;">{{acf.${k}}}</span>`).join("")}</div>`
+                    : "";
+                let cards = "";
+                for (let i = 1; i <= count; i++) {
+                    cards += `<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                        ${d.show_thumbnail !== false && d.card_skin !== "minimal" ? `<div style="height:110px;background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;color:#64748b;font-size:20px;"><i class="fa-regular fa-image"></i></div>` : ""}
+                        <div style="padding:14px;">
+                            ${d.show_meta !== false ? `<div style="font-size:11px;color:#2563eb;font-weight:600;margin-bottom:4px;">${(d.post_type || "post").toUpperCase()} &bull; ${(d.card_skin || "editorial").toUpperCase()}</div>` : ""}
+                            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:6px;">Dynamic ${(d.post_type || "post")} #${i}</div>
+                            ${chips}
+                            ${d.show_excerpt !== false ? `<div style="font-size:12px;color:#64748b;line-height:1.4;">Queried live from SQLite with filter &amp; sort controls...</div>` : ""}
+                        </div>
+                    </div>`;
+                }
+                el.innerHTML = `${toolbarHtml}<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:16px;">${cards}</div>`;
                 return el;
             }
 
@@ -157,6 +172,13 @@ pub const JS_CANVAS_PRO_DYNAMIC: &str = r###"
                     const node = activeId && window.findNodeById ? window.findNodeById(activeId) : null;
                     if (node && window.renderProInspectorExtensions) {
                         window.renderProInspectorExtensions(node);
+                        const ext = document.getElementById("dp-pro-inspector-extensions");
+                        if (ext && window.injectAcfOptionsIntoDynamicSelect) {
+                            window.injectAcfOptionsIntoDynamicSelect(ext, node);
+                        }
+                        if (ext && node.type === "LoopGrid" && window.renderLoopGridCollectionInspector) {
+                            window.renderLoopGridCollectionInspector(ext, node);
+                        }
                     }
                 };
             }

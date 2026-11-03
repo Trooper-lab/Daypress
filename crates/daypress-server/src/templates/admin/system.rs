@@ -187,12 +187,29 @@ pub fn render_tags_view(
     terms: &[DaypressCategoryResponse],
 ) -> String {
     let is_cat = taxonomy == "category";
-    let title_label = if is_cat { "Categories" } else { "Tags" };
-    let singular = if is_cat { "Category" } else { "Tag" };
-    let endpoint = if is_cat {
-        "/wp-json/wp/v2/categories"
+    let is_tag = taxonomy == "post_tag";
+    let custom_title =
+        crate::adapters::database::taxonomies_discovery::format_taxonomy_display_name(taxonomy);
+    let title_label = if is_cat {
+        "Categories"
+    } else if is_tag {
+        "Tags"
     } else {
-        "/wp-json/wp/v2/tags"
+        custom_title.as_str()
+    };
+    let singular = if is_cat {
+        "Category"
+    } else if is_tag {
+        "Tag"
+    } else {
+        custom_title.as_str()
+    };
+    let endpoint = if is_cat {
+        "/wp-json/wp/v2/categories".to_string()
+    } else if is_tag {
+        "/wp-json/wp/v2/tags".to_string()
+    } else {
+        format!("/wp-json/wp/v2/taxonomies/{}/terms", escape_html(taxonomy))
     };
 
     let mut rows_html = String::new();

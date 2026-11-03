@@ -14,7 +14,7 @@ impl Database {
     ) -> rusqlite::Result<Vec<TaxonomyInfo>> {
         let conn = self.conn.lock().unwrap();
 
-        // 1. Gather distinct taxonomy slugs from term_taxonomy
+        // 1. Gather distinct taxonomy slugs from term_taxonomy + daypress_taxonomies
         let mut all_tax_slugs = Vec::new();
         {
             let mut stmt = conn.prepare(
@@ -24,10 +24,50 @@ impl Database {
             for row in rows.flatten() {
                 all_tax_slugs.push(row);
             }
+            if let Ok(mut reg_stmt) =
+                conn.prepare("SELECT slug FROM daypress_taxonomies ORDER BY slug ASC")
+            {
+                if let Ok(reg_rows) = reg_stmt.query_map([], |r| r.get::<_, String>(0)) {
+                    for row in reg_rows.flatten() {
+                        if !all_tax_slugs.contains(&row) {
+                            all_tax_slugs.push(row);
+                        }
+                    }
+                }
+            }
         }
 
         // 2. Determine which taxonomies apply to this post_type
         let mut relevant_slugs: Vec<String> = Vec::new();
+
+        // Check explicit bindings in daypress_post_types and daypress_taxonomies first
+        if let Ok(tax_json) = conn.query_row(
+            "SELECT taxonomies_json FROM daypress_post_types WHERE slug = ?1",
+            params![post_type],
+            |r| r.get::<_, String>(0),
+        ) {
+            if let Ok(bound) = serde_json::from_str::<Vec<String>>(&tax_json) {
+                for b in bound {
+                    if !b.trim().is_empty() && !relevant_slugs.contains(&b) {
+                        relevant_slugs.push(b);
+                    }
+                }
+            }
+        }
+        if let Ok(mut tstmt) =
+            conn.prepare("SELECT slug, post_types_json FROM daypress_taxonomies ORDER BY slug ASC")
+        {
+            if let Ok(trows) =
+                tstmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+            {
+                for (tslug, pt_json) in trows.flatten() {
+                    let pts: Vec<String> = serde_json::from_str(&pt_json).unwrap_or_default();
+                    if pts.contains(&post_type.to_string()) && !relevant_slugs.contains(&tslug) {
+                        relevant_slugs.push(tslug);
+                    }
+                }
+            }
+        }
 
         if post_type == "post" {
             relevant_slugs.push("category".to_string());
@@ -129,9 +169,28 @@ impl Database {
                 Vec::new()
             };
 
-            let hierarchical =
-                !(slug == "post_tag" || slug.ends_with("_tag") || slug.ends_with("_tags"));
-            let name = format_taxonomy_display_name(&slug);
+            let (hierarchical, name) = {
+                let conn = self.conn.lock().unwrap();
+                if let Ok((lbl_pl, hier)) = conn.query_row(
+                    "SELECT label_plural, hierarchical FROM daypress_taxonomies WHERE slug = ?1",
+                    params![&slug],
+                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)),
+                ) {
+                    (
+                        hier != 0,
+                        if lbl_pl.trim().is_empty() {
+                            format_taxonomy_display_name(&slug)
+                        } else {
+                            lbl_pl
+                        },
+                    )
+                } else {
+                    (
+                        !(slug == "post_tag" || slug.ends_with("_tag") || slug.ends_with("_tags")),
+                        format_taxonomy_display_name(&slug),
+                    )
+                }
+            };
 
             results.push(TaxonomyInfo {
                 slug,

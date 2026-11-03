@@ -158,9 +158,14 @@ class Daypress_1Click_Migrator {
             }
         }
 
-        // 6. Posts & Pages (including postmeta for Elementor, Divi, Page Templates, Custom Fields)
+        // 6. Posts, Pages, Custom Post Types & ACF Schemas (including postmeta for Elementor, Divi, Page Templates, Custom Fields)
+        $public_cpts = get_post_types(['public' => true], 'names');
+        $export_post_types = array_values(array_unique(array_merge(
+            ['post', 'page', 'acf-field-group', 'acf-field', 'acf-post-type', 'acf-taxonomy'],
+            is_array($public_cpts) ? array_diff($public_cpts, ['attachment']) : []
+        )));
         $posts_raw = get_posts([
-            'post_type' => ['post', 'page'],
+            'post_type' => $export_post_types,
             'posts_per_page' => -1,
             'post_status' => 'any',
             'orderby' => 'ID',
@@ -402,6 +407,8 @@ class Daypress_1Click_Migrator {
             'wpcode_snippets',
             '301_redirects',
             'wp_mail_smtp',
+            'cptui_post_types',
+            'cptui_taxonomies',
         ];
         $plugin_options = [];
         foreach ($plugin_option_keys as $opt_key) {

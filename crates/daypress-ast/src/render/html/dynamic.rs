@@ -129,15 +129,35 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             show_meta,
             show_pagination,
             taxonomy,
+            enable_filter_bar,
+            enable_sort,
+            enable_search,
+            default_sort,
+            card_skin,
+            meta_fields,
         } => {
             let tax_attr = taxonomy
                 .as_ref()
                 .map(|t| format!(" data-taxonomy=\"{}\"", escape_attr(t)))
                 .unwrap_or_default();
-            let cls =
-                with_extra_classes(&format!("dp-loop-grid dp-grid-cols-{}", columns), extra_cls);
+            let meta_fields_attr = if meta_fields.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " data-meta-fields=\"{}\"",
+                    escape_attr(&meta_fields.join(","))
+                )
+            };
+            let cls = with_extra_classes(
+                &format!(
+                    "dp-loop-grid dp-grid-cols-{} dp-loop-skin-{}",
+                    columns,
+                    escape_attr(card_skin)
+                ),
+                extra_cls,
+            );
             Some(format!(
-                "<div id=\"{}\" class=\"{}\" data-post-type=\"{}\" data-posts-per-page=\"{}\" data-show-thumb=\"{}\" data-show-excerpt=\"{}\" data-show-meta=\"{}\" data-show-pagination=\"{}\"{}{}>\n<div class=\"dp-loop-posts\"></div>\n</div>",
+                "<div id=\"{}\" class=\"{}\" data-post-type=\"{}\" data-posts-per-page=\"{}\" data-show-thumb=\"{}\" data-show-excerpt=\"{}\" data-show-meta=\"{}\" data-show-pagination=\"{}\" data-enable-filter=\"{}\" data-enable-sort=\"{}\" data-enable-search=\"{}\" data-default-sort=\"{}\" data-card-skin=\"{}\"{}{}{}>\n<div class=\"dp-loop-posts\"></div>\n</div>",
                 escape_attr(&node.id),
                 escape_attr(&cls),
                 escape_attr(post_type),
@@ -146,7 +166,13 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                 show_excerpt,
                 show_meta,
                 show_pagination,
+                enable_filter_bar,
+                enable_sort,
+                enable_search,
+                escape_attr(default_sort),
+                escape_attr(card_skin),
                 tax_attr,
+                meta_fields_attr,
                 style_attr
             ))
         }

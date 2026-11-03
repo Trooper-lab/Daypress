@@ -27,6 +27,8 @@ pub struct DaypressPostResponse {
     pub template: String,
     pub format: String,
     pub meta: serde_json::Value,
+    #[serde(default = "default_empty_json_obj")]
+    pub acf: serde_json::Value,
     pub categories: Vec<i64>,
     pub tags: Vec<i64>,
     #[serde(default)]
@@ -100,6 +102,8 @@ pub struct CreatePostRequest {
     #[serde(default)]
     pub meta: Option<serde_json::Value>,
     #[serde(default)]
+    pub acf: Option<serde_json::Value>,
+    #[serde(default)]
     pub taxonomies: Option<std::collections::HashMap<String, Vec<i64>>>,
     /// Publish date (ISO 8601, site time = UTC). A `publish` post dated ahead is stored as
     /// `future` (scheduled), as in WordPress.
@@ -116,6 +120,10 @@ pub fn default_post_status() -> String {
 
 pub fn default_post_type() -> String {
     "post".to_string()
+}
+
+pub fn default_empty_json_obj() -> serde_json::Value {
+    serde_json::json!({})
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -150,6 +158,8 @@ pub struct UpdatePostRequest {
     pub seo_og_image: Option<String>,
     #[serde(default)]
     pub meta: Option<serde_json::Value>,
+    #[serde(default)]
+    pub acf: Option<serde_json::Value>,
     #[serde(default)]
     pub taxonomies: Option<std::collections::HashMap<String, Vec<i64>>>,
     /// New publish date (ISO 8601, site time = UTC); see [`CreatePostRequest::date`].

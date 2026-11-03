@@ -37,9 +37,9 @@ Daypress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
      - **`0.2`** (`Shipped`): Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity
      - **`0.3.0`** (`Shipped`): TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker
      - **`0.4.0`** (`Shipped`): FormStudio & Submissions Vault, Full Analytics Dashboard (`/d-admin/analytics`), Native Privacy/Cookie Banner & `<50µs` Hot Cache
-     - **`0.5.1`** (`Early preview — Now`): Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2
-     - **`0.6`** (`Up next`): Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids
-     - **`0.7`** (`Planned`): SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter
+     - **`0.5.1`** (`Shipped`): Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2
+     - **`0.6.0`** (`Shipped`): Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids
+     - **`0.7`** (`Up next`): SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter
      - **`0.8`** (`Planned`): Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging
      - **`0.9`** (`Planned`): Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates
      - **`1.0`** (`Planned`): First Stable Release (External Audit, Reproducible Benchmarks, Stable Schema/ABI & 70%+ WP Migration Sign-off)

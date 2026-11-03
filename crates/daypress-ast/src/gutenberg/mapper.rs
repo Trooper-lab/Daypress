@@ -389,6 +389,12 @@ pub(crate) fn map_gutenberg_block(
                 show_meta: true,
                 show_pagination: true,
                 taxonomy: None,
+                enable_filter_bar: false,
+                enable_sort: false,
+                enable_search: false,
+                default_sort: "date_desc".to_string(),
+                card_skin: "editorial".to_string(),
+                meta_fields: Vec::new(),
             }
         }
         "navigation" => {
