@@ -11,7 +11,7 @@ use super::head_meta::{render_head_meta, HeadMetaOutput};
 use super::site_chrome;
 use crate::auth::AuthUser;
 use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
-use crate::templates::utils::{escape_html, escape_json};
+use crate::templates::utils::escape_html;
 use crate::theme_builder::models::ResolvedThemePartials;
 use daypress_ast::sanitize_ssr_html;
 
@@ -72,18 +72,18 @@ fn render_cookie_consent_banner(settings: &DaypressSettingsResponse) -> String {
 
     format!(
         r##"<style id="dp-cookie-consent-css">
-.dp-cc-banner{{position:fixed;z-index:99998;background:#16181d;color:#f4f5f8;border:1px solid rgba(255,255,255,.12);box-shadow:0 16px 40px rgba(0,0,0,.35);font-family:system-ui,-apple-system,sans-serif;font-size:13.5px;line-height:1.5;display:none;box-sizing:border-box}}
-.dp-cc-bottom-bar{{left:16px;right:16px;bottom:16px;max-width:980px;margin:0 auto;padding:16px 20px;border-radius:12px;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}}
-.dp-cc-floating-right{{right:20px;bottom:20px;max-width:400px;padding:18px;border-radius:12px;flex-direction:column;gap:14px}}
-.dp-cc-floating-left{{left:20px;bottom:20px;max-width:400px;padding:18px;border-radius:12px;flex-direction:column;gap:14px}}
-.dp-cc-title{{font-weight:700;font-size:14.5px;margin:0 0 4px;color:#fff}}
-.dp-cc-msg{{margin:0;color:#c9cdd8;font-size:13px}}
+.dp-cc-banner{{position:fixed;z-index:99998;background:var(--paper-raised,#fbf8f2);color:var(--ink,#16171a);border:1px solid var(--rule,#16171a2e);border-top:2px solid var(--rule-strong,#16171a);box-shadow:0 16px 40px rgba(22,23,26,.16);font-family:var(--font-sans,system-ui,-apple-system,sans-serif);font-size:13.5px;line-height:1.5;display:none;box-sizing:border-box}}
+.dp-cc-bottom-bar{{left:16px;right:16px;bottom:16px;max-width:980px;margin:0 auto;padding:14px 20px;border-radius:2px;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}}
+.dp-cc-floating-right{{right:20px;bottom:20px;max-width:400px;padding:18px;border-radius:2px;flex-direction:column;gap:14px}}
+.dp-cc-floating-left{{left:20px;bottom:20px;max-width:400px;padding:18px;border-radius:2px;flex-direction:column;gap:14px}}
+.dp-cc-title{{font-family:var(--font-mono,monospace);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 4px;color:var(--ink,#16171a)}}
+.dp-cc-msg{{margin:0;color:var(--ink-muted,#5a5852);font-size:13px}}
 .dp-cc-actions{{display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex-shrink:0}}
-.dp-cc-btn{{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer}}
-.dp-cc-btn-primary{{background:#2271b1;border-color:#2271b1;color:#fff}}
-.dp-cc-modal{{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px}}
-.dp-cc-dialog{{background:#16181d;color:#f4f5f8;border:1px solid rgba(255,255,255,.14);border-radius:12px;max-width:460px;width:100%;padding:20px;box-sizing:border-box}}
-.dp-cc-cat{{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px}}
+.dp-cc-btn{{border:1px solid var(--rule,#16171a2e);background:var(--paper,#f3eee4);color:var(--ink,#16171a);padding:7px 13px;border-radius:2px;font-family:var(--font-mono,monospace);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;cursor:pointer}}
+.dp-cc-btn-primary{{background:var(--oxide,#a8401b);border-color:var(--oxide,#a8401b);color:var(--on-oxide,#fff8f0)}}
+.dp-cc-modal{{position:fixed;inset:0;z-index:99999;background:rgba(22,23,26,.55);display:none;align-items:center;justify-content:center;padding:16px}}
+.dp-cc-dialog{{background:var(--paper-raised,#fbf8f2);color:var(--ink,#16171a);border:1px solid var(--rule,#16171a2e);border-top:2px solid var(--rule-strong,#16171a);border-radius:2px;max-width:460px;width:100%;padding:20px;box-sizing:border-box}}
+.dp-cc-cat{{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule,#16171a2e);font-size:13px}}
 </style>
 <div id="dp-cookie-banner" class="dp-cc-banner {pos_class}" role="region" aria-label="{title}">
 	<div style="flex:1;min-width:240px;">
@@ -188,6 +188,414 @@ fn render_cookie_consent_banner(settings: &DaypressSettingsResponse) -> String {
     )
 }
 
+/// Renders the drop-in `Cmd+K` / `Ctrl+K` SQLite FTS5 Instant Search Modal in the Daypress Editorial Design System.
+fn render_cmdk_search_modal() -> &'static str {
+    r##"<style id="dp-cmdk-search-css">
+.dp-search-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	height: 32px;
+	padding: 0 10px;
+	background: var(--paper, #f3eee4);
+	color: var(--ink-muted, #5a5852);
+	border: 1px solid var(--rule, #16171a2e);
+	border-radius: 2px;
+	font-family: var(--font-sans, sans-serif);
+	font-size: 12.5px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: border-color 0.15s ease, color 0.15s ease;
+}
+.dp-search-trigger:hover {
+	border-color: var(--rule-strong, #16171a);
+	color: var(--ink, #16171a);
+}
+.dp-search-kbd {
+	font-family: var(--font-mono, monospace);
+	font-size: 10.5px;
+	padding: 1px 5px;
+	background: var(--paper-raised, #fbf8f2);
+	border: 1px solid var(--rule, #16171a2e);
+	border-radius: 2px;
+	color: var(--ink-muted, #5a5852);
+}
+.dp-cmdk-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 99990;
+	background: rgba(16, 17, 20, 0.62);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	display: none;
+	align-items: flex-start;
+	justify-content: center;
+	padding: 9vh 16px 24px;
+}
+.dp-cmdk-backdrop.is-open {
+	display: flex;
+}
+.dp-cmdk-dialog {
+	width: 100%;
+	max-width: 640px;
+	background: var(--paper-raised, #fbf8f2);
+	color: var(--ink, #16171a);
+	border: 1px solid var(--rule, #16171a2e);
+	border-top: 2px solid var(--rule-strong, #16171a);
+	border-radius: 2px;
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	max-height: 78vh;
+}
+.dp-cmdk-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 18px;
+	border-bottom: 1px solid var(--rule, #16171a2e);
+	background: var(--paper-raised, #fbf8f2);
+}
+.dp-cmdk-icon {
+	color: var(--oxide, #a8401b);
+	font-size: 15px;
+	flex-shrink: 0;
+}
+.dp-cmdk-input {
+	flex: 1;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: var(--ink, #16171a);
+	font-family: var(--font-sans, sans-serif);
+	font-size: 16px;
+	line-height: 1.4;
+}
+.dp-cmdk-input::placeholder {
+	color: var(--ink-muted, #5a5852);
+	opacity: 0.75;
+}
+.dp-cmdk-latency {
+	font-family: var(--font-mono, monospace);
+	font-size: 10.5px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--ink-muted, #5a5852);
+	padding: 2px 7px;
+	background: var(--paper, #f3eee4);
+	border: 1px solid var(--rule, #16171a2e);
+	border-radius: 2px;
+	white-space: nowrap;
+}
+.dp-cmdk-filters {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 18px;
+	background: var(--paper, #f3eee4);
+	border-bottom: 1px solid var(--rule, #16171a2e);
+	overflow-x: auto;
+}
+.dp-cmdk-filter-pill {
+	font-family: var(--font-mono, monospace);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	padding: 3px 9px;
+	border: 1px solid var(--rule, #16171a2e);
+	border-radius: 2px;
+	background: var(--paper-raised, #fbf8f2);
+	color: var(--ink-muted, #5a5852);
+	cursor: pointer;
+}
+.dp-cmdk-filter-pill.is-active {
+	background: var(--ink, #16171a);
+	color: var(--paper-raised, #fbf8f2);
+	border-color: var(--ink, #16171a);
+}
+.dp-cmdk-typo-bar {
+	display: none;
+	padding: 7px 18px;
+	font-family: var(--font-mono, monospace);
+	font-size: 11.5px;
+	background: color-mix(in srgb, var(--ochre, #d9a42a) 16%, var(--paper-raised, #fbf8f2));
+	color: var(--ink, #16171a);
+	border-bottom: 1px solid var(--rule, #16171a2e);
+}
+.dp-cmdk-results {
+	overflow-y: auto;
+	padding: 6px 0;
+	flex: 1;
+}
+.dp-cmdk-item {
+	display: block;
+	padding: 12px 18px;
+	text-decoration: none;
+	color: var(--ink, #16171a);
+	border-bottom: 1px solid var(--rule, #16171a2e);
+	transition: background 0.1s ease;
+}
+.dp-cmdk-item:last-child {
+	border-bottom: none;
+}
+.dp-cmdk-item:hover,
+.dp-cmdk-item.is-selected {
+	background: var(--paper, #f3eee4);
+}
+.dp-cmdk-item-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+.dp-cmdk-item-title {
+	font-family: var(--font-serif, Georgia, serif);
+	font-size: 17px;
+	font-weight: 500;
+	color: var(--ink, #16171a);
+	line-height: 1.25;
+}
+.dp-cmdk-item-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-family: var(--font-mono, monospace);
+	font-size: 10.5px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--ink-muted, #5a5852);
+	flex-shrink: 0;
+}
+.dp-cmdk-type-badge {
+	padding: 1px 6px;
+	background: var(--paper, #f3eee4);
+	border: 1px solid var(--rule, #16171a2e);
+	color: var(--oxide, #a8401b);
+	border-radius: 2px;
+	font-weight: 600;
+}
+.dp-cmdk-item-snippet {
+	font-family: var(--font-sans, sans-serif);
+	font-size: 13px;
+	color: var(--ink-muted, #5a5852);
+	line-height: 1.5;
+}
+mark.dp-search-hl {
+	background: color-mix(in srgb, var(--ochre, #d9a42a) 34%, transparent);
+	color: var(--ink, #16171a);
+	padding: 0 2px;
+	border-radius: 1px;
+	font-weight: 600;
+}
+.dp-cmdk-empty {
+	padding: 28px 18px;
+	text-align: center;
+	font-size: 13.5px;
+	color: var(--ink-muted, #5a5852);
+}
+.dp-cmdk-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 18px;
+	background: var(--paper, #f3eee4);
+	border-top: 1px solid var(--rule, #16171a2e);
+	font-family: var(--font-mono, monospace);
+	font-size: 11px;
+	color: var(--ink-muted, #5a5852);
+}
+</style>
+<div id="dp-cmdk-modal" class="dp-cmdk-backdrop" role="dialog" aria-modal="true" aria-label="Site Instant Search">
+	<div class="dp-cmdk-dialog">
+		<div class="dp-cmdk-header">
+			<i class="fa-solid fa-magnifying-glass dp-cmdk-icon" aria-hidden="true"></i>
+			<input type="search" id="dp-cmdk-input" class="dp-cmdk-input" placeholder="Search articles, pages, features... (SQLite FTS5)" autocomplete="off" />
+			<span id="dp-cmdk-latency" class="dp-cmdk-latency">FTS5 READY</span>
+		</div>
+		<div class="dp-cmdk-filters" id="dp-cmdk-filters">
+			<button type="button" class="dp-cmdk-filter-pill is-active" data-pt="all">All</button>
+			<button type="button" class="dp-cmdk-filter-pill" data-pt="page">Pages</button>
+			<button type="button" class="dp-cmdk-filter-pill" data-pt="post">Articles</button>
+			<button type="button" class="dp-cmdk-filter-pill" data-pt="feature">Features</button>
+		</div>
+		<div id="dp-cmdk-typo" class="dp-cmdk-typo-bar"></div>
+		<div id="dp-cmdk-results" class="dp-cmdk-results">
+			<div class="dp-cmdk-empty">Type at least 2 characters to search with BM25 ranking &amp; typo tolerance.</div>
+		</div>
+		<div class="dp-cmdk-footer">
+			<span><kbd class="dp-search-kbd">&uarr;&darr;</kbd> Navigate &nbsp;&bull;&nbsp; <kbd class="dp-search-kbd">&crarr;</kbd> Open &nbsp;&bull;&nbsp; <kbd class="dp-search-kbd">ESC</kbd> Close</span>
+			<span>SQLite FTS5 &bull; BM25</span>
+		</div>
+	</div>
+</div>
+<script>
+(function(){
+	var modal = document.getElementById('dp-cmdk-modal');
+	var input = document.getElementById('dp-cmdk-input');
+	var resultsEl = document.getElementById('dp-cmdk-results');
+	var latencyEl = document.getElementById('dp-cmdk-latency');
+	var typoEl = document.getElementById('dp-cmdk-typo');
+	var filtersEl = document.getElementById('dp-cmdk-filters');
+	if (!modal || !input || !resultsEl) return;
+
+	var activeType = 'all';
+	var selectedIdx = 0;
+	var currentItems = [];
+	var debounceTimer = null;
+
+	function openSearch(initialQuery) {
+		modal.classList.add('is-open');
+		if (typeof initialQuery === 'string' && initialQuery.trim()) {
+			input.value = initialQuery.trim();
+		}
+		setTimeout(function(){ input.focus(); input.select(); }, 20);
+		if (input.value.trim().length >= 2) {
+			runSearch(input.value.trim());
+		}
+	}
+	function closeSearch() {
+		modal.classList.remove('is-open');
+	}
+	window.daypressOpenSearch = openSearch;
+	window.daypressCloseSearch = closeSearch;
+
+	modal.addEventListener('click', function(e) {
+		if (e.target === modal) closeSearch();
+	});
+
+	if (filtersEl) {
+		filtersEl.addEventListener('click', function(e) {
+			var btn = e.target.closest('.dp-cmdk-filter-pill');
+			if (!btn) return;
+			filtersEl.querySelectorAll('.dp-cmdk-filter-pill').forEach(function(b){ b.classList.remove('is-active'); });
+			btn.classList.add('is-active');
+			activeType = btn.getAttribute('data-pt') || 'all';
+			if (input.value.trim().length >= 2) {
+				runSearch(input.value.trim());
+			}
+		});
+	}
+
+	document.addEventListener('click', function(e) {
+		var trig = e.target && e.target.closest ? e.target.closest('[data-dp-search-open], .dp-search-trigger, a[href="#search"]') : null;
+		if (trig) {
+			e.preventDefault();
+			openSearch('');
+		}
+	});
+
+	document.addEventListener('keydown', function(e) {
+		if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+			e.preventDefault();
+			if (modal.classList.contains('is-open')) closeSearch();
+			else openSearch('');
+			return;
+		}
+		if (!modal.classList.contains('is-open')) return;
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			closeSearch();
+		} else if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			if (currentItems.length > 0) {
+				selectedIdx = (selectedIdx + 1) % currentItems.length;
+				updateSelection();
+			}
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			if (currentItems.length > 0) {
+				selectedIdx = (selectedIdx - 1 + currentItems.length) % currentItems.length;
+				updateSelection();
+			}
+		} else if (e.key === 'Enter') {
+			if (currentItems[selectedIdx]) {
+				e.preventDefault();
+				window.location.href = currentItems[selectedIdx].link;
+			}
+		}
+	});
+
+	input.addEventListener('input', function() {
+		clearTimeout(debounceTimer);
+		var q = input.value.trim();
+		if (q.length < 2) {
+			typoEl.style.display = 'none';
+			resultsEl.innerHTML = '<div class="dp-cmdk-empty">Type at least 2 characters to search with BM25 ranking &amp; typo tolerance.</div>';
+			currentItems = [];
+			return;
+		}
+		debounceTimer = setTimeout(function(){ runSearch(q); }, 70);
+	});
+
+	function updateSelection() {
+		var rows = resultsEl.querySelectorAll('.dp-cmdk-item');
+		rows.forEach(function(r, idx) {
+			if (idx === selectedIdx) {
+				r.classList.add('is-selected');
+				if (r.scrollIntoView) r.scrollIntoView({ block: 'nearest' });
+			} else {
+				r.classList.remove('is-selected');
+			}
+		});
+	}
+
+	function escHtml(s) {
+		return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	}
+
+	function renderSearchResults(data, q) {
+		var ms = ((data.took_us || 0) / 1000).toFixed(2);
+		latencyEl.textContent = 'FTS5 • ' + ms + 'ms';
+		currentItems = data.results || [];
+		selectedIdx = 0;
+		if (data.typo_corrected) {
+			typoEl.style.display = 'block';
+			typoEl.textContent = 'Fuzzy typo-tolerant match for "' + data.typo_corrected + '"';
+		} else {
+			typoEl.style.display = 'none';
+		}
+		if (currentItems.length === 0) {
+			resultsEl.innerHTML = '<div class="dp-cmdk-empty">No matching results found for <strong>' + escHtml(q) + '</strong>.</div>';
+			return;
+		}
+		var html = '';
+		for (var i = 0; i < currentItems.length; i++) {
+			var it = currentItems[i];
+			var sel = i === 0 ? ' is-selected' : '';
+			html += '<a class="dp-cmdk-item' + sel + '" href="' + escHtml(it.link) + '">'
+				+ '<div class="dp-cmdk-item-top">'
+				+ '<span class="dp-cmdk-item-title">' + escHtml(it.title) + '</span>'
+				+ '<span class="dp-cmdk-item-meta"><span class="dp-cmdk-type-badge">' + escHtml(it.post_type_label || it.post_type) + '</span><span>' + (it.reading_time_minutes || 1) + ' min read</span></span>'
+				+ '</div>'
+				+ '<div class="dp-cmdk-item-snippet">' + (it.snippet_html || escHtml(it.excerpt)) + '</div>'
+				+ '</a>';
+		}
+		resultsEl.innerHTML = html;
+	}
+	window.daypressRenderSearchResults = renderSearchResults;
+
+	function runSearch(q) {
+		if (window.DAYPRESS_PRELOADED_SEARCH_RESPONSE) {
+			renderSearchResults(window.DAYPRESS_PRELOADED_SEARCH_RESPONSE, q);
+			return;
+		}
+		var url = '/wp-json/daypress/v1/search?q=' + encodeURIComponent(q) + '&limit=12';
+		if (activeType && activeType !== 'all') {
+			url += '&post_type=' + encodeURIComponent(activeType);
+		}
+		fetch(url)
+			.then(function(r){ return r.json(); })
+			.then(function(data) {
+				renderSearchResults(data, q);
+			})
+			.catch(function(){});
+	}
+})();
+</script>"##
+}
+
 /// Renders the unified Daypress HTML shell driven 100% by database settings,
 /// dynamic Theme Builder partials, and Daypress AST element styles.
 pub fn render_base_layout(
@@ -207,7 +615,8 @@ pub fn render_base_layout(
         robots_meta,
         canonical_tag,
         og_image_tags,
-        schema_type,
+        schema_type: _,
+        schema_json_ld,
         feed_links,
     } = render_head_meta(title, settings, current_post, site_name, site_desc);
 
@@ -349,6 +758,7 @@ pub fn render_base_layout(
         "false"
     };
     let cookie_consent_html = render_cookie_consent_banner(settings);
+    let cmdk_search_html = render_cmdk_search_modal();
 
     let doc = format!(
         r##"<!DOCTYPE html>
@@ -377,17 +787,7 @@ pub fn render_base_layout(
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 	<script type="application/ld+json">
-	{{
-		"@context": "https://schema.org",
-		"@type": "{schema_type}",
-		"name": "{site_name_json}",
-		"headline": "{title_json}",
-		"description": "{meta_desc_json}",
-		"publisher": {{
-			"@type": "Organization",
-			"name": "{site_name_json}"
-		}}
-	}}
+{schema_json_ld}
 	</script>
 
 	<script>
@@ -472,6 +872,7 @@ pub fn render_base_layout(
 		</div>
 	</div>
 	{cookie_consent_html}
+	{cmdk_search_html}
 </body>
 </html>
 "##,
@@ -484,10 +885,7 @@ pub fn render_base_layout(
         feed_links = feed_links,
         og_image_tags = og_image_tags,
         favicon_href = favicon_href,
-        schema_type = schema_type,
-        site_name_json = escape_json(site_name),
-        title_json = escape_json(title),
-        meta_desc_json = escape_json(&meta_desc),
+        schema_json_ld = schema_json_ld,
         gate_analytics = gate_analytics,
         public_theme_css = super::styles::render_public_theme_css(&escape_html(brand_color)),
         daystudio_kit_css_block = daystudio_kit_css_block,
@@ -503,7 +901,8 @@ pub fn render_base_layout(
         content = content,
         full_body_class = full_body_class,
         admin_bar_html = admin_bar_html,
-        cookie_consent_html = cookie_consent_html
+        cookie_consent_html = cookie_consent_html,
+        cmdk_search_html = cmdk_search_html
     );
 
     sanitize_ssr_html(&doc)

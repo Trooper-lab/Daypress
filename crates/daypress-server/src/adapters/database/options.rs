@@ -433,4 +433,22 @@ impl crate::ports::output::OptionRepository for Database {
     ) -> DomainResult<FieldGroupDefinition> {
         Database::save_field_group(self, group).map_err(|e| DomainError::Storage(e.to_string()))
     }
+
+    fn search_fts_json(
+        &self,
+        query: &str,
+        post_type: Option<&str>,
+        limit: usize,
+    ) -> DomainResult<serde_json::Value> {
+        let resp = Database::search_fts(self, query, post_type, limit)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        serde_json::to_value(resp).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn audit_post_json(&self, payload: &serde_json::Value) -> DomainResult<serde_json::Value> {
+        let req: crate::adapters::database::search_fts::AuditRequestPayload =
+            serde_json::from_value(payload.clone()).unwrap_or_default();
+        let report = Database::audit_post_wcag_links_seo(self, &req);
+        serde_json::to_value(report).map_err(|e| DomainError::Internal(e.to_string()))
+    }
 }

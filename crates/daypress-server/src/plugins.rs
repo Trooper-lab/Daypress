@@ -608,7 +608,33 @@ pub fn expand_shortcodes_in_content(
         }
     }
 
-    // 3. Community plugin custom shortcodes
+    // 3. Built-in TOC & Reading-Time shortcodes ([daypress_toc], [toc], [daypress_reading_time])
+    if out.contains("[daypress_reading_time") || out.contains("[reading_time") {
+        let (words, mins) =
+            crate::adapters::database::search_fts::estimate_reading_time_minutes(&out);
+        let badge = format!(
+            r#"<span class="dp-reading-time" style="font-family:var(--font-mono, monospace);font-size:12px;color:var(--ink-muted, var(--text-muted));"><i class="fa-regular fa-clock" style="margin-right:4px;"></i>{} min read ({} words)</span>"#,
+            mins, words
+        );
+        out = out
+            .replace("[daypress_reading_time]", &badge)
+            .replace("[reading_time]", &badge);
+    }
+    if out.contains("[daypress_toc") || out.contains("[toc]") {
+        let (anchored, toc_nav, _) =
+            crate::templates::public::single::inject_heading_anchors_and_build_toc(
+                &out,
+                "Table of Contents",
+                2,
+                4,
+                true,
+            );
+        out = anchored
+            .replace("[daypress_toc]", &toc_nav)
+            .replace("[toc]", &toc_nav);
+    }
+
+    // 4. Community plugin custom shortcodes
     if out.contains('[') {
         if let Ok(plugins) = db.get_all_installed_plugins() {
             for p in plugins.into_iter().filter(|r| r.active) {

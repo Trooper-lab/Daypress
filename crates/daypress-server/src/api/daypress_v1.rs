@@ -1743,3 +1743,49 @@ pub(crate) async fn collection_query_v1_handler(
         "cards_html": cards_html
     })))
 }
+
+// --- Native Subsystems: SQLite FTS5 Instant Search, Auto-OG Social Cards & Live SEO/WCAG Linter (v0.7) ---
+
+#[derive(Debug, Deserialize, Default)]
+pub struct FtsSearchQueryParams {
+    #[serde(alias = "search")]
+    pub q: Option<String>,
+    pub post_type: Option<String>,
+    #[serde(alias = "per_page")]
+    pub limit: Option<usize>,
+}
+
+pub(crate) async fn fts_search_v1_handler(
+    State(db): State<Database>,
+    Query(params): Query<FtsSearchQueryParams>,
+) -> Result<Json<crate::adapters::database::search_fts::FtsSearchResponse>, AppError> {
+    let q = params.q.as_deref().unwrap_or("").trim();
+    let post_type = params
+        .post_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("all"));
+    let limit = params.limit.unwrap_or(12).clamp(1, 50);
+    let resp = db.search_fts(q, post_type, limit)?;
+    Ok(Json(resp))
+}
+
+pub(crate) async fn fts_reindex_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
+    let indexed = db.rebuild_fts_index()?;
+    Ok(Json(serde_json::json!({
+        "status": "reindexed",
+        "engine": "sqlite-fts5-bm25",
+        "indexed_count": indexed
+    })))
+}
+
+pub(crate) async fn seo_audit_v1_handler(
+    State(db): State<Database>,
+    Json(payload): Json<crate::adapters::database::search_fts::AuditRequestPayload>,
+) -> Result<Json<crate::adapters::database::search_fts::AuditReportResponse>, AppError> {
+    let report = db.audit_post_wcag_links_seo(&payload);
+    Ok(Json(report))
+}

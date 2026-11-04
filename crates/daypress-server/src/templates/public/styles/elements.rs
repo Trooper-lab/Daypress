@@ -102,18 +102,18 @@ pub const CSS_ELEMENTS: &str = r#"
 			display: block;
 		}
 
-		:where(.dp-button), .btn-primary-neon {
+		a:where(.dp-button), :where(.dp-button), .btn-primary-neon {
 			display: inline-flex;
 			align-items: center;
 			justify-content: center;
 			gap: 8px;
-			background: var(--dp-button-bg, var(--e-button-bg, #2563eb));
-			color: var(--dp-button-color, var(--e-button-color, #ffffff));
+			background: var(--dp-button-bg, var(--e-button-bg, var(--oxide, #a8401b)));
+			color: var(--dp-button-color, var(--e-button-color, var(--on-oxide, #fff8f0)));
 			font-family: var(--dp-font-accent, var(--e-global-typography-accent-font-family, inherit));
 			font-size: var(--dp-button-font-size, 14px);
 			font-weight: var(--dp-button-font-weight, 600);
-			padding: var(--dp-button-padding, 11px 22px);
-			border-radius: var(--dp-button-radius, var(--e-button-border-radius, 8px));
+			padding: var(--dp-button-padding, 10px 20px);
+			border-radius: var(--dp-button-radius, var(--e-button-border-radius, 2px));
 			border: var(--dp-button-border, 1px solid rgba(255,255,255,0.1));
 			cursor: pointer;
 			transition: all 0.15s ease;
@@ -121,8 +121,9 @@ pub const CSS_ELEMENTS: &str = r#"
 			text-decoration: none;
 		}
 
-		:where(.dp-button:hover), .btn-primary-neon:hover {
-			background: var(--dp-button-hover-bg, #1d4ed8);
+		a:where(.dp-button:hover), :where(.dp-button:hover), .btn-primary-neon:hover {
+			background: var(--dp-button-hover-bg, var(--ink, #16171a));
+			color: var(--dp-button-color, var(--on-oxide, #fff8f0));
 			transform: translateY(-1px);
 		}
 

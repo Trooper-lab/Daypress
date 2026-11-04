@@ -23,6 +23,7 @@ pub mod posts_write;
 pub mod revisions;
 pub mod scheduling;
 pub mod schema;
+pub mod search_fts;
 pub mod settings_extra;
 pub mod taxonomies;
 pub mod taxonomies_discovery;

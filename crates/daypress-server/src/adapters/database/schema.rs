@@ -479,6 +479,7 @@ impl Database {
 
         conn.execute_batch(super::ddl::SUBSYSTEMS_SCHEMA_SQL)?;
         conn.execute_batch(super::ddl::PASSWORD_RESETS_SCHEMA_SQL)?;
+        let _ = conn.execute_batch(super::ddl::FTS5_SEARCH_SCHEMA_SQL);
         crate::theme_builder::schema::init_theme_builder_schema(&conn)?;
         let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
 
@@ -528,6 +529,7 @@ impl Database {
         ] {
             let _ = conn.execute(alter_sql, []);
         }
+        let _ = Self::ensure_fts_backfilled_with_conn(&conn);
         Ok(())
     }
 

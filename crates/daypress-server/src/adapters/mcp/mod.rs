@@ -412,6 +412,33 @@ pub fn mcp_tools_manifest() -> Value {
                         "fields": { "type": "array" }
                     }
                 }
+            },
+            {
+                "name": "daypress_search",
+                "description": "Search published posts, pages, and Custom Post Types using the native SQLite FTS5 BM25 full-text index with typo tolerance and highlighted snippets.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": { "type": "string", "description": "Full-text search query (supports prefix and typo-tolerant matching)" },
+                        "post_type": { "type": "string", "description": "Optional post_type filter (e.g. 'post', 'page', 'feature', or 'all')" },
+                        "limit": { "type": "integer", "default": 12 }
+                    }
+                }
+            },
+            {
+                "name": "daypress_audit_post",
+                "description": "Run the real-time WCAG 2.1 AA/AAA Contrast, Broken-Link (SQLite-verified), Heading Hierarchy, and SEO Linter on a post/page by post_id or draft payload.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "post_id": { "type": "integer", "description": "Optional post/page ID to audit and persist _daypress_audit_score" },
+                        "title": { "type": "string" },
+                        "html": { "type": "string" },
+                        "layout_json": { "type": "string" },
+                        "theme": { "type": "string", "default": "light" }
+                    }
+                }
             }
         ]
     })
@@ -546,17 +573,19 @@ fn dispatch_tool_call(
             let updated = service.edit_content(id, req)?;
             Ok(serde_json::to_value(updated).unwrap_or(Value::Null))
         }
-        "daypress_get_post_layout" => {
+        "daypress_get_post_layout" | "daypress_get_layout_ast" => {
             let post_id = args
                 .get("post_id")
+                .or_else(|| args.get("id"))
                 .and_then(Value::as_i64)
                 .ok_or_else(|| DomainError::Validation("'post_id' is required".into()))?;
             let layout = service.get_layout_ast(post_id)?;
             Ok(json!({ "post_id": post_id, "layout_json": layout }))
         }
-        "daypress_update_post_layout" => {
+        "daypress_update_post_layout" | "daypress_save_layout_ast" => {
             let post_id = args
                 .get("post_id")
+                .or_else(|| args.get("id"))
                 .and_then(Value::as_i64)
                 .ok_or_else(|| DomainError::Validation("'post_id' is required".into()))?;
             let layout_json = args
@@ -989,6 +1018,27 @@ fn dispatch_tool_call(
             let saved = service.options_repo().save_field_group_definition(&group)?;
             Ok(serde_json::to_value(saved).unwrap_or(Value::Null))
         }
+        "daypress_search" => {
+            let query = args
+                .get("query")
+                .or_else(|| args.get("q"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let post_type = args
+                .get("post_type")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("all"));
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(12)
+                .clamp(1, 50) as usize;
+            service
+                .options_repo()
+                .search_fts_json(query, post_type, limit)
+        }
+        "daypress_audit_post" => service.options_repo().audit_post_json(&args),
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"
         ))),

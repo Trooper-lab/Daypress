@@ -29,9 +29,19 @@ pub async fn handle_home_or_query(
         .filter(|s| !s.is_empty())
     {
         let settings = db.get_settings().unwrap_or_default();
-        let results = db
-            .get_posts("any", Some("publish"), Some(q), 50)
-            .unwrap_or_default();
+        let mut results = Vec::new();
+        if let Ok(fts) = db.search_fts(q, None, 50) {
+            for hit in fts.results {
+                if let Ok(Some(post)) = db.get_post_by_id(hit.id) {
+                    results.push(post);
+                }
+            }
+        }
+        if results.is_empty() {
+            results = db
+                .get_posts("any", Some("publish"), Some(q), 50)
+                .unwrap_or_default();
+        }
         let req_ctx = RequestContext {
             is_search: true,
             ..Default::default()
@@ -510,6 +520,24 @@ pub async fn handle_single(
         .flatten()
         .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
     {
+        // WordPress canonical redirect: when a static front page is configured,
+        // direct requests to /{front-page-slug}/ (e.g., /home/) 301 redirect to /
+        if settings.show_on_front == "page"
+            && settings.page_on_front > 0
+            && post.id == settings.page_on_front
+            && !has_dp_filter
+        {
+            let mut resp_headers = HeaderMap::new();
+            if let Ok(loc) = "/".parse() {
+                resp_headers.insert(header::LOCATION, loc);
+            }
+            return (
+                StatusCode::MOVED_PERMANENTLY,
+                resp_headers,
+                Html(String::new()),
+            )
+                .into_response();
+        }
         if post.template == "page_templates/leeg.php"
             || post
                 .content

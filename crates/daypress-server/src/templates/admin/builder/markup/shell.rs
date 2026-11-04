@@ -79,6 +79,12 @@ pub fn render_shell() -> &'static str {
                 <span>X-Ray</span>
             </button>
 
+            <!-- Real-Time WCAG Contrast, Broken-Link & SEO Linter Pill -->
+            <button class="topbar-tool-btn" id="btn-toggle-linter" title="WCAG Contrast, Broken-Link &amp; SEO Linter (Ctrl+Shift+L)">
+                <i class="fa-solid fa-shield-halved" id="icon-linter-status" style="color: var(--day-emerald, #54b87a);"></i>
+                <span id="lbl-linter-score" style="font-family: var(--day-font-mono, monospace); font-size: 11px;">Audit 100</span>
+            </button>
+
             <!-- Command Palette Spotlight -->
             <button class="topbar-tool-btn" id="btn-open-palette" title="Command Palette (Cmd+K / Ctrl+K)">
                 <i class="fa-solid fa-magnifying-glass"></i>
@@ -149,6 +155,9 @@ pub fn render_shell() -> &'static str {
                 </button>
                 <button class="rail-tab-btn" data-drawer="history" id="rail-btn-history" title="Audit History (Ctrl+H)">
                     <i class="fa-solid fa-clock-rotate-left"></i>
+                </button>
+                <button class="rail-tab-btn" data-drawer="linter" id="rail-btn-linter" title="WCAG Contrast, Broken-Link &amp; SEO Linter (Ctrl+Shift+L)">
+                    <i class="fa-solid fa-shield-halved"></i>
                 </button>
             </div>
             <div class="rail-bottom">

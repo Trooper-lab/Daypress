@@ -14,8 +14,8 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
 | **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
 | **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
-| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Up next** |
-| **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
+| **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
+| **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | **Up next** |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
 | **`1.0`** | First Stable Release | Planned |
 
@@ -87,13 +87,13 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 - [x] Automatic 1-click migration of **Advanced Custom Fields (ACF)** (`acf-field-group`, `acf-field`, `acf-post-type`, `acf-taxonomy`) and **Custom Post Type UI** (`cptui_post_types`, `cptui_taxonomies`) schemas & flattened repeater postmeta
 - [x] Filterable, sortable, searchable, and paginated **Daystudio Collection Grids** (`LoopGrid` / `CollectionGrid`) bound to any CPT or taxonomy
 
-### `0.7` — SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter (`Up next`)
-- [ ] Native **SQLite FTS5** full-text search index with BM25 ranking, typo tolerance, snippet highlighting, and a drop-in `Cmd+K` public search modal widget
-- [ ] Automatic Rust-rendered **OpenGraph Social Share Cards (`og:image`)** generated dynamically from post title, kicker, author, and brand tokens
-- [ ] Rich **Schema.org JSON-LD** generator (`Article`, `FAQPage`, `LocalBusiness`, `Product`, `BreadcrumbList`) + Auto Table of Contents (TOC) & reading-time widget
-- [ ] Real-time **Daystudio WCAG Contrast, Broken-Link & SEO Linter** inside the visual builder
+### `0.7.0` — SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter (`Shipped`)
+- [x] Native **SQLite FTS5** full-text search index with BM25 ranking, typo tolerance, snippet highlighting, and a drop-in `Cmd+K` public search modal widget
+- [x] Automatic Rust-rendered **OpenGraph Social Share Cards (`og:image`)** generated dynamically from post title, kicker, author, and brand tokens
+- [x] Rich **Schema.org JSON-LD** generator (`Article`, `FAQPage`, `LocalBusiness`, `Product`, `BreadcrumbList`) + Auto Table of Contents (TOC) & reading-time widget
+- [x] Real-time **Daystudio WCAG Contrast, Broken-Link & SEO Linter** inside the visual builder
 
-### `0.8` — Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging (`Planned`)
+### `0.8` — Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging (`Up next`)
 - [ ] Multi-language content linking (`/en/`, `/de/`, `/nl/`) with automatic `hreflang` sitemaps, language switcher widget, localized `/d-admin/` UI, and **WPML / Polylang** migration converter
 - [ ] Editorial workflow upgrades: **1-Click Post/Page Duplication**, multi-author bylines, **Shareable Secret Draft Preview Links** (no login required), and scheduled revisions to already-published pages
 - [ ] **Visual Side-by-Side AST Revision Diffs** inside Daystudio

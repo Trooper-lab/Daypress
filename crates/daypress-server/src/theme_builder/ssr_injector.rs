@@ -1702,6 +1702,31 @@ impl SsrInjector {
             .replace("{{site_description}}", &ctx.settings.description)
             .replace("{{current_year}}", "2026");
 
+        if out.contains("reading_time") || out.contains("word_count") {
+            let (words, mins) =
+                crate::adapters::database::search_fts::estimate_reading_time_minutes(post_content);
+            let rt_str = format!("{} min read", mins);
+            let wc_str = words.to_string();
+            out = out
+                .replace("{{post.reading_time}}", &rt_str)
+                .replace("{{reading_time}}", &rt_str)
+                .replace("{{post.word_count}}", &wc_str)
+                .replace("{{word_count}}", &wc_str);
+        }
+        if out.contains("{{post.toc}}") || out.contains("{{toc}}") {
+            let (_, toc_html, _) =
+                crate::templates::public::single::inject_heading_anchors_and_build_toc(
+                    post_content,
+                    "Table of Contents",
+                    2,
+                    4,
+                    true,
+                );
+            out = out
+                .replace("{{post.toc}}", &toc_html)
+                .replace("{{toc}}", &toc_html);
+        }
+
         if out.contains("{{acf.") || out.contains("{{meta.") || out.contains("{{acf_") {
             out = interpolate_acf_and_meta_tokens(&out, ctx.post);
         }

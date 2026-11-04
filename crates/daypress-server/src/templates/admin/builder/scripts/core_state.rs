@@ -170,6 +170,7 @@ pub const JS_CORE_STATE: &str = r###"
             if (dirty) {
                 pill.className = "save-status-pill unsaved";
                 lbl.textContent = "Unsaved";
+                if (window.scheduleLinterAudit) window.scheduleLinterAudit();
             } else {
                 pill.className = "save-status-pill saved";
                 lbl.textContent = "Saved";

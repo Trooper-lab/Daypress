@@ -81,8 +81,9 @@ pub fn typography_css(settings: &DaypressSettingsResponse) -> &'static str {
     }
 }
 
-/// Page-level Elementor kit CSS (global colors, fonts, heading/button defaults): the layout's own
-/// `global_styles` kit when present, otherwise the default kit unless the site imported one.
+/// Page-level Elementor kit CSS (global colors, fonts, heading/button defaults): emitted when
+/// the layout carries an explicit `global_styles` kit. Native Daypress pages without an imported
+/// Elementor kit inherit the Daypress Editorial Design System tokens from `base.rs`.
 pub fn page_kit_css(
     settings: &DaypressSettingsResponse,
     layout: Option<&DaypressLayout>,
@@ -165,8 +166,13 @@ pub fn render_site_header(
 				{nav_links_html}
 			</nav>
 			<div class="header-actions">
-				<form action="/" method="GET" class="header-search">
-					<input type="text" name="s" placeholder="Search site..." aria-label="Search" />
+				<button type="button" id="dp-header-search-trigger" class="dp-search-trigger" data-dp-search-open="true" title="Instant Search (Cmd+K / Ctrl+K)" aria-label="Open Instant Search">
+					<i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+					<span>Search</span>
+					<kbd class="dp-search-kbd">⌘K</kbd>
+				</button>
+				<form action="/" method="GET" class="header-search" style="display:none;">
+					<input type="text" name="s" placeholder="Search site..." aria-label="Search" onfocus="if(window.daypressOpenSearch){{window.daypressOpenSearch(this.value);this.blur();}}" />
 				</form>
 				{header_login_btn}
 			</div>

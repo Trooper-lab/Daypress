@@ -130,6 +130,17 @@ pub trait OptionRepository: Send + Sync {
     ) -> DomainResult<FieldGroupDefinition> {
         Err(crate::domain::errors::DomainError::NotFound("mock".into()))
     }
+    fn search_fts_json(
+        &self,
+        _query: &str,
+        _post_type: Option<&str>,
+        _limit: usize,
+    ) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "results": [], "total": 0 }))
+    }
+    fn audit_post_json(&self, _payload: &serde_json::Value) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "score": 100, "issues": [] }))
+    }
 }
 
 /// Output port for WordPress Comments (`comments`).

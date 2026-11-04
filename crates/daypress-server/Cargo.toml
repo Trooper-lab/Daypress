@@ -39,6 +39,7 @@ hex = { workspace = true }
 reqwest = { workspace = true }
 flate2 = { workspace = true }
 semver = { workspace = true }
+ab_glyph = "0.2.32"
 daypress-ast = { path = "../daypress-ast" }
 generated_slugify = { path = "../generated_slugify" }
 

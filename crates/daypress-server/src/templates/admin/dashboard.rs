@@ -1100,7 +1100,7 @@ Connection details:
 Available MCP tools (via JSON-RPC `tools/call` on POST {site_url}/mcp):
 - `daypress_list_posts`, `daypress_get_post`, `daypress_create_post`, `daypress_update_post`
 - `daypress_import_html_design` (converts full HTML/CSS pages into native DayStudio Visual Builder AST layouts and sets the front page)
-- `daypress_get_layout_ast`, `daypress_save_layout_ast`
+- `daypress_get_post_layout`, `daypress_update_post_layout`
 - `daypress_get_settings`, `daypress_update_option`
 - `daypress_publish_site`, `daypress_get_publish_status` (compiles the site to a static edge bundle and deploys to Cloudflare Pages, Netlify, or local .ZIP)
 
@@ -1252,7 +1252,7 @@ Connection details:
 Available MCP tools (via JSON-RPC \`tools/call\` on POST ${{siteUrl}}/mcp):
 - \`daypress_list_posts\`, \`daypress_get_post\`, \`daypress_create_post\`, \`daypress_update_post\`
 - \`daypress_import_html_design\` (converts full HTML/CSS pages into native DayStudio Visual Builder AST layouts and sets the front page)
-- \`daypress_get_layout_ast\`, \`daypress_save_layout_ast\`
+- \`daypress_get_post_layout\`, \`daypress_update_post_layout\`
 - \`daypress_get_settings\`, \`daypress_update_option\`
 
 Please inspect the current site via \`daypress_get_settings\` and \`daypress_list_posts\`, and help me design and build my website.`;

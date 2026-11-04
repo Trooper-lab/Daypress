@@ -248,6 +248,7 @@ impl Database {
         )?;
 
         let _ = Self::snapshot_post_revision_with_conn(&tx, post_id, &now_local, &now);
+        Self::sync_post_fts_row(&tx, post_id);
 
         tx.commit()?;
         drop(conn);

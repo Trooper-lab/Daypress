@@ -452,6 +452,17 @@ fn daypress_v1_routes() -> Router<Database> {
             axum::routing::delete(delete_field_group_v1_handler),
         )
         .route("/collection-query", get(collection_query_v1_handler))
+        // SQLite FTS5 Instant Search, Auto-OG Social Cards & Live SEO/WCAG Linter (v0.7)
+        .route("/search", get(fts_search_v1_handler))
+        .route(
+            "/search/reindex",
+            axum::routing::post(fts_reindex_v1_handler),
+        )
+        .route(
+            "/og-image",
+            get(crate::handlers::og_card::handle_api_og_image),
+        )
+        .route("/seo/audit", axum::routing::post(seo_audit_v1_handler))
 }
 
 pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {

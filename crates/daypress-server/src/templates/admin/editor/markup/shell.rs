@@ -218,8 +218,8 @@ pub fn render_seo_card(p: &SeoCardParams) -> String {
                     <input type="text" id="seo_canonical" class="form-input" value="{initial_seo_canonical}" placeholder="https://example.com/canonical-slug/" oninput="markDirty()" />
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">OpenGraph / Social Image URL</label>
-                    <input type="text" id="seo_og_image" class="form-input" value="{initial_seo_og_img}" placeholder="/uploads/social-card.webp" oninput="markDirty()" />
+                    <label class="form-label">OpenGraph / Social Image URL <span style="font-weight: 400; color: var(--ink-muted); font-size: 11px;">(Auto-OG card generated when blank)</span></label>
+                    <input type="text" id="seo_og_image" class="form-input" value="{initial_seo_og_img}" placeholder="/og-image/auto.png (Auto-rendered 1200x630)" oninput="markDirty()" />
                 </div>
             </div>
 

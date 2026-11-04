@@ -254,6 +254,7 @@ impl Database {
             &req.content,
             req.meta.as_ref(),
         );
+        Self::sync_post_fts_row(&conn, id);
 
         drop(conn);
         self.invalidate_hot_cache("post_created");
@@ -532,6 +533,7 @@ impl Database {
             let _ =
                 super::post_ast::synchronize_post_ast_layout(&tx, id, content, req.meta.as_ref());
         }
+        Self::sync_post_fts_row(&tx, id);
 
         tx.commit()?;
         drop(conn);

@@ -4,6 +4,7 @@
 //! concatenated once into a static string via `OnceLock`.
 
 pub mod api_client;
+pub mod audit_linter;
 pub mod canvas_drag;
 pub mod canvas_overlays;
 pub mod canvas_pro_collection_inspector;
@@ -74,6 +75,7 @@ pub fn get_scripts() -> &'static str {
             tokens_drawer::JS_TOKENS_DRAWER,
             css_drawer::JS_CSS_DRAWER,
             drawers::JS_DRAWERS,
+            audit_linter::JS_AUDIT_LINTER,
             theme_drawer::JS_THEME_DRAWER,
             command_palette::JS_COMMAND_PALETTE,
             inspector_core::JS_INSPECTOR_CORE,

@@ -165,6 +165,8 @@ pub const CSS_TOPBAR: &str = r#"
     height: var(--day-control-sm-h);
     display: flex;
     align-items: center;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .dim-unit {
@@ -180,6 +182,8 @@ pub const CSS_TOPBAR: &str = r#"
     border: 1px solid var(--day-rule);
     border-radius: var(--day-radius-sm);
     height: var(--day-control-sm-h);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .zoom-btn {
@@ -225,6 +229,8 @@ pub const CSS_TOPBAR: &str = r#"
     font-size: var(--day-text-sub);
     cursor: pointer;
     transition: all 0.12s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .topbar-icon-btn {

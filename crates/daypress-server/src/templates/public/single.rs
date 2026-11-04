@@ -1,10 +1,149 @@
 //! Public Single Post & Page SSR Renderer (`templates/public/single.rs`).
 
 use super::shell::render_base_layout;
+use crate::adapters::database::search_fts::{
+    estimate_reading_time_minutes, extract_ast_plain_text, strip_html_for_fts,
+};
 use crate::auth::AuthUser;
 use crate::models::{DaypressPostResponse, DaypressSettingsResponse};
 use crate::templates::utils::{clean_post_content, escape_html, sanitize_comment_html};
 use daypress_ast::DaypressLayout;
+
+/// Scans HTML content for `<h2>`..`<h4>` headings (`min_depth..=max_depth`), injects deterministic
+/// `id="..."` anchor attributes into headings lacking an `id`, populates any existing
+/// `<ul class="dp-toc-list"></ul>` placeholders inside `html`, and returns:
+/// `(anchor_injected_html, standalone_toc_nav_html, heading_count)`.
+pub fn inject_heading_anchors_and_build_toc(
+    html: &str,
+    title: &str,
+    min_depth: u8,
+    max_depth: u8,
+    collapsible: bool,
+) -> (String, String, usize) {
+    let min_d = min_depth.clamp(1, 6);
+    let max_d = max_depth.clamp(min_d, 6);
+    let Ok(re) = regex::Regex::new(r#"(?is)<h([1-6])(\s[^>]*)?>(.*?)</h[1-6]>"#) else {
+        return (html.to_string(), String::new(), 0);
+    };
+    let id_re = regex::Regex::new(r#"(?i)\bid\s*=\s*["']([^"']+)["']"#).ok();
+
+    let mut headings: Vec<(u8, String, String)> = Vec::new();
+    let mut used_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let updated_html = re
+        .replace_all(html, |caps: &regex::Captures| {
+            let full = caps.get(0).map(|m| m.as_str()).unwrap_or("");
+            let level: u8 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(2);
+            if level < min_d || level > max_d {
+                return full.to_string();
+            }
+            let attrs = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+            let inner = caps.get(3).map(|m| m.as_str()).unwrap_or("");
+            let plain = strip_html_for_fts(inner);
+            if plain.trim().is_empty() {
+                return full.to_string();
+            }
+
+            let existing_id = id_re
+                .as_ref()
+                .and_then(|r| r.captures(attrs))
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().trim().to_string())
+                .filter(|s| !s.is_empty());
+
+            let anchor_id = if let Some(eid) = existing_id.clone() {
+                used_ids.insert(eid.clone());
+                eid
+            } else {
+                let base_slug = generated_slugify::slugify(&plain);
+                let base = if base_slug.is_empty() {
+                    format!("section-{}", headings.len() + 1)
+                } else {
+                    format!("toc-{}", base_slug)
+                };
+                let mut candidate = base.clone();
+                let mut suffix = 2usize;
+                while used_ids.contains(&candidate) {
+                    candidate = format!("{}-{}", base, suffix);
+                    suffix += 1;
+                }
+                used_ids.insert(candidate.clone());
+                candidate
+            };
+
+            headings.push((level, anchor_id.clone(), plain));
+
+            if existing_id.is_some() {
+                full.to_string()
+            } else {
+                format!(
+                    "<h{level} id=\"{id}\"{attrs}>{inner}</h{level}>",
+                    level = level,
+                    id = escape_html(&anchor_id),
+                    attrs = attrs,
+                    inner = inner
+                )
+            }
+        })
+        .into_owned();
+
+    if headings.is_empty() {
+        return (updated_html, String::new(), 0);
+    }
+
+    let mut list_items = String::new();
+    for (idx, (level, anchor_id, text)) in headings.iter().enumerate() {
+        list_items.push_str(&format!(
+            r##"<li class="dp-toc-item" data-depth="{level}"><span class="dp-toc-num">{num:02}</span><a href="#{id}" class="dp-toc-link">{text}</a></li>"##,
+            level = level,
+            num = idx + 1,
+            id = escape_html(anchor_id),
+            text = escape_html(text),
+        ));
+    }
+
+    let final_html = if updated_html.contains(r#"<ul class="dp-toc-list"></ul>"#) {
+        updated_html.replace(
+            r#"<ul class="dp-toc-list"></ul>"#,
+            &format!(r#"<ul class="dp-toc-list">{}</ul>"#, list_items),
+        )
+    } else {
+        updated_html
+    };
+
+    let collapse_btn = if collapsible {
+        r#"<button type="button" class="dp-toc-toggle" aria-label="Toggle Table of Contents" onclick="this.closest('.dp-toc').classList.toggle('is-collapsed');"><i class="fa-solid fa-chevron-down"></i></button>"#
+    } else {
+        ""
+    };
+    let toc_title = if title.trim().is_empty() {
+        "Table of Contents"
+    } else {
+        title.trim()
+    };
+
+    let standalone_toc = format!(
+        r#"<nav class="dp-toc dp-auto-toc" aria-label="{title_esc}" data-min-depth="{min_d}" data-max-depth="{max_d}">
+            <div class="dp-toc-header">
+                <h4 class="dp-toc-title">{title_esc}</h4>
+                {collapse_btn}
+            </div>
+            <div class="dp-toc-body">
+                <ul class="dp-toc-list">{list_items}</ul>
+            </div>
+        </nav>"#,
+        title_esc = escape_html(toc_title),
+        min_d = min_d,
+        max_d = max_d,
+        collapse_btn = collapse_btn,
+        list_items = list_items,
+    );
+
+    (final_html, standalone_toc, headings.len())
+}
 
 pub fn render_single_post(
     post: &DaypressPostResponse,
@@ -44,7 +183,21 @@ pub fn render_single_post(
     } else {
         None
     };
-    let clean_content = ast_rendered.unwrap_or_else(|| clean_post_content(&post.content.rendered));
+    let raw_clean_content =
+        ast_rendered.unwrap_or_else(|| clean_post_content(&post.content.rendered));
+    let (clean_content, standalone_toc_html, toc_heading_count) =
+        inject_heading_anchors_and_build_toc(&raw_clean_content, "Table of Contents", 2, 4, true);
+    let plain_for_reading = if let Some(lj) = layout_json {
+        let ast_txt = extract_ast_plain_text(lj);
+        if ast_txt.is_empty() {
+            clean_content.clone()
+        } else {
+            format!("{} {}", clean_content, ast_txt)
+        }
+    } else {
+        clean_content.clone()
+    };
+    let (word_count, reading_mins) = estimate_reading_time_minutes(&plain_for_reading);
     let site_name = if settings.title.trim().is_empty() {
         "Home"
     } else {
@@ -105,7 +258,7 @@ pub fn render_single_post(
                     {
                         let label = k.replace('_', " ");
                         items.push(format!(
-                            r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted, var(--ink-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--text-main, var(--ink));">{}</strong></div>"#,
+                            r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-muted, var(--text-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--ink, var(--text-main));">{}</strong></div>"#,
                             escape_html(&label),
                             escape_html(s.trim())
                         ));
@@ -113,7 +266,7 @@ pub fn render_single_post(
                     serde_json::Value::Number(n) => {
                         let label = k.replace('_', " ");
                         items.push(format!(
-                            r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted, var(--ink-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--text-main, var(--ink));">{}</strong></div>"#,
+                            r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-muted, var(--text-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--ink, var(--text-main));">{}</strong></div>"#,
                             escape_html(&label),
                             escape_html(&n.to_string())
                         ));
@@ -125,7 +278,7 @@ pub fn render_single_post(
                                 let val = obj.get("value").and_then(|x| x.as_str()).unwrap_or("");
                                 if !lbl.is_empty() && !val.is_empty() {
                                     items.push(format!(
-                                        r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted, var(--ink-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--text-main, var(--ink));">{}</strong></div>"#,
+                                        r#"<div class="dp-acf-meta-item" style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-muted, var(--text-muted));font-family:var(--font-mono, monospace);">{}</span><strong style="font-size:14px;color:var(--ink, var(--text-main));">{}</strong></div>"#,
                                         escape_html(lbl),
                                         escape_html(val)
                                     ));
@@ -152,7 +305,9 @@ pub fn render_single_post(
     };
 
     let content = if let Some(tpl_html) = theme_single_html {
-        tpl_html.clone()
+        let (hydrated_tpl, _, _) =
+            inject_heading_anchors_and_build_toc(tpl_html, "Table of Contents", 2, 4, true);
+        hydrated_tpl
     } else if is_section_layout {
         format!("{acf_summary_html}{clean_content}")
     } else if is_full_bleed_visual {
@@ -344,6 +499,34 @@ pub fn render_single_post(
         };
 
         let date_short: String = post.date.chars().take(10).collect();
+        let disable_toc = post
+            .meta
+            .as_object()
+            .and_then(|m| m.get("disable_toc"))
+            .is_some_and(|v| {
+                v.as_bool() == Some(true)
+                    || v.as_str()
+                        .is_some_and(|s| matches!(s, "1" | "true" | "yes"))
+            });
+        let auto_toc_block = if !is_page
+            && post.post_type == "post"
+            && toc_heading_count >= 2
+            && !clean_content.contains("class=\"dp-toc")
+            && !disable_toc
+        {
+            standalone_toc_html
+        } else {
+            String::new()
+        };
+        let reading_time_badge = if !is_page {
+            format!(
+                r#"<span>&bull;</span><span class="dp-reading-time" style="font-family: var(--font-mono, monospace); font-size: 12px; color: var(--ink-muted, var(--text-muted));"><i class="fa-regular fa-clock" style="margin-right: 4px;"></i>{mins} min read ({words} words)</span>"#,
+                mins = reading_mins,
+                words = word_count
+            )
+        } else {
+            String::new()
+        };
 
         format!(
             r##"
@@ -357,6 +540,7 @@ pub fn render_single_post(
                             <time datetime="{date}">{date}</time>
                             <span>&bull;</span>
                             <span>{author_display}</span>
+                            {reading_time_badge}
                             {categories_html}
                         </div>
                         <h1 class="dp-heading">{title}</h1>
@@ -365,6 +549,8 @@ pub fn render_single_post(
                     {acf_summary_html}
 
                     {featured_img_html}
+
+                    {auto_toc_block}
 
                     <div class="dp-text">
                         {body}
@@ -381,9 +567,11 @@ pub fn render_single_post(
             date = date_short,
             post_type = escape_html(&post.post_type),
             author_display = author_display,
+            reading_time_badge = reading_time_badge,
             categories_html = categories_html,
             acf_summary_html = acf_summary_html,
             featured_img_html = featured_img_html,
+            auto_toc_block = auto_toc_block,
             tags_html = tags_html,
             comments_section_html = comments_section_html,
             body = clean_content

@@ -352,3 +352,37 @@ CREATE TABLE IF NOT EXISTS daypress_password_resets (
 );
 CREATE INDEX IF NOT EXISTS idx_password_resets_user ON daypress_password_resets(user_id, created_at);
 "#;
+
+/// v0.7 Native SQLite FTS5 Full-Text Search Virtual Table & Automatic Sync Triggers.
+pub const FTS5_SEARCH_SCHEMA_SQL: &str = r#"
+CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
+    post_title,
+    post_excerpt,
+    post_content,
+    post_name,
+    post_type UNINDEXED,
+    post_status UNINDEXED,
+    tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_posts_fts_ai AFTER INSERT ON posts
+WHEN new.post_type NOT IN ('revision', 'nav_menu_item', 'attachment')
+BEGIN
+    DELETE FROM posts_fts WHERE rowid = new.ID;
+    INSERT INTO posts_fts(rowid, post_title, post_excerpt, post_content, post_name, post_type, post_status)
+    VALUES (new.ID, new.post_title, new.post_excerpt, new.post_content, new.post_name, new.post_type, new.post_status);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_posts_fts_au AFTER UPDATE ON posts
+BEGIN
+    DELETE FROM posts_fts WHERE rowid = old.ID;
+    INSERT INTO posts_fts(rowid, post_title, post_excerpt, post_content, post_name, post_type, post_status)
+    SELECT new.ID, new.post_title, new.post_excerpt, new.post_content, new.post_name, new.post_type, new.post_status
+    WHERE new.post_type NOT IN ('revision', 'nav_menu_item', 'attachment');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_posts_fts_ad AFTER DELETE ON posts
+BEGIN
+    DELETE FROM posts_fts WHERE rowid = old.ID;
+END;
+"#;

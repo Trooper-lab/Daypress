@@ -50,6 +50,7 @@ pub const JS_DRAWERS: &str = r###"
         else if (drawerId === "tokens") window.renderTokensDrawer && window.renderTokensDrawer(container);
         else if (drawerId === "css") window.renderCssDrawer && window.renderCssDrawer(container);
         else if (drawerId === "history") renderHistoryDrawer(container);
+        else if (drawerId === "linter") window.renderLinterDrawer && window.renderLinterDrawer(container);
     }
     window.renderActiveDrawer = renderActiveDrawer;
 

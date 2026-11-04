@@ -85,23 +85,32 @@ pub fn render_base_css(brand_color: &str) -> String {
 			--dp-heading-weight: 700;
 		}}
 
-		html.dark {{
-			--bg-base: #0b0d12;
-			--bg-panel: #11151d;
-			--bg-card: #151a24;
-			--bg-card-hover: #1e2533;
-			--header-bg: rgba(17, 21, 29, 0.9);
+		html.dark,
+		:root[data-theme="dark"],
+		html[data-theme="dark"] {{
+			--paper: #16171a;
+			--paper-raised: #1e2024;
+			--paper-sunk: #101114;
+			--ink: #efe9de;
+			--ink-muted: #a7a297;
+			--rule: rgba(239, 233, 222, 0.14);
+			--rule-strong: #efe9de;
+			--bg-base: var(--paper, #0b0d12);
+			--bg-panel: var(--paper-raised, #11151d);
+			--bg-card: var(--paper-raised, #151a24);
+			--bg-card-hover: #26282c;
+			--header-bg: rgba(22, 23, 26, 0.9);
 			--footer-bg: #07090d;
-			--footer-text: #f8fafc;
-			--footer-muted: #94a3b8;
-			--footer-border: #1e293b;
-			--border: #232b3a;
-			--border-subtle: #1a202c;
-			--text-main: #f8fafc;
-			--text-muted: #94a3b8;
-			--text-dim: #64748b;
-			--dp-color-heading: #f8fafc;
-			--dp-color-text: #cbd5e1;
+			--footer-text: #efe9de;
+			--footer-muted: #a7a297;
+			--footer-border: rgba(239, 233, 222, 0.14);
+			--border: var(--rule, #232b3a);
+			--border-subtle: rgba(239, 233, 222, 0.08);
+			--text-main: var(--ink, #efe9de);
+			--text-muted: var(--ink-muted, #a7a297);
+			--text-dim: #7c7870;
+			--dp-color-heading: var(--ink, #efe9de);
+			--dp-color-text: var(--ink, #efe9de);
 			--dp-font-heading: "Newsreader", Georgia, serif;
 			--dp-heading-weight: 500;
 		}}
@@ -125,7 +134,7 @@ pub fn render_base_css(brand_color: &str) -> String {
 			overflow-x: hidden;
 		}}
 
-		a {{
+		:where(a) {{
 			color: inherit;
 			text-decoration: none;
 			transition: all 0.15s ease;
@@ -440,6 +449,94 @@ pub fn render_base_css(brand_color: &str) -> String {
 		#wpadminbar #wp-admin-bar-my-account .ab-sub-wrapper {{
 			right: 0;
 			left: auto;
+		}}
+
+		/* Daypress Editorial Table of Contents & Reading Time (0.7) */
+		.dp-toc {{
+			background: var(--paper-raised, #fbf8f2);
+			border: 1px solid var(--rule, rgba(22, 23, 26, 0.18));
+			border-top: 2px solid var(--rule-strong, #16171a);
+			border-radius: 2px;
+			padding: 18px 22px;
+			margin: 24px 0 32px 0;
+			color: var(--ink, #16171a);
+		}}
+		.dp-toc-header {{
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding-bottom: 10px;
+			margin-bottom: 12px;
+			border-bottom: 1px solid var(--rule, rgba(22, 23, 26, 0.14));
+		}}
+		.dp-toc-title {{
+			font-family: var(--font-mono, monospace);
+			font-size: 11px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.1em;
+			color: var(--ink-muted, #5a5852);
+			margin: 0;
+		}}
+		.dp-toc-toggle {{
+			background: transparent;
+			border: 1px solid var(--rule, rgba(22, 23, 26, 0.18));
+			color: var(--ink-muted, #5a5852);
+			border-radius: 2px;
+			width: 24px;
+			height: 24px;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			font-size: 11px;
+		}}
+		.dp-toc.is-collapsed .dp-toc-body {{
+			display: none;
+		}}
+		.dp-toc.is-collapsed .dp-toc-header {{
+			margin-bottom: 0;
+			padding-bottom: 0;
+			border-bottom: none;
+		}}
+		.dp-toc-list {{
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}}
+		.dp-toc-item {{
+			display: flex;
+			align-items: baseline;
+			gap: 10px;
+			font-size: 14px;
+			line-height: 1.45;
+		}}
+		.dp-toc-item[data-depth="3"] {{
+			padding-left: 18px;
+			font-size: 13.5px;
+		}}
+		.dp-toc-item[data-depth="4"] {{
+			padding-left: 34px;
+			font-size: 13px;
+		}}
+		.dp-toc-num {{
+			font-family: var(--font-mono, monospace);
+			font-size: 11px;
+			color: var(--oxide, #a8401b);
+			min-width: 20px;
+			flex-shrink: 0;
+		}}
+		.dp-toc-link {{
+			color: var(--ink, #16171a);
+			text-decoration: none;
+			font-weight: 500;
+		}}
+		.dp-toc-link:hover {{
+			color: var(--oxide, #a8401b);
+			text-decoration: underline;
 		}}
 		"##,
         brand_color = brand_color

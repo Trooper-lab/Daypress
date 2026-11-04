@@ -111,12 +111,16 @@ async fn test_daystudio_starter_kit_wxr_ingestion_and_ssr_head_css() {
         "Container max width variable missing"
     );
 
-    // Verify SSR <head> injection
+    // Verify /home/ 301 redirects to / and SSR <head> injection on /
     let app = create_app(db);
-    let req = Request::builder()
+    let redir_req = Request::builder()
         .uri("/home/")
         .body(Body::empty())
         .unwrap();
+    let redir_resp = app.clone().oneshot(redir_req).await.unwrap();
+    assert_eq!(redir_resp.status(), StatusCode::MOVED_PERMANENTLY);
+
+    let req = Request::builder().uri("/").body(Body::empty()).unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 

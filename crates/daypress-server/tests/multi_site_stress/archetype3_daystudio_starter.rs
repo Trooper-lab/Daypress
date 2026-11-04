@@ -85,12 +85,16 @@ pub async fn run_test() {
     );
     assert!(kit_css.contains("1200px"), "Content width 1200px missing");
 
-    // 2. Public SSR Route & <head> Style Injection
+    // 2. Public SSR Route & <head> Style Injection (/home/ 301s to /, / renders front page)
     let app = create_app(db.clone());
-    let req = Request::builder()
+    let redir_req = Request::builder()
         .uri("/home/")
         .body(Body::empty())
         .unwrap();
+    let redir_resp = app.clone().oneshot(redir_req).await.unwrap();
+    assert_eq!(redir_resp.status(), StatusCode::MOVED_PERMANENTLY);
+
+    let req = Request::builder().uri("/").body(Body::empty()).unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_to_string(resp).await;

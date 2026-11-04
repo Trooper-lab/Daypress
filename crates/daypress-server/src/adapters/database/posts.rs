@@ -18,7 +18,28 @@ impl Database {
         base_url: &str,
     ) {
         let base_trimmed = base_url.trim_end_matches('/');
-        post.link = if !matches!(
+        let is_front_page = post.post_type == "page" && {
+            let show_on_front: String = conn
+                .query_row(
+                    "SELECT option_value FROM options WHERE option_name = 'show_on_front' LIMIT 1",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or_else(|_| "posts".to_string());
+            let page_on_front: i64 = conn
+                .query_row(
+                    "SELECT option_value FROM options WHERE option_name = 'page_on_front' LIMIT 1",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0);
+            show_on_front == "page" && page_on_front > 0 && post.id == page_on_front
+        };
+        post.link = if is_front_page {
+            format!("{}/", base_trimmed)
+        } else if !matches!(
             post.post_type.as_str(),
             "post" | "page" | "attachment" | "nav_menu_item" | "revision"
         ) && !post.post_type.is_empty()

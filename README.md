@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.6.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.7.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -48,6 +48,9 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - A customizer for colors, fonts, and custom CSS.
 
 **Built-in site features**
+- **SQLite FTS5 Instant Search (`/wp-json/daypress/v1/search` & Public `Cmd+K` Modal)**: native `posts_fts` virtual table with BM25 relevance ranking, Levenshtein typo tolerance, `<mark class="dp-search-hl">` snippet highlighting, post-type filter pills, and a drop-in `Cmd+K` / `Ctrl+K` public search modal.
+- **Automatic Rust-Rendered OpenGraph Social Cards (`/og-image/{id}.png` & `.svg`) + Rich Schema.org `@graph` + Auto-TOC**: on-the-fly `1200×630` PNG & SVG social share cards rendered in the Daypress Editorial palette, Schema.org `@graph` JSON-LD (`BlogPosting`, `Article`, `FAQPage`, `LocalBusiness`, `Product`, `BreadcrumbList`, `WebSite`), plus automatic Table of Contents (`dp-auto-toc`) and reading-time badges (`dp-reading-time`).
+- **Real-Time Daystudio WCAG 2.1 Contrast, Broken-Link & SEO Linter (`/wp-json/daypress/v1/seo/audit` & Daystudio Linter Drawer)**: live AA/AAA relative-luminance contrast checking across Light & Dark canvas modes, SQLite-backed internal link verification, heading hierarchy checks, and 1-click Auto-Fix.
 - SEO fields per post, `sitemap.xml`, `robots.txt` (including "discourage search engines"), redirects, and a 404 log.
 - **All-in-One FormStudio (`/d-admin/forms`) & Fail-Safe Submissions Vault**: multi-column rows (`1/2`, `1/3`, `2/3`), multi-step wizards with progress bars, conditional field & email routing logic, 15 field types (including isolated private file uploads, star ratings, range sliders, live calculated formulas, and hidden UTM capture), honeypot + timestamp trap + IP rate-limiting + Turnstile/hCaptcha anti-spam, SQLite-first vault persistence before SMTP send, 1-click email retry, and CSV/JSON export.
 - **Full Plausible-Style Cookieless Analytics Dashboard (`/d-admin/analytics`)**: daily rotating SHA-256 visitor hash (zero cookies), interactive SVG time-series chart (`24h`, `7d`, `30d`, `90d`, `12m`, `all`), and breakdown tables for Top Pages, Referrers, UTM Campaigns, Countries, Devices, and Form/Goal Conversions.
@@ -336,7 +339,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 365 tests
+cargo test --workspace                                  # 370 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

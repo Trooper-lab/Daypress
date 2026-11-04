@@ -404,6 +404,7 @@ pub fn create_app(database: Database) -> Router {
             "/admin/",
             get(|| async { Redirect::permanent("/d-admin/") }),
         )
+        .route("/og-image/{target}", get(handle_public_og_image))
         .route("/", get(handle_home_or_query))
         .route("/search", get(handle_search_page))
         .route("/search/", get(handle_search_page))
