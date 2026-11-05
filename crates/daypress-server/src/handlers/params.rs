@@ -18,6 +18,8 @@ pub struct QueryPostParams {
     pub dp_sort: Option<String>,
     pub dp_q: Option<String>,
     pub dp_page: Option<usize>,
+    pub preview_token: Option<String>,
+    pub lang: Option<String>,
 }
 
 /// `?paged=N` and Collection Grid filter parameters on archive and single listings.
@@ -33,6 +35,8 @@ pub struct PagedQuery {
     #[serde(alias = "q")]
     pub dp_q: Option<String>,
     pub dp_page: Option<usize>,
+    pub preview_token: Option<String>,
+    pub lang: Option<String>,
 }
 
 /// Parses the `N` of a `/page/N/` URL; anything but a positive number is `None` (a 404).
@@ -88,6 +92,8 @@ pub struct AdminEditQueryParams {
     pub template_id: Option<i64>,
     pub action: Option<String>,
     pub taxonomy: Option<String>,
+    pub lang: Option<String>,
+    pub trgrp: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]

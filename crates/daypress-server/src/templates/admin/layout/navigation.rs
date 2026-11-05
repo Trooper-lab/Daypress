@@ -183,6 +183,7 @@ pub struct NavState {
     pub sub_set_media: &'static str,
     pub sub_set_perm: &'static str,
     pub sub_set_priv: &'static str,
+    pub sub_set_lang: &'static str,
     pub is_publish: &'static str,
     pub is_engine: &'static str,
     pub is_content_model: &'static str,
@@ -439,6 +440,8 @@ impl NavState {
             || current_tab == "options-media"
             || current_tab == "permalinks"
             || current_tab == "privacy"
+            || current_tab == "languages"
+            || current_tab == "i18n"
         {
             "active"
         } else {
@@ -479,6 +482,11 @@ impl NavState {
             ""
         };
         let sub_set_priv = if current_tab == "privacy" || current_tab == "settings-privacy" {
+            "active"
+        } else {
+            ""
+        };
+        let sub_set_lang = if current_tab == "languages" || current_tab == "i18n" {
             "active"
         } else {
             ""
@@ -565,6 +573,7 @@ impl NavState {
             sub_set_media,
             sub_set_perm,
             sub_set_priv,
+            sub_set_lang,
             is_publish,
             is_engine,
             is_content_model,

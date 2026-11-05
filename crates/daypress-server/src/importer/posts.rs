@@ -232,9 +232,29 @@ pub fn ingest_posts_pass1(
             source_site_url,
         );
 
+        let item_lang = item
+            .custom_terms
+            .iter()
+            .find(|(tax, _, _)| tax == "language" || tax == "pll_language")
+            .map(|(_, slug_str, _)| slug_str.trim_start_matches("pll_").to_ascii_lowercase())
+            .or_else(|| {
+                item.postmeta
+                    .get("_wpml_language")
+                    .or_else(|| item.postmeta.get("_wpml_import_language_code"))
+                    .or_else(|| item.postmeta.get("_pll_lang"))
+                    .or_else(|| item.postmeta.get("wpml_language"))
+                    .map(|s| s.trim().to_ascii_lowercase())
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "en".to_string());
+
         let post_id: i64 = match tx.query_row(
-            "SELECT ID FROM posts WHERE post_name = ?1 AND post_type = ?2",
-            params![slug, p_type],
+            r#"SELECT p.ID
+               FROM posts p
+               LEFT JOIN daypress_translations tr ON tr.object_type = 'post' AND tr.object_id = p.ID
+               WHERE p.post_name = ?1 AND p.post_type = ?2
+                 AND LOWER(COALESCE(NULLIF(tr.lang_code, ''), 'en')) = LOWER(?3)"#,
+            params![slug, p_type, item_lang],
             |r| r.get(0),
         ) {
             Ok(id) => {
@@ -253,6 +273,13 @@ pub fn ingest_posts_pass1(
                 tx.last_insert_rowid()
             }
         };
+
+        let _ = tx.execute(
+            r#"INSERT INTO daypress_translations (object_type, object_id, lang_code, translation_group_id)
+               VALUES ('post', ?1, ?2, ?3)
+               ON CONFLICT(object_type, object_id) DO UPDATE SET lang_code = excluded.lang_code"#,
+            params![post_id, item_lang, format!("trgrp_post_{}", post_id)],
+        );
 
         if item.is_sticky {
             sticky_post_ids.push(post_id);

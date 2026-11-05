@@ -42,7 +42,13 @@ pub fn render_home_page_paginated(
         .find(|p| p.post_type == "post")
         .or_else(|| posts.first());
     let cta_url = first_post
-        .map(|p| format!("/{}/", p.slug))
+        .map(|p| {
+            if !p.link.trim().is_empty() {
+                p.link.clone()
+            } else {
+                format!("/{}/", p.slug)
+            }
+        })
         .unwrap_or_else(|| "#posts".to_string());
     let cta_label = first_post
         .map(|p| format!("Read Latest: {}", p.title.rendered))
@@ -187,9 +193,15 @@ pub fn render_home_page_paginated(
             "dp-card"
         };
 
+        let card_href = if !post.link.trim().is_empty() {
+            post.link.clone()
+        } else {
+            format!("/{}/", post.slug)
+        };
+
         post_cards_html.push_str(&format!(
             r##"
-            <a href="/{slug}/" class="{card_cls}">
+            <a href="{card_href}" class="{card_cls}">
                 {media_html}
                 <div class="dp-card-body">
                     <div class="dp-card-meta">
@@ -205,7 +217,7 @@ pub fn render_home_page_paginated(
                 </div>
             </a>
             "##,
-            slug = escape_html(&post.slug),
+            card_href = escape_html(&card_href),
             card_cls = card_cls,
             media_html = media_html,
             cat_label = cat_label,

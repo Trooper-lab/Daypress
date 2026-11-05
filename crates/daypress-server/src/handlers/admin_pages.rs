@@ -63,9 +63,17 @@ pub async fn handle_admin_posts(
     if ptype == "page" && auth_user.as_ref().is_some_and(|u| !u.can_edit_pages()) {
         return axum::response::Redirect::to("/d-admin/edit").into_response();
     }
-    let posts = db
+    let mut posts = db
         .get_posts(ptype, Some("any"), None, 200)
         .unwrap_or_default();
+    if let Some(lang_filter) = params
+        .lang
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "all")
+    {
+        posts.retain(|p| p.lang_code.eq_ignore_ascii_case(lang_filter));
+    }
 
     let matrix = if ptype == "page" {
         Some(crate::theme_builder::build_header_footer_matrix(&db))

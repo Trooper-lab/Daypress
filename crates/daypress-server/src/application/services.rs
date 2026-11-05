@@ -322,6 +322,7 @@ mod tests {
                 seo_noindex: false,
                 seo_schema_type: "Article".into(),
                 seo_og_image: String::new(),
+                ..Default::default()
             };
             guard.push(post.clone());
             Ok(post)

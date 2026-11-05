@@ -463,6 +463,45 @@ fn daypress_v1_routes() -> Router<Database> {
             get(crate::handlers::og_card::handle_api_og_image),
         )
         .route("/seo/audit", axum::routing::post(seo_audit_v1_handler))
+        // Multilingual (`i18n`), Editorial Workflows & Visual AST Revision Diffs (v0.8)
+        .route(
+            "/languages",
+            get(list_languages_v1_handler).post(manage_languages_v1_handler),
+        )
+        .route(
+            "/languages/{code}",
+            axum::routing::delete(delete_language_v1_handler),
+        )
+        .route(
+            "/translations/link",
+            axum::routing::post(link_translations_v1_handler),
+        )
+        .route(
+            "/i18n/link-translations",
+            axum::routing::post(link_translations_v1_handler),
+        )
+        .route(
+            "/posts/{id}/translate",
+            axum::routing::post(create_translation_draft_v1_handler),
+        )
+        .route(
+            "/posts/{id}/preview-links",
+            get(list_preview_links_v1_handler).post(manage_preview_links_v1_handler),
+        )
+        .route(
+            "/posts/{id}/schedule-revision",
+            get(get_scheduled_revision_v1_handler)
+                .post(schedule_revision_v1_handler)
+                .delete(cancel_scheduled_revision_v1_handler),
+        )
+        .route(
+            "/posts/{id}/revisions/diff",
+            get(diff_post_revisions_v1_handler),
+        )
+        .route(
+            "/posts/{id}/revisions/{rev_id}/cherry-pick",
+            axum::routing::post(cherry_pick_revision_node_v1_handler),
+        )
 }
 
 pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {

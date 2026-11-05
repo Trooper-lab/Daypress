@@ -304,13 +304,38 @@ fn build_rich_schema_json_ld(
         } else {
             post.author_name.trim()
         };
-        root.insert(
-            "author".to_string(),
+        let author_json = if post.coauthors.len() > 1 {
+            let persons: Vec<Value> = post
+                .coauthors
+                .iter()
+                .map(|ca| {
+                    let mut obj = serde_json::Map::new();
+                    obj.insert("@type".to_string(), json!("Person"));
+                    obj.insert("name".to_string(), json!(ca.display_name));
+                    if !ca.slug.trim().is_empty() {
+                        obj.insert(
+                            "url".to_string(),
+                            json!(format!(
+                                "{}/author/{}/",
+                                base_url.trim_end_matches('/'),
+                                ca.slug.trim()
+                            )),
+                        );
+                    }
+                    Value::Object(obj)
+                })
+                .collect();
+            Value::Array(persons)
+        } else {
             json!({
                 "@type": "Person",
                 "name": author_name
-            }),
-        );
+            })
+        };
+        root.insert("author".to_string(), author_json.clone());
+        if !post.lang_code.trim().is_empty() {
+            root.insert("inLanguage".to_string(), json!(post.lang_code.trim()));
+        }
         if !post.date.trim().is_empty() {
             root.insert("datePublished".to_string(), json!(post.date));
         }
@@ -419,10 +444,7 @@ fn build_rich_schema_json_ld(
                 "dateModified": post.modified,
                 "wordCount": word_count,
                 "timeRequired": format!("PT{}M", reading_mins),
-                "author": {
-                    "@type": "Person",
-                    "name": author_name
-                },
+                "author": author_json,
                 "publisher": {
                     "@type": "Organization",
                     "name": site_name

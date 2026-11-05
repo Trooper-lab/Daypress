@@ -52,25 +52,43 @@ pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse
         None
     };
 
+    let has_multilingual = db.list_languages().map(|l| l.len() > 1).unwrap_or(false)
+        || posts.iter().any(|p| p.translations.len() > 1);
     let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+    if has_multilingual {
+        xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n");
+    } else {
+        xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+    }
 
-    // Home Page (include <lastmod> from static front page if configured)
+    // Home Page (include <lastmod> and hreflang alternates from static front page or registered languages)
     let home_lastmod = front_page_id
         .and_then(|fid| posts.iter().find(|p| p.id == fid))
         .and_then(format_sitemap_lastmod);
+    let mut home_xhtml_links = String::new();
+    if let Some(fid) = front_page_id {
+        for hl in db.build_post_hreflang_links(fid) {
+            home_xhtml_links.push_str(&format!(
+                "<xhtml:link rel=\"alternate\" hreflang=\"{}\" href=\"{}\"/>",
+                xml_escape(&hl.hreflang),
+                xml_escape(&hl.href)
+            ));
+        }
+    }
     match home_lastmod {
         Some(lastmod) => {
             xml.push_str(&format!(
-                "  <url><loc>{}/</loc><lastmod>{}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n",
+                "  <url><loc>{}/</loc><lastmod>{}</lastmod><changefreq>daily</changefreq><priority>1.0</priority>{}</url>\n",
                 xml_escape(base_url),
-                lastmod
+                lastmod,
+                home_xhtml_links
             ));
         }
         None => {
             xml.push_str(&format!(
-                "  <url><loc>{}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n",
-                xml_escape(base_url)
+                "  <url><loc>{}/</loc><changefreq>daily</changefreq><priority>1.0</priority>{}</url>\n",
+                xml_escape(base_url),
+                home_xhtml_links
             ));
         }
     }
@@ -134,17 +152,27 @@ pub async fn handle_sitemap_xml(State(db): State<Database>) -> impl IntoResponse
                 continue;
             }
             let loc = xml_escape(&raw_loc);
+            let mut xhtml_links = String::new();
+            if post.translations.len() > 1 {
+                for hl in db.build_post_hreflang_links(post.id) {
+                    xhtml_links.push_str(&format!(
+                        "<xhtml:link rel=\"alternate\" hreflang=\"{}\" href=\"{}\"/>",
+                        xml_escape(&hl.hreflang),
+                        xml_escape(&hl.href)
+                    ));
+                }
+            }
             match format_sitemap_lastmod(&post) {
                 Some(lastmod) => {
                     xml.push_str(&format!(
-                        "  <url><loc>{}</loc><lastmod>{}</lastmod><priority>{}</priority></url>\n",
-                        loc, lastmod, priority
+                        "  <url><loc>{}</loc><lastmod>{}</lastmod><priority>{}</priority>{}</url>\n",
+                        loc, lastmod, priority, xhtml_links
                     ));
                 }
                 None => {
                     xml.push_str(&format!(
-                        "  <url><loc>{}</loc><priority>{}</priority></url>\n",
-                        loc, priority
+                        "  <url><loc>{}</loc><priority>{}</priority>{}</url>\n",
+                        loc, priority, xhtml_links
                     ));
                 }
             }

@@ -75,9 +75,15 @@ pub fn render_archive_page_paginated(
                 "dp-card"
             };
 
+            let card_href = if !post.link.trim().is_empty() {
+                post.link.clone()
+            } else {
+                format!("/{}/", post.slug)
+            };
+
             cards_html.push_str(&format!(
                 r##"
-                <a href="/{slug}/" class="{card_cls}">
+                <a href="{card_href}" class="{card_cls}">
                     <div class="dp-card-body">
                         <div class="dp-card-meta">
                             <span class="dp-badge">{post_type}</span>
@@ -92,7 +98,7 @@ pub fn render_archive_page_paginated(
                     </div>
                 </a>
                 "##,
-                slug = escape_html(&post.slug),
+                card_href = escape_html(&card_href),
                 card_cls = card_cls,
                 post_type = escape_html(&post.post_type),
                 date = escape_html(&date_short),

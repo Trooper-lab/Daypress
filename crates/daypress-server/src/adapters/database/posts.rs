@@ -37,26 +37,20 @@ impl Database {
                 .unwrap_or(0);
             show_on_front == "page" && page_on_front > 0 && post.id == page_on_front
         };
-        post.link = if is_front_page {
-            format!("{}/", base_trimmed)
-        } else if !matches!(
-            post.post_type.as_str(),
-            "post" | "page" | "attachment" | "nav_menu_item" | "revision"
-        ) && !post.post_type.is_empty()
-        {
-            let rewrite_prefix: String = conn
-                .query_row(
-                    "SELECT rewrite_slug FROM daypress_post_types WHERE slug = ?1",
-                    params![&post.post_type],
-                    |r| r.get::<_, String>(0),
-                )
-                .ok()
-                .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| post.post_type.clone());
-            format!("{}/{}/{}/", base_trimmed, rewrite_prefix, post.slug)
-        } else {
-            format!("{}/{}/", base_trimmed, post.slug)
-        };
+        let (lang_code, translation_group_id, translations) =
+            Self::get_post_translation_info_with_conn(conn, post.id);
+        post.lang_code = lang_code.clone();
+        post.translation_group_id = translation_group_id;
+        post.translations = translations;
+        post.link = Self::format_localized_post_url_with_conn(
+            conn,
+            base_trimmed,
+            post.id,
+            &post.post_type,
+            &post.slug,
+            &lang_code,
+            is_front_page,
+        );
 
         let featured_media: i64 = conn
             .query_row(
@@ -176,15 +170,18 @@ impl Database {
         post.tags = tag_pairs.iter().map(|(id, _)| *id).collect();
         post.tag_names = tag_pairs.into_iter().map(|(_, n)| n).collect();
 
-        post.author_name = conn
-            .query_row(
-                "SELECT display_name FROM users WHERE ID = ?1",
-                params![post.author],
-                |r| r.get::<_, String>(0),
-            )
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| "admin".to_string());
+        let (coauthors, formatted_byline) =
+            Self::get_post_coauthors_with_conn(conn, post.id, post.author);
+        post.coauthors = coauthors;
+        post.author_name = formatted_byline;
+
+        if let Some(sched_rev) = Self::get_scheduled_revision_for_post_with_conn(conn, post.id) {
+            post.scheduled_revision_id = Some(sched_rev.revision_post_id);
+            post.scheduled_revision_date = Some(sched_rev.scheduled_date);
+        } else {
+            post.scheduled_revision_id = None;
+            post.scheduled_revision_date = None;
+        }
 
         post.template = conn
             .query_row(
@@ -363,6 +360,12 @@ impl Database {
             seo_noindex: false,
             seo_schema_type: "Article".to_string(),
             seo_og_image: String::new(),
+            lang_code: "en".to_string(),
+            translation_group_id: String::new(),
+            translations: std::collections::HashMap::new(),
+            coauthors: Vec::new(),
+            scheduled_revision_id: None,
+            scheduled_revision_date: None,
         })
     }
 
@@ -467,7 +470,7 @@ impl Database {
                     }
                 }
                 if let Some(a) = author {
-                    if p.author != a {
+                    if p.author != a && !p.coauthors.iter().any(|ca| ca.id == a) {
                         return false;
                     }
                 }
@@ -661,17 +664,20 @@ impl Database {
 
     pub fn get_post_by_slug(&self, slug: &str) -> Result<Option<DaypressPostResponse>> {
         let conn = self.conn.lock().unwrap();
+        let def_lang = Self::get_default_language_code_with_conn(&conn);
         let mut stmt = conn.prepare(
-            r#"SELECT ID, post_date, post_date_gmt, post_modified, post_modified_gmt, post_title, post_content, post_excerpt, post_name, post_status, post_type, guid, post_author, comment_status, ping_status, COALESCE(post_parent, 0), COALESCE(menu_order, 0), COALESCE(is_sticky, 0)
-               FROM posts
-               WHERE post_name = ?1 AND post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
-                 AND post_status <> 'trash'
-               ORDER BY CASE WHEN post_type IN ('page', 'post') THEN 0 ELSE 1 END,
-                        CASE WHEN post_status = 'publish' THEN 0 ELSE 1 END,
-                        ID DESC"#,
+            r#"SELECT p.ID, p.post_date, p.post_date_gmt, p.post_modified, p.post_modified_gmt, p.post_title, p.post_content, p.post_excerpt, p.post_name, p.post_status, p.post_type, p.guid, p.post_author, p.comment_status, p.ping_status, COALESCE(p.post_parent, 0), COALESCE(p.menu_order, 0), COALESCE(p.is_sticky, 0)
+               FROM posts p
+               LEFT JOIN daypress_translations tr ON tr.object_type = 'post' AND tr.object_id = p.ID
+               WHERE p.post_name = ?1 AND p.post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
+                 AND p.post_status <> 'trash'
+               ORDER BY CASE WHEN LOWER(COALESCE(NULLIF(tr.lang_code, ''), ?2)) = LOWER(?2) THEN 0 ELSE 1 END,
+                        CASE WHEN p.post_type IN ('page', 'post') THEN 0 ELSE 1 END,
+                        CASE WHEN p.post_status = 'publish' THEN 0 ELSE 1 END,
+                        p.ID DESC"#,
         )?;
 
-        let mut rows = stmt.query_map(params![slug], Self::map_post_row)?;
+        let mut rows = stmt.query_map(params![slug, def_lang], Self::map_post_row)?;
         let mut post = match rows.next() {
             Some(res) => res?,
             None => return Ok(None),

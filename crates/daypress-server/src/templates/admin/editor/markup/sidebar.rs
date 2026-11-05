@@ -28,6 +28,9 @@ pub struct SidebarParams<'a> {
     pub popular_tag_chips: &'a str,
     pub featured_img_preview: &'a str,
     pub dynamic_taxonomies_html: &'a str,
+    pub initial_lang_code: &'a str,
+    pub initial_coauthor_ids: &'a str,
+    pub initial_author_display: &'a str,
 }
 
 pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> String {
@@ -82,9 +85,9 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                             {terms_html}
                         </div>
                         <div style="border-top: 1px solid var(--rule); padding-top: 10px;">
-                            <div style="display: flex; gap: 6px;">
-                                <input type="text" id="new_term_{tax_slug}" placeholder="New {tax_name}..." class="form-input" style="height: 28px; font-size: 12px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddTaxonomyTerm('{tax_slug}');}}" />
-                                <button type="button" class="btn btn-secondary" style="height: 28px; font-size: 11.5px; padding: 0 8px;" onclick="inlineAddTaxonomyTerm('{tax_slug}')">Add</button>
+                            <div style="display: flex; gap: 6px; align-items: stretch;">
+                                <input type="text" id="new_term_{tax_slug}" placeholder="New {tax_name}..." class="form-input" style="padding: 6px 10px; font-size: 12.5px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddTaxonomyTerm('{tax_slug}');}}" />
+                                <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="inlineAddTaxonomyTerm('{tax_slug}')">Add</button>
                             </div>
                         </div>
                     </div>
@@ -153,9 +156,9 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                         {cat_checkboxes}
                     </div>
                     <div style="border-top: 1px solid var(--rule); padding-top: 10px;">
-                        <div style="display: flex; gap: 6px;">
-                            <input type="text" id="newCatName" placeholder="New category..." class="form-input" style="height: 28px; font-size: 12px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddCategory();}}" />
-                            <button type="button" class="btn btn-secondary" style="height: 28px; font-size: 11.5px; padding: 0 8px;" onclick="inlineAddCategory()">Add</button>
+                        <div style="display: flex; gap: 6px; align-items: stretch;">
+                            <input type="text" id="newCatName" placeholder="New category..." class="form-input" style="padding: 6px 10px; font-size: 12.5px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddCategory();}}" />
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="inlineAddCategory()">Add</button>
                         </div>
                     </div>
                 </div>
@@ -180,13 +183,15 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
         )
     };
 
+    let initial_lang_code = escape_html(p.initial_lang_code);
+    let initial_coauthor_ids = escape_html(p.initial_coauthor_ids);
+    let initial_author_display = escape_html(p.initial_author_display);
+
     format!(
         r#"<div style="display: flex; flex-direction: column; gap: 20px;">
             <!-- 1. Publish Card -->
             <div class="day-card">
-                <div class="day-card-header">
-                    <h2 class="day-card-title">Status &amp; Visibility</h2>
-                </div>
+                <div class="day-card-header"><h2 class="day-card-title">Status &amp; Visibility</h2></div>
                 <div class="day-card-body">
                     <div class="form-group">
                         <label class="form-label">Status</label>
@@ -199,41 +204,94 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                         </select>
                     </div>
                     {schedule_html}
-
                     <div class="form-group">
-                        <label class="form-label">Author</label>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
-                            <div class="user-avatar" style="width: 22px; height: 22px; font-size: 10px;">B</div>
-                            <span>admin (Administrator)</span>
+                        <label class="form-label">Author &amp; Co-Authors</label>
+                        <div id="coauthorsPillBox" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper-raised);">
+                                <div class="user-avatar" style="width: 20px; height: 20px; font-size: 10px;">B</div>
+                                <span style="flex: 1; font-weight: 600;">{initial_author_display}</span>
+                            </div>
                         </div>
+                        <div style="display: flex; gap: 6px; align-items: stretch; margin-bottom: 6px;">
+                            <select id="coauthorAddSelect" class="form-select" style="padding: 6px 26px 6px 10px; font-size: 12.5px; flex: 1;"><option value="">+ Add co-author...</option></select>
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="addCoauthorFromSelect()">Add</button>
+                        </div>
+                        <input type="text" id="post_coauthor_ids" class="form-input" value="{initial_coauthor_ids}" placeholder="Ordered Co-author IDs (e.g. 1, 2)" style="padding: 6px 10px; font-size: 12px; font-family: var(--font-mono);" oninput="renderCoauthorPillsFromInput()" />
+                        <small style="color: var(--ink-muted); font-size: 11px; margin-top: 3px; display: block;">Ordered multi-author byline (Co-Authors Plus parity).</small>
                     </div>
-
                     <div style="font-size: 12px; color: var(--ink-muted); margin-top: 10px; line-height: 1.5; border-top: 1px solid var(--rule); padding-top: 10px;">
                         <div>Created: <span style="font-family: var(--font-mono);">{initial_date}</span></div>
                         <div>Modified: <span style="font-family: var(--font-mono);">{initial_modified}</span></div>
                     </div>
-
                     <div style="border-top: 1px solid var(--rule); padding-top: 14px; margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
                         <button type="button" onclick="trashPost()" style="color: var(--oxide); font-size: 12px; background: none; border: none; cursor: pointer; padding: 4px;">Move to Trash</button>
                         <button type="submit" class="btn btn-primary dp-publish-btn">{btn_text}</button>
                     </div>
                 </div>
             </div>
-
+            <!-- 1b. Multilingual (i18n) & Translations Card -->
+            <div class="day-card" id="editorI18nCard">
+                <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="day-card-title">Language &amp; Translations</h2>
+                    <a href="/d-admin/languages" target="_blank" style="font-size: 11.5px; color: var(--press); text-decoration: none; font-weight: 600;">Languages &nearr;</a>
+                </div>
+                <div class="day-card-body">
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label class="form-label">Content Language</label>
+                        <select id="post_lang_code" class="form-select" data-initial-lang="{initial_lang_code}">
+                            <option value="{initial_lang_code}" selected>{initial_lang_code}</option>
+                        </select>
+                    </div>
+                    <div id="editorTranslationsBox" style="font-size: 12px; color: var(--ink-muted); border-top: 1px solid var(--rule); padding-top: 10px;">
+                        <div id="editorTranslationsLinksList" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;"></div>
+                        <div style="display: flex; gap: 6px; align-items: stretch; margin-bottom: 8px;">
+                            <select id="translateTargetLang" class="form-select" style="padding: 6px 26px 6px 10px; font-size: 12.5px; flex: 1;">
+                                <option value="de">🇩🇪 Deutsch (de)</option><option value="nl">🇳🇱 Nederlands (nl)</option><option value="fr">🇫🇷 Français (fr)</option><option value="es">🇪🇸 Español (es)</option><option value="en">🇺🇸 English (en)</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; white-space: nowrap;" onclick="createPostTranslationDraft()">+ Translate</button>
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: stretch;">
+                            <input type="number" id="linkExistingTranslationPostId" class="form-input" placeholder="Link existing Post ID..." style="padding: 6px 10px; font-size: 12px; flex: 1;" />
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; white-space: nowrap;" onclick="linkEditorExistingTranslation()">Link</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 1c. Editorial Workflow: Secret Preview Links & Scheduled Revisions -->
+            <div class="day-card" id="editorEditorialWorkflowCard">
+                <div class="day-card-header"><h2 class="day-card-title">Editorial Workflow</h2></div>
+                <div class="day-card-body">
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Shareable Draft Preview Links</div>
+                        <small style="color: var(--ink-muted); font-size: 11px; display: block; margin-bottom: 8px;">Generate a secret no-login preview link with <code>noindex</code> protection.</small>
+                        <div style="display: flex; gap: 6px; align-items: stretch; margin-bottom: 8px;">
+                            <select id="previewTtlHours" class="form-select" style="padding: 6px 24px 6px 10px; font-size: 12.5px; width: 116px;">
+                                <option value="24">24 hours</option><option value="72" selected>72 hours</option><option value="168">7 days</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; flex: 1;" onclick="generateSecretPreviewLink()">+ Create Preview Link</button>
+                        </div>
+                        <div id="editorPreviewLinksList" style="display: flex; flex-direction: column; gap: 6px; font-size: 11.5px;"></div>
+                    </div>
+                    <div style="border-top: 1px solid var(--rule); padding-top: 10px;">
+                        <div style="font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Scheduled Update to Live Page</div>
+                        <small style="color: var(--ink-muted); font-size: 11px; display: block; margin-bottom: 8px;">Queue current editor changes to atomically replace the live page at a future UTC timestamp without unpublishing.</small>
+                        <div id="editorScheduledRevisionBadge" style="display: none; margin-bottom: 8px; padding: 6px 8px; border-radius: 6px; background: var(--ochre-wash); border: 1px solid var(--ochre); font-size: 11.5px;"></div>
+                        <div style="display: flex; gap: 6px; align-items: stretch;">
+                            <input type="datetime-local" id="scheduleRevisionAtInput" class="form-input" style="padding: 6px 10px; font-size: 12px; flex: 1;" />
+                            <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; white-space: nowrap;" onclick="scheduleLiveRevisionUpdate()">Schedule Update</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- 2. Page Attributes Card (when post_type == page) -->
             <div class="day-card" style="{page_attr_style}">
-                <div class="day-card-header">
-                    <h2 class="day-card-title">Page Attributes</h2>
-                </div>
+                <div class="day-card-header"><h2 class="day-card-title">Page Attributes</h2></div>
                 <div class="day-card-body">
                     <div class="form-group">
                         <label class="form-label">Parent Page</label>
-                        <select id="post_parent" class="form-select">
-                            {parent_options}
-                        </select>
+                        <select id="post_parent" class="form-select">{parent_options}</select>
                         <small style="color: var(--ink-muted); font-size: 11.5px; margin-top: 4px; display: block;">Organize pages into hierarchical sub-pages.</small>
                     </div>
-
                     <div class="form-group">
                         <label class="form-label">Template</label>
                         <select id="page_template" class="form-select">
@@ -244,7 +302,6 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                             <option value="editorial" {tpl_editorial_sel}>Editorial Longform</option>
                         </select>
                     </div>
-
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label">Order</label>
                         <input type="number" id="menu_order" class="form-input" value="{initial_menu_order}" style="width: 100px;" />
@@ -252,7 +309,6 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                     </div>
                 </div>
             </div>
-
             <!-- 2b. Header & Footer Assignment Card -->
             <div class="day-card" id="editorHeaderFooterCard">
                 <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -265,36 +321,25 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                             <label class="form-label" style="margin-bottom: 0;">Active Header</label>
                             <a id="editorEditHeaderLink" href="/d-admin/headers-footers" style="display: none; font-size: 11px; color: var(--press); font-weight: 600; text-decoration: none;">Edit in DayStudio</a>
                         </div>
-                        <div id="editorResolvedHeaderSummary" style="font-size: 11.5px; color: var(--ink-muted); background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">
-                            Resolving active header...
-                        </div>
+                        <div id="editorResolvedHeaderSummary" style="font-size: 11.5px; color: var(--ink-muted); background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">Resolving active header...</div>
                         <select id="editorHeaderSelect" class="form-select" onchange="onEditorSlotChange()">
-                            <option value="inherit">Inherit Global Rules</option>
-                            <option value="fallback">Built-in Theme Fallback Header</option>
-                            <option value="none">Hide / No Header on this Page</option>
+                            <option value="inherit">Inherit Global Rules</option><option value="fallback">Built-in Theme Fallback Header</option><option value="none">Hide / No Header on this Page</option>
                         </select>
                     </div>
-
                     <div class="form-group" style="margin-bottom: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <label class="form-label" style="margin-bottom: 0;">Active Footer</label>
                             <a id="editorEditFooterLink" href="/d-admin/headers-footers" style="display: none; font-size: 11px; color: var(--press); font-weight: 600; text-decoration: none;">Edit in DayStudio</a>
                         </div>
-                        <div id="editorResolvedFooterSummary" style="font-size: 11.5px; color: var(--ink-muted); background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">
-                            Resolving active footer...
-                        </div>
+                        <div id="editorResolvedFooterSummary" style="font-size: 11.5px; color: var(--ink-muted); background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">Resolving active footer...</div>
                         <select id="editorFooterSelect" class="form-select" onchange="onEditorSlotChange()">
-                            <option value="inherit">Inherit Global Rules</option>
-                            <option value="fallback">Built-in Theme Fallback Footer</option>
-                            <option value="none">Hide / No Footer on this Page</option>
+                            <option value="inherit">Inherit Global Rules</option><option value="fallback">Built-in Theme Fallback Footer</option><option value="none">Hide / No Footer on this Page</option>
                         </select>
                     </div>
                 </div>
             </div>
-
             <!-- 3. Dynamic Taxonomies -->
             {taxonomies_section}
-
             <!-- 4. Featured Image Card -->
             <div class="day-card" id="editorRevisionsCard" style="display: none;">
                 <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -307,14 +352,9 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                     </div>
                 </div>
             </div>
-
             <div class="day-card">
-                <div class="day-card-header">
-                    <h2 class="day-card-title">Featured Image</h2>
-                </div>
-                <div class="day-card-body">
-                    {featured_img_preview}
-                </div>
+                <div class="day-card-header"><h2 class="day-card-title">Featured Image</h2></div>
+                <div class="day-card-body">{featured_img_preview}</div>
             </div>
         </div>"#,
         is_pub_selected = p.is_pub_selected,

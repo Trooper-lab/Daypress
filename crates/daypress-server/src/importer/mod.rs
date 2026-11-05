@@ -327,6 +327,28 @@ pub fn import_wxr_stream<R: BufRead>(
         );
     }
 
+    // 7. v0.8 WPML / Polylang Multilingual & Co-Authors Plus Convergence
+    let mut wxr_plugin_opts = std::collections::HashMap::new();
+    for opt_key in ["polylang", "icl_sitepress_settings"] {
+        if let Ok(raw_val) = tx.query_row(
+            "SELECT option_value FROM options WHERE option_name = ?1 LIMIT 1",
+            params![opt_key],
+            |r| r.get::<_, String>(0),
+        ) {
+            if let Some(parsed) = daypress_ast::parse_php_serialized_to_json(raw_val.trim())
+                .or_else(|| serde_json::from_str::<serde_json::Value>(raw_val.trim()).ok())
+            {
+                wxr_plugin_opts.insert(opt_key.to_string(), parsed);
+            }
+        }
+    }
+    crate::db::Database::import_polylang_and_wpml_with_conn(
+        &tx,
+        &pass1.old_to_new_post_id,
+        &wxr_plugin_opts,
+    );
+    crate::db::Database::import_coauthors_with_conn(&tx);
+
     tx.commit()?;
 
     Ok(WxrImportResponse {

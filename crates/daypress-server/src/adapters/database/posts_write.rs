@@ -35,27 +35,38 @@ impl Database {
         "wp-json",
     ];
 
-    /// Returns `desired` (or `untitled`) made unique across all routable content, appending
-    /// `-2`, `-3`, … like WordPress, since every post type shares the `/{slug}/` URL space.
-    pub(crate) fn unique_post_slug(
+    /// Returns `desired` (or `untitled`) made unique across all routable content in the same language,
+    /// appending `-2`, `-3`, … like WordPress.
+    pub(crate) fn unique_post_slug_for_lang(
         conn: &Connection,
         desired: &str,
         exclude_id: Option<i64>,
+        lang_code: &str,
     ) -> Result<String> {
         let base = if desired.trim().is_empty() {
             "untitled".to_string()
         } else {
             desired.trim().to_string()
         };
+        let def_lang = Self::get_default_language_code_with_conn(conn);
+        let eff_lang = if lang_code.trim().is_empty() {
+            def_lang.as_str()
+        } else {
+            lang_code.trim()
+        };
         let taken = |candidate: &str| -> Result<bool> {
             if Self::RESERVED_SLUGS.contains(&candidate) {
                 return Ok(true);
             }
             conn.query_row(
-                "SELECT COUNT(*) FROM posts WHERE post_name = ?1 AND ID <> ?2
-                   AND post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
-                   AND post_status <> 'trash'",
-                params![candidate, exclude_id.unwrap_or(-1)],
+                "SELECT COUNT(*)
+                   FROM posts p
+                   LEFT JOIN daypress_translations tr ON tr.object_type = 'post' AND tr.object_id = p.ID
+                   WHERE p.post_name = ?1 AND p.ID <> ?2
+                     AND p.post_type NOT IN ('nav_menu_item', 'revision', 'elementor_library')
+                     AND p.post_status <> 'trash'
+                     AND LOWER(COALESCE(NULLIF(tr.lang_code, ''), ?3)) = LOWER(?4)",
+                params![candidate, exclude_id.unwrap_or(-1), def_lang, eff_lang],
                 |r| r.get::<_, i64>(0),
             )
             .map(|n| n > 0)
@@ -80,7 +91,14 @@ impl Database {
             Some(s) if !s.trim().is_empty() => generated_slugify::slugify(s.trim()),
             _ => generated_slugify::slugify(&req.title),
         };
-        let slug = Self::unique_post_slug(&conn, &desired, None)?;
+        let req_lang = req
+            .lang_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .unwrap_or_else(|| Self::get_default_language_code_with_conn(&conn));
+        let slug = Self::unique_post_slug_for_lang(&conn, &desired, None, &req_lang)?;
 
         let excerpt = req.excerpt.clone().unwrap_or_else(|| {
             if req.content.chars().count() > 140 {
@@ -247,6 +265,18 @@ impl Database {
             }
         }
 
+        if let Some(ref coauthors) = req.coauthors {
+            let _ = Self::set_post_coauthors_with_conn(&conn, id, coauthors);
+        }
+        if req.lang_code.is_some() || req.translation_group_id.is_some() {
+            let _ = Self::link_post_translation_with_conn(
+                &conn,
+                id,
+                &req_lang,
+                req.translation_group_id.as_deref(),
+            );
+        }
+
         // Synchronize AST layout from post content (Gutenberg, Elementor, Divi)
         let _ = super::post_ast::synchronize_post_ast_layout(
             &conn,
@@ -354,7 +384,15 @@ impl Database {
                 generated_slugify::slugify(slug.trim())
             };
             if !clean_slug.is_empty() {
-                let clean_slug = Self::unique_post_slug(&tx, &clean_slug, Some(id))?;
+                let eff_lang = req
+                    .lang_code
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+                    .unwrap_or_else(|| Self::get_post_translation_info_with_conn(&tx, id).0);
+                let clean_slug =
+                    Self::unique_post_slug_for_lang(&tx, &clean_slug, Some(id), &eff_lang)?;
                 tx.execute(
                     "UPDATE posts SET post_name = ?1, post_modified = ?2 WHERE ID = ?3",
                     params![clean_slug, now, id],
@@ -528,6 +566,20 @@ impl Database {
             }
         }
 
+        if let Some(ref coauthors) = req.coauthors {
+            let _ = Self::set_post_coauthors_with_conn(&tx, id, coauthors);
+        }
+        if let Some(ref lang_code) = req.lang_code {
+            if !lang_code.trim().is_empty() {
+                let _ = Self::link_post_translation_with_conn(
+                    &tx,
+                    id,
+                    lang_code.trim(),
+                    req.translation_group_id.as_deref(),
+                );
+            }
+        }
+
         // Keep `layout_json` / `_daypress_layout` synchronized when `post_content` is updated from the Post/Block Editor
         if let Some(ref content) = req.content {
             let _ =
@@ -666,8 +718,20 @@ impl Database {
             params![new_id, source_id],
         )?;
 
+        // Clone co-authors
+        tx.execute(
+            "INSERT OR IGNORE INTO daypress_post_authors (post_id, user_id, author_order)
+             SELECT ?1, user_id, author_order FROM daypress_post_authors WHERE post_id = ?2",
+            params![new_id, source_id],
+        )?;
+
+        // Preserve the source post's language code in its own standalone translation group
+        let (src_lang, _, _) = Self::get_post_translation_info_with_conn(&tx, source_id);
+        let _ = Self::link_post_translation_with_conn(&tx, new_id, &src_lang, None);
+
         tx.commit()?;
         drop(conn);
+        self.invalidate_hot_cache("duplicate_post");
         self.get_post_by_id(new_id)
     }
 

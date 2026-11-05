@@ -9,7 +9,14 @@ pub fn render_actions_script(
         r#"
             function getEditorPostPath(slug) {{
                 const pt = '{post_type}';
-                return (pt && pt !== 'post' && pt !== 'page') ? ('/' + pt + '/' + slug + '/') : ('/' + slug + '/');
+                const langSel = document.getElementById('post_lang_code');
+                const lang = langSel ? (langSel.value || '').trim().toLowerCase() : '';
+                const defaultLang = (window.__DAYPRESS_DEFAULT_LANG__ || 'en').toLowerCase();
+                const prefixDefault = !!window.__DAYPRESS_PREFIX_DEFAULT_LANG__;
+                const langPrefix = (lang && (prefixDefault || lang !== defaultLang)) ? ('/' + lang) : '';
+                return (pt && pt !== 'post' && pt !== 'page')
+                    ? (langPrefix + '/' + pt + '/' + slug + '/')
+                    : (langPrefix + '/' + slug + '/');
             }}
             function copyPermalink() {{
                 const url = window.location.origin + getEditorPostPath(slugInput.value);
@@ -199,6 +206,15 @@ pub fn render_actions_script(
                     taxonomies[taxSlug] = resolvedIds;
                 }}
 
+                const langEl = document.getElementById('post_lang_code');
+                const lang_code = langEl ? (langEl.value || '').trim() : undefined;
+                const urlParams = new URLSearchParams(window.location.search);
+                const trgrpParam = (urlParams.get('trgrp') || '').trim();
+                const coauthorEl = document.getElementById('post_coauthor_ids');
+                const coauthor_ids = coauthorEl
+                    ? (coauthorEl.value || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0)
+                    : undefined;
+
                 const payload = {{
                     title: title || 'Untitled',
                     slug: slug || undefined,
@@ -219,6 +235,9 @@ pub fn render_actions_script(
                     seo_og_image,
                     seo_noindex,
                     seo_schema_type,
+                    lang_code: lang_code || undefined,
+                    translation_group_id: trgrpParam || undefined,
+                    coauthor_ids: (coauthor_ids && coauthor_ids.length > 0) ? coauthor_ids : undefined,
                     meta: collectAcfMeta(),
                     taxonomies,
                     ...scheduleFields

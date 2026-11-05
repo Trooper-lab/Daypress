@@ -39,10 +39,10 @@ pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> Str
                 rows_html.push_str(&format!(
                     r#"<tr class="custom-meta-row" data-meta-key="{k_esc}">
                         <td style="padding: 8px 10px; width: 32%;">
-                            <input type="text" class="form-input custom-meta-key" value="{k_esc}" style="font-family: var(--font-mono); font-size: 12px; height: 30px; background: var(--paper-raised);" oninput="markDirty()" />
+                            <input type="text" class="form-input custom-meta-key" value="{k_esc}" style="font-family: var(--font-mono); font-size: 12px; padding: 6px 10px; background: var(--paper-raised);" oninput="markDirty()" />
                         </td>
                         <td style="padding: 8px 10px; width: 44%;">
-                            <input type="text" class="form-input custom-meta-val" value="{v_esc}" style="font-size: 12px; height: 30px;" oninput="updateMetaTypeBadge(this); markDirty()" />
+                            <input type="text" class="form-input custom-meta-val" value="{v_esc}" style="font-size: 12px; padding: 6px 10px;" oninput="updateMetaTypeBadge(this); markDirty()" />
                         </td>
                         <td style="padding: 8px 10px; width: 14%; text-align: center;">
                             <span class="badge custom-meta-type-badge" style="font-size: 10px; background: var(--paper-sunk); color: var(--ink-muted); text-transform: uppercase;">{type_badge}</span>

@@ -18,7 +18,9 @@ pub fn render_dashboard_view(
 
     let mut recent_posts_html = String::new();
     for p in sorted_posts.iter().take(7) {
-        let view_href = if p.id == settings.page_on_front {
+        let view_href = if !p.link.trim().is_empty() {
+            p.link.clone()
+        } else if p.id == settings.page_on_front {
             "/".to_string()
         } else if matches!(p.post_type.as_str(), "post" | "page") {
             format!("/{}/", p.slug)

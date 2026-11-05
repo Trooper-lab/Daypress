@@ -105,7 +105,9 @@ pub fn render_posts_view_with_matrix(
             p.id,
             escape_html(&p.post_type)
         );
-        let view_link = if p.id == settings.page_on_front {
+        let view_link = if !p.link.trim().is_empty() {
+            p.link.clone()
+        } else if p.id == settings.page_on_front {
             "/".to_string()
         } else if matches!(p.post_type.as_str(), "post" | "page") {
             format!("/{}/", p.slug)
@@ -165,6 +167,23 @@ pub fn render_posts_view_with_matrix(
         let date_short: String = p.date.chars().take(10).collect();
 
         let mut chips = String::new();
+        if !p.lang_code.is_empty() {
+            let (_, _, flag, _) = crate::i18n::preset_language_info(&p.lang_code);
+            chips.push_str(&format!(
+                r#"<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;background:var(--paper-sunk);color:var(--ink);border:1px solid var(--rule);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;text-transform:uppercase;" title="Language: {}">{} {}</span>"#,
+                escape_html(&p.lang_code),
+                escape_html(flag),
+                escape_html(&p.lang_code),
+            ));
+        }
+        if let Some(srev_id) = p.scheduled_revision_id {
+            let sched_dt = p.scheduled_revision_date.as_deref().unwrap_or("");
+            chips.push_str(&format!(
+                r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--ochre-wash);color:var(--ink);border:1px solid var(--ochre);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;" title="Scheduled Revision #{} goes live {} UTC">&#9201; Scheduled Update</span>"#,
+                srev_id,
+                escape_html(sched_dt),
+            ));
+        }
         if p.id == settings.page_on_front {
             chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--moss-wash);color:var(--moss);border:1px solid var(--moss);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">Front Page</span>"#);
         }
@@ -213,7 +232,7 @@ pub fn render_posts_view_with_matrix(
 
         rows_html.push_str(&format!(
             r##"
-            <tr id="post-{id}" data-status="{status}" style="{initial_row_style}">
+            <tr id="post-{id}" data-status="{status}" data-lang="{lang}" style="{initial_row_style}">
                 <td style="width: 32px;"><input type="checkbox" name="post[]" value="{id}"></td>
                 <td class="table-title-cell">
                     <strong><a href="{edit_link}" style="color: var(--ink); text-decoration: none;">{title}</a></strong>{seo_chip}
@@ -230,6 +249,7 @@ pub fn render_posts_view_with_matrix(
             "##,
             id = p.id,
             status = escape_html(&p.status),
+            lang = escape_html(if p.lang_code.is_empty() { "en" } else { &p.lang_code }),
             initial_row_style = initial_row_style,
             edit_link = edit_link,
             view_link = view_link,
@@ -292,6 +312,14 @@ pub fn render_posts_view_with_matrix(
                     </select>
                     <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkActions()">Apply</button>
                 </div>
+                <select id="langFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">🌐 All Languages</option>
+                    <option value="en">🇺🇸 EN</option>
+                    <option value="de">🇩🇪 DE</option>
+                    <option value="nl">🇳🇱 NL</option>
+                    <option value="fr">🇫🇷 FR</option>
+                    <option value="es">🇪🇸 ES</option>
+                </select>
                 <input type="text" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterRows(this.value)" />
             </div>
         </div>
@@ -455,15 +483,44 @@ pub fn render_posts_view_with_matrix(
 
             function filterRows(q) {{
                 const filter = (q || '').toLowerCase();
+                const langSel = document.getElementById('langFilterSelect');
+                const activeLang = langSel ? (langSel.value || 'all').toLowerCase() : 'all';
                 const rows = document.querySelectorAll('#postsTable tbody tr[data-status]');
                 rows.forEach(r => {{
                     const text = r.textContent.toLowerCase();
                     const rowStatus = r.getAttribute('data-status') || 'publish';
+                    const rowLang = (r.getAttribute('data-lang') || 'en').toLowerCase();
                     const statusMatch = activeStatusFilter === 'all' ? (rowStatus !== 'trash') : (rowStatus === activeStatusFilter);
+                    const langMatch = activeLang === 'all' || rowLang === activeLang;
                     const textMatch = !filter || text.includes(filter);
-                    r.style.display = (statusMatch && textMatch) ? '' : 'none';
+                    r.style.display = (statusMatch && langMatch && textMatch) ? '' : 'none';
                 }});
             }}
+
+            document.addEventListener('DOMContentLoaded', async () => {{
+                const langSel = document.getElementById('langFilterSelect');
+                if (!langSel) return;
+                const urlParams = new URLSearchParams(window.location.search);
+                const initLang = (urlParams.get('lang') || 'all').toLowerCase();
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/languages');
+                    if (res.ok) {{
+                        const data = await res.json();
+                        const langs = data.languages || [];
+                        if (langs.length > 0) {{
+                            langSel.innerHTML = '<option value="all">🌐 All Languages</option>' +
+                                langs.map(l =>
+                                    '<option value="' + l.code + '"' + (l.code === initLang ? ' selected' : '') + '>' +
+                                    (l.flag_emoji || '🌐') + ' ' + l.code.toUpperCase() + ' (' + l.native_name + ')</option>'
+                                ).join('');
+                        }}
+                    }}
+                }} catch (_) {{}}
+                if (initLang !== 'all') {{
+                    langSel.value = initLang;
+                    filterRows('');
+                }}
+            }});
         </script>
         "##,
         post_type_label = post_type_label,

@@ -365,11 +365,13 @@ pub async fn handle_cpt_single(
     }
 
     let settings = db.get_settings().unwrap_or_default();
-    if let Some(mut post) = db
-        .get_post_by_slug(clean_slug)
-        .ok()
-        .flatten()
-        .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+    let matched_post = if db.is_registered_language_code(pt) {
+        db.get_post_by_lang_and_slug(pt, clean_slug).ok().flatten()
+    } else {
+        db.get_post_by_slug(clean_slug).ok().flatten()
+    };
+    if let Some(mut post) =
+        matched_post.filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
     {
         if post.template == "page_templates/leeg.php"
             || post
@@ -387,8 +389,204 @@ pub async fn handle_cpt_single(
         }
         let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded =
-            crate::plugins::expand_shortcodes_in_content(&post.content.rendered, &db, &settings);
+        let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
+            &post.content.rendered,
+            &db,
+            &settings,
+            Some(&post),
+        );
+        post.content.rendered = format!(
+            "{}{}{}",
+            hooks.content_before_html, expanded, hooks.content_after_html
+        );
+        let terms = hydrate_post_terms(&db, &post);
+        let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
+        let layout_json = SsrInjector::hydrate_post_layout_json(
+            &db,
+            &req_ctx,
+            &settings,
+            Some(&post),
+            raw_layout.as_deref(),
+        )
+        .or(raw_layout);
+        let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
+            &db,
+            &req_ctx,
+            &settings,
+            Some(&post),
+        );
+        let html = templates::render_single_post(
+            &post,
+            &settings,
+            user.as_ref(),
+            layout_json.as_deref(),
+            Some(&partials),
+        );
+        let final_html =
+            crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
+        return db
+            .hot_cache
+            .store_and_serve(&req_path, &headers, user.is_some(), final_html);
+    }
+
+    if db.is_registered_language_code(pt) {
+        if let Some(archive_resp) =
+            try_handle_cpt_archive(&db, clean_slug, &settings, user.as_ref())
+        {
+            return archive_resp;
+        }
+    }
+
+    if let Some(resp) = super::taxonomy_archive_render::try_handle_taxonomy_archive(
+        &db,
+        pt,
+        clean_slug,
+        &settings,
+        user.as_ref(),
+    ) {
+        return resp;
+    }
+
+    let referrer = headers
+        .get(header::REFERER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    db.record_404_hit(&req_path, referrer, ua);
+
+    let req_ctx = RequestContext::for_404(&req_path);
+    let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+
+    (
+        StatusCode::NOT_FOUND,
+        Html(crate::plugins::inject_plugin_hooks_into_html(
+            &db,
+            &settings,
+            None,
+            templates::render_not_found_page(&settings, user.as_ref(), Some(&partials)),
+        )),
+    )
+        .into_response()
+}
+
+pub async fn handle_localized_cpt_single(
+    State(db): State<Database>,
+    AxPath((lang, post_type, slug)): AxPath<(String, String, String)>,
+    headers: HeaderMap,
+    OptionalAuthUser(user): OptionalAuthUser,
+) -> Response {
+    let clean_lang = lang.trim_matches('/');
+    let clean_pt = post_type.trim_matches('/');
+    let clean_slug = slug.trim_matches('/');
+    let req_path = format!("/{}/{}/{}/", clean_lang, clean_pt, clean_slug);
+
+    if user.is_none() {
+        if let Some(hit) = db.hot_cache.try_serve(&req_path, &headers) {
+            return hit;
+        }
+    }
+
+    let settings = db.get_settings().unwrap_or_default();
+    if db.is_registered_language_code(clean_lang) {
+        match clean_pt {
+            "page" => {
+                if let Some(page_num) = super::parse_page_segment(clean_slug) {
+                    let per_page = settings.posts_per_page.clamp(1, 100) as usize;
+                    let all_posts = db
+                        .get_posts("post", Some("publish"), None, 10_000)
+                        .unwrap_or_default();
+                    let lang_lower = clean_lang.to_ascii_lowercase();
+                    let filtered: Vec<_> = all_posts
+                        .into_iter()
+                        .filter(|p| p.lang_code.eq_ignore_ascii_case(&lang_lower))
+                        .collect();
+                    let (page_posts, total_pages) =
+                        templates::pagination::paginate(&filtered, page_num, per_page);
+                    if page_num <= total_pages {
+                        let base_path = format!("/{}/", clean_lang);
+                        let nav = templates::pagination::render_pagination(
+                            &base_path,
+                            page_num,
+                            total_pages,
+                        );
+                        let req_ctx = RequestContext::for_front_page();
+                        let partials =
+                            SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+                        let html = templates::render_home_page_paginated(
+                            page_posts,
+                            &settings,
+                            user.as_ref(),
+                            Some(&partials),
+                            &nav,
+                        );
+                        let final_html = crate::plugins::inject_plugin_hooks_into_html(
+                            &db, &settings, None, html,
+                        );
+                        return db.hot_cache.store_and_serve(
+                            &req_path,
+                            &headers,
+                            user.is_some(),
+                            final_html,
+                        );
+                    }
+                }
+            }
+            "category" => {
+                return term_archive_response(
+                    &db,
+                    TermArchive::Category,
+                    clean_slug,
+                    1,
+                    &headers,
+                    user.as_ref(),
+                );
+            }
+            "tag" => {
+                return term_archive_response(
+                    &db,
+                    TermArchive::Tag,
+                    clean_slug,
+                    1,
+                    &headers,
+                    user.as_ref(),
+                );
+            }
+            "author" => {
+                return term_archive_response(
+                    &db,
+                    TermArchive::Author,
+                    clean_slug,
+                    1,
+                    &headers,
+                    user.as_ref(),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let matched_post = if db.is_registered_language_code(clean_lang) {
+        db.get_post_by_lang_and_slug(clean_lang, clean_slug)
+            .ok()
+            .flatten()
+    } else {
+        db.get_post_by_slug(clean_slug).ok().flatten()
+    };
+
+    if let Some(mut post) =
+        matched_post.filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+    {
+        let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
+        let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
+        let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
+            &post.content.rendered,
+            &db,
+            &settings,
+            Some(&post),
+        );
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html
@@ -425,7 +623,7 @@ pub async fn handle_cpt_single(
 
     if let Some(resp) = super::taxonomy_archive_render::try_handle_taxonomy_archive(
         &db,
-        pt,
+        clean_pt,
         clean_slug,
         &settings,
         user.as_ref(),
@@ -433,19 +631,8 @@ pub async fn handle_cpt_single(
         return resp;
     }
 
-    let referrer = headers
-        .get(header::REFERER)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let ua = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    db.record_404_hit(&req_path, referrer, ua);
-
     let req_ctx = RequestContext::for_404(&req_path);
     let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
-
     (
         StatusCode::NOT_FOUND,
         Html(crate::plugins::inject_plugin_hooks_into_html(

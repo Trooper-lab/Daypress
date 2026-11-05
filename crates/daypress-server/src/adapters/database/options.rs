@@ -451,4 +451,136 @@ impl crate::ports::output::OptionRepository for Database {
         let report = Database::audit_post_wcag_links_seo(self, &req);
         serde_json::to_value(report).map_err(|e| DomainError::Internal(e.to_string()))
     }
+
+    fn list_languages_json(&self) -> DomainResult<serde_json::Value> {
+        let languages =
+            Database::list_languages(self).map_err(|e| DomainError::Storage(e.to_string()))?;
+        let default_lang_code = Database::get_default_language_code(self);
+        let prefix_default = Database::prefix_default_language_enabled(self);
+        Ok(serde_json::json!({
+            "languages": languages,
+            "default_language": default_lang_code,
+            "prefix_default": prefix_default,
+        }))
+    }
+
+    fn link_translations_json(
+        &self,
+        payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        if let Some(code) = payload.get("upsert_language_code").and_then(|v| v.as_str()) {
+            let (preset_locale, preset_name, preset_flag, preset_rtl) =
+                crate::i18n::preset_language_info(code);
+            let lang = DaypressLanguage {
+                code: code.to_ascii_lowercase(),
+                locale: preset_locale.to_string(),
+                name: preset_name.to_string(),
+                native_name: preset_name.to_string(),
+                flag_emoji: preset_flag.to_string(),
+                is_default: false,
+                is_rtl: preset_rtl,
+                is_active: true,
+                sort_order: 10,
+            };
+            let _ = Database::upsert_language(self, &lang);
+        }
+        if let (Some(src_id), Some(tgt_id), Some(tgt_lang)) = (
+            payload.get("source_post_id").and_then(|v| v.as_i64()),
+            payload.get("target_post_id").and_then(|v| v.as_i64()),
+            payload.get("target_lang").and_then(|v| v.as_str()),
+        ) {
+            let mut map = std::collections::HashMap::new();
+            let src_lang = payload
+                .get("source_lang")
+                .and_then(|v| v.as_str())
+                .map(String::from)
+                .unwrap_or_else(|| Database::get_default_language_code(self));
+            map.insert(src_lang, src_id);
+            map.insert(tgt_lang.to_string(), tgt_id);
+            let group_id = Database::link_translation_map(self, "post", None, &map)
+                .map_err(|e| DomainError::Storage(e.to_string()))?;
+            let updated_map = Database::get_translation_group_map(self, "post", &group_id)
+                .map_err(|e| DomainError::Storage(e.to_string()))?;
+            return Ok(serde_json::json!({
+                "status": "linked",
+                "translation_group_id": group_id,
+                "translations": updated_map,
+            }));
+        }
+        if let Some(obj) = payload.get("translations").and_then(|v| v.as_object()) {
+            let obj_type = payload
+                .get("object_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("post");
+            let mut map = std::collections::HashMap::new();
+            for (lang, val) in obj {
+                if let Some(oid) = val.as_i64() {
+                    map.insert(lang.clone(), oid);
+                }
+            }
+            let group_id = Database::link_translation_map(self, obj_type, None, &map)
+                .map_err(|e| DomainError::Storage(e.to_string()))?;
+            let updated_map = Database::get_translation_group_map(self, obj_type, &group_id)
+                .map_err(|e| DomainError::Storage(e.to_string()))?;
+            return Ok(serde_json::json!({
+                "status": "linked",
+                "translation_group_id": group_id,
+                "translations": updated_map,
+            }));
+        }
+        Err(DomainError::Validation(
+            "Provide `translations` object or `(source_post_id, target_post_id, target_lang)`."
+                .into(),
+        ))
+    }
+
+    fn duplicate_post_json(&self, source_id: i64) -> DomainResult<serde_json::Value> {
+        let cloned = Database::duplicate_post(self, source_id)
+            .map_err(|e| DomainError::Storage(e.to_string()))?
+            .ok_or_else(|| DomainError::NotFound(format!("Post #{source_id} not found")))?;
+        serde_json::to_value(cloned).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn create_preview_link_json(
+        &self,
+        post_id: i64,
+        expires_in_hours: i64,
+        label: &str,
+    ) -> DomainResult<serde_json::Value> {
+        let record =
+            Database::create_preview_token(self, post_id, expires_in_hours, Some(label), 1)
+                .map_err(|e| DomainError::Storage(e.to_string()))?;
+        serde_json::to_value(record).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn schedule_revision_json(
+        &self,
+        post_id: i64,
+        payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        let req: ScheduleRevisionRequest = serde_json::from_value(payload.clone())
+            .map_err(|e| DomainError::Validation(format!("Invalid schedule_revision args: {e}")))?;
+        let summary = Database::schedule_published_post_revision(self, post_id, &req, None)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        serde_json::to_value(summary).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn diff_revisions_json(
+        &self,
+        post_id: i64,
+        from_rev_id: Option<i64>,
+        to_rev_id: Option<i64>,
+    ) -> DomainResult<serde_json::Value> {
+        let from_id = match from_rev_id {
+            Some(fid) => fid,
+            None => {
+                let revs = Database::get_post_revisions(self, post_id)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                revs.first().map(|r| r.id).unwrap_or(post_id)
+            }
+        };
+        let report = Database::diff_post_revisions(self, post_id, from_id, to_rev_id)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        serde_json::to_value(report).map_err(|e| DomainError::Internal(e.to_string()))
+    }
 }

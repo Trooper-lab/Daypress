@@ -113,6 +113,12 @@ pub(crate) fn default_login_pass_label() -> String {
 pub(crate) fn default_login_redirect() -> String {
     "/".to_string()
 }
+pub(crate) fn default_lang_switcher_style() -> String {
+    "pills".to_string()
+}
+pub(crate) fn default_lang_code() -> String {
+    "en".to_string()
+}
 
 pub(crate) fn deserialize_counter_number<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where

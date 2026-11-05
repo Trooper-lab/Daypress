@@ -1,6 +1,6 @@
 use crate::schema::items::{
-    AccordionItem, IconListItem, NavMenuItem, PriceFeatureItem, SharePlatformItem, SocialIconItem,
-    TabItem, TestimonialSlide, ToggleItem,
+    AccordionItem, IconListItem, LanguageSwitchLink, NavMenuItem, PriceFeatureItem,
+    SharePlatformItem, SocialIconItem, TabItem, TestimonialSlide, ToggleItem,
 };
 use std::collections::HashMap;
 
@@ -287,6 +287,14 @@ pub enum NodeKind {
     },
     MenuAnchor {
         anchor_id: String,
+    },
+    LanguageSwitcher {
+        display_style: String,
+        show_flags: bool,
+        show_names: bool,
+        show_codes: bool,
+        current_lang: String,
+        links: Vec<LanguageSwitchLink>,
     },
 
     // Fallbacks & Raw HTML

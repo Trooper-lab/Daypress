@@ -563,6 +563,35 @@ impl SsrInjector {
             node.kind = NodeKind::CustomHtml { raw: markup };
         }
 
+        // B1. Hydrate LanguageSwitcher (`NodeKind::LanguageSwitcher`)
+        if let NodeKind::LanguageSwitcher {
+            current_lang,
+            links,
+            ..
+        } = &mut node.kind
+        {
+            let active_lang = ctx
+                .post
+                .map(|p| p.lang_code.as_str())
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    ctx.archive_posts
+                        .first()
+                        .map(|p| p.lang_code.as_str())
+                        .filter(|s| !s.is_empty())
+                })
+                .unwrap_or("en")
+                .to_string();
+            *current_lang = active_lang.clone();
+            if let Some(db) = ctx.db {
+                let hydrated =
+                    db.build_language_switcher_links(ctx.post.map(|p| p.id), &active_lang);
+                if !hydrated.is_empty() {
+                    *links = hydrated;
+                }
+            }
+        }
+
         // B2. Server-Side LoopGrid / Filterable CollectionGrid Hydration
         if let NodeKind::LoopGrid {
             post_type,
@@ -1008,7 +1037,16 @@ impl SsrInjector {
             };
 
             let href = if post.post_type != "post" && post.post_type != "page" {
-                format!("/{}/{}/", post.post_type, post.slug)
+                let lang_prefix = if !post.lang_code.is_empty()
+                    && post
+                        .link
+                        .contains(&format!("/{}/", post.lang_code.trim_matches('/')))
+                {
+                    format!("/{}", post.lang_code.trim_matches('/'))
+                } else {
+                    String::new()
+                };
+                format!("{}/{}/{}/", lang_prefix, post.post_type, post.slug)
             } else if !post.link.is_empty() {
                 post.link.clone()
             } else {
@@ -1692,6 +1730,16 @@ impl SsrInjector {
             .replace("{{post_url}}", &post_url)
             .replace("{{author.name}}", post_author)
             .replace("{{post_author}}", post_author)
+            .replace("{{post.authors}}", post_author)
+            .replace("{{post_authors}}", post_author)
+            .replace(
+                "{{post.lang}}",
+                ctx.post.map(|p| p.lang_code.as_str()).unwrap_or("en"),
+            )
+            .replace(
+                "{{post_lang}}",
+                ctx.post.map(|p| p.lang_code.as_str()).unwrap_or("en"),
+            )
             .replace("{{archive.title}}", archive_title)
             .replace("{{archive_title}}", archive_title)
             .replace("{{archive.description}}", archive_description)

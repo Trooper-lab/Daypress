@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.7.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.8.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -32,6 +32,7 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 **Writing and managing content**
 - Posts, pages, categories, tags, and navigation menus.
 - **Zero-Code Content Model Hub (`/d-admin/content-types` — CPT UI + ACF Parity)**: visual Custom Post Type (CPT) & Custom Taxonomy builder with 7 1-click starter blueprints (`Case Studies`, `Team`, `Docs`, `Jobs`, `Events`, `Portfolio`, `Testimonials`), typed Structured Field Groups (`text`, `textarea`, `wysiwyg`, `number`, `date`, `url`, `true_false`, `select`, `checkbox`, `media`, `post_object`, and nested `repeater` tables), dynamic REST v2 routes (`/wp-json/wp/v2/{cpt_slug}`), `{{acf.*}}` SSR token bindings, and automatic 1-click ingestion of **Advanced Custom Fields (ACF)** and **Custom Post Type UI** schemas during WXR/JSON migrations.
+- **Multilingual (`i18n` — WPML & Polylang Parity) & Editorial Workflows (`/d-admin/languages`)**: multi-language content linking (`daypress_languages` & `daypress_translations`) with Polylang/WPML-style URL routing (`/slug/` for default locale, `/de/slug/` or `/nl/slug/` for secondary locales), automatic `<link rel="alternate" hreflang="...">` & `sitemap.xml` `xhtml:link` alternates, native `LanguageSwitcher` Daystudio widget & `[daypress_language_switcher]` shortcode, localized `/d-admin/` UI (`en`, `de`, `nl`, `fr`, `es`), **1-Click Post/Page Duplication**, **Multi-Author Bylines** (`Co-Authors Plus` parity), **Shareable Secret Draft Preview Links** (`/preview/{token}`, no login required), **Scheduled Revisions to Already-Published Pages**, and **Visual Side-by-Side AST Revision Diffs** with per-node cherry-pick restore in Daystudio.
 - A post editor with visual, block, and HTML source modes, schema-driven Structured Field Group cards, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
 - **Media Library DAM (`/d-admin/upload`)**: virtual media folders & tags, 1-click **Replace Media File Without Changing URL/ID** (`Enable Media Replace` parity), dual **AVIF + WebP** encoding alongside thumbnail/medium crops, interactive focal-point crop picker (`object-position`), sanitized SVG uploads, and an Unused Asset Scanner.
 - Comments with moderation and discussion settings (who can comment, manual approval).
@@ -75,7 +76,7 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - An importer for standard WordPress export files (WXR), up to 500 MB.
 - Elementor (including 3.16+ `nested-tabs` / `nested-accordion`, theme builder widgets, Lottie, hotspots, author boxes), Divi (`et_pb_team_member`, `et_pb_gallery`, `et_pb_shop`, `et_pb_post_nav`, etc.), and Gutenberg (`core/details`, `core/query`, `core/navigation`, `core/search`, `core/social-links`, `core/audio`, etc.) layouts are converted into DayStudio layouts, and old post and term IDs are remapped, so parents, menus, featured images, and comments stay linked.
 - Built-in Migration Fidelity Analyzer (`POST /wp-json/daypress/v1/import/analyze` and the **Analyze Migration Fidelity** scorecard in `/d-admin/import`) scores native vs. fallback AST nodes and lists unresolved shortcodes or third-party widgets per post/page before or after import.
-- Data from Yoast SEO, Rank Math, Contact Form 7, WPForms, Redirection, and Joinchat is converted into the matching built-in features.
+- Data from Yoast SEO, Rank Math, Contact Form 7, WPForms, Redirection, Joinchat, WPML, Polylang, and Co-Authors Plus is converted into the matching built-in features.
 
 ![The Daypress admin dashboard](docs/screenshots/admin-dashboard.png)
 
@@ -95,7 +96,7 @@ This list is long on purpose. If something here matters to you, an issue or pull
 - **WordPress plugins and themes do not run.** Daypress does not execute PHP. Only the plugins listed above have their data converted; everything else is lost or needs rebuilding.
 - The REST API covers the common endpoints, not all of WordPress's. Tools that rely on less common endpoints may not work.
 - No WooCommerce or other e-commerce.
-- No multisite and no multilingual support (WPML, Polylang).
+- No multisite.
 
 **Migration quality**
 - "Most WordPress sites in one click" is the goal, not something we have measured. So far the importer is tested against four fixture sites: WordPress theme unit test data, a Gutenberg site, an Elementor starter site, and a custom theme with ACF fields. There are also unit tests for Divi layouts.
@@ -133,11 +134,11 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.2`** | Static Edge Publisher, 4-Step Onboarding & AI Agent Launchpad, Self-Updater & Canvas Parity | **Shipped** |
 | **`0.3.0`** | TOTP 2FA, Fine-Grained Role Capabilities, Migration Fidelity Analyzer & GHCR Docker | **Shipped** |
 | **`0.4.0`** | FormStudio & Submissions Vault, Full Analytics Dashboard, Privacy/Cookie Banner & `<50µs` Hot Cache | **Shipped** |
-| **`0.5.0`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
-| **`0.6`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Early preview (Now)** |
-| **`0.7`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Up next** |
-| **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | Planned |
-| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
+| **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
+| **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
+| **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
+| **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Early preview (Now)** |
+| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Up next** |
 | **`1.0`** | First Stable Release | Planned |
 
 ---
@@ -312,6 +313,12 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_list_media_folders` | List or create virtual Media Library DAM folders |
 | `daypress_scan_unused_media` | Scan all media attachments for unreferenced assets across posts, templates, and options |
 | `daypress_get_storage_s3_status` | Read S3 / Cloudflare R2 media offload and continuous SQLite replica status |
+| `daypress_list_languages` | List active site languages, default language, and URL prefixing strategy |
+| `daypress_link_translations` | Link posts/pages across locales into a shared translation group (`hreflang`) |
+| `daypress_duplicate_post` | Clone any post or page in 1 click as a `(Copy)` draft preserving layout, ACF meta, taxonomies, and co-authors |
+| `daypress_create_preview_link` | Issue a time-bound, revocable secret draft preview URL (`/preview/{token}`) |
+| `daypress_schedule_revision` | Schedule an atomic future content/layout update for an already-published post or page |
+| `daypress_diff_revisions` | Compute a structural AST node-by-node diff between two revisions (or against live) |
 
 ---
 
@@ -339,7 +346,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 370 tests
+cargo test --workspace                                  # 375 tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

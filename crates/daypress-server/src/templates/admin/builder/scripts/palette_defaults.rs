@@ -220,6 +220,14 @@ pub const JS_PALETTE_DEFAULTS: &str = r###"
             home_text: "Home"
         },
 
+        LanguageSwitcher: {
+            display_style: "pills",
+            display_mode: "pills",
+            show_flags: true,
+            show_names: true,
+            show_codes: false
+        },
+
         SearchForm: {
             placeholder: "Search articles, guides, docs...",
             button_text: "Search",

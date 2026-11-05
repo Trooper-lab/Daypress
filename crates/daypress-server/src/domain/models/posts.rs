@@ -59,6 +59,101 @@ pub struct DaypressPostResponse {
     pub seo_schema_type: String,
     #[serde(default)]
     pub seo_og_image: String,
+    #[serde(default = "default_post_lang_code")]
+    pub lang_code: String,
+    #[serde(default)]
+    pub translation_group_id: String,
+    #[serde(default)]
+    pub translations: std::collections::HashMap<String, i64>,
+    #[serde(default)]
+    pub coauthors: Vec<DaypressCoAuthor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_revision_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_revision_date: Option<String>,
+}
+
+pub fn default_post_lang_code() -> String {
+    "en".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct DaypressCoAuthor {
+    pub id: i64,
+    pub display_name: String,
+    pub slug: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct DaypressLanguage {
+    pub code: String,
+    #[serde(default)]
+    pub locale: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub native_name: String,
+    #[serde(default)]
+    pub flag_emoji: String,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default)]
+    pub is_rtl: bool,
+    #[serde(default)]
+    pub is_active: bool,
+    #[serde(default)]
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct HreflangLink {
+    pub hreflang: String,
+    pub href: String,
+    pub lang_name: String,
+    pub flag_emoji: String,
+    pub post_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DaypressPreviewTokenRecord {
+    pub id: i64,
+    pub post_id: i64,
+    pub token_preview: String,
+    pub label: String,
+    pub created_by: i64,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub revoked_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_token: Option<String>,
+    #[serde(default)]
+    pub preview_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScheduleRevisionRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub excerpt: Option<String>,
+    #[serde(default)]
+    pub layout: Option<serde_json::Value>,
+    #[serde(default)]
+    pub date: Option<String>,
+    #[serde(default)]
+    pub date_gmt: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScheduledRevisionSummary {
+    pub revision_post_id: i64,
+    pub parent_post_id: i64,
+    pub title: String,
+    pub scheduled_date: String,
+    pub scheduled_date_gmt: String,
+    pub has_layout: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -112,6 +207,12 @@ pub struct CreatePostRequest {
     /// Publish date in UTC; wins over `date` when both are given.
     #[serde(default)]
     pub date_gmt: Option<String>,
+    #[serde(default)]
+    pub lang_code: Option<String>,
+    #[serde(default)]
+    pub translation_group_id: Option<String>,
+    #[serde(default)]
+    pub coauthors: Option<Vec<i64>>,
 }
 
 pub fn default_post_status() -> String {
@@ -168,6 +269,12 @@ pub struct UpdatePostRequest {
     /// New publish date in UTC; wins over `date` when both are given.
     #[serde(default)]
     pub date_gmt: Option<String>,
+    #[serde(default)]
+    pub lang_code: Option<String>,
+    #[serde(default)]
+    pub translation_group_id: Option<String>,
+    #[serde(default)]
+    pub coauthors: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

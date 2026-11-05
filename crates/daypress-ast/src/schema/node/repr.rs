@@ -1,8 +1,8 @@
 use super::defaults::*;
 use super::kind::NodeKind;
 use crate::schema::items::{
-    AccordionItem, IconListItem, NavMenuItem, PriceFeatureItem, SharePlatformItem, SocialIconItem,
-    TabItem, TestimonialSlide, ToggleItem,
+    AccordionItem, IconListItem, LanguageSwitchLink, NavMenuItem, PriceFeatureItem,
+    SharePlatformItem, SocialIconItem, TabItem, TestimonialSlide, ToggleItem,
 };
 use crate::schema::node::normalize::normalize_node_kind_object;
 use crate::schema::styles::StyleProperties;
@@ -467,6 +467,25 @@ pub(crate) enum NodeKindRepr {
     MenuAnchor {
         #[serde(default)]
         anchor_id: String,
+    },
+    #[serde(alias = "LangSwitcher")]
+    LanguageSwitcher {
+        #[serde(
+            default = "default_lang_switcher_style",
+            alias = "style",
+            alias = "display_mode"
+        )]
+        display_style: String,
+        #[serde(default = "default_true")]
+        show_flags: bool,
+        #[serde(default = "default_true")]
+        show_names: bool,
+        #[serde(default)]
+        show_codes: bool,
+        #[serde(default = "default_lang_code")]
+        current_lang: String,
+        #[serde(default)]
+        links: Vec<LanguageSwitchLink>,
     },
     SymbolInstance {
         #[serde(default)]

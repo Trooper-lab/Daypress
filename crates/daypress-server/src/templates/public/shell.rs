@@ -759,10 +759,34 @@ pub fn render_base_layout(
     };
     let cookie_consent_html = render_cookie_consent_banner(settings);
     let cmdk_search_html = render_cmdk_search_modal();
+    let html_lang = current_post
+        .map(|p| p.lang_code.trim())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            let s = settings.language.trim();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        })
+        .unwrap_or("en")
+        .replace('_', "-");
+    let lang_lower = html_lang.to_ascii_lowercase();
+    let html_dir = if lang_lower.starts_with("ar")
+        || lang_lower.starts_with("he")
+        || lang_lower.starts_with("fa")
+        || lang_lower.starts_with("ur")
+        || lang_lower.starts_with("yi")
+    {
+        "rtl"
+    } else {
+        "ltr"
+    };
 
     let doc = format!(
         r##"<!DOCTYPE html>
-<html lang="nl-NL" class="{html_theme_class}">
+<html lang="{html_lang}" dir="{html_dir}" class="{html_theme_class}">
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -902,7 +926,9 @@ pub fn render_base_layout(
         full_body_class = full_body_class,
         admin_bar_html = admin_bar_html,
         cookie_consent_html = cookie_consent_html,
-        cmdk_search_html = cmdk_search_html
+        cmdk_search_html = cmdk_search_html,
+        html_lang = escape_html(&html_lang),
+        html_dir = html_dir
     );
 
     sanitize_ssr_html(&doc)

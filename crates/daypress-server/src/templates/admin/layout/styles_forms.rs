@@ -111,13 +111,21 @@ pub fn get_styles_forms() -> &'static str {
 		.form-input, .form-select, .form-textarea,
 		#day-canvas :where(input[type="text"], input[type="email"], input[type="url"], input[type="password"], input[type="number"], input[type="search"], input[type="date"], input[type="datetime-local"], input[type="time"], input[type="tel"], select, textarea) {
 			width: 100%;
-			padding: 8px 12px;
-			font: 400 14.5px/1.45 var(--font-sans);
+			padding: 7px 11px;
+			font: 400 13.5px/1.35 var(--font-sans);
 			border: 1px solid var(--rule-strong);
 			border-radius: var(--radius-sm);
 			background: var(--paper-raised);
 			color: var(--ink);
 			transition: border-color 0.12s, box-shadow 0.12s;
+		}
+
+		.form-select,
+		#day-canvas select {
+			min-height: 36px;
+			padding: 6px 28px 6px 10px;
+			line-height: 1.35;
+			vertical-align: middle;
 		}
 
 		.form-input:focus, .form-select:focus, .form-textarea:focus,

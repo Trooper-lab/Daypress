@@ -263,6 +263,38 @@ pub fn render_modals() -> &'static str {
     </div>
 </div>
 
+<!-- Side-by-Side Visual AST Revision Diff & Node Cherry-Pick Modal -->
+<div class="daystudio-modal-overlay" id="modal-revision-diff">
+    <div class="daystudio-modal" style="width: 860px; max-width: 94vw; max-height: 86vh; display: flex; flex-direction: column;">
+        <div class="daystudio-modal-header">
+            <div class="modal-title">
+                <i class="fa-solid fa-code-compare" style="color: var(--day-signal);"></i>
+                <span>Visual AST Revision Diff &amp; Node Cherry-Pick</span>
+            </div>
+            <button class="modal-close-btn" id="btn-close-revision-diff">&times;</button>
+        </div>
+        <div class="daystudio-modal-body" style="display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                    <label class="cad-label" style="margin: 0; white-space: nowrap;">Compare Revision:</label>
+                    <select class="cad-select font-mono" id="diff-rev-select" style="max-width: 340px;"></select>
+                </div>
+                <div id="diff-summary-badges" style="display: flex; gap: 8px; font-family: var(--day-font-mono); font-size: 11.5px;"></div>
+            </div>
+            <div id="diff-nodes-container" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="padding: 24px; text-align: center; color: var(--day-muted); font-size: 12.5px;">Loading structural AST revision diff...</div>
+            </div>
+        </div>
+        <div class="daystudio-modal-footer">
+            <button class="cad-btn secondary" id="btn-cancel-revision-diff">Close</button>
+            <button class="cad-btn primary" id="btn-restore-full-revision">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Restore Full Revision</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast Notification -->
 <div id="daystudio-toast" class="daystudio-toast">
     <i class="fa-solid fa-circle-check toast-icon"></i>

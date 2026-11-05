@@ -241,6 +241,132 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             "<div id=\"{}\" class=\"dp-menu-anchor\"></div>",
             escape_attr(anchor_id)
         )),
+        NodeKind::LanguageSwitcher {
+            display_style,
+            show_flags,
+            show_names,
+            show_codes,
+            current_lang,
+            links,
+        } => {
+            let default_links = vec![
+                crate::schema::LanguageSwitchLink {
+                    code: "en".to_string(),
+                    name: "English".to_string(),
+                    flag: "🇺🇸".to_string(),
+                    url: "/".to_string(),
+                    active: current_lang.eq_ignore_ascii_case("en") || current_lang.is_empty(),
+                },
+                crate::schema::LanguageSwitchLink {
+                    code: "de".to_string(),
+                    name: "Deutsch".to_string(),
+                    flag: "🇩🇪".to_string(),
+                    url: "/de/".to_string(),
+                    active: current_lang.eq_ignore_ascii_case("de"),
+                },
+                crate::schema::LanguageSwitchLink {
+                    code: "nl".to_string(),
+                    name: "Nederlands".to_string(),
+                    flag: "🇳🇱".to_string(),
+                    url: "/nl/".to_string(),
+                    active: current_lang.eq_ignore_ascii_case("nl"),
+                },
+            ];
+            let effective_links = if links.is_empty() {
+                &default_links
+            } else {
+                links
+            };
+            let cls = with_extra_classes(
+                &format!(
+                    "dp-language-switcher dp-lang-switcher dp-lang-style-{}",
+                    escape_attr(display_style)
+                ),
+                extra_cls,
+            );
+
+            if display_style == "dropdown" {
+                let mut opts = String::new();
+                for item in effective_links {
+                    let is_active = item.active || item.code.eq_ignore_ascii_case(current_lang);
+                    let mut parts = Vec::new();
+                    if *show_flags && !item.flag.is_empty() {
+                        parts.push(escape_attr(&item.flag));
+                    }
+                    if *show_names && !item.name.is_empty() {
+                        parts.push(escape_attr(&item.name));
+                    }
+                    if *show_codes || parts.is_empty() {
+                        parts.push(escape_attr(&item.code.to_uppercase()));
+                    }
+                    let label = parts.join(" ");
+                    let sel = if is_active { " selected" } else { "" };
+                    opts.push_str(&format!(
+                        "<option value=\"{}\" data-lang=\"{}\"{}>{}</option>",
+                        escape_attr(&item.url),
+                        escape_attr(&item.code),
+                        sel,
+                        label
+                    ));
+                }
+                Some(format!(
+                    "<div id=\"{}\" class=\"{}\" data-current-lang=\"{}\"{}><select class=\"dp-lang-select\" aria-label=\"Select language\" onchange=\"if(this.value)window.location.href=this.value;\">{}</select></div>",
+                    escape_attr(&node.id),
+                    escape_attr(&cls),
+                    escape_attr(current_lang),
+                    style_attr,
+                    opts
+                ))
+            } else {
+                let mut pills = String::new();
+                for item in effective_links {
+                    let is_active = item.active || item.code.eq_ignore_ascii_case(current_lang);
+                    let mut parts = Vec::new();
+                    if *show_flags && !item.flag.is_empty() {
+                        parts.push(format!(
+                            "<span class=\"dp-lang-flag\" aria-hidden=\"true\">{}</span>",
+                            escape_attr(&item.flag)
+                        ));
+                    }
+                    if *show_names && !item.name.is_empty() {
+                        parts.push(format!(
+                            "<span class=\"dp-lang-name\">{}</span>",
+                            escape_attr(&item.name)
+                        ));
+                    }
+                    if *show_codes || parts.is_empty() {
+                        parts.push(format!(
+                            "<span class=\"dp-lang-code\">{}</span>",
+                            escape_attr(&item.code.to_uppercase())
+                        ));
+                    }
+                    let inner = parts.join(" ");
+                    let active_cls = if is_active { " is-active" } else { "" };
+                    let aria_cur = if is_active {
+                        " aria-current=\"true\""
+                    } else {
+                        ""
+                    };
+                    pills.push_str(&format!(
+                        "<a href=\"{}\" hreflang=\"{}\" lang=\"{}\" class=\"dp-lang-pill{}\"{}>{}</a>",
+                        escape_attr(&item.url),
+                        escape_attr(&item.code),
+                        escape_attr(&item.code),
+                        active_cls,
+                        aria_cur,
+                        inner
+                    ));
+                }
+                Some(format!(
+                    "<nav id=\"{}\" class=\"{}\" aria-label=\"Language Switcher\" data-current-lang=\"{}\"{}>{}</nav>",
+                    escape_attr(&node.id),
+                    escape_attr(&cls),
+                    escape_attr(current_lang),
+                    style_attr,
+                    pills
+                ))
+            }
+        }
         NodeKind::SymbolInstance { symbol_id, .. } => {
             let cls = with_extra_classes("dp-symbol-instance", extra_cls);
             Some(format!(

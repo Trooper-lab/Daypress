@@ -57,6 +57,7 @@ pub fn render_admin_shell(
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "en-US".to_string()),
     );
+    let tr = |key: &'static str| crate::i18n::t(&html_lang, key);
     let styles_forms = get_styles_forms();
     let rest_nonce: String = crate::auth::current_admin()
         .map(|a| a.nonce)
@@ -168,13 +169,13 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_dash_open}">
 				<a href="/d-admin/" class="nav-item {is_dash}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-					<span>Dashboard</span>
+					<span>{nav_dashboard}</span>
 					{updates_badge}
 				</a>
 				<div class="nav-submenu">
-					<a href="/d-admin/" class="nav-subitem {sub_dash_home}">Home</a>
-					<a href="/d-admin/getting-started" class="nav-subitem {sub_dash_gs}">Get Started &amp; AI</a>
-					<a href="/d-admin/update-core" class="nav-subitem {sub_dash_updates}">Updates {updates_badge}</a>
+					<a href="/d-admin/" class="nav-subitem {sub_dash_home}">{nav_home}</a>
+					<a href="/d-admin/getting-started" class="nav-subitem {sub_dash_gs}">{nav_get_started}</a>
+					<a href="/d-admin/update-core" class="nav-subitem {sub_dash_updates}">{nav_updates} {updates_badge}</a>
 				</div>
 			</div>
 
@@ -182,13 +183,13 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_posts_open}">
 				<a href="/d-admin/edit" class="nav-item {is_posts}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-					<span>Posts</span>
+					<span>{nav_posts}</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/d-admin/edit" class="nav-subitem {sub_posts_all}">All Posts</a>
-					<a href="/d-admin/post-new" class="nav-subitem {sub_posts_new}">Add New</a>
-					<a href="/d-admin/edit-tags?taxonomy=category" class="nav-subitem {sub_posts_cats}">Categories</a>
-					<a href="/d-admin/edit-tags?taxonomy=post_tag" class="nav-subitem {sub_posts_tags}">Tags</a>
+					<a href="/d-admin/edit" class="nav-subitem {sub_posts_all}">{nav_all_posts}</a>
+					<a href="/d-admin/post-new" class="nav-subitem {sub_posts_new}">{nav_add_new}</a>
+					<a href="/d-admin/edit-tags?taxonomy=category" class="nav-subitem {sub_posts_cats}">{nav_categories}</a>
+					<a href="/d-admin/edit-tags?taxonomy=post_tag" class="nav-subitem {sub_posts_tags}">{nav_tags}</a>
 				</div>
 			</div>
 
@@ -196,11 +197,11 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_media_open}">
 				<a href="/d-admin/upload" class="nav-item {is_media}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-					<span>Media</span>
+					<span>{nav_media}</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/d-admin/upload" class="nav-subitem {sub_media_lib}">Library</a>
-					<a href="/d-admin/media-new" class="nav-subitem {sub_media_new}">Add New</a>
+					<a href="/d-admin/upload" class="nav-subitem {sub_media_lib}">{nav_library}</a>
+					<a href="/d-admin/media-new" class="nav-subitem {sub_media_new}">{nav_add_new}</a>
 				</div>
 			</div>
 
@@ -208,11 +209,11 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_pages_open}">
 				<a href="/d-admin/edit?post_type=page" class="nav-item {is_pages}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
-					<span>Pages</span>
+					<span>{nav_pages}</span>
 				</a>
 				<div class="nav-submenu">
-					<a href="/d-admin/edit?post_type=page" class="nav-subitem {sub_pages_all}">All Pages</a>
-					<a href="/d-admin/post-new?post_type=page" class="nav-subitem {sub_pages_new}">Add New</a>
+					<a href="/d-admin/edit?post_type=page" class="nav-subitem {sub_pages_all}">{nav_all_pages}</a>
+					<a href="/d-admin/post-new?post_type=page" class="nav-subitem {sub_pages_new}">{nav_add_new}</a>
 				</div>
 			</div>
 
@@ -223,7 +224,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/content-types" class="nav-item {is_content_model}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-					<span>Content Model</span>
+					<span>{nav_content_model}</span>
 				</a>
 			</div>
 
@@ -231,7 +232,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/builder" class="nav-item">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-					<span>DayStudio</span>
+					<span>{nav_daystudio}</span>
 				</a>
 			</div>
 
@@ -239,7 +240,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/edit-comments" class="nav-item {is_comments}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-					<span>Comments</span>
+					<span>{nav_comments}</span>
 					{comments_badge}
 				</a>
 			</div>
@@ -248,7 +249,7 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_app_open}">
 				<a href="/d-admin/headers-footers" class="nav-item {is_appearance}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-					<span>Appearance</span>
+					<span>{nav_appearance}</span>
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/headers-footers" class="nav-subitem {sub_app_hf}">Header &amp; Footer</a>
@@ -264,7 +265,7 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_plugins_open}">
 				<a href="/d-admin/plugins" class="nav-item {is_plugins}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
-					<span>Plugins</span>
+					<span>{nav_plugins}</span>
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/plugins" class="nav-subitem {sub_plug_list}">Installed Plugins</a>
@@ -276,7 +277,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/forms" class="nav-item {is_forms}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-					<span>Forms Studio</span>
+					<span>{nav_forms}</span>
 				</a>
 			</div>
 
@@ -284,7 +285,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/analytics" class="nav-item {is_analytics}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-					<span>Analytics</span>
+					<span>{nav_analytics}</span>
 				</a>
 			</div>
 
@@ -292,11 +293,11 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_users_open}">
 				<a href="/d-admin/users" class="nav-item {is_users}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-					<span>Users</span>
+					<span>{nav_users}</span>
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/users" class="nav-subitem {sub_users_all}">All Users</a>
-					<a href="/d-admin/user-new" class="nav-subitem {sub_users_new}">Add New</a>
+					<a href="/d-admin/user-new" class="nav-subitem {sub_users_new}">{nav_add_new}</a>
 					<a href="/d-admin/profile" class="nav-subitem {sub_users_prof}">Profile</a>
 				</div>
 			</div>
@@ -305,7 +306,7 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_tools_open}">
 				<a href="/d-admin/tools" class="nav-item {is_tools}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-					<span>Tools</span>
+					<span>{nav_tools}</span>
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/tools" class="nav-subitem {sub_tools_avail}">Available Tools</a>
@@ -323,10 +324,11 @@ pub fn render_admin_shell(
 			<div class="nav-group {is_settings_open}">
 				<a href="/d-admin/options-general" class="nav-item {is_settings}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-					<span>Settings</span>
+					<span>{nav_settings}</span>
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/options-general" class="nav-subitem {sub_set_gen}">General</a>
+					<a href="/d-admin/languages" class="nav-subitem {sub_set_lang}">{nav_languages}</a>
 					<a href="/d-admin/options-writing" class="nav-subitem {sub_set_writ}">Writing</a>
 					<a href="/d-admin/options-reading" class="nav-subitem {sub_set_read}">Reading</a>
 					<a href="/d-admin/options-discussion" class="nav-subitem {sub_set_disc}">Discussion</a>
@@ -340,7 +342,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/publish" class="nav-item {is_publish}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
-					<span>Publish</span>
+					<span>{nav_publish}</span>
 				</a>
 			</div>
 
@@ -348,7 +350,7 @@ pub fn render_admin_shell(
 			<div class="nav-group">
 				<a href="/d-admin/daypress-engine" class="nav-item {is_engine}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-					<span>Engine Telemetry</span>
+					<span>{nav_engine}</span>
 				</a>
 			</div>
 		</nav>
@@ -356,7 +358,7 @@ pub fn render_admin_shell(
 		<div class="desk-footer">
 			<div class="desk-account">
 				<a href="/d-admin/profile" title="Edit your profile">{account_name}</a>
-				<a href="/login?action=logout" class="desk-logout">Log out</a>
+				<a href="/login?action=logout" class="desk-logout">{nav_logout}</a>
 			</div>
 			<div class="desk-version">v{version} &middot; single binary</div>
 		</div>
@@ -405,6 +407,7 @@ pub fn render_admin_shell(
 		['Writing Settings', '/d-admin/options-writing'], ['Reading Settings', '/d-admin/options-reading'],
 		['Discussion Settings', '/d-admin/options-discussion'], ['Media Settings', '/d-admin/options-media'],
 		['Permalink Settings', '/d-admin/options-permalink'], ['Privacy Settings', '/d-admin/options-privacy'],
+		['Languages & Multilingual (i18n)', '/d-admin/languages'],
 		['Publish & Hosting', '/d-admin/publish'],
 		['Content Model (CPTs & ACF)', '/d-admin/content-types'],
 		['Engine Telemetry', '/d-admin/daypress-engine'], ['Analytics', '/d-admin/analytics']
@@ -600,12 +603,40 @@ pub fn render_admin_shell(
         sub_set_media = nav.sub_set_media,
         sub_set_perm = nav.sub_set_perm,
         sub_set_priv = nav.sub_set_priv,
+        sub_set_lang = nav.sub_set_lang,
         is_publish = nav.is_publish,
         is_engine = nav.is_engine,
         is_content_model = nav.is_content_model,
         admin_color = admin_color,
         html_lang = html_lang,
         updates_badge = updates_badge,
-        body_content = body_content
+        body_content = body_content,
+        nav_dashboard = tr("nav.dashboard"),
+        nav_home = tr("nav.home"),
+        nav_get_started = tr("nav.get_started"),
+        nav_updates = tr("nav.updates"),
+        nav_posts = tr("nav.posts"),
+        nav_all_posts = tr("nav.all_posts"),
+        nav_add_new = tr("nav.add_new"),
+        nav_categories = tr("nav.categories"),
+        nav_tags = tr("nav.tags"),
+        nav_media = tr("nav.media"),
+        nav_library = tr("nav.library"),
+        nav_pages = tr("nav.pages"),
+        nav_all_pages = tr("nav.all_pages"),
+        nav_content_model = tr("nav.content_model"),
+        nav_daystudio = tr("nav.daystudio"),
+        nav_comments = tr("nav.comments"),
+        nav_appearance = tr("nav.appearance"),
+        nav_plugins = tr("nav.plugins"),
+        nav_forms = tr("nav.forms"),
+        nav_analytics = tr("nav.analytics"),
+        nav_users = tr("nav.users"),
+        nav_tools = tr("nav.tools"),
+        nav_settings = tr("nav.settings"),
+        nav_languages = tr("nav.languages"),
+        nav_publish = tr("nav.publish"),
+        nav_engine = tr("nav.engine"),
+        nav_logout = tr("nav.logout"),
     )
 }

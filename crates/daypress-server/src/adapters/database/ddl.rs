@@ -386,3 +386,51 @@ BEGIN
     DELETE FROM posts_fts WHERE rowid = old.ID;
 END;
 "#;
+
+/// v0.8 Multilingual (i18n) & Editorial Workflow Tables (Languages, Translation Groups, Co-Authors, Secret Preview Links).
+pub const V08_I18N_AND_EDITORIAL_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS daypress_languages (
+    code TEXT PRIMARY KEY,
+    locale TEXT NOT NULL,
+    name TEXT NOT NULL,
+    flag_emoji TEXT NOT NULL DEFAULT '🌐',
+    is_default INTEGER NOT NULL DEFAULT 0,
+    is_rtl INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+INSERT OR IGNORE INTO daypress_languages (code, locale, name, flag_emoji, is_default, is_rtl, sort_order)
+VALUES ('en', 'en_US', 'English', '🇺🇸', 1, 0, 0);
+
+CREATE TABLE IF NOT EXISTS daypress_translations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    object_type TEXT NOT NULL DEFAULT 'post',
+    object_id INTEGER NOT NULL,
+    lang_code TEXT NOT NULL,
+    translation_group_id TEXT NOT NULL,
+    UNIQUE(object_type, object_id)
+);
+CREATE INDEX IF NOT EXISTS idx_translations_group ON daypress_translations(object_type, translation_group_id);
+CREATE INDEX IF NOT EXISTS idx_translations_lang ON daypress_translations(object_type, lang_code, object_id);
+
+CREATE TABLE IF NOT EXISTS daypress_post_authors (
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    author_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (post_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_post_authors_user ON daypress_post_authors(user_id, author_order);
+
+CREATE TABLE IF NOT EXISTS daypress_preview_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    token_preview TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    created_by INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    revoked_at INTEGER DEFAULT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_preview_tokens_post ON daypress_preview_tokens(post_id, expires_at);
+"#;

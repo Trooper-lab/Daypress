@@ -980,6 +980,18 @@ pub async fn build_static_site(
     let mut active_redirects: Vec<(String, String, i64)> = Vec::new();
 
     if let Ok(conn) = db.conn.lock() {
+        let default_lang = Database::get_default_language_code_with_conn(&conn);
+        let prefix_def = Database::prefix_default_language_enabled_with_conn(&conn);
+        for lang in Database::list_languages_with_conn(&conn) {
+            if !lang.code.eq_ignore_ascii_case(&default_lang) || prefix_def {
+                let l_uri = format!("/{}/", lang.code);
+                let l_out = format!("{}/index.html", lang.code);
+                if !routes_to_render.iter().any(|(_, p)| p == &l_out) {
+                    routes_to_render.push((l_uri, l_out));
+                }
+            }
+        }
+
         // 1. Published posts, pages, CPTs
         if let Ok(mut stmt) = conn.prepare(
             r#"SELECT ID, post_type, post_title, post_name, post_excerpt, post_content, post_modified
@@ -1003,8 +1015,23 @@ pub async fn build_static_site(
                     manifest.post_timestamps.insert(id.to_string(), modified);
                     let clean_slug = slug.trim().trim_matches('/');
                     if !clean_slug.is_empty() {
-                        let uri = format!("/{clean_slug}/");
-                        let out_path = format!("{clean_slug}/index.html");
+                        let (lang_code, _, _) =
+                            Database::get_post_translation_info_with_conn(&conn, id);
+                        let uri = Database::format_localized_post_url_with_conn(
+                            &conn,
+                            "",
+                            id,
+                            &ptype,
+                            clean_slug,
+                            &lang_code,
+                            false,
+                        );
+                        let trimmed_uri = uri.trim_matches('/');
+                        let out_path = if trimmed_uri.is_empty() {
+                            "index.html".to_string()
+                        } else {
+                            format!("{trimmed_uri}/index.html")
+                        };
                         if !routes_to_render.iter().any(|(_, p)| p == &out_path) {
                             routes_to_render.push((uri.clone(), out_path));
                         }
@@ -1021,6 +1048,7 @@ pub async fn build_static_site(
                             "type": ptype,
                             "title": title,
                             "slug": clean_slug,
+                            "lang": lang_code,
                             "url": uri,
                             "excerpt": plain_excerpt
                         }));

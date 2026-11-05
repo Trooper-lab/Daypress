@@ -1040,8 +1040,16 @@ pub async fn admin_session_gate(
             .unwrap_or_else(|| "default".to_string()),
         locale: detail
             .as_ref()
-            .map(|d| d.locale.clone())
-            .unwrap_or_default(),
+            .map(|d| d.locale.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                db.get_option("WPLANG")
+                    .ok()
+                    .flatten()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            })
+            .unwrap_or_else(|| db.get_default_language_code()),
         rich_editing: detail.as_ref().map(|d| d.rich_editing).unwrap_or(true),
         avatar_url: detail
             .as_ref()

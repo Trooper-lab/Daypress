@@ -135,6 +135,7 @@ pub fn template_to_builder_post(
         seo_noindex: false,
         seo_schema_type: "WebPage".to_string(),
         seo_og_image: String::new(),
+        ..Default::default()
     }
 }
 
@@ -212,5 +213,6 @@ pub(crate) fn placeholder_builder_post() -> models::DaypressPostResponse {
         seo_noindex: false,
         seo_schema_type: "WebPage".to_string(),
         seo_og_image: String::new(),
+        ..Default::default()
     }
 }

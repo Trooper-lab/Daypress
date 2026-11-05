@@ -119,6 +119,34 @@ pub const JS_CANVAS_PRO_DYNAMIC: &str = r###"
                 return el;
             }
 
+            case "LanguageSwitcher": {
+                const mode = d.display_style || d.display_mode || "pills";
+                const showFlags = d.show_flags !== false;
+                const showNames = d.show_names !== false;
+                const showCodes = !!d.show_codes;
+                const fmt = (flag, name, code) => {
+                    const p = [];
+                    if (showFlags) p.push(flag);
+                    if (showNames) p.push(name);
+                    if (showCodes || (!showFlags && !showNames)) p.push(code.toUpperCase());
+                    return p.join(" ");
+                };
+                el.className = "dp-pro-block dp-language-switcher";
+                if (mode === "dropdown") {
+                    el.innerHTML = `<select style="padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;font-weight:600;">
+                        <option selected>${fmt("🇺🇸", "English", "en")}</option>
+                        <option>${fmt("🇩🇪", "Deutsch", "de")}</option>
+                        <option>${fmt("🇳🇱", "Nederlands", "nl")}</option>
+                    </select>`;
+                } else {
+                    el.style.cssText = "display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;";
+                    el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:13px;font-weight:700;border:1px solid #3b82f6;background:rgba(59,130,246,0.12);">${fmt("🇺🇸", "English", "en")}</span>
+                        <span style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:13px;font-weight:500;border:1px solid rgba(148,163,184,0.35);opacity:0.85;">${fmt("🇩🇪", "Deutsch", "de")}</span>
+                        <span style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:13px;font-weight:500;border:1px solid rgba(148,163,184,0.35);opacity:0.85;">${fmt("🇳🇱", "Nederlands", "nl")}</span>`;
+                }
+                return el;
+            }
+
             case "SearchForm": {
                 el.className = "dp-pro-block dp-search-form";
                 el.style.cssText = "display:flex;gap:8px;";

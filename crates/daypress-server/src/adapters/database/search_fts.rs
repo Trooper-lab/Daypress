@@ -26,6 +26,8 @@ pub struct FtsSearchResultItem {
     pub reading_time_minutes: u32,
     pub score: f64,
     pub typo_matched: bool,
+    #[serde(default)]
+    pub lang_code: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -679,6 +681,7 @@ impl Database {
                     reading_time_minutes,
                     score: (score * 100.0).round() / 100.0,
                     typo_matched,
+                    lang_code: post.lang_code,
                 });
             }
         }

@@ -132,6 +132,21 @@ pub struct NavMenuItem {
     pub children: Vec<NavMenuItem>,
 }
 
+/// Language link item for the `LanguageSwitcher` AST widget.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct LanguageSwitchLink {
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub flag: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub active: bool,
+}
+
 fn default_true() -> bool {
     true
 }

@@ -15,8 +15,8 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
 | **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
 | **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
-| **`0.8`** | Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging | **Up next** |
-| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | Planned |
+| **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
+| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Up next** |
 | **`1.0`** | First Stable Release | Planned |
 
 ---
@@ -93,13 +93,12 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 - [x] Rich **Schema.org JSON-LD** generator (`Article`, `FAQPage`, `LocalBusiness`, `Product`, `BreadcrumbList`) + Auto Table of Contents (TOC) & reading-time widget
 - [x] Real-time **Daystudio WCAG Contrast, Broken-Link & SEO Linter** inside the visual builder
 
-### `0.8` — Multilingual (`i18n`), Editorial Workflows, Visual Revision Diffs & 1-Click SQLite Staging (`Up next`)
-- [ ] Multi-language content linking (`/en/`, `/de/`, `/nl/`) with automatic `hreflang` sitemaps, language switcher widget, localized `/d-admin/` UI, and **WPML / Polylang** migration converter
-- [ ] Editorial workflow upgrades: **1-Click Post/Page Duplication**, multi-author bylines, **Shareable Secret Draft Preview Links** (no login required), and scheduled revisions to already-published pages
-- [ ] **Visual Side-by-Side AST Revision Diffs** inside Daystudio
-- [ ] **1-Click SQLite Sandbox Staging**: branch the site's SQLite database into a live preview environment and merge back atomically in 1 click
+### `0.8.0` — Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs (`Shipped`)
+- [x] Multi-language content linking (`/en/`, `/de/`, `/nl/`) with automatic `hreflang` sitemaps, language switcher widget, localized `/d-admin/` UI, and **WPML / Polylang** migration converter
+- [x] Editorial workflow upgrades: **1-Click Post/Page Duplication**, multi-author bylines (`Co-Authors Plus` parity), **Shareable Secret Draft Preview Links** (no login required), and scheduled revisions to already-published pages
+- [x] **Visual Side-by-Side AST Revision Diffs** & per-node cherry-pick restore inside Daystudio
 
-### `0.9` — Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates (`Planned`)
+### `0.9` — Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates (`Up next`)
 - [ ] Native subscriber lists with double opt-in, member-gated posts, and automated new-post email digests via SMTP/SES/Resend (`MailPoet` / `Ghost` parity)
 - [ ] Branded shortlinks (`/go/*`) with click tracking and **HMAC-Signed Outbound Webhooks** (Slack, Discord, HubSpot, Zapier)
 - [ ] **Zero-Flicker Server-Side A/B Split Testing** on any Daystudio heading, CTA, or section with built-in conversion stats & Real-User Core Web Vitals (`LCP` / `INP` / `CLS`) telemetry

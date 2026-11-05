@@ -527,13 +527,19 @@ pub fn render_single_post(
         } else {
             String::new()
         };
+        let back_href =
+            if !post.lang_code.trim().is_empty() && !post.lang_code.eq_ignore_ascii_case("en") {
+                format!("/{}/", escape_html(post.lang_code.trim()))
+            } else {
+                "/".to_string()
+            };
 
         format!(
             r##"
             <section class="dp-section">
                 <div class="dp-container" style="max-width: 880px;">
                     <div style="margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px;">
-                        <a href="/" style="font-size: 13px; font-weight: 600; color: var(--accent, #a8401b); display: inline-block; margin-bottom: 16px;">&larr; {site_name}</a>
+                        <a href="{back_href}" style="font-size: 13px; font-weight: 600; color: var(--accent, #a8401b); display: inline-block; margin-bottom: 16px;">&larr; {site_name}</a>
                         <div class="dp-card-meta">
                             <span class="dp-badge">{post_type}</span>
                             <span>&bull;</span>
@@ -574,7 +580,8 @@ pub fn render_single_post(
             auto_toc_block = auto_toc_block,
             tags_html = tags_html,
             comments_section_html = comments_section_html,
-            body = clean_content
+            body = clean_content,
+            back_href = back_href
         )
     };
 

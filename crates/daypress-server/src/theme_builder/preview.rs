@@ -79,6 +79,7 @@ pub async fn preview_template_handler(
         seo_noindex: false,
         seo_schema_type: "Article".to_string(),
         seo_og_image: String::new(),
+        ..Default::default()
     };
 
     let breadcrumbs = vec![

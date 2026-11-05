@@ -55,6 +55,7 @@ impl Database {
         }
         crate::legacy::upgrade_schema(&conn)?;
         conn.execute_batch(super::ddl::PASSWORD_RESETS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V08_I18N_AND_EDITORIAL_SCHEMA_SQL)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_path_buf(),

@@ -1188,6 +1188,10 @@ impl Database {
             converged_plugins.push("Post SEO Metadata -> Daypress SEO Toolkit".to_string());
         }
 
+        // 11b. v0.8 WPML / Polylang Multilingual & Co-Authors Plus Convergence
+        Self::import_polylang_and_wpml_with_conn(&tx, &post_id_map, &req.plugin_options);
+        Self::import_coauthors_with_conn(&tx);
+
         tx.commit()?;
 
         Ok(ImportBundleResponse {

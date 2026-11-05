@@ -102,6 +102,7 @@ pub const JS_DRAWERS: &str = r###"
                 { type: "LoopGrid", title: "Loop Grid", icon: "fa-solid fa-table-cells" },
                 { type: "TableOfContents", title: "TOC Index", icon: "fa-solid fa-list-ol" },
                 { type: "Breadcrumbs", title: "Breadcrumbs", icon: "fa-solid fa-angle-right" },
+                { type: "LanguageSwitcher", title: "Lang Switcher", icon: "fa-solid fa-language" },
                 { type: "SearchForm", title: "Search Form", icon: "fa-solid fa-magnifying-glass" },
                 { type: "LoginForm", title: "Login Form", icon: "fa-solid fa-right-to-bracket" }
             ]
@@ -296,6 +297,9 @@ pub const JS_DRAWERS: &str = r###"
                     <button class="cad-btn secondary" style="flex:1;" onclick="window.undo()"><i class="fa-solid fa-arrow-rotate-left"></i> Undo</button>
                     <button class="cad-btn secondary" style="flex:1;" onclick="window.redo()"><i class="fa-solid fa-arrow-rotate-right"></i> Redo</button>
                 </div>
+                <button class="cad-btn primary" style="width:100%; margin-bottom: 14px;" onclick="window.openRevisionDiffModal && window.openRevisionDiffModal()">
+                    <i class="fa-solid fa-code-compare"></i> Compare SQLite Revisions (AST Diff)
+                </button>
                 <div>${itemsHtml}</div>
             </div>
         `;

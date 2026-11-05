@@ -54,6 +54,7 @@ pub const JS_MODALS: &str = r###"
         initSettingsModal();
         initAstModal();
         initShortcutsModal();
+        initRevisionDiffModal();
     }
 
     function initIconModal() {
@@ -210,6 +211,143 @@ pub const JS_MODALS: &str = r###"
             modal.onclick = (e) => { if (e.target === modal) modal.classList.remove("open"); };
         }
     }
+
+    function initRevisionDiffModal() {
+        const modal = document.getElementById("modal-revision-diff");
+        const btnClose = document.getElementById("btn-close-revision-diff");
+        const btnCancel = document.getElementById("btn-cancel-revision-diff");
+        const btnRestoreFull = document.getElementById("btn-restore-full-revision");
+        const revSelect = document.getElementById("diff-rev-select");
+        if (!modal) return;
+
+        if (btnClose) btnClose.onclick = () => modal.classList.remove("open");
+        if (btnCancel) btnCancel.onclick = () => modal.classList.remove("open");
+        if (revSelect) {
+            revSelect.onchange = () => {
+                const revId = parseInt(revSelect.value, 10);
+                if (revId) loadRevisionDiffData(revId);
+            };
+        }
+        if (btnRestoreFull) {
+            btnRestoreFull.onclick = async () => {
+                const pid = window.DayStudioState && window.DayStudioState.currentContext ? window.DayStudioState.currentContext.id : 0;
+                const revId = revSelect ? parseInt(revSelect.value, 10) : 0;
+                if (!pid || !revId) return;
+                const res = await fetch(`/wp-json/wp/v2/posts/${pid}/revisions/${revId}`, { method: "POST" });
+                if (res.ok) {
+                    showToast(`Restored Revision #${revId} — reloading canvas...`);
+                    setTimeout(() => window.location.reload(), 400);
+                }
+            };
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const diffRevParam = parseInt(params.get("diff_rev") || "0", 10);
+        if (diffRevParam > 0) {
+            setTimeout(() => openRevisionDiffModal(diffRevParam), 250);
+        }
+    }
+
+    async function openRevisionDiffModal(initialRevId) {
+        const modal = document.getElementById("modal-revision-diff");
+        const revSelect = document.getElementById("diff-rev-select");
+        const container = document.getElementById("diff-nodes-container");
+        if (!modal || !revSelect || !container) return;
+        modal.classList.add("open");
+
+        const pid = window.DayStudioState && window.DayStudioState.currentContext ? window.DayStudioState.currentContext.id : 0;
+        if (!pid) return;
+        try {
+            const res = await fetch(`/wp-json/wp/v2/posts/${pid}/revisions`);
+            const revs = res.ok ? await res.json() : [];
+            if (!Array.isArray(revs) || revs.length === 0) {
+                revSelect.innerHTML = `<option value="">No revisions recorded yet</option>`;
+                container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--day-muted);">Save or publish changes to record a revision snapshot first.</div>`;
+                return;
+            }
+            const targetRev = initialRevId || revs[0].id;
+            revSelect.innerHTML = revs.map(r => {
+                const dt = (r.date || "").replace("T", " ");
+                const ttl = (r.title && r.title.rendered) ? r.title.rendered : `Revision #${r.id}`;
+                return `<option value="${r.id}" ${r.id === targetRev ? "selected" : ""}>#${r.id} — ${ttl} (${dt})</option>`;
+            }).join("");
+            await loadRevisionDiffData(targetRev);
+        } catch (e) {
+            container.innerHTML = `<div style="padding:24px;color:var(--day-crimson);">Error loading revisions: ${e}</div>`;
+        }
+    }
+    window.openRevisionDiffModal = openRevisionDiffModal;
+
+    async function loadRevisionDiffData(revId) {
+        const pid = window.DayStudioState && window.DayStudioState.currentContext ? window.DayStudioState.currentContext.id : 0;
+        const badges = document.getElementById("diff-summary-badges");
+        const container = document.getElementById("diff-nodes-container");
+        if (!pid || !revId || !container) return;
+        container.innerHTML = `<div style="padding:18px;text-align:center;color:var(--day-muted);">Computing structural AST diff against Revision #${revId}...</div>`;
+        try {
+            const res = await fetch(`/wp-json/daypress/v1/posts/${pid}/revisions/diff?rev=${revId}`);
+            if (!res.ok) {
+                container.innerHTML = `<div style="padding:18px;color:var(--day-crimson);">Failed to compute revision diff.</div>`;
+                return;
+            }
+            const report = await res.json();
+            if (badges) {
+                badges.innerHTML = `
+                    <span style="color:#4ade80;background:rgba(74,222,128,0.12);padding:3px 8px;border-radius:4px;">+${report.added_count || 0} Added</span>
+                    <span style="color:#fbbf24;background:rgba(251,191,36,0.12);padding:3px 8px;border-radius:4px;">~${report.modified_count || 0} Modified</span>
+                    <span style="color:#f87171;background:rgba(248,113,113,0.12);padding:3px 8px;border-radius:4px;">-${report.removed_count || 0} Removed</span>
+                    <span style="color:var(--day-muted);padding:3px 8px;">=${report.unchanged_count || 0} Unchanged</span>
+                `;
+            }
+            const nodes = report.nodes || [];
+            if (nodes.length === 0) {
+                container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--day-emerald,#4ade80);font-weight:600;">✓ Live layout is 100% identical to Revision #${revId}.</div>`;
+                return;
+            }
+            container.innerHTML = nodes.map(n => {
+                const statusColor = n.status === "added" ? "#4ade80" : (n.status === "removed" ? "#f87171" : "#fbbf24");
+                const changesHtml = (n.changes || []).map(c => `
+                    <div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:8px;padding:6px 8px;border-top:1px solid rgba(255,255,255,0.06);font-family:var(--day-font-mono);font-size:11px;">
+                        <span style="color:var(--day-muted);">${c.field}</span>
+                        <span style="color:#f87171;word-break:break-all;">- ${(c.old_value || "∅").slice(0, 120)}</span>
+                        <span style="color:#4ade80;word-break:break-all;">+ ${(c.new_value || "∅").slice(0, 120)}</span>
+                    </div>
+                `).join("");
+                const canCherryPick = n.status !== "added";
+                return `<div style="border:1px solid var(--day-rule,#393836);border-radius:8px;background:var(--day-surface-elevated,#1b1d21);overflow:hidden;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;color:${statusColor};border:1px solid ${statusColor};">${n.status}</span>
+                            <strong style="font-size:12.5px;color:var(--day-ink);">${n.kind}</strong>
+                            <code style="font-size:11px;color:var(--day-muted);">#${n.node_id}</code>
+                            <span style="font-size:11.5px;color:var(--day-muted);">${(n.label || "").slice(0, 48)}</span>
+                        </div>
+                        ${canCherryPick ? `<button type="button" class="cad-btn secondary" style="height:24px;font-size:11px;" onclick="window.cherryPickRevisionNode(${revId}, '${n.node_id}')"><i class="fa-solid fa-wand-magic-sparkles"></i> Cherry-Pick Node</button>` : ""}
+                    </div>
+                    ${changesHtml}
+                </div>`;
+            }).join("");
+        } catch (e) {
+            container.innerHTML = `<div style="padding:18px;color:var(--day-crimson);">Diff error: ${e}</div>`;
+        }
+    }
+
+    async function cherryPickRevisionNode(revId, nodeId) {
+        const pid = window.DayStudioState && window.DayStudioState.currentContext ? window.DayStudioState.currentContext.id : 0;
+        if (!pid || !revId || !nodeId) return;
+        const res = await fetch(`/wp-json/daypress/v1/posts/${pid}/revisions/${revId}/cherry-pick`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ node_id: nodeId })
+        });
+        if (res.ok) {
+            showToast(`✓ Cherry-picked node #${nodeId} from Revision #${revId}! Reloading...`);
+            setTimeout(() => window.location.reload(), 400);
+        } else {
+            showToast("Failed to cherry-pick node from revision");
+        }
+    }
+    window.cherryPickRevisionNode = cherryPickRevisionNode;
 
     function showToast(msg) {
         const toast = document.getElementById("daystudio-toast");

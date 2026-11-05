@@ -419,6 +419,21 @@ impl From<NodeKindRepr> for NodeKind {
             NodeKindRepr::IconList { items } => NodeKind::IconList { items },
             NodeKindRepr::Audio { url } => NodeKind::Audio { url },
             NodeKindRepr::MenuAnchor { anchor_id } => NodeKind::MenuAnchor { anchor_id },
+            NodeKindRepr::LanguageSwitcher {
+                display_style,
+                show_flags,
+                show_names,
+                show_codes,
+                current_lang,
+                links,
+            } => NodeKind::LanguageSwitcher {
+                display_style,
+                show_flags,
+                show_names,
+                show_codes,
+                current_lang,
+                links,
+            },
             NodeKindRepr::SymbolInstance {
                 symbol_id,
                 overrides,

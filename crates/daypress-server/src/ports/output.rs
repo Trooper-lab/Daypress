@@ -141,6 +141,41 @@ pub trait OptionRepository: Send + Sync {
     fn audit_post_json(&self, _payload: &serde_json::Value) -> DomainResult<serde_json::Value> {
         Ok(serde_json::json!({ "score": 100, "issues": [] }))
     }
+    fn list_languages_json(&self) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "languages": [] }))
+    }
+    fn link_translations_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn duplicate_post_json(&self, _source_id: i64) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn create_preview_link_json(
+        &self,
+        _post_id: i64,
+        _expires_in_hours: i64,
+        _label: &str,
+    ) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn schedule_revision_json(
+        &self,
+        _post_id: i64,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn diff_revisions_json(
+        &self,
+        _post_id: i64,
+        _from_rev_id: Option<i64>,
+        _to_rev_id: Option<i64>,
+    ) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
 }
 
 /// Output port for WordPress Comments (`comments`).

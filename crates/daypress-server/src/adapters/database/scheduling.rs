@@ -665,22 +665,33 @@ pub(crate) fn apply_schedule_on_update(
     Ok(())
 }
 
-/// Publishes every `future` post whose UTC date has passed at `now`; returns how many.
+/// Publishes every `future` post whose UTC date has passed at `now` AND promotes any due
+/// `future_revision` updates to already-published pages; returns how many items changed.
 pub(crate) fn publish_due_posts(conn: &Connection, now: &NaiveDateTime) -> Result<usize> {
+    let now_str = now.format(DB_DATE_FORMAT).to_string();
     let mut stmt = conn.prepare_cached(
         "UPDATE posts SET post_status = 'publish'
          WHERE post_status = 'future'
            AND REPLACE(CASE WHEN post_date_gmt = '' OR post_date_gmt LIKE '0000%'
                             THEN post_date ELSE post_date_gmt END, 'T', ' ') <= ?1",
     )?;
-    stmt.execute(params![now.format(DB_DATE_FORMAT).to_string()])
+    let published = stmt.execute(params![&now_str])?;
+    let revisions_promoted =
+        Database::promote_due_scheduled_revisions_with_conn(conn, &now_str).unwrap_or(0);
+    Ok(published + revisions_promoted)
 }
 
 impl Database {
-    /// Promotes scheduled (`future`) posts whose date has passed to `publish`.
+    /// Promotes scheduled (`future`) posts and scheduled revisions (`future_revision`) whose date has passed.
     pub fn publish_due_scheduled_posts(&self) -> Result<usize> {
-        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
-        publish_due_posts(&conn, &Utc::now().naive_utc())
+        let count = {
+            let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+            publish_due_posts(&conn, &Utc::now().naive_utc())?
+        };
+        if count > 0 {
+            self.invalidate_hot_cache("scheduled_posts_promoted");
+        }
+        Ok(count)
     }
 }
 

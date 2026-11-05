@@ -244,6 +244,27 @@ pub fn render_post_new_view_with_fields(
     let custom_fields_card = render_custom_fields_card(existing);
     let dynamic_taxonomies_html = sidebar::render_taxonomy_cards(taxonomies, is_page);
     let schedule_html = schedule::render_schedule_controls(existing);
+    let initial_lang_code = existing
+        .map(|p| p.lang_code.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("en");
+    let initial_coauthor_ids = existing
+        .map(|p| {
+            if p.coauthors.is_empty() {
+                p.author.to_string()
+            } else {
+                p.coauthors
+                    .iter()
+                    .map(|a| a.id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        })
+        .unwrap_or_else(|| "1".to_string());
+    let initial_author_display = existing
+        .map(|p| p.author_name.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("admin (Administrator)");
 
     let sidebar_html = render_editor_sidebar(&SidebarParams {
         btn_text: &btn_text,
@@ -273,6 +294,9 @@ pub fn render_post_new_view_with_fields(
         popular_tag_chips: &popular_tag_chips,
         featured_img_preview: &featured_img_preview,
         dynamic_taxonomies_html: &dynamic_taxonomies_html,
+        initial_lang_code,
+        initial_coauthor_ids: &initial_coauthor_ids,
+        initial_author_display,
     });
 
     let media_modal = render_media_picker_modal(&media_picker_items);

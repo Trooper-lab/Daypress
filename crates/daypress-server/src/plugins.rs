@@ -558,6 +558,15 @@ pub fn expand_shortcodes_in_content(
     db: &Database,
     settings: &DaypressSettingsResponse,
 ) -> String {
+    expand_shortcodes_in_content_for_post(content, db, settings, None)
+}
+
+pub fn expand_shortcodes_in_content_for_post(
+    content: &str,
+    db: &Database,
+    settings: &DaypressSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
+) -> String {
     let mut out = content.to_string();
     // Form shortcodes are provided by the built-in "daypress-forms" plugin; like WordPress
     // with Contact Form 7 deactivated, the raw shortcode is left untouched when it is inactive.
@@ -632,6 +641,63 @@ pub fn expand_shortcodes_in_content(
         out = anchored
             .replace("[daypress_toc]", &toc_nav)
             .replace("[toc]", &toc_nav);
+    }
+
+    // 3b. Built-in Language Switcher shortcode ([daypress_language_switcher] / [language_switcher] / [polylang_switcher])
+    if out.contains("[daypress_language_switcher")
+        || out.contains("[language_switcher")
+        || out.contains("[polylang_switcher")
+    {
+        let default_lang = db.get_default_language_code();
+        let active_lang = current_post
+            .map(|p| p.lang_code.trim())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&default_lang)
+            .to_string();
+        let links = db.build_language_switcher_links(current_post.map(|p| p.id), &active_lang);
+        if let Ok(re) = regex::Regex::new(
+            r#"\[(?:daypress_language_switcher|language_switcher|polylang_switcher)([^\]]*)\]"#,
+        ) {
+            out = re
+                .replace_all(&out, |caps: &regex::Captures| {
+                    let attrs = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                    let style = if attrs.contains("dropdown") {
+                        "dropdown"
+                    } else {
+                        "pills"
+                    };
+                    let show_flags = !attrs.contains("flags=\"false\"")
+                        && !attrs.contains("show_flags=\"false\"");
+                    let show_names = !attrs.contains("names=\"false\"")
+                        && !attrs.contains("show_names=\"false\"");
+                    let show_codes =
+                        attrs.contains("codes=\"true\"") || attrs.contains("show_codes=\"true\"");
+                    let switcher_node = daypress_ast::DaypressNode {
+                        id: "sc-lang-switcher".to_string(),
+                        kind: daypress_ast::NodeKind::LanguageSwitcher {
+                            display_style: style.to_string(),
+                            show_flags,
+                            show_names,
+                            show_codes,
+                            current_lang: active_lang.clone(),
+                            links: links.clone(),
+                        },
+                        styles: daypress_ast::StyleProperties::default(),
+                        children: vec![],
+                    };
+                    daypress_ast::render_layout_to_html(&daypress_ast::DaypressLayout {
+                        version: 1,
+                        global_styles: None,
+                        root: daypress_ast::DaypressNode {
+                            id: "root".to_string(),
+                            kind: daypress_ast::NodeKind::Root,
+                            styles: daypress_ast::StyleProperties::default(),
+                            children: vec![switcher_node],
+                        },
+                    })
+                })
+                .into_owned();
+        }
     }
 
     // 4. Community plugin custom shortcodes
@@ -1135,11 +1201,93 @@ pub fn inject_plugin_hooks_into_html(
     // AST-rendered bodies never pass through `expand_shortcodes_in_content`, so expand any
     // shortcodes still present in the page's main content region here.
     let html = if current_post.is_some() {
-        expand_shortcodes_in_main_region(db, settings, html)
+        expand_shortcodes_in_main_region(db, settings, current_post, html)
     } else {
         html
     };
-    let hooks = render_active_plugin_hooks(db, settings, current_post);
+    let mut hooks = render_active_plugin_hooks(db, settings, current_post);
+
+    let all_langs = db.list_languages().unwrap_or_default();
+    let default_lang = db.get_default_language_code();
+    let active_lang_code = current_post
+        .map(|p| p.lang_code.trim())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&default_lang);
+
+    // Emit og:locale and og:locale:alternate tags
+    if let Some(active_l) = all_langs
+        .iter()
+        .find(|l| l.code.eq_ignore_ascii_case(active_lang_code))
+    {
+        let og_loc = if active_l.locale.contains('_') {
+            active_l.locale.clone()
+        } else {
+            format!("{}_{}", active_l.code, active_l.code.to_uppercase())
+        };
+        hooks.head_html.push_str(&format!(
+            "\n\t<meta property=\"og:locale\" content=\"{}\" />",
+            crate::templates::utils::escape_html(&og_loc)
+        ));
+    }
+
+    // Inject multilingual `<link rel="alternate" hreflang="..." href="..." />` tags into `<head>`
+    // whenever a post has linked translations or the site has multiple active languages.
+    if let Some(post) = current_post {
+        if post.id > 0 {
+            for hl in db.build_post_hreflang_links(post.id) {
+                hooks.head_html.push_str(&format!(
+                    "\n\t<link rel=\"alternate\" hreflang=\"{}\" href=\"{}\" />",
+                    crate::templates::utils::escape_html(&hl.hreflang),
+                    crate::templates::utils::escape_html(&hl.href)
+                ));
+                if hl.hreflang != "x-default" && !hl.hreflang.eq_ignore_ascii_case(active_lang_code)
+                {
+                    if let Some(alt_l) = all_langs
+                        .iter()
+                        .find(|l| l.code.eq_ignore_ascii_case(&hl.hreflang))
+                    {
+                        hooks.head_html.push_str(&format!(
+                            "\n\t<meta property=\"og:locale:alternate\" content=\"{}\" />",
+                            crate::templates::utils::escape_html(&alt_l.locale)
+                        ));
+                    }
+                }
+            }
+        }
+    } else if all_langs.len() > 1 {
+        let base_url = settings.url.trim_end_matches('/');
+        let prefix_def = db.prefix_default_language_enabled();
+        for l in &all_langs {
+            let href = if l.code.eq_ignore_ascii_case(&default_lang) && !prefix_def {
+                format!("{}/", base_url)
+            } else {
+                format!("{}/{}/", base_url, l.code)
+            };
+            hooks.head_html.push_str(&format!(
+                "\n\t<link rel=\"alternate\" hreflang=\"{}\" href=\"{}\" />",
+                crate::templates::utils::escape_html(&l.code),
+                crate::templates::utils::escape_html(&href)
+            ));
+        }
+        let xdef = if prefix_def {
+            format!("{}/{}/", base_url, default_lang)
+        } else {
+            format!("{}/", base_url)
+        };
+        hooks.head_html.push_str(&format!(
+            "\n\t<link rel=\"alternate\" hreflang=\"x-default\" href=\"{}\" />",
+            crate::templates::utils::escape_html(&xdef)
+        ));
+    }
+
+    let mut html = html;
+    if all_langs
+        .iter()
+        .any(|l| l.code.eq_ignore_ascii_case(active_lang_code) && l.is_rtl)
+    {
+        html = html.replacen("dir=\"ltr\"", "dir=\"rtl\"", 1);
+    }
+
     if hooks.head_html.is_empty() && hooks.body_top_html.is_empty() && hooks.footer_html.is_empty()
     {
         return html;
@@ -1168,6 +1316,7 @@ pub fn inject_plugin_hooks_into_html(
 fn expand_shortcodes_in_main_region(
     db: &Database,
     settings: &DaypressSettingsResponse,
+    current_post: Option<&DaypressPostResponse>,
     html: String,
 ) -> String {
     const MAIN_OPEN: &str = "<main class=\"day-main\">";
@@ -1179,7 +1328,7 @@ fn expand_shortcodes_in_main_region(
     };
     let region = &html[start..start + len];
     let mut expanded = if region.contains('[') {
-        expand_shortcodes_in_content(region, db, settings)
+        expand_shortcodes_in_content_for_post(region, db, settings, current_post)
     } else {
         region.to_string()
     };

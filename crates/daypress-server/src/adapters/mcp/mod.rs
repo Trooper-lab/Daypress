@@ -439,6 +439,81 @@ pub fn mcp_tools_manifest() -> Value {
                         "theme": { "type": "string", "default": "light" }
                     }
                 }
+            },
+            {
+                "name": "daypress_list_languages",
+                "description": "List all configured site languages, the default language, and whether the default language uses a URL prefix.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "daypress_link_translations",
+                "description": "Link localized posts/pages into a shared translation group (`daypress_translations`) so `<link rel=\"alternate\" hreflang>` and the LanguageSwitcher widget resolve across locales.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "source_post_id": { "type": "integer" },
+                        "target_post_id": { "type": "integer" },
+                        "target_lang": { "type": "string", "description": "ISO language code (e.g. 'de', 'nl', 'fr', 'es')" },
+                        "translations": { "type": "object", "description": "Map of lang_code -> post_id (e.g. {\"en\": 1, \"de\": 2})" },
+                        "upsert_language_code": { "type": "string", "description": "Optional language code to auto-enable in daypress_languages" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_duplicate_post",
+                "description": "1-Click clone of any post, page, or Custom Post Type item into a new Draft, preserving its Daystudio layout_json, structured fields (ACF/postmeta), taxonomies, co-authors, and language.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["post_id"],
+                    "properties": {
+                        "post_id": { "type": "integer", "description": "ID of the source post or page to duplicate" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_create_preview_link",
+                "description": "Generate a time-bound, revocable secret draft preview link (`?preview_token=...` and `/preview/{token}`) so external stakeholders can preview an unpublished draft without logging in.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["post_id"],
+                    "properties": {
+                        "post_id": { "type": "integer" },
+                        "expires_in_hours": { "type": "integer", "default": 48 },
+                        "label": { "type": "string", "default": "Stakeholder Preview" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_schedule_revision",
+                "description": "Schedule a future revision update to an already-published post or page without unpublishing the live URL. When `scheduled_date_gmt` arrives, Daypress snapshots the live post and atomically swaps in the scheduled revision.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["post_id", "scheduled_date_gmt"],
+                    "properties": {
+                        "post_id": { "type": "integer" },
+                        "scheduled_date_gmt": { "type": "string", "description": "ISO-8601 / SQLite UTC timestamp (e.g. '2026-12-01 09:00:00')" },
+                        "title": { "type": "string" },
+                        "content": { "type": "string" },
+                        "excerpt": { "type": "string" },
+                        "layout_json": { "type": "string" }
+                    }
+                }
+            },
+            {
+                "name": "daypress_diff_revisions",
+                "description": "Compute a structural AST & content diff between a post's revision and its current live state (or between two revisions), returning added, modified, and removed AST nodes and property-level diffs.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["post_id"],
+                    "properties": {
+                        "post_id": { "type": "integer" },
+                        "from_revision_id": { "type": "integer", "description": "Baseline revision ID (defaults to latest revision)" },
+                        "to_revision_id": { "type": "integer", "description": "Target revision ID (defaults to live post state when omitted)" }
+                    }
+                }
             }
         ]
     })
@@ -1039,6 +1114,57 @@ fn dispatch_tool_call(
                 .search_fts_json(query, post_type, limit)
         }
         "daypress_audit_post" => service.options_repo().audit_post_json(&args),
+        "daypress_list_languages" => service.options_repo().list_languages_json(),
+        "daypress_link_translations" => service.options_repo().link_translations_json(&args),
+        "daypress_duplicate_post" => {
+            let post_id = args
+                .get("post_id")
+                .or_else(|| args.get("id"))
+                .and_then(Value::as_i64)
+                .ok_or_else(|| DomainError::Validation("'post_id' is required".into()))?;
+            service.options_repo().duplicate_post_json(post_id)
+        }
+        "daypress_create_preview_link" => {
+            let post_id = args
+                .get("post_id")
+                .or_else(|| args.get("id"))
+                .and_then(Value::as_i64)
+                .ok_or_else(|| DomainError::Validation("'post_id' is required".into()))?;
+            let hours = args
+                .get("expires_in_hours")
+                .and_then(Value::as_i64)
+                .unwrap_or(48)
+                .clamp(1, 24 * 365);
+            let label = args
+                .get("label")
+                .and_then(Value::as_str)
+                .unwrap_or("Stakeholder Preview");
+            service
+                .options_repo()
+                .create_preview_link_json(post_id, hours, label)
+        }
+        "daypress_schedule_revision" => {
+            let post_id = args
+                .get("post_id")
+                .or_else(|| args.get("id"))
+                .and_then(Value::as_i64)
+                .ok_or_else(|| DomainError::Validation("'post_id' is required".into()))?;
+            service
+                .options_repo()
+                .schedule_revision_json(post_id, &args)
+        }
+        "daypress_diff_revisions" => {
+            let post_id = args
+                .get("post_id")
+                .or_else(|| args.get("id"))
+                .and_then(Value::as_i64)
+                .ok_or_else(|| DomainError::Validation("'post_id' is required".into()))?;
+            let from_rev = args.get("from_revision_id").and_then(Value::as_i64);
+            let to_rev = args.get("to_revision_id").and_then(Value::as_i64);
+            service
+                .options_repo()
+                .diff_revisions_json(post_id, from_rev, to_rev)
+        }
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"
         ))),

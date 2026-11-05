@@ -15,12 +15,136 @@ use axum::{
 };
 use serde::Deserialize;
 
+pub fn render_secret_preview_post_response(
+    db: &Database,
+    expected_post_id: Option<i64>,
+    token: &str,
+    user: Option<&crate::auth::AuthUser>,
+) -> Response {
+    let settings = db.get_settings().unwrap_or_default();
+    let Some((verified_post_id, _expires_at)) = db.verify_preview_token(token, expected_post_id)
+    else {
+        let req_ctx = RequestContext::for_404("/preview");
+        let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, &settings);
+        return (
+            StatusCode::FORBIDDEN,
+            [(
+                header::HeaderName::from_static("x-robots-tag"),
+                "noindex, nofollow",
+            )],
+            Html(templates::render_not_found_page(
+                &settings,
+                user,
+                Some(&partials),
+            )),
+        )
+            .into_response();
+    };
+
+    let Some(mut post) = db.get_post_by_id(verified_post_id).ok().flatten() else {
+        let req_ctx = RequestContext::for_404("/preview");
+        let partials = SsrInjector::resolve_and_hydrate_partials(db, &req_ctx, &settings);
+        return (
+            StatusCode::NOT_FOUND,
+            [(
+                header::HeaderName::from_static("x-robots-tag"),
+                "noindex, nofollow",
+            )],
+            Html(templates::render_not_found_page(
+                &settings,
+                user,
+                Some(&partials),
+            )),
+        )
+            .into_response();
+    };
+
+    let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
+    let hooks = crate::plugins::render_active_plugin_hooks(db, &settings, Some(&post));
+    let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
+        &post.content.rendered,
+        db,
+        &settings,
+        Some(&post),
+    );
+    post.content.rendered = format!(
+        "{}{}{}",
+        hooks.content_before_html, expanded, hooks.content_after_html
+    );
+    let terms = hydrate_post_terms(db, &post);
+    let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
+    let layout_json = SsrInjector::hydrate_post_layout_json(
+        db,
+        &req_ctx,
+        &settings,
+        Some(&post),
+        raw_layout.as_deref(),
+    )
+    .or(raw_layout);
+    let partials =
+        SsrInjector::resolve_and_hydrate_partials_with_post(db, &req_ctx, &settings, Some(&post));
+    let html = templates::render_single_post(
+        &post,
+        &settings,
+        user,
+        layout_json.as_deref(),
+        Some(&partials),
+    );
+    let mut final_html =
+        crate::plugins::inject_plugin_hooks_into_html(db, &settings, Some(&post), html);
+
+    let banner = format!(
+        r#"<div class="dp-secret-preview-banner" style="background:#16171a;color:#fbf8f2;border-bottom:2px solid #a8401b;padding:10px 20px;font-family:var(--font-mono,monospace);font-size:12px;display:flex;justify-content:space-between;align-items:center;z-index:99999;position:relative;"><span><strong>Daypress Secret Draft Preview</strong> &middot; Shared via secret preview link (Status: {})</span><span style="opacity:0.75;">noindex, nofollow</span></div>"#,
+        crate::templates::utils::escape_html(&post.status)
+    );
+    if let Some(body_idx) = final_html.find("<body") {
+        if let Some(close_idx) = final_html[body_idx..].find('>') {
+            let insert_pos = body_idx + close_idx + 1;
+            final_html.insert_str(insert_pos, &format!("\n{}", banner));
+        }
+    }
+
+    (
+        StatusCode::OK,
+        [
+            (
+                header::HeaderName::from_static("x-robots-tag"),
+                "noindex, nofollow",
+            ),
+            (header::CACHE_CONTROL, "no-store, private"),
+        ],
+        Html(final_html),
+    )
+        .into_response()
+}
+
+pub async fn handle_secret_preview(
+    State(db): State<Database>,
+    AxPath(token): AxPath<String>,
+    OptionalAuthUser(user): OptionalAuthUser,
+) -> Response {
+    render_secret_preview_post_response(&db, None, token.trim_matches('/'), user.as_ref())
+}
+
 pub async fn handle_home_or_query(
     State(db): State<Database>,
     Query(params): Query<QueryPostParams>,
     headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
+    if let Some(token) = params
+        .preview_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return render_secret_preview_post_response(
+            &db,
+            params.p.or(params.page_id),
+            token,
+            user.as_ref(),
+        );
+    }
     if let Some(q) = params
         .s
         .as_deref()
@@ -89,10 +213,11 @@ pub async fn handle_home_or_query(
         {
             let raw_layout = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-            let expanded = crate::plugins::expand_shortcodes_in_content(
+            let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
                 &post.content.rendered,
                 &db,
                 &settings,
+                Some(&post),
             );
             post.content.rendered = format!(
                 "{}{}{}",
@@ -344,8 +469,39 @@ pub async fn handle_single_paged(
     }
     let settings = db.get_settings().unwrap_or_default();
     let page = parse_page_segment(&raw_page).unwrap_or(0);
+    let clean_slug = slug.trim_matches('/');
+    if page >= 1 && db.is_registered_language_code(clean_slug) {
+        let per_page = settings.posts_per_page.clamp(1, 100) as usize;
+        let all_posts = db
+            .get_posts("post", Some("publish"), None, 10_000)
+            .unwrap_or_default();
+        let lang_lower = clean_slug.to_ascii_lowercase();
+        let filtered: Vec<_> = all_posts
+            .into_iter()
+            .filter(|p| p.lang_code.eq_ignore_ascii_case(&lang_lower))
+            .collect();
+        let (page_posts, total_pages) = templates::pagination::paginate(&filtered, page, per_page);
+        if page <= total_pages {
+            let base_path = format!("/{}/", clean_slug);
+            let nav = templates::pagination::render_pagination(&base_path, page, total_pages);
+            let req_ctx = RequestContext::for_front_page();
+            let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+            let html = templates::render_home_page_paginated(
+                page_posts,
+                &settings,
+                user.as_ref(),
+                Some(&partials),
+                &nav,
+            );
+            let final_html =
+                crate::plugins::inject_plugin_hooks_into_html(&db, &settings, None, html);
+            return db
+                .hot_cache
+                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
+        }
+    }
     let posts_page = db
-        .get_post_by_slug(slug.trim_matches('/'))
+        .get_post_by_slug(clean_slug)
         .ok()
         .flatten()
         .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
@@ -482,8 +638,20 @@ pub async fn handle_single(
     headers: HeaderMap,
     OptionalAuthUser(user): OptionalAuthUser,
 ) -> Response {
+    let clean_slug = slug.trim_matches('/');
+
+    if let Some(token) = paged
+        .preview_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let post_id = db.get_post_by_slug(clean_slug).ok().flatten().map(|p| p.id);
+        return render_secret_preview_post_response(&db, post_id, token, user.as_ref());
+    }
+
     // 1. Check 301/302 Redirect Manager first
-    let req_path = format!("/{}/", slug.trim_matches('/'));
+    let req_path = format!("/{}/", clean_slug);
     if let Some((target_url, status_code)) = db.match_redirect_and_increment(&req_path) {
         let mut resp_headers = HeaderMap::new();
         if let Ok(loc) = target_url.parse() {
@@ -512,7 +680,94 @@ pub async fn handle_single(
 
     let settings = db.get_settings().unwrap_or_default();
 
-    let clean_slug = slug.trim_matches('/');
+    // 1b. Multilingual Locale Prefix Front Page (e.g., `/de/` or `/nl/`)
+    if db.is_registered_language_code(clean_slug) {
+        if let Ok(Some(mut loc_front)) = db.get_localized_front_page(clean_slug) {
+            if crate::auth::can_view_status(&loc_front.status, user.as_ref()) {
+                let raw_layout = db.get_post_layout(loc_front.id).unwrap_or(None);
+                let hooks =
+                    crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&loc_front));
+                let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
+                    &loc_front.content.rendered,
+                    &db,
+                    &settings,
+                    Some(&loc_front),
+                );
+                loc_front.content.rendered = format!(
+                    "{}{}{}",
+                    hooks.content_before_html, expanded, hooks.content_after_html
+                );
+                let req_ctx =
+                    RequestContext::for_front_page_post(loc_front.id, &loc_front.post_type);
+                let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
+                    &db,
+                    &req_ctx,
+                    &settings,
+                    Some(&loc_front),
+                    raw_layout.as_deref(),
+                    paged.dp_tax.clone(),
+                    paged.dp_term.clone(),
+                    paged.dp_sort.clone(),
+                    paged.dp_q.clone(),
+                    paged.dp_page,
+                )
+                .or(raw_layout);
+                let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
+                    &db,
+                    &req_ctx,
+                    &settings,
+                    Some(&loc_front),
+                );
+                let html = templates::render_single_post(
+                    &loc_front,
+                    &settings,
+                    user.as_ref(),
+                    layout_json.as_deref(),
+                    Some(&partials),
+                );
+                let final_html = crate::plugins::inject_plugin_hooks_into_html(
+                    &db,
+                    &settings,
+                    Some(&loc_front),
+                    html,
+                );
+                return db.hot_cache.store_and_serve(
+                    &cache_key,
+                    &headers,
+                    user.is_some() || has_dp_filter,
+                    final_html,
+                );
+            }
+        } else if settings.show_on_front != "page" {
+            // Blog index filtered by language
+            let per_page = settings.posts_per_page.clamp(1, 100) as usize;
+            let all_posts = db
+                .get_posts("post", Some("publish"), None, 10_000)
+                .unwrap_or_default();
+            let lang_lower = clean_slug.to_ascii_lowercase();
+            let filtered: Vec<_> = all_posts
+                .into_iter()
+                .filter(|p| p.lang_code.eq_ignore_ascii_case(&lang_lower))
+                .collect();
+            let (page_posts, total_pages) =
+                templates::pagination::paginate(&filtered, page_num, per_page);
+            let nav = templates::pagination::render_pagination(&req_path, page_num, total_pages);
+            let req_ctx = RequestContext::for_front_page();
+            let partials = SsrInjector::resolve_and_hydrate_partials(&db, &req_ctx, &settings);
+            let html = templates::render_home_page_paginated(
+                page_posts,
+                &settings,
+                user.as_ref(),
+                Some(&partials),
+                &nav,
+            );
+            let final_html =
+                crate::plugins::inject_plugin_hooks_into_html(&db, &settings, None, html);
+            return db
+                .hot_cache
+                .store_and_serve(&cache_key, &headers, user.is_some(), final_html);
+        }
+    }
 
     if let Some(mut post) = db
         .get_post_by_slug(&slug)
@@ -571,8 +826,12 @@ pub async fn handle_single(
         }
 
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded =
-            crate::plugins::expand_shortcodes_in_content(&post.content.rendered, &db, &settings);
+        let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
+            &post.content.rendered,
+            &db,
+            &settings,
+            Some(&post),
+        );
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html

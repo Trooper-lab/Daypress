@@ -1,4 +1,5 @@
 pub mod daystudio;
+pub mod diff;
 pub mod divi;
 pub mod fidelity;
 pub mod gutenberg;
@@ -11,6 +12,10 @@ pub mod url_utils;
 pub use daystudio::{
     normalize_video_embed_url, resolve_dynamic_tag, transpile_daystudio_json,
     transpile_daystudio_json_with_context, DaystudioContext,
+};
+pub use diff::{
+    cherry_pick_node_from_revision, diff_layouts, AstLayoutDiffReport, AstNodeDiff,
+    AstPropertyChange,
 };
 pub use divi::{
     render_spb_calculator_widget, transpile_divi_content, transpile_divi_content_with_context,
@@ -32,8 +37,8 @@ pub use render::{
 };
 pub use schema::{
     AccordionItem, BackgroundConfig, BorderConfig, Breakpoint, ConditionScope, ConditionType,
-    DaypressLayout, DaypressNode, DisplayCondition, IconListItem, NavMenuItem, NodeKind,
-    PriceFeatureItem, PseudoState, SharePlatformItem, SocialIconItem, Spacing, StyleProperties,
-    SymbolOverride, TabItem, TemplateType, TestimonialSlide, ThemeTemplate, ToggleItem,
-    TypographyConfig,
+    DaypressLayout, DaypressNode, DisplayCondition, IconListItem, LanguageSwitchLink, NavMenuItem,
+    NodeKind, PriceFeatureItem, PseudoState, SharePlatformItem, SocialIconItem, Spacing,
+    StyleProperties, SymbolOverride, TabItem, TemplateType, TestimonialSlide, ThemeTemplate,
+    ToggleItem, TypographyConfig,
 };

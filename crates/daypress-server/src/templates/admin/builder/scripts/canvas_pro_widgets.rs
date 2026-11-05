@@ -7,7 +7,7 @@ pub const JS_CANVAS_PRO_WIDGETS: &str = r###"
         "Countdown", "FlipBox", "AnimatedHeadline", "StarRating", "Rating", "ProgressBar",
         "Alert", "Counter", "Benchmark", "SocialIcons", "ShareButtons",
         "NavMenu", "MegaMenuContainer", "PopupModal", "LoopGrid", "TableOfContents",
-        "Breadcrumbs", "SearchForm", "LoginForm", "NativeForm", "Form", "Accordion", "Tabs"
+        "Breadcrumbs", "LanguageSwitcher", "SearchForm", "LoginForm", "NativeForm", "Form", "Accordion", "Tabs"
     ]);
 
     function isProWidget(type) {

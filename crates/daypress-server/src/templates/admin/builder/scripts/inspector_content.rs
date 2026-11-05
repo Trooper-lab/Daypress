@@ -97,58 +97,36 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
 
         switch(type) {
             case "Heading": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Text (HTML)</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${esc(data.text)}"></div>
-                    <div class="cad-row"><span class="cad-label">Level</span><select class="cad-select" data-key="level"><option value="1" ${data.level == 1 ? 'selected' : ''}>H1</option><option value="2" ${(!data.level || data.level == 2) ? 'selected' : ''}>H2</option><option value="3" ${data.level == 3 ? 'selected' : ''}>H3</option><option value="4" ${data.level == 4 ? 'selected' : ''}>H4</option><option value="5" ${data.level == 5 ? 'selected' : ''}>H5</option><option value="6" ${data.level == 6 ? 'selected' : ''}>H6</option></select></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Text (HTML)</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${esc(data.text)}"></div><div class="cad-row"><span class="cad-label">Level</span><select class="cad-select" data-key="level"><option value="1" ${data.level == 1 ? 'selected' : ''}>H1</option><option value="2" ${(!data.level || data.level == 2) ? 'selected' : ''}>H2</option><option value="3" ${data.level == 3 ? 'selected' : ''}>H3</option><option value="4" ${data.level == 4 ? 'selected' : ''}>H4</option><option value="5" ${data.level == 5 ? 'selected' : ''}>H5</option><option value="6" ${data.level == 6 ? 'selected' : ''}>H6</option></select></div>`;
                 break;
             }
             case "Text": {
                 const safeHtml = String(data.content_html || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                container.innerHTML = `
-                    <div class="cad-row" style="flex-direction:column;align-items:stretch;gap:4px;"><span class="cad-label">Rich Text / HTML</span><textarea class="cad-textarea font-mono" rows="4" style="width:100%;font-size:11px;" data-key="content_html">${safeHtml}</textarea></div>
-                `;
+                container.innerHTML = `<div class="cad-row" style="flex-direction:column;align-items:stretch;gap:4px;"><span class="cad-label">Rich Text / HTML</span><textarea class="cad-textarea font-mono" rows="4" style="width:100%;font-size:11px;" data-key="content_html">${safeHtml}</textarea></div>`;
                 break;
             }
             case "Button": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Label</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${esc(data.text || 'Action')}"></div>
-                    <div class="cad-row"><span class="cad-label">URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${esc(data.url || '#')}"></div>
-                    <div class="cad-row"><span class="cad-label">Icon</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="icon" data-icon-field="1" value="${esc(data.icon)}" placeholder="fa-solid fa-arrow-right"></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Label</span><input type="text" class="cad-input" style="flex:1;" data-key="text" value="${esc(data.text || 'Action')}"></div><div class="cad-row"><span class="cad-label">URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${esc(data.url || '#')}"></div><div class="cad-row"><span class="cad-label">Icon</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="icon" data-icon-field="1" value="${esc(data.icon)}" placeholder="fa-solid fa-arrow-right"></div>`;
                 break;
             }
             case "Icon": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Icon</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="name" data-icon-field="1" value="${esc(data.name || data.icon || 'fa-solid fa-star')}"></div>
-                    <div class="cad-row"><span class="cad-label">Link URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${esc(data.url)}" placeholder="https://..."></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Icon</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="name" data-icon-field="1" value="${esc(data.name || data.icon || 'fa-solid fa-star')}"></div><div class="cad-row"><span class="cad-label">Link URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${esc(data.url)}" placeholder="https://..."></div>`;
                 break;
             }
             case "Image": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Source URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="src" value="${esc(data.src)}"></div>
-                    <div class="cad-row"><span class="cad-label">Alt Text</span><input type="text" class="cad-input" style="flex:1;" data-key="alt" value="${esc(data.alt)}"></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Source URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="src" value="${esc(data.src)}"></div><div class="cad-row"><span class="cad-label">Alt Text</span><input type="text" class="cad-input" style="flex:1;" data-key="alt" value="${esc(data.alt)}"></div>`;
                 break;
             }
             case "Video": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Embed URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${esc(data.url || 'https://www.youtube.com/embed/dQw4w9WgXcQ')}"></div>
-                    <div class="cad-row"><span class="cad-label">Aspect</span><select class="cad-select" style="flex:1;" data-key="aspect_ratio"><option value="16:9" ${(!data.aspect_ratio || data.aspect_ratio === '16:9') ? 'selected' : ''}>16:9 Widescreen</option><option value="4:3" ${data.aspect_ratio === '4:3' ? 'selected' : ''}>4:3 Standard</option><option value="1:1" ${data.aspect_ratio === '1:1' ? 'selected' : ''}>1:1 Square</option></select></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Embed URL</span><input type="text" class="cad-input font-mono" style="flex:1;" data-key="url" value="${esc(data.url || 'https://www.youtube.com/embed/dQw4w9WgXcQ')}"></div><div class="cad-row"><span class="cad-label">Aspect</span><select class="cad-select" style="flex:1;" data-key="aspect_ratio"><option value="16:9" ${(!data.aspect_ratio || data.aspect_ratio === '16:9') ? 'selected' : ''}>16:9 Widescreen</option><option value="4:3" ${data.aspect_ratio === '4:3' ? 'selected' : ''}>4:3 Standard</option><option value="1:1" ${data.aspect_ratio === '1:1' ? 'selected' : ''}>1:1 Square</option></select></div>`;
                 break;
             }
             case "Spacer": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Height (px)</span><input type="number" class="cad-input font-mono" style="flex:1;" data-key="height" value="${parseInt(data.height, 10) || 48}" min="0" max="600"></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Height (px)</span><input type="number" class="cad-input font-mono" style="flex:1;" data-key="height" value="${parseInt(data.height, 10) || 48}" min="0" max="600"></div>`;
                 break;
             }
             case "Divider": {
-                container.innerHTML = `
-                    <div class="cad-row"><span class="cad-label">Line Style</span><select class="cad-select" style="flex:1;" data-key="style"><option value="solid" ${(!data.style || data.style === 'solid') ? 'selected' : ''}>Solid</option><option value="dashed" ${data.style === 'dashed' ? 'selected' : ''}>Dashed</option><option value="dotted" ${data.style === 'dotted' ? 'selected' : ''}>Dotted</option></select></div>
-                `;
+                container.innerHTML = `<div class="cad-row"><span class="cad-label">Line Style</span><select class="cad-select" style="flex:1;" data-key="style"><option value="solid" ${(!data.style || data.style === 'solid') ? 'selected' : ''}>Solid</option><option value="dashed" ${data.style === 'dashed' ? 'selected' : ''}>Dashed</option><option value="dotted" ${data.style === 'dotted' ? 'selected' : ''}>Dotted</option></select></div>`;
                 break;
             }
             case "PriceCard": {
@@ -274,6 +252,19 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
                 `;
                 break;
             }
+            case "LanguageSwitcher": {
+                const curMode = data.display_style || data.display_mode || "pills";
+                const showFlags = data.show_flags !== false;
+                const showNames = data.show_names !== false;
+                const showCodes = !!data.show_codes;
+                container.innerHTML = `
+                    <div class="cad-row"><span class="cad-label">Style</span><select class="cad-select" style="flex:1;" data-key="display_style"><option value="pills" ${curMode !== 'dropdown' ? 'selected' : ''}>Horizontal Pills</option><option value="dropdown" ${curMode === 'dropdown' ? 'selected' : ''}>Select Dropdown</option></select></div>
+                    <div class="cad-row"><span class="cad-label">Show Flags</span><input type="checkbox" data-key="show_flags" ${showFlags ? 'checked' : ''}></div>
+                    <div class="cad-row"><span class="cad-label">Show Names</span><input type="checkbox" data-key="show_names" ${showNames ? 'checked' : ''}></div>
+                    <div class="cad-row"><span class="cad-label">Show ISO Codes</span><input type="checkbox" data-key="show_codes" ${showCodes ? 'checked' : ''}></div>
+                `;
+                break;
+            }
             case "Form":
             case "NativeForm": {
                 const fid = data.form_id !== undefined ? data.form_id : 1;
@@ -308,14 +299,23 @@ pub const JS_INSPECTOR_CONTENT: &str = r###"
         const numKeys = new Set(["level", "form_id", "height", "columns", "posts_per_page", "min_depth", "max_depth", "percent", "max_rating"]);
         container.querySelectorAll("input[data-key], textarea[data-key], select[data-key]").forEach(ctrl => {
             const k = ctrl.dataset.key;
-            ctrl.oninput = () => {
+            const handleChange = () => {
                 if (!node.data) node.data = {};
-                node.data[k] = numKeys.has(k) ? (parseFloat(ctrl.value) || 0) : (k === "rating" ? (parseFloat(ctrl.value) || 0) : ctrl.value);
+                if (ctrl.type === "checkbox") {
+                    node.data[k] = !!ctrl.checked;
+                } else {
+                    node.data[k] = numKeys.has(k) ? (parseFloat(ctrl.value) || 0) : (k === "rating" ? (parseFloat(ctrl.value) || 0) : ctrl.value);
+                }
                 if (node.type === "Icon" && k === "name") node.data.icon = ctrl.value;
+                if (node.type === "LanguageSwitcher" && k === "display_style") node.data.display_mode = ctrl.value;
                 window.markDirty(true);
                 window.renderCanvas();
             };
-            ctrl.onchange = () => { if (window.pushHistorySnapshot) window.pushHistorySnapshot(); };
+            ctrl.oninput = handleChange;
+            ctrl.onchange = () => {
+                handleChange();
+                if (window.pushHistorySnapshot) window.pushHistorySnapshot();
+            };
         });
 
         if (window.enhanceIconInput) container.querySelectorAll("input[data-icon-field='1']").forEach(inp => window.enhanceIconInput(inp));
