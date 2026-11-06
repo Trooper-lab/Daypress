@@ -4,8 +4,14 @@
 //! blocks (`Section`, `Container`, `Grid`, `Flex`, `Column`, `Heading`, `Text`,
 //! `Button`, `Image`, `Icon`, `Divider`, `Spacer`) with zero `CustomHtml` fallbacks.
 
-use super::css_parser::{resolve_element_styles, ParsedStylesheet};
+use super::css_parser::{
+    resolve_element_styles, resolve_element_styles_with_mask, ParsedStylesheet,
+};
 use super::dom_parser::{is_inline_tag, DomElement, DomNode};
+use super::forms::{
+    control_markup, extract_form, field_markup, is_form_control_tag, is_service_hidden_input,
+    is_status_element, is_submit_control, ImportedForm,
+};
 use crate::schema::{DaypressNode, NodeKind, StyleProperties};
 use std::collections::HashSet;
 
@@ -14,6 +20,11 @@ pub struct MapperContext<'a> {
     pub used_ids: HashSet<String>,
     pub counter: usize,
     pub node_count: usize,
+    /// When `true`, each `<form>` becomes a `Form` node plus an [`ImportedForm`] in `forms`.
+    pub extract_forms: bool,
+    pub forms: Vec<ImportedForm>,
+    /// Depth of `<form>` elements currently being mapped.
+    pub form_depth: usize,
 }
 
 impl<'a> MapperContext<'a> {
@@ -25,6 +36,9 @@ impl<'a> MapperContext<'a> {
             used_ids,
             counter: 0,
             node_count: 0,
+            extract_forms: false,
+            forms: Vec::new(),
+            form_depth: 0,
         }
     }
 
@@ -138,12 +152,85 @@ pub fn map_element(
     el: &DomElement,
     ancestors: &[&DomElement],
 ) -> Option<DaypressNode> {
-    if should_skip_element(&el.tag) {
+    if should_skip_element(&el.tag) || is_service_hidden_input(el) {
         return None;
     }
 
-    let mut styles = resolve_element_styles(ctx.sheet, el, ancestors);
+    let (mut styles, mask) = resolve_element_styles_with_mask(ctx.sheet, el, ancestors);
     let tag = el.tag.as_str();
+
+    // 0a. `<form>` -> native `Form` node posting to FormStudio (fields keep the design's markup).
+    if tag == "form" && ctx.extract_forms {
+        return Some(map_form(ctx, el, ancestors, styles));
+    }
+
+    // 0b. Inside a form, the design's hidden success message becomes the form's status line
+    // (shown by the `Form` node's submit handler), and other `hidden` parts stay hidden.
+    if ctx.form_depth > 0 && el.attr("hidden").is_some() {
+        styles.display = Some("none".to_string());
+        if is_status_element(el) {
+            let classes = styles.css_classes.take().unwrap_or_default();
+            styles.css_classes = Some(format!("{} dp-form-status", classes).trim().to_string());
+        }
+    }
+
+    // 0c. Submit buttons submit (`target: "submit"` renders `<button type="submit">`).
+    if is_submit_control(el) && ctx.form_depth > 0 {
+        let id = ctx.next_id(el.id(), "btn");
+        ctx.node_count += 1;
+        styles.html_tag = Some("button".to_string());
+        let text = if tag == "input" {
+            el.attr("value").unwrap_or("Submit").to_string()
+        } else {
+            el.inner_html().trim().to_string()
+        };
+        return Some(DaypressNode {
+            id,
+            kind: NodeKind::Button {
+                text,
+                url: String::new(),
+                target: "submit".to_string(),
+            },
+            styles,
+            children: Vec::new(),
+        });
+    }
+
+    // 0d. Form controls keep every attribute (name, type, required, placeholder, options, `for`
+    // on labels): the element that directly holds a control (a field wrapper, or a `<label>`
+    // around a checkbox) becomes a Text block with the raw markup; a lone control gets one too.
+    if is_form_control_tag(tag) {
+        let id = ctx.next_id(None, "field");
+        ctx.node_count += 1;
+        let mut wrapper = StyleProperties {
+            html_tag: Some("div".to_string()),
+            ..Default::default()
+        };
+        if el.attr("type").map(str::to_ascii_lowercase).as_deref() == Some("hidden") {
+            wrapper.display = Some("none".to_string());
+        }
+        return Some(DaypressNode {
+            id,
+            kind: NodeKind::Text {
+                content_html: control_markup(el),
+            },
+            styles: wrapper,
+            children: Vec::new(),
+        });
+    }
+    if holds_form_control(el) {
+        let id = ctx.next_id(el.id(), "field");
+        ctx.node_count += 1;
+        styles.html_tag = Some(tag.to_string());
+        return Some(DaypressNode {
+            id,
+            kind: NodeKind::Text {
+                content_html: field_markup(el),
+            },
+            styles,
+            children: Vec::new(),
+        });
+    }
 
     // 1. Heading (`h1`..`h6`)
     if matches!(tag, "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
@@ -309,9 +396,20 @@ pub fn map_element(
     next_anc.push(el);
     let children = map_dom_children(ctx, &el.children, &next_anc);
 
-    let is_grid =
-        styles.display.as_deref() == Some("grid") || styles.grid_template_columns.is_some();
-    let is_flex = matches!(styles.display.as_deref(), Some("flex" | "inline-flex"));
+    // `Grid` / `Flex` render their layout inline (display, gap, direction, alignment). Use them
+    // only when the design sets those unconditionally; otherwise a breakpoint or state rule of
+    // the design must be able to change them, so the element stays a plain `Container` and the
+    // design CSS lays it out.
+    let display = styles.display.as_deref();
+    let is_grid = matches!(display, Some("grid" | "inline-grid"))
+        && mask.display.is_none()
+        && mask.gap.is_none();
+    let is_flex = matches!(display, Some("flex" | "inline-flex"))
+        && mask.display.is_none()
+        && mask.flex_direction.is_none()
+        && mask.justify_content.is_none()
+        && mask.align_items.is_none()
+        && mask.flex_wrap.is_none();
 
     let (kind, prefix, default_tag) = if tag == "section" {
         (NodeKind::Section, "sec", "section")
@@ -373,6 +471,60 @@ pub fn map_element(
         kind,
         styles,
         children,
+    })
+}
+
+/// Maps a `<form>` to a `Form` node whose children are the design's own field markup, and records
+/// the FormStudio specification (fields, submit label, success message) in `ctx.forms`.
+fn map_form(
+    ctx: &mut MapperContext<'_>,
+    el: &DomElement,
+    ancestors: &[&DomElement],
+    mut styles: StyleProperties,
+) -> DaypressNode {
+    let placeholder_id = -(ctx.forms.len() as i64 + 1);
+    let spec = extract_form(el, placeholder_id);
+    let button_text = spec.submit_label.clone();
+    ctx.forms.push(spec);
+
+    let mut next_anc = ancestors.to_vec();
+    next_anc.push(el);
+    ctx.form_depth += 1;
+    let children = map_dom_children(ctx, &el.children, &next_anc);
+    ctx.form_depth -= 1;
+
+    styles.html_tag = None;
+    let id = ctx.next_id(el.id(), "form");
+    ctx.node_count += 1;
+    DaypressNode {
+        id,
+        kind: NodeKind::Form {
+            form_id: placeholder_id,
+            title: None,
+            button_text,
+            endpoint: None,
+        },
+        styles,
+        children,
+    }
+}
+
+/// An element that directly contains a form control (a field wrapper such as
+/// `<div class="field"><label for=..>..</label><input ..></div>`), or a `<label>` wrapping one.
+fn holds_form_control(el: &DomElement) -> bool {
+    if el.tag == "form" {
+        return false;
+    }
+    let direct = el.children.iter().any(|c| {
+        matches!(c, DomNode::Element(e) if is_form_control_tag(&e.tag) && !is_service_hidden_input(e))
+    });
+    direct || (el.tag == "label" && has_form_control_descendant(el))
+}
+
+fn has_form_control_descendant(el: &DomElement) -> bool {
+    el.children.iter().any(|c| match c {
+        DomNode::Element(e) => is_form_control_tag(&e.tag) || has_form_control_descendant(e),
+        DomNode::Text(_) => false,
     })
 }
 

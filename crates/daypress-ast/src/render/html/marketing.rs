@@ -1,5 +1,5 @@
 use super::RenderArgs;
-use crate::render::forms::render_form_html;
+use crate::render::forms::{render_form_html, render_form_html_with_classes};
 use crate::render::sanitizer::{escape_attr, with_extra_classes};
 use crate::schema::NodeKind;
 
@@ -18,7 +18,7 @@ pub(crate) fn render_marketing(args: &RenderArgs) -> Option<String> {
             title,
             button_text,
             endpoint,
-        } => Some(render_form_html(
+        } => Some(render_form_html_with_classes(
             &node.id,
             *form_id,
             title.as_deref(),
@@ -26,6 +26,7 @@ pub(crate) fn render_marketing(args: &RenderArgs) -> Option<String> {
             endpoint.as_deref(),
             style_attr,
             inner_html,
+            extra_cls,
         )),
         NodeKind::NativeForm {
             title,

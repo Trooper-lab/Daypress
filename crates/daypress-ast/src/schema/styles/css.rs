@@ -341,8 +341,14 @@ impl StyleProperties {
         push("backdrop-filter", self.backdrop_filter.as_deref());
         push("cursor", self.cursor.as_deref());
 
-        // 11. Custom CSS declarations (appended last so they win)
-        if let Some(custom) = self.custom_css.as_ref().filter(|s| !s.trim().is_empty()) {
+        // 11. Custom CSS declarations (appended last so they win). Rule blocks (`selector { .. }`,
+        // `& .child { .. }`, `@media`) are not declarations: `compile_layout_css` scopes those
+        // to the node instead.
+        if let Some(custom) = self
+            .custom_css
+            .as_ref()
+            .filter(|s| !s.trim().is_empty() && !s.contains('{'))
+        {
             for decl in split_declarations(custom) {
                 css.push(format!("{};", decl));
             }

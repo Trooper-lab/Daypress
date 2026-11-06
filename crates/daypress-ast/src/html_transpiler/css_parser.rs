@@ -1,19 +1,22 @@
 //! CSS Cascade & Design Token Extractor (`html_transpiler/css_parser.rs`).
 //!
 //! Extracts `:root` / `[data-theme="dark"]` variables, Google Fonts `<link>` / `@import`s,
-//! and CSS rules across desktop, `@media` breakpoints (`tablet` / `mobile`), and
-//! `:hover` / `:focus` / `:active` pseudo-states into `DaystudioKit` and `StyleProperties`.
+//! static top-level CSS rules and their `:hover` / `:focus` / `:active` pseudo-states into
+//! `DaystudioKit` and `StyleProperties`.
+//!
+//! The design's full stylesheet is kept in the kit (`custom_css`), so it keeps applying on the
+//! public page. Only values the design applies unconditionally are baked into node styles (which
+//! render inline). Values that depend on a breakpoint (`@media`), on `@supports` / `@container` /
+//! `@layer`, or on state the static resolver cannot see (`:target`, `:checked`, `:not()`,
+//! structural pseudo-classes, attribute selectors, sibling combinators, classes that scripts add
+//! such as `.nav-open`) are recorded as [`DynamicRule`]s. Their properties are left out of the
+//! baked styles entirely, so the design's own cascade (including its state classes) decides them,
+//! without any `!important` per-node override competing with it.
 
 use super::dom_parser::{DomElement, DomNode};
 use crate::kit::{ButtonStyle, DaystudioKit, GlobalColor, GlobalTypography};
 use crate::schema::StyleProperties;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MediaTarget {
-    Desktop,
-    Tablet,
-    Mobile,
-}
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PseudoTarget {
@@ -26,11 +29,27 @@ pub enum PseudoTarget {
 #[derive(Debug, Clone)]
 pub struct CssRule {
     pub selector: String,
-    pub media: MediaTarget,
     pub pseudo: PseudoTarget,
     pub specificity: (u32, u32, u32),
     pub declarations: Vec<(String, String)>,
     pub order: usize,
+}
+
+/// A design rule whose effect depends on a breakpoint, a conditional group or runtime state.
+/// `selector` is a static approximation (only tags, classes, ids, descendant and child
+/// combinators) used to find the elements it may style.
+#[derive(Debug, Clone)]
+pub struct DynamicRule {
+    pub selector: String,
+    pub declarations: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BlockContext {
+    /// Top-level rules: statically evaluable ones are baked into node styles.
+    TopLevel,
+    /// Inside `@media`, `@supports`, `@container`, `@layer`: never baked, always left to the design CSS.
+    Conditional,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -40,6 +59,11 @@ pub struct ParsedStylesheet {
     pub root_vars: Vec<(String, String)>,
     pub dark_vars: Vec<(String, String)>,
     pub rules: Vec<CssRule>,
+    pub dynamic_rules: Vec<DynamicRule>,
+    /// Classes and ids that occur in the document's markup. A selector that needs a class or id
+    /// missing from the markup (e.g. `.nav-open`, `.js`) only matches once a script adds it.
+    pub present_classes: HashSet<String>,
+    pub present_ids: HashSet<String>,
     pub raw_css: String,
 }
 
@@ -47,6 +71,7 @@ pub struct ParsedStylesheet {
 /// then parses them into a [`ParsedStylesheet`].
 pub fn extract_and_parse_styles(root: &DomElement) -> ParsedStylesheet {
     let mut sheet = ParsedStylesheet::default();
+    collect_present_names(root, &mut sheet.present_classes, &mut sheet.present_ids);
     let mut raw_blocks = Vec::new();
     collect_style_nodes(root, &mut sheet.google_font_urls, &mut raw_blocks);
 
@@ -63,12 +88,30 @@ pub fn extract_and_parse_styles(root: &DomElement) -> ParsedStylesheet {
     let mut order_counter = 0usize;
     parse_css_block(
         &combined_css,
-        MediaTarget::Desktop,
+        BlockContext::TopLevel,
         &mut sheet,
         &mut order_counter,
     );
 
     sheet
+}
+
+fn collect_present_names(
+    el: &DomElement,
+    classes: &mut HashSet<String>,
+    ids: &mut HashSet<String>,
+) {
+    for c in el.classes() {
+        classes.insert(c.to_string());
+    }
+    if let Some(id) = el.id() {
+        ids.insert(id.to_string());
+    }
+    for child in &el.children {
+        if let DomNode::Element(child_el) = child {
+            collect_present_names(child_el, classes, ids);
+        }
+    }
 }
 
 fn collect_style_nodes(
@@ -158,7 +201,7 @@ fn strip_css_comments(src: &str) -> String {
 
 fn parse_css_block(
     css: &str,
-    current_media: MediaTarget,
+    context: BlockContext,
     sheet: &mut ParsedStylesheet,
     order: &mut usize,
 ) {
@@ -224,7 +267,7 @@ fn parse_css_block(
                 j += 1;
             }
             let body = slice(i + 1, j).trim();
-            handle_rule_or_at_block(prelude, body, current_media, sheet, order);
+            handle_rule_or_at_block(prelude, body, context, sheet, order);
             i = j + 1;
             start = i;
             continue;
@@ -267,7 +310,7 @@ fn extract_url_from_import(stmt: &str) -> Option<String> {
 fn handle_rule_or_at_block(
     prelude: &str,
     body: &str,
-    current_media: MediaTarget,
+    context: BlockContext,
     sheet: &mut ParsedStylesheet,
     order: &mut usize,
 ) {
@@ -277,7 +320,12 @@ fn handle_rule_or_at_block(
             // Parse dark mode variables inside @media (prefers-color-scheme: dark)
             let mut temp_sheet = ParsedStylesheet::default();
             let mut tmp_order = 0;
-            parse_css_block(body, current_media, &mut temp_sheet, &mut tmp_order);
+            parse_css_block(
+                body,
+                BlockContext::TopLevel,
+                &mut temp_sheet,
+                &mut tmp_order,
+            );
             for (k, v) in temp_sheet.root_vars.into_iter().chain(temp_sheet.dark_vars) {
                 if !sheet.dark_vars.iter().any(|(ek, _)| ek == &k) {
                     sheet.dark_vars.push((k, v));
@@ -285,8 +333,14 @@ fn handle_rule_or_at_block(
             }
             return;
         }
-        let target_media = classify_media_query(&lower_prelude).unwrap_or(current_media);
-        parse_css_block(body, target_media, sheet, order);
+        parse_css_block(body, BlockContext::Conditional, sheet, order);
+        return;
+    }
+    if ["@supports", "@container", "@layer", "@scope", "@document"]
+        .iter()
+        .any(|at| lower_prelude.starts_with(at))
+    {
+        parse_css_block(body, BlockContext::Conditional, sheet, order);
         return;
     }
     if lower_prelude.starts_with('@') {
@@ -304,11 +358,12 @@ fn handle_rule_or_at_block(
             continue;
         }
 
-        // Capture :root and [data-theme="dark"] custom properties
+        // Capture :root and [data-theme="dark"] custom properties (unconditional ones only:
+        // a breakpoint's `:root { --gutter: 24px }` must not replace the design token).
         let is_dark_root = sel.contains("data-theme") && sel.contains("dark");
         let is_root = sel == ":root" || sel == "html";
 
-        if is_dark_root || is_root {
+        if (is_dark_root || is_root) && context == BlockContext::TopLevel {
             for (k, v) in &decls {
                 if k.starts_with("--") {
                     let target_vec = if is_dark_root {
@@ -325,51 +380,238 @@ fn handle_rule_or_at_block(
             }
         }
 
-        // Skip rules with pseudo-elements (::before, ::after) or [data-theme] attribute overrides
-        // from static AST style baking; they remain active via `global_styles.custom_css`.
-        if sel.contains("::")
-            || sel.contains(":before")
-            || sel.contains(":after")
-            || sel.contains("[data-theme")
-            || sel.contains(":first-child")
-            || sel.contains(":last-child")
-            || sel.contains(":nth-")
-            || sel.contains(":not(")
-        {
+        // Pseudo-element rules style generated boxes, not the element; `[data-theme]` overrides are
+        // dark-mode token sets. Both stay active through `global_styles.custom_css` only.
+        if is_pseudo_element_selector(sel) || sel.contains("[data-theme") {
             continue;
         }
 
         let (clean_sel, pseudo) = extract_pseudo_target(sel);
-        let specificity = compute_specificity(&clean_sel);
-        *order += 1;
-        sheet.rules.push(CssRule {
-            selector: clean_sel,
-            media: current_media,
-            pseudo,
-            specificity,
-            declarations: decls.clone(),
-            order: *order,
-        });
+        if context == BlockContext::TopLevel && is_static_selector(&clean_sel, sheet) {
+            let specificity = compute_specificity(&clean_sel);
+            *order += 1;
+            sheet.rules.push(CssRule {
+                selector: clean_sel,
+                pseudo,
+                specificity,
+                declarations: decls.clone(),
+                order: *order,
+            });
+        } else if let Some(reduced) = reduce_to_static_selector(sel, sheet) {
+            sheet.dynamic_rules.push(DynamicRule {
+                selector: reduced,
+                declarations: decls.clone(),
+            });
+        }
     }
 }
 
-fn classify_media_query(lower_prelude: &str) -> Option<MediaTarget> {
-    if let Some(idx) = lower_prelude.find("max-width") {
-        let after = lower_prelude.get(idx + "max-width".len()..)?;
-        let digits: String = after
-            .chars()
-            .skip_while(|c| !c.is_ascii_digit())
-            .take_while(|c| c.is_ascii_digit())
-            .collect();
-        if let Ok(px) = digits.parse::<u32>() {
-            if px <= 767 {
-                return Some(MediaTarget::Mobile);
-            } else if px <= 1150 {
-                return Some(MediaTarget::Tablet);
+fn is_pseudo_element_selector(sel: &str) -> bool {
+    let lower = sel.to_ascii_lowercase();
+    lower.contains("::")
+        || [":before", ":after", ":first-line", ":first-letter"]
+            .iter()
+            .any(|p| lower.contains(p))
+}
+
+/// True when the selector only uses tags, classes and ids that exist in the markup, joined by
+/// descendant or child combinators, so it can be evaluated against the static DOM.
+fn is_static_selector(sel: &str, sheet: &ParsedStylesheet) -> bool {
+    if sel.contains([':', '[', '+', '~', '(', '|', '\\']) {
+        return false;
+    }
+    names_present(sel, sheet)
+}
+
+/// Checks every `.class` and `#id` token of a combinator-free-of-siblings selector against the markup.
+fn names_present(sel: &str, sheet: &ParsedStylesheet) -> bool {
+    let mut chars = sel.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if c == '.' || c == '#' {
+            let start = i + c.len_utf8();
+            let mut end = start;
+            while let Some(&(j, nc)) = chars.peek() {
+                if nc.is_alphanumeric() || nc == '-' || nc == '_' || !nc.is_ascii() {
+                    end = j + nc.len_utf8();
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            let name = sel.get(start..end).unwrap_or("");
+            if name.is_empty() {
+                continue;
+            }
+            let present = if c == '.' {
+                sheet.present_classes.contains(name)
+            } else {
+                sheet.present_ids.contains(name)
+            };
+            if !present {
+                return false;
             }
         }
     }
-    None
+    true
+}
+
+/// Reduces a stateful selector to a static approximation of the elements it may style:
+/// pseudo-classes, attribute selectors and names missing from the markup are dropped, sibling
+/// compounds (`a + b`, `a ~ b`) collapse to their subject, and trivially satisfied `html`, `body`,
+/// `:root` and `*` ancestors are removed. Returns `None` when nothing identifies the subject (for
+/// example `[hidden]` or `:focus-visible`), so such rules never mask properties document-wide.
+fn reduce_to_static_selector(sel: &str, sheet: &ParsedStylesheet) -> Option<String> {
+    let tokens = split_selector_tokens(sel);
+    let mut chain: Vec<(char, String)> = Vec::new();
+    for (comb, compound) in tokens {
+        let reduced = reduce_compound(&compound, sheet);
+        if comb == '+' || comb == '~' {
+            // The subject keeps the relation its sibling had to the ancestors.
+            let prev_comb = chain.pop().map(|(c, _)| c).unwrap_or(' ');
+            chain.push((prev_comb, reduced));
+        } else {
+            chain.push((comb, reduced));
+        }
+    }
+    let (_, subject) = chain.last()?;
+    if subject.is_empty() || subject == "*" {
+        return None;
+    }
+    let last = chain.len() - 1;
+    let mut out = String::new();
+    for (idx, (comb, compound)) in chain.iter().enumerate() {
+        let trivial =
+            compound.is_empty() || matches!(compound.as_str(), "*" | "html" | "body" | ":root");
+        if idx != last && trivial {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push_str(if *comb == '>' { " > " } else { " " });
+        }
+        out.push_str(compound);
+    }
+    Some(out)
+}
+
+/// Splits a selector into `(combinator, compound)` pairs; the first combinator is `' '`.
+fn split_selector_tokens(sel: &str) -> Vec<(char, String)> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut pending: char = ' ';
+    let mut depth = 0i32;
+    for c in sel.chars() {
+        match c {
+            '(' | '[' => {
+                depth += 1;
+                current.push(c);
+            }
+            ')' | ']' => {
+                depth -= 1;
+                current.push(c);
+            }
+            '>' | '+' | '~' if depth == 0 => {
+                if !current.trim().is_empty() {
+                    out.push((pending, current.trim().to_string()));
+                    current.clear();
+                }
+                pending = c;
+            }
+            c if c.is_whitespace() && depth == 0 => {
+                if !current.trim().is_empty() {
+                    out.push((pending, current.trim().to_string()));
+                    current.clear();
+                    pending = ' ';
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+    if !current.trim().is_empty() {
+        out.push((pending, current.trim().to_string()));
+    }
+    out
+}
+
+/// Keeps the tag, present classes and present ids of one compound selector.
+fn reduce_compound(compound: &str, sheet: &ParsedStylesheet) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = compound.chars().collect();
+    let mut i = 0usize;
+    let mut first = true;
+    while i < chars.len() {
+        let c = chars[i];
+        match c {
+            ':' => {
+                // Skip the pseudo-class (and its parenthesised argument).
+                i += 1;
+                while i < chars.len() && chars[i] == ':' {
+                    i += 1;
+                }
+                while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '-') {
+                    i += 1;
+                }
+                if i < chars.len() && chars[i] == '(' {
+                    let mut depth = 0i32;
+                    while i < chars.len() {
+                        if chars[i] == '(' {
+                            depth += 1;
+                        } else if chars[i] == ')' {
+                            depth -= 1;
+                            if depth == 0 {
+                                i += 1;
+                                break;
+                            }
+                        }
+                        i += 1;
+                    }
+                }
+            }
+            '[' => {
+                while i < chars.len() && chars[i] != ']' {
+                    i += 1;
+                }
+                i += 1;
+            }
+            '.' | '#' => {
+                let start = i + 1;
+                let mut end = start;
+                while end < chars.len()
+                    && (chars[end].is_alphanumeric() || chars[end] == '-' || chars[end] == '_')
+                {
+                    end += 1;
+                }
+                let name: String = chars[start..end].iter().collect();
+                let present = if c == '.' {
+                    sheet.present_classes.contains(&name)
+                } else {
+                    sheet.present_ids.contains(&name)
+                };
+                if present && !name.is_empty() {
+                    out.push(c);
+                    out.push_str(&name);
+                }
+                i = end;
+            }
+            _ if first && (c.is_alphanumeric() || c == '*') => {
+                let start = i;
+                while i < chars.len()
+                    && (chars[i].is_alphanumeric() || chars[i] == '-' || chars[i] == '*')
+                {
+                    i += 1;
+                }
+                out.push_str(&chars[start..i].iter().collect::<String>());
+            }
+            _ => {
+                i += 1;
+            }
+        }
+        first = false;
+    }
+    if out.is_empty() {
+        "*".to_string()
+    } else {
+        out
+    }
 }
 
 fn extract_pseudo_target(sel: &str) -> (String, PseudoTarget) {
@@ -501,6 +743,46 @@ pub fn split_shorthand_values(val: &str) -> Vec<&str> {
     parts
 }
 
+/// First block of an imported design's `custom_css` (before the design's own stylesheet).
+///
+/// Daypress themes style the `.dp-*` classes every native block carries (text colour, section
+/// padding, button look, heading scale) and set a 15px root font size. On an imported design those
+/// defaults would show wherever the design does not set the property itself (and shrink every
+/// `rem`), so the import restores the browser's root size and resets the theme variables:
+/// `currentColor` / `0` where a neutral value exists, and `none` elsewhere. `none` is invalid for
+/// those properties, which makes the theme declaration compute as `unset` (inherit or initial),
+/// exactly as if the theme rule were not there.
+pub const IMPORTED_DESIGN_PRELUDE_CSS: &str = "/* Daypress HTML design import: the design's stylesheet below owns colour, spacing and type; theme element defaults step aside. */
+html { font-size: 100%; }
+:root, body {
+  --dp-color-text: currentColor;
+  --dp-section-padding: 0;
+  --dp-section-border: none;
+  --dp-color-heading: none;
+  --dp-heading-weight: bold;
+  --dp-heading-tracking: normal;
+  --dp-heading-line-height: normal;
+  --dp-h1-size: 2em; --dp-h2-size: 1.5em; --dp-h3-size: 1.17em; --dp-h4-size: 1em;
+  --dp-text-size: none;
+  --dp-text-line-height: none;
+  --dp-paragraph-gap: none;
+  --dp-image-radius: none;
+  --dp-flex-gap: normal;
+  --dp-grid-gap: normal;
+  --dp-column-gap: normal;
+  --dp-container-max-width: none;
+  --dp-button-bg: none;
+  --dp-button-hover-bg: none;
+  --dp-button-color: none;
+  --dp-button-font-size: none;
+  --dp-button-font-weight: none;
+  --dp-button-padding: none;
+  --dp-button-radius: none;
+  --dp-button-border: none;
+  --dp-font-accent: 0;
+}
+";
+
 /// Synthesizes an [`DaystudioKit`] (`DaypressLayout.global_styles`) from the parsed stylesheet.
 pub fn build_daystudio_kit(
     sheet: &ParsedStylesheet,
@@ -534,7 +816,7 @@ pub fn build_daystudio_kit(
     // 1. System Colors (primary, secondary, text, accent) + Custom Colors
     let primary_color = find_var_by_keys(
         &color_vars,
-        &["oxide", "primary", "brand", "accent-primary"],
+        &["oxide", "primary", "brand", "accent-primary", "accent"],
     )
     .unwrap_or_else(|| {
         color_vars
@@ -549,8 +831,11 @@ pub fn build_daystudio_kit(
     let text_color = find_var_by_keys(&color_vars, &["ink-2", "text", "body", "fg", "ink"])
         .unwrap_or_else(|| secondary_color.clone());
 
-    let accent_color = find_var_by_keys(&color_vars, &["forest", "accent", "amber", "oxide-deep"])
-        .unwrap_or_else(|| primary_color.clone());
+    let accent_color = find_var_by_keys(
+        &color_vars,
+        &["forest", "accent-2", "amber", "oxide-deep", "accent"],
+    )
+    .unwrap_or_else(|| primary_color.clone());
 
     let system_colors = vec![
         GlobalColor {
@@ -627,9 +912,17 @@ pub fn build_daystudio_kit(
     .or_else(|| sheet.google_font_families.get(1).cloned())
     .unwrap_or_else(|| "'Schibsted Grotesk', -apple-system, sans-serif".to_string());
 
+    // Without a monospace token the accent style uses the design's body face (instead of loading
+    // a font the design never asked for).
     let mono_font = find_var_by_keys(&font_vars, &["mono", "code", "font-mono"])
         .or_else(|| sheet.google_font_families.get(2).cloned())
-        .unwrap_or_else(|| "'IBM Plex Mono', monospace".to_string());
+        .unwrap_or_else(|| {
+            if font_vars.is_empty() && sheet.google_font_families.is_empty() {
+                "'IBM Plex Mono', monospace".to_string()
+            } else {
+                body_font.clone()
+            }
+        });
 
     let system_typography = vec![
         GlobalTypography {
@@ -714,6 +1007,8 @@ pub fn build_daystudio_kit(
         if !custom_css.is_empty() {
             custom_css.push('\n');
         }
+        custom_css.push_str(IMPORTED_DESIGN_PRELUDE_CSS);
+        custom_css.push('\n');
         custom_css.push_str(sheet.raw_css.trim());
     }
 
@@ -747,6 +1042,16 @@ pub fn resolve_element_styles(
     el: &DomElement,
     ancestors: &[&DomElement],
 ) -> StyleProperties {
+    resolve_element_styles_with_mask(sheet, el, ancestors).0
+}
+
+/// Like [`resolve_element_styles`], also returning the dynamic property mask (see
+/// [`dynamic_property_mask`]) so callers can avoid node kinds that inject layout inline.
+pub fn resolve_element_styles_with_mask(
+    sheet: &ParsedStylesheet,
+    el: &DomElement,
+    ancestors: &[&DomElement],
+) -> (StyleProperties, StyleProperties) {
     let mut styles = StyleProperties::default();
     if let Some(cls) = el.class_str() {
         styles.css_classes = Some(cls.to_string());
@@ -765,26 +1070,35 @@ pub fn resolve_element_styles(
     });
 
     for rule in matched {
-        let target_styles: &mut StyleProperties = match (rule.media, rule.pseudo) {
-            (MediaTarget::Desktop, PseudoTarget::None) => &mut styles,
-            (MediaTarget::Tablet, PseudoTarget::None) => styles
-                .tablet
-                .get_or_insert_with(|| Box::new(StyleProperties::default())),
-            (MediaTarget::Mobile, PseudoTarget::None) => styles
-                .mobile
-                .get_or_insert_with(|| Box::new(StyleProperties::default())),
-            (_, PseudoTarget::Hover) => styles
+        let target_styles: &mut StyleProperties = match rule.pseudo {
+            PseudoTarget::None => &mut styles,
+            PseudoTarget::Hover => styles
                 .hover
                 .get_or_insert_with(|| Box::new(StyleProperties::default())),
-            (_, PseudoTarget::Focus) => styles
+            PseudoTarget::Focus => styles
                 .focus
                 .get_or_insert_with(|| Box::new(StyleProperties::default())),
-            (_, PseudoTarget::Active) => styles
+            PseudoTarget::Active => styles
                 .active
                 .get_or_insert_with(|| Box::new(StyleProperties::default())),
         };
         for (prop, val) in &rule.declarations {
             apply_css_declaration(target_styles, prop, val);
+        }
+    }
+
+    // Properties a breakpoint or a state rule can change stay with the design CSS: baking them
+    // inline (or as `!important` overrides) would beat `:target`, `.nav-open`, `@media` etc.
+    let mask = dynamic_property_mask(sheet, el, ancestors);
+    if mask != StyleProperties::default() {
+        styles = without_masked_properties(styles, &mask);
+        for layer in [&mut styles.hover, &mut styles.focus, &mut styles.active] {
+            if let Some(inner) = layer.take() {
+                let cleaned = without_masked_properties(*inner, &mask);
+                if cleaned != StyleProperties::default() {
+                    *layer = Some(Box::new(cleaned));
+                }
+            }
         }
     }
 
@@ -796,7 +1110,158 @@ pub fn resolve_element_styles(
     }
 
     styles.sync_flat_and_nested();
-    styles
+    (styles, mask)
+}
+
+/// Collects (as a `StyleProperties` whose set fields name the properties) everything that
+/// breakpoint, conditional or state-dependent design rules may set on `el`.
+pub fn dynamic_property_mask(
+    sheet: &ParsedStylesheet,
+    el: &DomElement,
+    ancestors: &[&DomElement],
+) -> StyleProperties {
+    let mut mask = StyleProperties::default();
+    for rule in &sheet.dynamic_rules {
+        if selector_matches(&rule.selector, el, ancestors) {
+            for (prop, val) in &rule.declarations {
+                mask_declaration(&mut mask, prop, val);
+            }
+        }
+    }
+    mask
+}
+
+/// Records the longhand fields a declaration (including shorthands and logical properties the
+/// baker ignores) would set.
+fn mask_declaration(mask: &mut StyleProperties, prop: &str, val: &str) {
+    let any = || Some(String::from("1"));
+    match prop {
+        "inset" => {
+            mask.top = any();
+            mask.right = any();
+            mask.bottom = any();
+            mask.left = any();
+        }
+        "inset-block" | "inset-block-start" | "inset-block-end" => {
+            mask.top = any();
+            mask.bottom = any();
+        }
+        "inset-inline" | "inset-inline-start" | "inset-inline-end" => {
+            mask.left = any();
+            mask.right = any();
+        }
+        p if p.starts_with("padding-block") => {
+            mask.padding_top = any();
+            mask.padding_bottom = any();
+        }
+        p if p.starts_with("padding-inline") => {
+            mask.padding_left = any();
+            mask.padding_right = any();
+        }
+        p if p.starts_with("margin-block") => {
+            mask.margin_top = any();
+            mask.margin_bottom = any();
+        }
+        p if p.starts_with("margin-inline") => {
+            mask.margin_left = any();
+            mask.margin_right = any();
+        }
+        p if p.starts_with("border-block") => {
+            mask.border_top = any();
+            mask.border_bottom = any();
+            mask.border_width = any();
+            mask.border_style = any();
+            mask.border_color = any();
+        }
+        p if p.starts_with("border-inline") => {
+            mask.border_left = any();
+            mask.border_right = any();
+            mask.border_width = any();
+            mask.border_style = any();
+            mask.border_color = any();
+        }
+        "border" | "border-top" | "border-right" | "border-bottom" | "border-left"
+        | "border-width" | "border-style" | "border-color" => {
+            apply_css_declaration(mask, prop, val);
+            // A side (or the whole border) changing makes the shorthand parts dynamic too.
+            mask.border_width = any();
+            mask.border_style = any();
+            mask.border_color = any();
+            if prop == "border" {
+                mask.border_top = any();
+                mask.border_right = any();
+                mask.border_bottom = any();
+                mask.border_left = any();
+            }
+        }
+        p if p.starts_with("border-") && p.ends_with("-color") => {
+            mask.border_color = any();
+            let side = p.trim_start_matches("border-").trim_end_matches("-color");
+            match side {
+                "top" => mask.border_top = any(),
+                "right" => mask.border_right = any(),
+                "bottom" => mask.border_bottom = any(),
+                "left" => mask.border_left = any(),
+                _ => {}
+            }
+        }
+        "background" | "background-color" | "background-image" => {
+            mask.background_color = any();
+            mask.background_gradient = any();
+            mask.background_image = any();
+        }
+        "font" => {
+            mask.font_family = any();
+            mask.font_size = any();
+            mask.font_weight = any();
+            mask.font_style = any();
+            mask.line_height = any();
+        }
+        "flex-flow" => {
+            mask.flex_direction = any();
+            mask.flex_wrap = any();
+        }
+        "place-items" => {
+            mask.align_items = any();
+            mask.justify_items = any();
+        }
+        "place-content" => mask.justify_content = any(),
+        "place-self" | "justify-self" => mask.align_self = any(),
+        "grid-template" | "grid" => {
+            mask.grid_template_columns = any();
+            mask.grid_template_rows = any();
+        }
+        "grid-area" => {
+            mask.grid_column = any();
+            mask.grid_row = any();
+        }
+        "gap" | "grid-gap" | "column-gap" | "row-gap" | "grid-column-gap" | "grid-row-gap" => {
+            mask.gap = any();
+            mask.grid_gap = any();
+        }
+        "text-decoration-line" | "text-decoration-color" | "text-decoration-thickness" => {
+            mask.text_decoration = any()
+        }
+        _ => apply_css_declaration(mask, prop, val),
+    }
+}
+
+/// Returns `styles` without the flat properties set in `mask`.
+fn without_masked_properties(styles: StyleProperties, mask: &StyleProperties) -> StyleProperties {
+    let (Ok(serde_json::Value::Object(mut map)), Ok(serde_json::Value::Object(mask_map))) =
+        (serde_json::to_value(&styles), serde_json::to_value(mask))
+    else {
+        return styles;
+    };
+    for key in mask_map.keys() {
+        if !matches!(
+            key.as_str(),
+            "tablet" | "mobile" | "hover" | "focus" | "active" | "css_classes" | "html_tag"
+        ) {
+            map.remove(key);
+        }
+    }
+    serde_json::from_value(serde_json::Value::Object(map)).unwrap_or(styles)
 }
 
 /// Applies a single CSS declaration (`property: value`) onto a [`StyleProperties`].
@@ -809,11 +1274,20 @@ pub fn apply_css_declaration(styles: &mut StyleProperties, prop: &str, val: &str
         "grid-row" => styles.grid_row = Some(val.to_string()),
         "grid-auto-flow" => styles.grid_auto_flow = Some(val.to_string()),
         "justify-items" => styles.justify_items = Some(val.to_string()),
-        "gap" | "grid-gap" | "column-gap" | "row-gap" => {
-            if prop == "gap" || styles.gap.is_none() {
-                styles.gap = Some(val.to_string());
-                styles.grid_gap = Some(val.to_string());
-            }
+        "gap" | "grid-gap" => {
+            styles.gap = Some(val.to_string());
+            styles.grid_gap = Some(val.to_string());
+        }
+        "column-gap" | "grid-column-gap" | "row-gap" | "grid-row-gap" => {
+            // Keep the other axis: `column-gap: 32px` alone is `gap: normal 32px`, not `gap: 32px`.
+            let (row, col) = split_gap(styles.gap.as_deref());
+            let combined = if prop.contains("column") {
+                format!("{row} {val}")
+            } else {
+                format!("{val} {col}")
+            };
+            styles.gap = Some(combined.clone());
+            styles.grid_gap = Some(combined);
         }
         "flex-direction" => styles.flex_direction = Some(val.to_string()),
         "flex-wrap" => styles.flex_wrap = Some(val.to_string()),
@@ -937,6 +1411,19 @@ pub fn apply_css_declaration(styles: &mut StyleProperties, prop: &str, val: &str
         "filter" => styles.filter = Some(val.to_string()),
         "cursor" => styles.cursor = Some(val.to_string()),
         _ => {}
+    }
+}
+
+/// Splits a `gap` value into its row and column parts (`normal` when unset).
+fn split_gap(gap: Option<&str>) -> (String, String) {
+    let Some(g) = gap.map(str::trim).filter(|g| !g.is_empty()) else {
+        return ("normal".to_string(), "normal".to_string());
+    };
+    let parts = split_shorthand_values(g);
+    match parts.as_slice() {
+        [both] => (both.to_string(), both.to_string()),
+        [row, col, ..] => (row.to_string(), col.to_string()),
+        [] => ("normal".to_string(), "normal".to_string()),
     }
 }
 
@@ -1086,10 +1573,21 @@ fn compound_matches(compound: &str, el: &DomElement) -> bool {
 fn is_color_value(val: &str) -> bool {
     let lower = val.to_ascii_lowercase();
     (lower.starts_with('#') && matches!(lower.len(), 4 | 5 | 7 | 9))
-        || lower.starts_with("rgb(")
-        || lower.starts_with("rgba(")
-        || lower.starts_with("hsl(")
-        || lower.starts_with("hsla(")
+        || [
+            "rgb(",
+            "rgba(",
+            "hsl(",
+            "hsla(",
+            "hwb(",
+            "lab(",
+            "lch(",
+            "oklab(",
+            "oklch(",
+            "color(",
+            "color-mix(",
+        ]
+        .iter()
+        .any(|f| lower.starts_with(f))
 }
 
 fn is_font_family_var(key: &str, val: &str) -> bool {
@@ -1114,9 +1612,18 @@ fn parse_px_u32(val: &str) -> Option<u32> {
     digits.parse::<u32>().ok()
 }
 
+/// Finds the first variable whose name matches one of `keys`, also accepting the common
+/// `color-` / `colour-` / `clr-` / `font-` name prefixes (`--color-ink-2`, `--font-display`).
 fn find_var_by_keys(vars: &[(String, String)], keys: &[&str]) -> Option<String> {
+    let bare = |k: &str| -> String {
+        ["color-", "colour-", "clr-", "font-"]
+            .iter()
+            .find_map(|p| k.strip_prefix(p))
+            .unwrap_or(k)
+            .to_string()
+    };
     for target in keys {
-        if let Some((_, v)) = vars.iter().find(|(k, _)| k == target) {
+        if let Some((_, v)) = vars.iter().find(|(k, _)| k == target || bare(k) == *target) {
             return Some(v.clone());
         }
     }

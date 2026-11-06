@@ -10,56 +10,56 @@ pub const CSS_ELEMENTS: &str = r#"
 		   Canonical Daypress AST Element System (:where(.dp-*))
 		   Zero-specificity rules parameterized via --dp-* custom properties
 		   ========================================================================== */
-		:where(.dp-section) {
+		:where(.dp-section:not(.dp-design, .dp-design *)) {
 			width: 100%;
 			padding: var(--dp-section-padding, 64px 24px);
 			position: relative;
 			border-bottom: var(--dp-section-border, 1px solid var(--border-subtle, transparent));
 		}
 
-		:where(.dp-container) {
+		:where(.dp-container:not(.dp-design, .dp-design *)) {
 			max-width: var(--dp-container-max-width, 1200px);
 			margin: var(--dp-container-margin, 0 auto);
 			width: var(--dp-container-width, 100%);
 		}
 
-		:where(.dp-container .dp-container),
-		:where(.dp-grid > .dp-container),
-		:where(.dp-flex > .dp-container),
-		:where(.dp-column > .dp-container) {
+		:where(.dp-container .dp-container:not(.dp-design, .dp-design *)),
+		:where(.dp-grid > .dp-container:not(.dp-design, .dp-design *)),
+		:where(.dp-flex > .dp-container:not(.dp-design, .dp-design *)),
+		:where(.dp-column > .dp-container:not(.dp-design, .dp-design *)) {
 			max-width: var(--dp-nested-container-max-width, none);
 			margin: var(--dp-nested-container-margin, 0);
 			width: var(--dp-nested-container-width, auto);
 		}
 
-		:where(.dp-grid) {
+		:where(.dp-grid:not(.dp-design, .dp-design *)) {
 			display: grid;
 			gap: var(--dp-grid-gap, 24px);
 			width: 100%;
 		}
 
-		:where(.dp-flex) {
+		:where(.dp-flex:not(.dp-design, .dp-design *)) {
 			display: flex;
 			gap: var(--dp-flex-gap, 20px);
 		}
 
-		:where(.dp-section:has(> .dp-flex + .dp-flex)),
-		:where(.dp-container:has(> .dp-flex + .dp-flex)) {
+		:where(.dp-section:has(> .dp-flex + .dp-flex):not(.dp-design, .dp-design *)),
+		:where(.dp-container:has(> .dp-flex + .dp-flex):not(.dp-design, .dp-design *)) {
 			display: flex;
 			flex-direction: row;
 			gap: 28px;
 			align-items: flex-start;
 		}
 
-		:where(.dp-section > .dp-flex + .dp-flex),
-		:where(.dp-section > .dp-flex:has(+ .dp-flex)),
-		:where(.dp-container > .dp-flex + .dp-flex),
-		:where(.dp-container > .dp-flex:has(+ .dp-flex)) {
+		:where(.dp-section > .dp-flex + .dp-flex:not(.dp-design, .dp-design *)),
+		:where(.dp-section > .dp-flex:has(+ .dp-flex):not(.dp-design, .dp-design *)),
+		:where(.dp-container > .dp-flex + .dp-flex:not(.dp-design, .dp-design *)),
+		:where(.dp-container > .dp-flex:has(+ .dp-flex):not(.dp-design, .dp-design *)) {
 			flex: 1 1 0%;
 			min-width: 0;
 		}
 
-		:where(.dp-column) {
+		:where(.dp-column:not(.dp-design, .dp-design *)) {
 			display: flex;
 			flex-direction: column;
 			gap: var(--dp-column-gap, 16px);

@@ -7,6 +7,8 @@
 //! Drives the core [`CmsService`] exclusively through the Hexagonal Input Ports
 //! ([`ContentUseCase`], [`MigrationUseCase`], [`SettingsUseCase`]).
 
+mod html_import;
+
 use crate::application::CmsService;
 use crate::domain::errors::DomainError;
 use crate::domain::models::{CreatePostRequest, ImportBundleRequest, UpdatePostRequest};
@@ -105,7 +107,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_get_post_layout",
-                "description": "Get the unified DaypressLayout AST JSON for a visual-builder page or post.",
+                "description": "Get the unified DaypressLayout AST for a visual-builder page or post. Returns {\"post_id\", \"layout_json\"} where `layout_json` is the layout as a JSON string (parse it; pass the parsed object as `layout` to daypress_save_template).",
                 "inputSchema": {
                     "type": "object",
                     "required": ["post_id"],
@@ -128,7 +130,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_import_html_design",
-                "description": "Import a complete HTML/CSS design document into 100% native DayStudio AST blocks (zero CustomHtml fallbacks), extract <header>/<footer> chrome, populate DaystudioKit global design tokens, and compile SSR HTML in one call.",
+                "description": "Import a complete HTML/CSS design document in one call: the page becomes 100% native DayStudio AST blocks (zero CustomHtml fallbacks) with the design's stylesheet in its DaystudioKit; the body-level <header> (everything before <main>) and <footer> (everything after it, e.g. a mobile call bar) become active, site-wide 'header'/'footer' theme templates titled '{site_name} header'/'{site_name} footer'; every <form> becomes a FormStudio form titled '{site_name}: {submit label}' (fields from labels, names, required, placeholders and options; checkbox groups -> checkbox_group, file inputs -> file) rendered with the design's own field markup, so submissions land in the Submissions Vault. Re-importing updates the same page, templates and forms instead of duplicating them. Scripts are not imported (tabs, carousels, script menus need native equivalents).",
                 "inputSchema": {
                     "type": "object",
                     "required": ["html"],
@@ -137,8 +139,10 @@ pub fn mcp_tools_manifest() -> Value {
                         "post_id": { "type": "integer", "description": "Existing post/page ID to update (if omitted, matches by slug or creates a new page)" },
                         "title": { "type": "string", "description": "Optional page title override" },
                         "slug": { "type": "string", "description": "Optional page slug (defaults to 'home' when set_as_front_page is true)" },
+                        "site_name": { "type": "string", "description": "Name used for the header/footer template and form titles (defaults to the last segment of the design's <title>, e.g. 'Grezzo')" },
                         "post_type": { "type": "string", "default": "page" },
-                        "extract_header_footer": { "type": "boolean", "default": true },
+                        "extract_header_footer": { "type": "boolean", "default": true, "description": "Save the design's header and footer as site-wide theme templates (false keeps them in the page)" },
+                        "extract_forms": { "type": "boolean", "default": true, "description": "Turn <form> elements into FormStudio forms + Form blocks" },
                         "set_as_front_page": { "type": "boolean", "default": false }
                     }
                 }
@@ -309,7 +313,7 @@ pub fn mcp_tools_manifest() -> Value {
                         "status": { "type": "string", "default": "publish" },
                         "priority": { "type": "integer", "default": 10 },
                         "is_active": { "type": "boolean", "default": true },
-                        "layout": { "type": "object", "description": "DaypressLayout AST JSON object" },
+                        "layout": { "type": "object", "description": "DaypressLayout AST JSON object with a `root` node ({\"version\": 1, \"root\": {\"id\": \"root\", \"type\": \"Root\", \"children\": [...]}}); a layout without `root` is rejected" },
                         "settings": { "type": "object", "description": "Optional TemplateSettings (e.g. popup_variant, trigger, dismiss_days)" },
                         "conditions": { "type": "array", "description": "Optional array of CreateConditionDto rules" }
                     }
@@ -602,6 +606,52 @@ pub fn handle_mcp_rpc(service: &CmsService, req: JsonRpcRequest) -> JsonRpcRespo
     }
 }
 
+/// `daypress_save_template` layouts must be a `DaypressLayout` with a `root` node object.
+///
+/// Without this check a layout missing `root` (for example a bare node, or the
+/// `{"post_id", "layout_json"}` wrapper `daypress_get_post_layout` returns) deserializes to an
+/// empty default layout and the template silently renders nothing.
+fn validate_template_layout_args(args: &Value) -> Result<(), DomainError> {
+    for key in ["layout", "layout_json"] {
+        let Some(raw) = args.get(key).filter(|v| !v.is_null()) else {
+            continue;
+        };
+        let parsed;
+        let value = match raw {
+            Value::String(s) => {
+                parsed = serde_json::from_str::<Value>(s).map_err(|e| {
+                    DomainError::Validation(format!("'{key}' is not valid JSON: {e}"))
+                })?;
+                &parsed
+            }
+            other => other,
+        };
+        let root = value.get("root").filter(|r| r.is_object()).ok_or_else(|| {
+            let hint = if value.get("layout_json").is_some() {
+                " (pass the inner `layout_json` value from daypress_get_post_layout, not the whole response)"
+            } else {
+                ""
+            };
+            DomainError::Validation(format!(
+                "'{key}' must be a DaypressLayout object with a `root` node, e.g. {{\"version\": 1, \"root\": {{\"id\": \"root\", \"type\": \"Root\", \"children\": [...]}}}}{hint}"
+            ))
+        })?;
+        if root
+            .get("type")
+            .and_then(Value::as_str)
+            .map_or(true, str::is_empty)
+        {
+            return Err(DomainError::Validation(format!(
+                "'{key}.root' must have a `type` (usually \"Root\")"
+            )));
+        }
+        serde_json::from_value::<daypress_ast::DaypressLayout>(value.clone()).map_err(|e| {
+            DomainError::Validation(format!("'{key}' is not a valid DaypressLayout: {e}"))
+        })?;
+    }
+    Ok(())
+}
+
 fn dispatch_tool_call(
     service: &CmsService,
     tool_name: &str,
@@ -670,110 +720,7 @@ fn dispatch_tool_call(
             service.update_layout_ast(post_id, layout_json)?;
             Ok(json!({ "success": true, "post_id": post_id }))
         }
-        "daypress_import_html_design" => {
-            let html = args
-                .get("html")
-                .and_then(Value::as_str)
-                .ok_or_else(|| DomainError::Validation("'html' is required".into()))?;
-            if html.trim().is_empty() {
-                return Err(DomainError::Validation("'html' cannot be empty".into()));
-            }
-            let extract_header_footer = args
-                .get("extract_header_footer")
-                .and_then(Value::as_bool)
-                .unwrap_or(true);
-            let set_as_front_page = args
-                .get("set_as_front_page")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let post_type = args
-                .get("post_type")
-                .and_then(Value::as_str)
-                .unwrap_or("page");
-
-            let imported = daypress_ast::transpile_html_document(
-                html,
-                &daypress_ast::HtmlDesignImportOptions {
-                    extract_header_footer,
-                },
-            );
-
-            let resolved_title = args
-                .get("title")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(String::from)
-                .or_else(|| imported.title.clone())
-                .unwrap_or_else(|| "Imported Design".to_string());
-
-            let resolved_slug = args
-                .get("slug")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(String::from)
-                .unwrap_or_else(|| {
-                    if set_as_front_page {
-                        "home".to_string()
-                    } else {
-                        generated_slugify::slugify(&resolved_title)
-                    }
-                });
-
-            let target_post_id = if let Some(pid) = args.get("post_id").and_then(Value::as_i64) {
-                pid
-            } else if let Ok(existing) = service.get_content_by_slug(&resolved_slug) {
-                existing.id
-            } else {
-                let created = service.publish_content(CreatePostRequest {
-                    title: resolved_title.clone(),
-                    content: "<p>Importing native design...</p>".to_string(),
-                    slug: Some(resolved_slug.clone()),
-                    status: "publish".to_string(),
-                    post_type: post_type.to_string(),
-                    ..Default::default()
-                })?;
-                created.id
-            };
-
-            if extract_header_footer {
-                if let Some(ref header) = imported.header_html {
-                    service.update_site_option("elementor_header_html", header)?;
-                }
-                if let Some(ref footer) = imported.footer_html {
-                    service.update_site_option("elementor_footer_html", footer)?;
-                }
-            }
-
-            if let Some(ref kit) = imported.kit {
-                let kit_css = kit.compile_to_css();
-                service.update_site_option("elementor_kit_css", &kit_css)?;
-            }
-
-            let layout_json = serde_json::to_string(&imported.layout).map_err(|e| {
-                DomainError::Internal(format!("Failed to serialize transpiled AST: {e}"))
-            })?;
-            service.update_layout_ast(target_post_id, &layout_json)?;
-
-            if set_as_front_page {
-                service.update_site_option("show_on_front", "page")?;
-                service.update_site_option("page_on_front", &target_post_id.to_string())?;
-            }
-
-            Ok(json!({
-                "status": "imported",
-                "post_id": target_post_id,
-                "title": resolved_title,
-                "slug": resolved_slug,
-                "node_count": imported.node_count,
-                "token_count": imported.token_count,
-                "custom_html_nodes": 0,
-                "header_extracted": imported.header_html.is_some(),
-                "footer_extracted": imported.footer_html.is_some(),
-                "set_as_front_page": set_as_front_page
-            }))
-        }
+        "daypress_import_html_design" => html_import::import_html_design(service, &args),
         "daypress_update_global_styles" => {
             let gs_val = args
                 .get("global_styles")
@@ -1006,6 +953,7 @@ fn dispatch_tool_call(
             Ok(Value::Array(templates))
         }
         "daypress_save_template" => {
+            validate_template_layout_args(&args)?;
             let saved = service
                 .options_repo()
                 .save_theme_template_from_json(&args)?;
@@ -1458,5 +1406,247 @@ mod tests {
             assert!(!post.content.rendered.is_empty());
             assert!(!post.content.rendered.contains("contenteditable"));
         }
+    }
+
+    fn call_tool(service: &CmsService, name: &str, arguments: Value) -> (bool, String) {
+        let resp = handle_mcp_rpc(
+            service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(1)),
+                method: "tools/call".into(),
+                params: json!({ "name": name, "arguments": arguments }),
+            },
+        );
+        let res = resp.result.expect("MCP result");
+        (
+            res["isError"].as_bool().unwrap_or(true),
+            res["content"][0]["text"].as_str().unwrap_or("").to_string(),
+        )
+    }
+
+    const AGENCY_DESIGN: &str = r##"<!doctype html><html><head><title>Werkwijze | Studio Noord</title>
+<style>
+:root { --ink: #111; }
+.site-header { position: absolute; inset: 0 0 auto 0; }
+.nav { display: flex; gap: 24px; }
+@media (max-width: 60rem) { .nav { display: none; } .nav-open .nav { display: block; } }
+.field { display: flex; flex-direction: column; }
+</style></head><body>
+<header class="site-header"><a class="brand" href="/">Studio Noord</a><nav class="nav" id="menu"><a href="/">Home</a></nav></header>
+<main>
+<section class="hero"><h1>Werkwijze</h1></section>
+<section class="contact"><form action="https://formspree.io/f/x" method="POST">
+<input type="hidden" name="_subject" value="Nieuwe aanvraag">
+<div class="field"><label for="n">Naam</label><input id="n" name="naam" required></div>
+<fieldset><legend>Interesse</legend><label><input type="checkbox" name="interesse[]" value="Keuken"> Keuken</label><label><input type="checkbox" name="interesse[]" value="Deur"> Deur</label></fieldset>
+<div class="field"><label for="f">Bijlage</label><input type="file" id="f" name="bijlage" accept=".pdf"></div>
+<button type="submit">Verstuur</button>
+<div class="ok" role="status" hidden>Bedankt!</div>
+</form></section>
+</main>
+<footer class="site-footer"><p>Studio Noord</p></footer>
+</body></html>"##;
+
+    fn form_ids_in(node: &daypress_ast::DaypressNode, out: &mut Vec<i64>) {
+        if let daypress_ast::NodeKind::Form { form_id, .. } = node.kind {
+            out.push(form_id);
+        }
+        for c in &node.children {
+            form_ids_in(c, out);
+        }
+    }
+
+    #[test]
+    fn import_html_design_creates_templates_and_forms_and_updates_them_on_reimport() {
+        let db = Database::new_in_memory().expect("in-memory db");
+        let service = CmsService::from_adapter(db);
+
+        let (err, text) = call_tool(
+            &service,
+            "daypress_import_html_design",
+            json!({ "html": AGENCY_DESIGN, "set_as_front_page": true }),
+        );
+        assert!(!err, "{text}");
+        let first: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(first["site_name"], "Studio Noord");
+        assert_eq!(first["header_template"]["title"], "Studio Noord header");
+        assert_eq!(first["header_template"]["status"], "created");
+        assert_eq!(first["footer_template"]["title"], "Studio Noord footer");
+        assert_eq!(first["forms"][0]["title"], "Studio Noord: Verstuur");
+        assert_eq!(first["forms"][0]["status"], "created");
+        let form_id = first["forms"][0]["id"].as_i64().unwrap();
+        assert!(form_id > 0);
+
+        // Templates: active, shown on the entire site, native blocks (no raw HTML).
+        let templates = service.options_repo().list_theme_templates(None).unwrap();
+        assert_eq!(templates.len(), 2);
+        for t in &templates {
+            assert_eq!(t["is_active"], true);
+            assert_eq!(t["conditions"][0]["rule_target"], "entire_site");
+            let layout: daypress_ast::DaypressLayout =
+                serde_json::from_value(t["layout"].clone()).unwrap();
+            assert_eq!(count_custom_html(&layout.root), 0);
+        }
+        let header = templates
+            .iter()
+            .find(|t| t["template_type"] == "header")
+            .unwrap();
+        let header_html = header["rendered_html"].as_str().unwrap();
+        assert!(
+            header_html.contains("site-header dp-design"),
+            "{header_html}"
+        );
+        assert!(
+            header_html.contains("daypress-kit-css"),
+            "the header carries the design CSS"
+        );
+        // Nothing goes to the never-rendered legacy chrome options any more.
+        assert!(service
+            .get_site_option("elementor_header_html")
+            .unwrap()
+            .is_none());
+
+        // FormStudio form built from the markup.
+        let form = service
+            .options_repo()
+            .get_form_by_id(form_id)
+            .unwrap()
+            .unwrap();
+        let fields: Vec<Value> = serde_json::from_str(&form.schema_json).unwrap();
+        let kinds: Vec<(String, String)> = fields
+            .iter()
+            .map(|f| {
+                (
+                    f["name"].as_str().unwrap().into(),
+                    f["field_type"].as_str().unwrap().into(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                ("naam".to_string(), "text".to_string()),
+                ("interesse".to_string(), "checkbox_group".to_string()),
+                ("bijlage".to_string(), "file".to_string()),
+            ]
+        );
+        assert_eq!(fields[0]["required"], true);
+        assert_eq!(fields[1]["options"], json!(["Keuken", "Deur"]));
+        assert_eq!(fields[2]["accept_extensions"], "pdf");
+        let settings: Value = serde_json::from_str(&form.settings_json).unwrap();
+        assert_eq!(settings["submit_label"], "Verstuur");
+        assert_eq!(settings["success_message"], "Bedankt!");
+        assert_eq!(settings["email_subject_template"], "Nieuwe aanvraag");
+
+        // The page's Form node points at the saved form.
+        let post_id = first["post_id"].as_i64().unwrap();
+        let layout: daypress_ast::DaypressLayout =
+            serde_json::from_str(&service.get_layout_ast(post_id).unwrap().unwrap()).unwrap();
+        let mut ids = Vec::new();
+        form_ids_in(&layout.root, &mut ids);
+        assert_eq!(ids, vec![form_id]);
+        let rendered = daypress_ast::render_node_to_html(&layout.root);
+        assert!(rendered.contains(&format!("/wp-json/daypress/v1/forms/{form_id}/submit")));
+        assert!(!rendered.contains("site-header"));
+
+        let forms_after_first = service.options_repo().list_forms().unwrap().len();
+
+        // Someone sets a recipient; a re-import updates in place and keeps it.
+        let mut s: crate::domain::models::FormSettings =
+            serde_json::from_str(&form.settings_json).unwrap();
+        s.recipient_email = "info@example.test".into();
+        service
+            .options_repo()
+            .save_form_record(&crate::domain::models::CreateFormRequest {
+                id: Some(form_id),
+                title: form.title.clone(),
+                fields: serde_json::from_str(&form.schema_json).unwrap(),
+                settings: s,
+            })
+            .unwrap();
+
+        let (err, text) = call_tool(
+            &service,
+            "daypress_import_html_design",
+            json!({ "html": AGENCY_DESIGN, "set_as_front_page": true }),
+        );
+        assert!(!err, "{text}");
+        let second: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(second["post_id"], first["post_id"]);
+        assert_eq!(second["header_template"]["status"], "updated");
+        assert_eq!(
+            second["header_template"]["id"],
+            first["header_template"]["id"]
+        );
+        assert_eq!(second["footer_template"]["status"], "updated");
+        assert_eq!(second["forms"][0]["status"], "updated");
+        assert_eq!(second["forms"][0]["id"].as_i64(), Some(form_id));
+        assert_eq!(
+            service
+                .options_repo()
+                .list_theme_templates(None)
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            service.options_repo().list_forms().unwrap().len(),
+            forms_after_first
+        );
+        let kept = service
+            .options_repo()
+            .get_form_by_id(form_id)
+            .unwrap()
+            .unwrap();
+        assert!(kept.settings_json.contains("info@example.test"));
+    }
+
+    #[test]
+    fn save_template_rejects_a_layout_without_root() {
+        let db = Database::new_in_memory().expect("in-memory db");
+        let service = CmsService::from_adapter(db);
+
+        // A bare node instead of a layout.
+        let (err, text) = call_tool(
+            &service,
+            "daypress_save_template",
+            json!({ "title": "Broken", "template_type": "header",
+                    "layout": { "id": "x", "type": "Section", "children": [] } }),
+        );
+        assert!(err);
+        assert!(text.contains("`root`"), "{text}");
+
+        // The whole daypress_get_post_layout response instead of its `layout_json`.
+        let (err, text) = call_tool(
+            &service,
+            "daypress_save_template",
+            json!({ "title": "Broken", "template_type": "header",
+                    "layout": { "post_id": 4, "layout_json": "{}" } }),
+        );
+        assert!(err);
+        assert!(text.contains("layout_json"), "{text}");
+
+        // `layout_json` given as a string is checked too.
+        let (err, _) = call_tool(
+            &service,
+            "daypress_save_template",
+            json!({ "title": "Broken", "template_type": "footer", "layout_json": "{\"version\":1}" }),
+        );
+        assert!(err);
+        assert!(service
+            .options_repo()
+            .list_theme_templates(None)
+            .unwrap()
+            .is_empty());
+
+        let (err, text) = call_tool(
+            &service,
+            "daypress_save_template",
+            json!({ "title": "Good", "template_type": "footer",
+                    "layout": { "version": 1, "root": { "id": "root", "type": "Root", "children": [
+                        { "id": "t", "type": "Text", "data": { "content_html": "Hi" }, "styles": {} } ] } } }),
+        );
+        assert!(!err, "{text}");
     }
 }

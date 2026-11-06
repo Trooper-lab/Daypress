@@ -61,10 +61,10 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			border-bottom: none;
 		}
 
-		.dp-visual-canvas .dp-container,
-		.dp-daystudio-header .dp-container,
-		.dp-daystudio-footer .dp-container,
-		.dp-popup-modal .dp-container {
+		.dp-visual-canvas .dp-container:not(:where(.dp-design, .dp-design *)),
+		.dp-daystudio-header .dp-container:not(:where(.dp-design, .dp-design *)),
+		.dp-daystudio-footer .dp-container:not(:where(.dp-design, .dp-design *)),
+		.dp-popup-modal .dp-container:not(:where(.dp-design, .dp-design *)) {
 			max-width: 100%;
 			margin: 0;
 			position: relative;
@@ -92,8 +92,8 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			min-height: inherit;
 		}
 
-		.dp-container[style*="flex-direction: row"] > .dp-container:not([style*="width:"]),
-		.dp-container[style*="flex-direction: row"] > .dp-container-inner > .dp-container:not([style*="width:"]) {
+		.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container:not([style*="width:"]),
+		.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container-inner > .dp-container:not([style*="width:"]) {
 			flex: 1 1 0%;
 			min-width: 0;
 		}
@@ -347,19 +347,19 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			.dp-daystudio-form-grid .dp-field-w50 {
 				width: 100%;
 			}
-			.dp-container[style*="flex-direction: row"],
-			.dp-container[style*="flex-direction: row"] > .dp-container-inner {
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)),
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container-inner {
 				flex-wrap: wrap;
 			}
-			.dp-container[style*="flex-direction: row"] > .dp-container,
-			.dp-container[style*="flex-direction: row"] > .dp-container-inner > .dp-container {
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container,
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container-inner > .dp-container {
 				width: 100% !important;
 				flex: 1 1 100% !important;
 			}
 		}
 
 		@media (max-width: 900px) {
-			.footer-grid, .dp-grid {
+			.footer-grid, .dp-grid:not(:where(.dp-design, .dp-design *)) {
 				grid-template-columns: 1fr !important;
 			}
 			nav.day-nav {

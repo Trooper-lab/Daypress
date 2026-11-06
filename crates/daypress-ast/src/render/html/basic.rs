@@ -80,8 +80,16 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
         NodeKind::Button { text, url, target } => {
             let cls = with_extra_classes("dp-button", extra_cls);
             if node.styles.html_tag.as_deref() == Some("button") && url.is_empty() {
+                // A `<button>` has no link target, so `target` carries its type: "submit" and
+                // "reset" act on the enclosing form; anything else is a plain button.
+                let button_type = match target.as_str() {
+                    "submit" => "submit",
+                    "reset" => "reset",
+                    _ => "button",
+                };
                 Some(format!(
-                    "<button type=\"button\" class=\"{}\" id=\"{}\"{}>{}</button>",
+                    "<button type=\"{}\" class=\"{}\" id=\"{}\"{}>{}</button>",
+                    button_type,
                     escape_attr(&cls),
                     escape_attr(&node.id),
                     style_attr,

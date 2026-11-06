@@ -201,11 +201,11 @@ async fn test_builder_canvas_matches_public_header_and_grid_columns() {
         "nav styles must reach the canvas"
     );
     assert!(
-        css.contains(".dp-grid {"),
+        css.contains(".dp-grid:not(:where(.dp-design, .dp-design *)) {"),
         "grid styles must reach the canvas"
     );
     assert!(
-        css.contains(".dp-section {"),
+        css.contains(".dp-section:not(:where(.dp-design, .dp-design *)) {"),
         "section styles must reach the canvas"
     );
     assert!(
@@ -222,7 +222,7 @@ async fn test_builder_canvas_matches_public_header_and_grid_columns() {
     );
     // Desktop artboard keeps window breakpoints (3 columns on a desktop screen, like public SSR)
     assert!(
-        css.contains(":where(:scope.artboard-desktop) .dp-grid {"),
+        css.contains(":where(:scope.artboard-desktop) .dp-grid:not(:where(.dp-design, .dp-design *)) {"),
         "the 1-column grid breakpoint must only follow the window on the desktop artboard"
     );
     // Tablet/mobile artboards answer the same breakpoints by their own width

@@ -25,8 +25,8 @@ pub use fidelity::{analyze_post_fidelity, detect_builder, transpile_content, Ast
 pub use gutenberg::theme_json::{self, compile_theme_json_to_css, parse_theme_json, ThemeJson};
 pub use gutenberg::{transpile_gutenberg_content, transpile_gutenberg_content_with_context};
 pub use html_transpiler::{
-    transpile_html_document, transpile_html_to_layout, HtmlDesignImportOptions,
-    HtmlDesignImportResult,
+    replace_form_placeholders, transpile_html_document, transpile_html_to_layout,
+    HtmlDesignImportOptions, HtmlDesignImportResult, ImportedForm, ImportedFormField,
 };
 pub use kit::{
     parse_php_serialized_to_json, ButtonStyle, DaystudioKit, GlobalColor, GlobalTypography,
