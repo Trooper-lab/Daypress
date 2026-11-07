@@ -163,7 +163,7 @@ pub fn render_admin_shell(
 			<a href="/d-admin/" class="desk-wordmark" aria-label="Daypress desk"><span class="day-dot" aria-hidden="true"></span>daypress</a>
 			<a href="/" target="_blank" rel="noopener" class="desk-site" title="View the site">{site_name} &nearr;</a>
 		</div>
-		<button type="button" class="desk-search" onclick="dayOpenQuickSearch()">Search <kbd>Ctrl K</kbd></button>
+		<button type="button" class="desk-search" onclick="dayOpenQuickSearch()"><span>Search</span> <kbd>Ctrl K</kbd></button>
 		<nav class="sidebar-nav">
 			<!-- 1. DASHBOARD -->
 			<div class="nav-group {is_dash_open}">
@@ -361,6 +361,10 @@ pub fn render_admin_shell(
 				<a href="/login?action=logout" class="desk-logout">{nav_logout}</a>
 			</div>
 			<div class="desk-version">v{version} &middot; single binary</div>
+			<button type="button" id="btnCollapseSidebar" class="desk-collapse-btn" onclick="dayToggleSidebarCollapse()" title="Collapse / Expand Admin Menu">
+				<span id="deskCollapseIcon">◂</span>
+				<span class="desk-collapse-label">Collapse menu</span>
+			</button>
 		</div>
 	</aside>
 
@@ -518,7 +522,7 @@ pub fn render_admin_shell(
 
 	document.querySelectorAll('#day-sidebar .nav-group').forEach(group => {{
 		group.addEventListener('mouseenter', () => {{
-			if (!group.classList.contains('open')) {{
+			if (!group.classList.contains('open') || document.body.classList.contains('dp-sidebar-collapsed')) {{
 				const sub = group.querySelector('.nav-submenu');
 				if (sub) {{
 					const rect = group.getBoundingClientRect();
@@ -531,6 +535,40 @@ pub fn render_admin_shell(
 			}}
 		}});
 	}});
+
+	function dayApplySidebarCollapsed(collapsed) {{
+		document.body.classList.toggle('dp-sidebar-collapsed', !!collapsed);
+		const icon = document.getElementById('deskCollapseIcon');
+		if (icon) icon.textContent = collapsed ? '▸' : '◂';
+	}}
+
+	function dayToggleSidebarCollapse() {{
+		const next = !document.body.classList.contains('dp-sidebar-collapsed');
+		dayApplySidebarCollapsed(next);
+		try {{ localStorage.setItem('daypress_sidebar_collapsed', next ? '1' : '0'); }} catch (_) {{}}
+		fetch('/wp-json/daypress/v1/user-preferences', {{
+			method: 'POST',
+			headers: {{ 'Content-Type': 'application/json' }},
+			body: JSON.stringify({{ sidebar_collapsed: next }})
+		}}).catch(() => {{}});
+	}}
+
+	(function initSidebarCollapse() {{
+		try {{
+			if (localStorage.getItem('daypress_sidebar_collapsed') === '1') {{
+				dayApplySidebarCollapsed(true);
+			}}
+		}} catch (_) {{}}
+		fetch('/wp-json/daypress/v1/user-preferences')
+			.then(r => r.ok ? r.json() : null)
+			.then(data => {{
+				if (data && data.preferences && typeof data.preferences.sidebar_collapsed === 'boolean') {{
+					dayApplySidebarCollapsed(data.preferences.sidebar_collapsed);
+					try {{ localStorage.setItem('daypress_sidebar_collapsed', data.preferences.sidebar_collapsed ? '1' : '0'); }} catch (_) {{}}
+				}}
+			}})
+			.catch(() => {{}});
+	}})();
 </script>
 </body>
 </html>

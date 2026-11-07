@@ -63,7 +63,7 @@ pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> Str
     };
 
     format!(
-        r#"<div class="day-card custom-fields-card" style="padding: 22px;" id="custom_fields_card">
+        r#"<div class="day-card custom-fields-card" style="padding: 22px;" id="custom_fields_card" data-metabox-id="custom_fields" data-metabox-title="Dynamic Custom Fields">
             <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <h2 class="day-card-title">Dynamic Custom Fields (<code>postmeta</code>)</h2>
@@ -71,6 +71,7 @@ pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> Str
                 </div>
                 <span style="font-size: 11.5px; color: var(--ink-muted); font-family: var(--font-mono);">Direct SQLite Persistence</span>
             </div>
+            <div class="day-card-body" style="padding: 0;">
 
             <table class="day-table" id="custom-fields-table" style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
                 <thead>
@@ -92,6 +93,7 @@ pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> Str
                     <span>+ Add Custom Field</span>
                 </button>
                 <span style="font-size: 11.5px; color: var(--ink-muted);">Custom fields sync automatically with <code>postmeta</code> on Save / Publish.</span>
+            </div>
             </div>
         </div>"#
     )

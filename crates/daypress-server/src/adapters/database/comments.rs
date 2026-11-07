@@ -269,6 +269,16 @@ impl Database {
         let rows = conn.execute("DELETE FROM comments WHERE comment_ID = ?1", params![id])?;
         Ok(rows > 0)
     }
+
+    pub fn purge_comments_by_status(&self, status: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let norm = status.trim();
+        let rows = conn.execute(
+            "DELETE FROM comments WHERE comment_approved = ?1",
+            params![norm],
+        )?;
+        Ok(rows)
+    }
 }
 
 impl crate::ports::output::CommentRepository for Database {

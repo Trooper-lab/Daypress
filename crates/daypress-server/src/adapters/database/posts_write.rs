@@ -159,6 +159,46 @@ impl Database {
                 params![id],
             )?;
         }
+        if let Some(ref cs) = req.comment_status {
+            let norm = if cs.eq_ignore_ascii_case("closed")
+                || cs == "0"
+                || cs.eq_ignore_ascii_case("false")
+            {
+                "closed"
+            } else {
+                "open"
+            };
+            let _ = conn.execute(
+                "UPDATE posts SET comment_status = ?1 WHERE ID = ?2",
+                params![norm, id],
+            );
+        }
+        if let Some(ref ps) = req.ping_status {
+            let norm = if ps.eq_ignore_ascii_case("closed")
+                || ps == "0"
+                || ps.eq_ignore_ascii_case("false")
+            {
+                "closed"
+            } else {
+                "open"
+            };
+            let _ = conn.execute(
+                "UPDATE posts SET ping_status = ?1 WHERE ID = ?2",
+                params![norm, id],
+            );
+        }
+        if let Some(sticky) = req.sticky {
+            let _ = conn.execute(
+                "UPDATE posts SET is_sticky = ?1 WHERE ID = ?2",
+                params![if sticky { 1_i64 } else { 0_i64 }, id],
+            );
+        }
+        if let Some(ref pw) = req.password {
+            let _ = conn.execute(
+                "UPDATE posts SET post_password = ?1 WHERE ID = ?2",
+                params![pw.trim(), id],
+            );
+        }
 
         if let Some(fm) = req.featured_media {
             if fm > 0 {
@@ -448,6 +488,46 @@ impl Database {
             tx.execute(
                 "UPDATE posts SET post_author = ?1, post_modified = ?2 WHERE ID = ?3",
                 params![author, now, id],
+            )?;
+        }
+        if let Some(ref cs) = req.comment_status {
+            let norm = if cs.eq_ignore_ascii_case("closed")
+                || cs == "0"
+                || cs.eq_ignore_ascii_case("false")
+            {
+                "closed"
+            } else {
+                "open"
+            };
+            tx.execute(
+                "UPDATE posts SET comment_status = ?1, post_modified = ?2 WHERE ID = ?3",
+                params![norm, now, id],
+            )?;
+        }
+        if let Some(ref ps) = req.ping_status {
+            let norm = if ps.eq_ignore_ascii_case("closed")
+                || ps == "0"
+                || ps.eq_ignore_ascii_case("false")
+            {
+                "closed"
+            } else {
+                "open"
+            };
+            tx.execute(
+                "UPDATE posts SET ping_status = ?1, post_modified = ?2 WHERE ID = ?3",
+                params![norm, now, id],
+            )?;
+        }
+        if let Some(sticky) = req.sticky {
+            tx.execute(
+                "UPDATE posts SET is_sticky = ?1, post_modified = ?2 WHERE ID = ?3",
+                params![if sticky { 1_i64 } else { 0_i64 }, now, id],
+            )?;
+        }
+        if let Some(ref pw) = req.password {
+            tx.execute(
+                "UPDATE posts SET post_password = ?1, post_modified = ?2 WHERE ID = ?3",
+                params![pw.trim(), now, id],
             )?;
         }
         if let Some(ref tpl) = req.template {
@@ -805,5 +885,42 @@ impl Database {
         drop(conn);
         self.invalidate_hot_cache("post_deleted");
         Ok(rows > 0)
+    }
+
+    pub fn empty_trash_posts(&self, post_type: Option<&str>) -> Result<usize> {
+        let ids: Vec<i64> = {
+            let conn = self.conn.lock().unwrap();
+            let mut out = Vec::new();
+            match post_type
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty() && *s != "any")
+            {
+                Some(pt) => {
+                    let mut stmt = conn.prepare(
+                        "SELECT ID FROM posts WHERE post_status = 'trash' AND post_type = ?1",
+                    )?;
+                    let rows = stmt.query_map(params![pt], |r| r.get::<_, i64>(0))?;
+                    for id in rows.flatten() {
+                        out.push(id);
+                    }
+                }
+                None => {
+                    let mut stmt =
+                        conn.prepare("SELECT ID FROM posts WHERE post_status = 'trash'")?;
+                    let rows = stmt.query_map([], |r| r.get::<_, i64>(0))?;
+                    for id in rows.flatten() {
+                        out.push(id);
+                    }
+                }
+            }
+            out
+        };
+        let mut deleted = 0usize;
+        for id in ids {
+            if self.delete_post(id).unwrap_or(false) {
+                deleted += 1;
+            }
+        }
+        Ok(deleted)
     }
 }

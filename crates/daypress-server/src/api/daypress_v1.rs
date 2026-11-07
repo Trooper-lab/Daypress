@@ -2,7 +2,7 @@
 
 #![allow(unused_imports)]
 use super::*;
-use crate::auth::AuthUser;
+use crate::auth::{AuthUser, OptionalAuthUser};
 use crate::db::Database;
 use crate::errors::AppError;
 use crate::models::*;
@@ -2238,5 +2238,223 @@ pub(crate) async fn cherry_pick_revision_node_v1_handler(
         "node_id": payload.node_id,
         "post": updated_post,
         "layout": layout_val,
+    })))
+}
+
+// =========================================================================
+// v0.8.5 WordPress-Native Admin & Editor Ergonomics Endpoints
+// =========================================================================
+
+pub(crate) async fn get_user_preferences_v1_handler(
+    OptionalAuthUser(auth): OptionalAuthUser,
+    State(db): State<Database>,
+) -> Result<Json<Value>, AppError> {
+    let user_id = auth.as_ref().map(|u| u.user_id).unwrap_or(1);
+    let prefs = db.get_user_screen_preferences(user_id)?;
+    Ok(Json(serde_json::json!({
+        "user_id": user_id,
+        "preferences": prefs,
+    })))
+}
+
+pub(crate) async fn save_user_preferences_v1_handler(
+    OptionalAuthUser(auth): OptionalAuthUser,
+    State(db): State<Database>,
+    Json(payload): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let user_id = auth.as_ref().map(|u| u.user_id).unwrap_or(1);
+    let prefs = db.save_user_screen_preferences(user_id, &payload)?;
+    Ok(Json(serde_json::json!({
+        "status": "saved",
+        "user_id": user_id,
+        "preferences": prefs,
+    })))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct BulkEditPostsPayload {
+    #[serde(default)]
+    pub post_ids: Vec<i64>,
+    pub status: Option<String>,
+    pub author: Option<i64>,
+    pub comment_status: Option<String>,
+    pub ping_status: Option<String>,
+    pub sticky: Option<bool>,
+    pub template: Option<String>,
+    pub categories: Option<Vec<i64>>,
+    pub add_tags: Option<String>,
+}
+
+pub(crate) async fn bulk_edit_posts_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    Json(payload): Json<BulkEditPostsPayload>,
+) -> Result<Json<Value>, AppError> {
+    if payload.post_ids.is_empty() {
+        return Err(AppError::BadRequest("post_ids is required.".to_string()));
+    }
+
+    let mut extra_tag_ids = Vec::new();
+    if let Some(ref raw_tags) = payload.add_tags {
+        for tag_name in raw_tags
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
+            let term_req = CreateTermRequest {
+                name: tag_name.to_string(),
+                slug: None,
+                description: None,
+                parent: None,
+            };
+            if let Ok(term) = db.create_term("post_tag", &term_req) {
+                extra_tag_ids.push(term.id);
+            }
+        }
+    }
+
+    let mut updated_count = 0usize;
+    for post_id in &payload.post_ids {
+        let merged_tags = if !extra_tag_ids.is_empty() {
+            let mut existing = db
+                .get_post_by_id(*post_id)
+                .ok()
+                .flatten()
+                .map(|p| p.tags)
+                .unwrap_or_default();
+            for tid in &extra_tag_ids {
+                if !existing.contains(tid) {
+                    existing.push(*tid);
+                }
+            }
+            Some(existing)
+        } else {
+            None
+        };
+
+        let update_req = UpdatePostRequest {
+            status: payload
+                .status
+                .as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty() && s != "-1"),
+            author: payload.author.filter(|a| *a > 0),
+            categories: payload.categories.clone(),
+            tags: merged_tags,
+            template: payload
+                .template
+                .as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| s != "-1"),
+            sticky: payload.sticky,
+            comment_status: payload
+                .comment_status
+                .as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty() && s != "-1"),
+            ping_status: payload
+                .ping_status
+                .as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty() && s != "-1"),
+            ..Default::default()
+        };
+
+        if db.update_post(*post_id, &update_req).is_ok() {
+            updated_count += 1;
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "status": "updated",
+        "updated_count": updated_count,
+        "post_ids": payload.post_ids,
+    })))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct EmptyTrashPayload {
+    pub post_type: Option<String>,
+}
+
+pub(crate) async fn empty_trash_posts_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    Json(payload): Json<EmptyTrashPayload>,
+) -> Result<Json<Value>, AppError> {
+    let deleted = db.empty_trash_posts(payload.post_type.as_deref())?;
+    Ok(Json(serde_json::json!({
+        "status": "emptied",
+        "deleted_count": deleted,
+    })))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct BulkCommentsPayload {
+    #[serde(default)]
+    pub comment_ids: Vec<i64>,
+    pub action: String,
+}
+
+pub(crate) async fn bulk_comments_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    Json(payload): Json<BulkCommentsPayload>,
+) -> Result<Json<Value>, AppError> {
+    let action = payload.action.trim().to_ascii_lowercase();
+    let mut affected = 0usize;
+    match action.as_str() {
+        "empty_spam" => {
+            affected = db.purge_comments_by_status("spam")?;
+        }
+        "empty_trash" => {
+            affected = db.purge_comments_by_status("trash")?;
+        }
+        "delete" => {
+            for cid in &payload.comment_ids {
+                if db.delete_comment(*cid).unwrap_or(false) {
+                    affected += 1;
+                }
+            }
+        }
+        "approve" | "approved" | "1" => {
+            for cid in &payload.comment_ids {
+                if db.update_comment_status(*cid, "1").unwrap_or(false) {
+                    affected += 1;
+                }
+            }
+        }
+        "unapprove" | "hold" | "pending" | "0" => {
+            for cid in &payload.comment_ids {
+                if db.update_comment_status(*cid, "0").unwrap_or(false) {
+                    affected += 1;
+                }
+            }
+        }
+        "spam" => {
+            for cid in &payload.comment_ids {
+                if db.update_comment_status(*cid, "spam").unwrap_or(false) {
+                    affected += 1;
+                }
+            }
+        }
+        "trash" => {
+            for cid in &payload.comment_ids {
+                if db.update_comment_status(*cid, "trash").unwrap_or(false) {
+                    affected += 1;
+                }
+            }
+        }
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "Unsupported bulk comment action: {}",
+                other
+            )));
+        }
+    }
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "action": action,
+        "affected_count": affected,
     })))
 }

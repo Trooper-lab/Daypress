@@ -322,7 +322,11 @@ pub fn render_widgets_view(settings: &DaypressSettingsResponse) -> String {
         sidebar_html.push_str(&format!(
             r#"<div class="day-card widget-item" style="padding: 10px 14px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;">
                 <span class="widget-title" style="font-size: 13px; font-weight: 600;">{title}</span>
-                <button onclick="this.parentElement.remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" title="Move Up" onclick="moveWidgetCard(this, -1)">↑</button>
+                    <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" title="Move Down" onclick="moveWidgetCard(this, 1)">↓</button>
+                    <button type="button" onclick="this.closest('.widget-item').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+                </div>
             </div>"#,
             title = escape_html(item)
         ));
@@ -333,7 +337,11 @@ pub fn render_widgets_view(settings: &DaypressSettingsResponse) -> String {
         footer_html.push_str(&format!(
             r#"<div class="day-card widget-item" style="padding: 10px 14px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;">
                 <span class="widget-title" style="font-size: 13px; font-weight: 600;">{title}</span>
-                <button onclick="this.parentElement.remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" title="Move Up" onclick="moveWidgetCard(this, -1)">↑</button>
+                    <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" title="Move Down" onclick="moveWidgetCard(this, 1)">↓</button>
+                    <button type="button" onclick="this.closest('.widget-item').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>
+                </div>
             </div>"#,
             title = escape_html(item)
         ));
@@ -425,6 +433,17 @@ pub fn render_widgets_view(settings: &DaypressSettingsResponse) -> String {
         </div>
 
         <script>
+            function moveWidgetCard(btn, dir) {{
+                const card = btn.closest('.widget-item');
+                const parent = card && card.parentElement;
+                if (!card || !parent) return;
+                const cards = Array.from(parent.querySelectorAll(':scope > .widget-item'));
+                const idx = cards.indexOf(card);
+                const target = cards[idx + dir];
+                if (!target) return;
+                if (dir < 0) parent.insertBefore(card, target);
+                else parent.insertBefore(target, card);
+            }}
             function addWidget(name, zone) {{
                 const areaId = zone === 'footer' ? 'footerWidgetArea' : 'sidebarWidgetArea';
                 const area = document.getElementById(areaId);
@@ -432,7 +451,7 @@ pub fn render_widgets_view(settings: &DaypressSettingsResponse) -> String {
                 const div = document.createElement('div');
                 div.className = 'day-card widget-item';
                 div.style = 'padding: 10px 14px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center;';
-                div.innerHTML = '<span class="widget-title" style="font-size: 13px; font-weight: 600;">' + name + '</span><button onclick="this.parentElement.remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button>';
+                div.innerHTML = '<span class="widget-title" style="font-size: 13px; font-weight: 600;">' + name + '</span><div style="display:flex;align-items:center;gap:6px;"><button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" title="Move Up" onclick="moveWidgetCard(this, -1)">↑</button><button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 22px;" title="Move Down" onclick="moveWidgetCard(this, 1)">↓</button><button type="button" onclick="this.closest(\'.widget-item\').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px;">Remove</button></div>';
                 area.appendChild(div);
                 showToast('✓ Added ' + name + ' to ' + (zone === 'footer' ? 'Footer Columns' : 'Primary Sidebar'));
             }}
@@ -483,20 +502,30 @@ pub fn render_nav_menus_view(
     let mut existing_menu_cards = String::new();
     if settings.nav_menu_items.is_empty() {
         existing_menu_cards.push_str(
-            r#"<div class="day-card menu-item-card" data-title="Home" data-url="/" data-badge="" data-desc="" data-mega="0" style="padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;">
+            r#"<div class="day-card menu-item-card" data-title="Home" data-url="/" data-badge="" data-desc="" data-mega="0" data-depth="0" style="padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <input type="text" class="form-input menu-item-title-input" value="Home" style="font-weight: 600; font-size: 13px; width: 180px; padding: 5px 8px;">
-                        <input type="text" class="form-input menu-item-url-input" value="/" style="font-size: 12px; font-family: var(--font-mono); width: 180px; padding: 5px 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <input type="text" class="form-input menu-item-title-input" value="Home" style="font-weight: 600; font-size: 13px; width: 170px; padding: 5px 8px;">
+                        <input type="text" class="form-input menu-item-url-input" value="/" style="font-size: 12px; font-family: var(--font-mono); width: 170px; padding: 5px 8px;">
+                        <span class="badge menu-depth-badge" style="display: none; font-size: 10px; background: var(--press-wash); color: var(--press);">Sub-item</span>
                     </div>
-                    <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Move Up" onclick="moveMenuItemCard(this, -1)">↑</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Move Down" onclick="moveMenuItemCard(this, 1)">↓</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Outdent (Top Level)" onclick="indentMenuItemCard(this, -1)">←</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Indent (Sub-Item)" onclick="indentMenuItemCard(this, 1)">→</button>
+                        <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600; margin-left: 6px;">Remove</button>
+                    </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr 220px; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
+                <div style="display: grid; grid-template-columns: 130px 1fr 200px auto; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
                     <input type="text" class="form-input menu-item-badge-input" placeholder="Badge (e.g. New)" value="" style="font-size: 11.5px; padding: 4px 8px;">
                     <input type="text" class="form-input menu-item-desc-input" placeholder="Optional subtitle / description" value="" style="font-size: 11.5px; padding: 4px 8px;">
                     <select class="form-select menu-item-mega-select" data-selected-mega="0" style="font-size: 11.5px; padding: 4px 8px;">
                         <option value="0">Standard Link (No Mega Menu)</option>
                     </select>
+                    <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-muted); cursor: pointer; white-space: nowrap;">
+                        <input type="checkbox" class="menu-item-target-blank" /> New tab
+                    </label>
                 </div>
             </div>"#,
         );
@@ -505,21 +534,39 @@ pub fn render_nav_menus_view(
             let badge = item.badge.as_deref().unwrap_or("");
             let desc = item.description.as_deref().unwrap_or("");
             let mega_id = item.mega_menu_template_id.unwrap_or(0);
+            let depth = if item.parent > 0 { 1 } else { 0 };
+            let margin_left = depth * 28;
+            let sub_badge_disp = if depth > 0 { "inline-flex" } else { "none" };
+            let target_chk = if item.target == "_blank" {
+                "checked"
+            } else {
+                ""
+            };
             existing_menu_cards.push_str(&format!(
-                r#"<div class="day-card menu-item-card" data-title="{title}" data-url="{url}" data-badge="{badge}" data-desc="{desc}" data-mega="{mega_id}" style="padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;">
+                r#"<div class="day-card menu-item-card" data-title="{title}" data-url="{url}" data-badge="{badge}" data-desc="{desc}" data-mega="{mega_id}" data-depth="{depth}" style="padding: 14px 16px; margin-left: {margin_left}px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <input type="text" class="form-input menu-item-title-input" value="{title}" style="font-weight: 600; font-size: 13px; width: 180px; padding: 5px 8px;">
-                            <input type="text" class="form-input menu-item-url-input" value="{url}" style="font-size: 12px; font-family: var(--font-mono); width: 180px; padding: 5px 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <input type="text" class="form-input menu-item-title-input" value="{title}" style="font-weight: 600; font-size: 13px; width: 170px; padding: 5px 8px;">
+                            <input type="text" class="form-input menu-item-url-input" value="{url}" style="font-size: 12px; font-family: var(--font-mono); width: 170px; padding: 5px 8px;">
+                            <span class="badge menu-depth-badge" style="display: {sub_badge_disp}; font-size: 10px; background: var(--press-wash); color: var(--press);">Sub-item</span>
                         </div>
-                        <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Move Up" onclick="moveMenuItemCard(this, -1)">↑</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Move Down" onclick="moveMenuItemCard(this, 1)">↓</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Outdent (Top Level)" onclick="indentMenuItemCard(this, -1)">←</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Indent (Sub-Item)" onclick="indentMenuItemCard(this, 1)">→</button>
+                            <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600; margin-left: 6px;">Remove</button>
+                        </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 140px 1fr 220px; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
+                    <div style="display: grid; grid-template-columns: 130px 1fr 200px auto; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
                         <input type="text" class="form-input menu-item-badge-input" placeholder="Badge (e.g. New)" value="{badge}" style="font-size: 11.5px; padding: 4px 8px;">
                         <input type="text" class="form-input menu-item-desc-input" placeholder="Optional subtitle / description" value="{desc}" style="font-size: 11.5px; padding: 4px 8px;">
                         <select class="form-select menu-item-mega-select" data-selected-mega="{mega_id}" style="font-size: 11.5px; padding: 4px 8px;">
                             <option value="0">Standard Link (No Mega Menu)</option>
                         </select>
+                        <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-muted); cursor: pointer; white-space: nowrap;">
+                            <input type="checkbox" class="menu-item-target-blank" {target_chk} /> New tab
+                        </label>
                     </div>
                 </div>"#,
                 title = escape_html(&item.title),
@@ -527,6 +574,10 @@ pub fn render_nav_menus_view(
                 badge = escape_html(badge),
                 desc = escape_html(desc),
                 mega_id = mega_id,
+                depth = depth,
+                margin_left = margin_left,
+                sub_badge_disp = sub_badge_disp,
+                target_chk = target_chk,
             ));
         }
     }
@@ -549,10 +600,18 @@ pub fn render_nav_menus_view(
             <div style="display: flex; flex-direction: column; gap: 20px;">
                 <div class="day-card" style="padding: 20px;">
                     <h3 style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px;">Pages</h3>
-                    <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px;">
+                    <div style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px;">
                         {page_items}
                     </div>
                     <button type="button" class="btn btn-secondary" style="font-size: 12px; margin-top: 8px;" onclick="addSelectedPages()">Add to Menu</button>
+                </div>
+
+                <div class="day-card" style="padding: 20px;">
+                    <h3 style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px;">Posts &amp; Categories</h3>
+                    <div id="navQuickPostsCats" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; font-size: 12.5px; color: var(--ink-muted);">
+                        Loading posts &amp; categories...
+                    </div>
+                    <button type="button" class="btn btn-secondary" style="font-size: 12px; margin-top: 8px;" onclick="addSelectedPostsAndCategories()">Add Selected to Menu</button>
                 </div>
 
                 <div class="day-card" style="padding: 20px;">
@@ -622,26 +681,103 @@ pub fn render_nav_menus_view(
             function createMenuItemCard(title, url) {{
                 const item = document.createElement('div');
                 item.className = 'day-card menu-item-card';
+                item.setAttribute('data-depth', '0');
                 item.style = 'padding: 14px 16px; background: var(--paper-raised); border: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px;';
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <input type="text" class="form-input menu-item-title-input" value="" style="font-weight: 600; font-size: 13px; width: 180px; padding: 5px 8px;">
-                            <input type="text" class="form-input menu-item-url-input" value="" style="font-size: 12px; font-family: var(--font-mono); width: 180px; padding: 5px 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <input type="text" class="form-input menu-item-title-input" value="" style="font-weight: 600; font-size: 13px; width: 170px; padding: 5px 8px;">
+                            <input type="text" class="form-input menu-item-url-input" value="" style="font-size: 12px; font-family: var(--font-mono); width: 170px; padding: 5px 8px;">
+                            <span class="badge menu-depth-badge" style="display: none; font-size: 10px; background: var(--press-wash); color: var(--press);">Sub-item</span>
                         </div>
-                        <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Move Up" onclick="moveMenuItemCard(this, -1)">↑</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Move Down" onclick="moveMenuItemCard(this, 1)">↓</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Outdent (Top Level)" onclick="indentMenuItemCard(this, -1)">←</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 11px; height: 24px;" title="Indent (Sub-Item)" onclick="indentMenuItemCard(this, 1)">→</button>
+                            <button type="button" onclick="this.closest('.menu-item-card').remove()" style="color: var(--oxide); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600; margin-left: 6px;">Remove</button>
+                        </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 140px 1fr 220px; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
+                    <div style="display: grid; grid-template-columns: 130px 1fr 200px auto; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule);">
                         <input type="text" class="form-input menu-item-badge-input" placeholder="Badge (e.g. New)" value="" style="font-size: 11.5px; padding: 4px 8px;">
                         <input type="text" class="form-input menu-item-desc-input" placeholder="Optional subtitle / description" value="" style="font-size: 11.5px; padding: 4px 8px;">
                         <select class="form-select menu-item-mega-select" data-selected-mega="0" style="font-size: 11.5px; padding: 4px 8px;">
                             ${{buildMegaSelectOptionsHtml(0)}}
                         </select>
+                        <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-muted); cursor: pointer; white-space: nowrap;">
+                            <input type="checkbox" class="menu-item-target-blank" /> New tab
+                        </label>
                     </div>
                 `;
                 item.querySelector('.menu-item-title-input').value = title;
                 item.querySelector('.menu-item-url-input').value = url;
                 return item;
+            }}
+
+            function moveMenuItemCard(btn, dir) {{
+                const card = btn.closest('.menu-item-card');
+                const list = document.getElementById('menuItemsList');
+                if (!card || !list) return;
+                const cards = Array.from(list.querySelectorAll(':scope > .menu-item-card'));
+                const idx = cards.indexOf(card);
+                const target = cards[idx + dir];
+                if (!target) return;
+                if (dir < 0) list.insertBefore(card, target);
+                else list.insertBefore(target, card);
+            }}
+
+            function indentMenuItemCard(btn, delta) {{
+                const card = btn.closest('.menu-item-card');
+                if (!card) return;
+                const cur = parseInt(card.getAttribute('data-depth') || '0', 10) || 0;
+                const next = Math.max(0, Math.min(2, cur + delta));
+                card.setAttribute('data-depth', String(next));
+                card.style.marginLeft = (next * 28) + 'px';
+                const badge = card.querySelector('.menu-depth-badge');
+                if (badge) {{
+                    badge.style.display = next > 0 ? 'inline-flex' : 'none';
+                    badge.textContent = next === 2 ? 'Sub-sub-item' : 'Sub-item';
+                }}
+            }}
+
+            async function loadNavPostsAndCategories() {{
+                const box = document.getElementById('navQuickPostsCats');
+                if (!box) return;
+                try {{
+                    const [pRes, cRes] = await Promise.all([
+                        fetch('/wp-json/wp/v2/posts?per_page=10'),
+                        fetch('/wp-json/wp/v2/categories?per_page=15')
+                    ]);
+                    const posts = pRes.ok ? await pRes.json() : [];
+                    const cats = cRes.ok ? await cRes.json() : [];
+                    let html = '';
+                    if (Array.isArray(posts) && posts.length > 0) {{
+                        html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-muted);">Recent Posts</div>';
+                        posts.forEach(p => {{
+                            const t = ((p.title && p.title.rendered) || p.slug || 'Post').replace(/"/g, '&quot;');
+                            html += `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="post-cat-menu-chk" data-title="${{t}}" data-url="/${{p.slug}}/" /><span>${{t}}</span></label>`;
+                        }});
+                    }}
+                    if (Array.isArray(cats) && cats.length > 0) {{
+                        html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-muted);margin-top:6px;">Categories</div>';
+                        cats.forEach(c => {{
+                            const t = (c.name || c.slug || 'Category').replace(/"/g, '&quot;');
+                            html += `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="post-cat-menu-chk" data-title="${{t}}" data-url="/category/${{c.slug}}/" /><span>${{t}}</span></label>`;
+                        }});
+                    }}
+                    box.innerHTML = html || 'No posts or categories found.';
+                }} catch (_) {{
+                    box.textContent = 'Ready.';
+                }}
+            }}
+
+            function addSelectedPostsAndCategories() {{
+                const list = document.getElementById('menuItemsList');
+                document.querySelectorAll('.post-cat-menu-chk:checked').forEach(chk => {{
+                    list.appendChild(createMenuItemCard(chk.getAttribute('data-title'), chk.getAttribute('data-url')));
+                    chk.checked = false;
+                }});
+                showToast('Added to menu');
             }}
 
             function addSelectedPages() {{
@@ -666,19 +802,34 @@ pub fn render_nav_menus_view(
             }}
 
             async function saveNavMenu() {{
+                let lastDepth0Id = 0;
+                let lastDepth1Id = 0;
                 const items = Array.from(document.querySelectorAll('#menuItemsList .menu-item-card')).map((card, idx) => {{
+                    const id = idx + 1;
                     const title = card.querySelector('.menu-item-title-input')?.value.trim() || card.getAttribute('data-title') || 'Item';
                     const url = card.querySelector('.menu-item-url-input')?.value.trim() || card.getAttribute('data-url') || '/';
                     const badge = card.querySelector('.menu-item-badge-input')?.value.trim() || '';
                     const desc = card.querySelector('.menu-item-desc-input')?.value.trim() || '';
                     const megaVal = parseInt(card.querySelector('.menu-item-mega-select')?.value || '0', 10) || 0;
+                    const targetBlank = !!card.querySelector('.menu-item-target-blank')?.checked;
+                    const depth = parseInt(card.getAttribute('data-depth') || '0', 10) || 0;
+                    let parent = 0;
+                    if (depth === 1 && lastDepth0Id > 0) {{
+                        parent = lastDepth0Id;
+                        lastDepth1Id = id;
+                    }} else if (depth >= 2 && (lastDepth1Id > 0 || lastDepth0Id > 0)) {{
+                        parent = lastDepth1Id > 0 ? lastDepth1Id : lastDepth0Id;
+                    }} else {{
+                        lastDepth0Id = id;
+                        lastDepth1Id = 0;
+                    }}
                     const dto = {{
-                        id: idx + 1,
+                        id,
                         title,
                         url,
-                        target: '',
-                        parent: 0,
-                        menu_order: idx + 1
+                        target: targetBlank ? '_blank' : '',
+                        parent,
+                        menu_order: id
                     }};
                     if (badge) dto.badge = badge;
                     if (desc) dto.description = desc;
@@ -701,7 +852,10 @@ pub fn render_nav_menus_view(
                 }}
             }}
 
-            document.addEventListener('DOMContentLoaded', loadNavMenuSymbols);
+            document.addEventListener('DOMContentLoaded', () => {{
+                loadNavMenuSymbols();
+                loadNavPostsAndCategories();
+            }});
         </script>
         "##,
         page_items = page_items,

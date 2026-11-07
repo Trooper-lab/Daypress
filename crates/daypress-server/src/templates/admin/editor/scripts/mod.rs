@@ -7,6 +7,7 @@ mod autosave;
 mod core;
 mod revisions;
 mod schedule;
+mod screen_options;
 mod seo_studio;
 mod toolbar;
 
@@ -20,8 +21,9 @@ pub fn render_editor_scripts(
     known_tags_json: &str,
 ) -> String {
     format!(
-        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         core::render_core_script(site_title, initial_id, has_visual_layout, initial_mode),
+        screen_options::JS_SCREEN_OPTIONS,
         acf_render::JS_ACF_RENDER,
         acf_blocks::JS_ACF_BLOCKS,
         toolbar::JS_TOOLBAR,

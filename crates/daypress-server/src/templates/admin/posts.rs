@@ -187,6 +187,12 @@ pub fn render_posts_view_with_matrix(
         if p.id == settings.page_on_front {
             chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--moss-wash);color:var(--moss);border:1px solid var(--moss);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">Front Page</span>"#);
         }
+        if p.sticky {
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--ochre-wash);color:var(--ink);border:1px solid var(--ochre);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">📌 Sticky</span>"#);
+        }
+        if !p.password.is_empty() {
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--paper-sunk);color:var(--ink-muted);border:1px solid var(--rule-strong);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">🔒 Password</span>"#);
+        }
         if nav_slugs.contains(&p.slug.to_lowercase()) && p.status == "publish" {
             chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--press-wash);color:var(--press);border:1px solid var(--press);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">Main Menu</span>"#);
         }
@@ -219,6 +225,7 @@ pub fn render_posts_view_with_matrix(
         } else {
             format!(
                 r##"<a href="{edit_link}" style="font-weight: 600;">Edit Blocks &amp; ACF</a>
+                <a href="#" onclick="openQuickEditRow({id}); return false;" style="color: var(--press); font-weight: 600;">Quick Edit</a>
                 <a href="/d-admin/builder?post={id}" style="color: var(--press); font-weight: 600;">Edit with DayStudio</a>
                 <a href="#" onclick="duplicatePostRow({id}); return false;" style="color: var(--press); font-weight: 600;">Duplicate</a>
                 <a href="{view_link}" target="_blank">View &nearr;</a>
@@ -230,9 +237,12 @@ pub fn render_posts_view_with_matrix(
             )
         };
 
+        let month_short: String = p.date.chars().take(7).collect();
+        let cats_csv = escape_html(&p.category_names.join(","));
+
         rows_html.push_str(&format!(
             r##"
-            <tr id="post-{id}" data-status="{status}" data-lang="{lang}" style="{initial_row_style}">
+            <tr id="post-{id}" data-id="{id}" data-status="{status}" data-lang="{lang}" data-title="{title_attr}" data-slug="{slug_attr}" data-date="{date_attr}" data-month="{month_attr}" data-author="{author}" data-categories="{cats_csv}" data-parent="{parent}" data-menu-order="{menu_order}" data-template="{template_attr}" data-sticky="{sticky_attr}" data-password="{password_attr}" data-comment-status="{comment_status_attr}" data-ping-status="{ping_status_attr}" style="{initial_row_style}">
                 <td style="width: 32px;"><input type="checkbox" name="post[]" value="{id}"></td>
                 <td class="table-title-cell">
                     <strong><a href="{edit_link}" style="color: var(--ink); text-decoration: none;">{title}</a></strong>{seo_chip}
@@ -241,15 +251,27 @@ pub fn render_posts_view_with_matrix(
                         {actions}
                     </div>
                 </td>
-                <td style="width: 130px;"><span style="color: var(--ink-muted);">{author}</span></td>
-                <td style="width: 160px;">{categories}</td>
-                <td style="width: 110px;">{status_badge}</td>
-                <td style="width: 130px; color: var(--ink-muted); font-size: 12.5px;">{date}</td>
+                <td class="col-author" style="width: 130px;"><span style="color: var(--ink-muted);">{author}</span></td>
+                <td class="col-category" style="width: 160px;">{categories}</td>
+                <td class="col-status" style="width: 110px;">{status_badge}</td>
+                <td class="col-date" style="width: 130px; color: var(--ink-muted); font-size: 12.5px;">{date}</td>
             </tr>
             "##,
             id = p.id,
             status = escape_html(&p.status),
             lang = escape_html(if p.lang_code.is_empty() { "en" } else { &p.lang_code }),
+            title_attr = escape_html(&p.title.rendered),
+            slug_attr = escape_html(&p.slug),
+            date_attr = escape_html(&p.date),
+            month_attr = escape_html(&month_short),
+            cats_csv = cats_csv,
+            parent = p.parent,
+            menu_order = p.menu_order,
+            template_attr = escape_html(if p.template.is_empty() { "default" } else { &p.template }),
+            sticky_attr = if p.sticky { "1" } else { "0" },
+            password_attr = escape_html(&p.password),
+            comment_status_attr = escape_html(if p.comment_status.is_empty() { "open" } else { &p.comment_status }),
+            ping_status_attr = escape_html(if p.ping_status.is_empty() { "open" } else { &p.ping_status }),
             initial_row_style = initial_row_style,
             edit_link = edit_link,
             view_link = view_link,
@@ -288,30 +310,63 @@ pub fn render_posts_view_with_matrix(
                 <h1 class="page-title">{post_type_label}</h1>
                 <p class="page-subtitle">Manage, create, and organize your publication articles</p>
             </div>
-            <div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-secondary" onclick="toggleListScreenOptions()" title="Show/hide columns &amp; items per page">⚙ Screen Options ▾</button>
                 {header_footer_btn}
                 <a href="{add_new_url}" class="btn btn-primary">+ Add New {singular}</a>
             </div>
         </div>
 
+        <div id="listScreenOptionsPanel" class="day-card" style="display: none; padding: 14px 18px; margin-bottom: 16px; border: 1px solid var(--press); background: var(--paper-raised);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px;">
+                    <strong style="font-size: 12px; text-transform: uppercase; color: var(--ink-muted);">Columns:</strong>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-author" checked onchange="togglePostsListColumn('col-author', this.checked)" /> Author</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-category" checked onchange="togglePostsListColumn('col-category', this.checked)" /> {fourth_col_header}</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-status" checked onchange="togglePostsListColumn('col-status', this.checked)" /> Status</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-date" checked onchange="togglePostsListColumn('col-date', this.checked)" /> Date</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px;">
+                    <strong style="font-size: 12px; text-transform: uppercase; color: var(--ink-muted);">Number of items per page:</strong>
+                    <select id="listPerPageSelect" class="form-select" style="width: 90px; padding: 4px 8px; font-size: 12.5px;" onchange="onListPerPageChange(this.value)">
+                        <option value="20">20</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="9999">All</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; gap: 8px;" id="statusFilterTabs">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="statusFilterTabs">
                 <button type="button" class="btn btn-secondary status-tab" data-filter="all" style="background: var(--ink); color: var(--paper-raised);" onclick="filterByStatus('all', this)">All ({count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="publish" onclick="filterByStatus('publish', this)">Published ({pub_count})</button>
                 <button type="button" class="btn btn-secondary status-tab" data-filter="draft" onclick="filterByStatus('draft', this)">Draft ({draft_count})</button>
                 {scheduled_tab}
                 <button type="button" class="btn btn-secondary status-tab" data-filter="trash" onclick="filterByStatus('trash', this)">Trash ({trash_count})</button>
+                <button type="button" id="btnEmptyTrash" class="btn btn-secondary" style="display: none; color: var(--oxide); border-color: var(--oxide); font-weight: 600;" onclick="emptyTrashForPostType()">🗑 Empty Trash</button>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                 <div style="display: flex; gap: 6px; align-items: center;">
                     <select id="bulkActionSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;">
                         <option value="">Bulk actions</option>
+                        <option value="edit">Edit (Bulk Edit)</option>
                         <option value="trash">Move to Trash</option>
                         <option value="restore">Restore</option>
                         <option value="delete">Delete Permanently</option>
                     </select>
                     <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkActions()">Apply</button>
                 </div>
+                <select id="monthFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">📅 All Dates</option>
+                </select>
+                <select id="catFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">🏷 All Categories</option>
+                </select>
+                <select id="authorFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">👤 All Authors</option>
+                </select>
                 <select id="langFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
                     <option value="all">🌐 All Languages</option>
                     <option value="en">🇺🇸 EN</option>
@@ -320,7 +375,78 @@ pub fn render_posts_view_with_matrix(
                     <option value="fr">🇫🇷 FR</option>
                     <option value="es">🇪🇸 ES</option>
                 </select>
-                <input type="text" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterRows(this.value)" />
+                <input type="text" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 200px; padding: 6px 12px; font-size: 13px;" oninput="filterRows(this.value)" />
+            </div>
+        </div>
+
+        <div id="bulkEditDrawer" class="day-card" style="display: none; padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--press); background: var(--paper-raised);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <strong style="font-size: 14px; color: var(--ink);">Bulk Edit Selected {post_type_label}</strong>
+                    <span id="bulkEditCountBadge" class="badge badge-published">0 selected</span>
+                </div>
+                <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 12px;" onclick="closeBulkEditDrawer()">Cancel</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 18px; align-items: start;">
+                <div>
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px;">Items in Batch</div>
+                    <div id="bulkEditSelectedPills" style="display: flex; flex-direction: column; gap: 5px; max-height: 150px; overflow-y: auto; padding: 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-sunk); font-size: 12px;"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                    <div>
+                        <label class="form-label" style="font-size: 11.5px;">Status</label>
+                        <select id="bulkEditStatus" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                            <option value="-1">— No Change —</option>
+                            <option value="publish">Published</option>
+                            <option value="draft">Draft</option>
+                            <option value="pending">Pending Review</option>
+                            <option value="private">Private</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 11.5px;">Template</label>
+                        <select id="bulkEditTemplate" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                            <option value="-1">— No Change —</option>
+                            <option value="default">Default Template</option>
+                            <option value="full-width">Full-Width Clean Canvas</option>
+                            <option value="canvas">DayStudio Canvas</option>
+                            <option value="landing">Landing Page Hero</option>
+                            <option value="editorial">Editorial Longform</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 11.5px;">Sticky</label>
+                        <select id="bulkEditSticky" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                            <option value="-1">— No Change —</option>
+                            <option value="true">Sticky</option>
+                            <option value="false">Not Sticky</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 11.5px;">Comments</label>
+                        <select id="bulkEditComments" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                            <option value="-1">— No Change —</option>
+                            <option value="open">Allow</option>
+                            <option value="closed">Do not allow</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 11.5px;">Pings</label>
+                        <select id="bulkEditPings" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                            <option value="-1">— No Change —</option>
+                            <option value="open">Allow</option>
+                            <option value="closed">Do not allow</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 11.5px;">Add Tags (comma-separated)</label>
+                        <input type="text" id="bulkEditAddTags" class="form-input" placeholder="e.g. featured, v1" style="font-size: 12.5px; padding: 6px 10px;" />
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule);">
+                <button type="button" class="btn btn-secondary" onclick="closeBulkEditDrawer()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">Update Selected {post_type_label}</button>
             </div>
         </div>
 
@@ -329,11 +455,11 @@ pub fn render_posts_view_with_matrix(
                 <thead>
                     <tr>
                         <th style="width: 32px;"><input type="checkbox" id="selectAllPosts" onchange="toggleSelectAll(this)"></th>
-                        <th>Title</th>
-                        <th>Author</th>
-                        <th>{fourth_col_header}</th>
-                        <th>Status</th>
-                        <th>Date</th>
+                        <th style="cursor: pointer; user-select: none;" onclick="sortPostsTable('title')">Title <span id="sortInd-title" style="font-size: 11px; color: var(--ink-muted);">↕</span></th>
+                        <th class="col-author" style="cursor: pointer; user-select: none;" onclick="sortPostsTable('author')">Author <span id="sortInd-author" style="font-size: 11px; color: var(--ink-muted);">↕</span></th>
+                        <th class="col-category">{fourth_col_header}</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-date" style="cursor: pointer; user-select: none;" onclick="sortPostsTable('date')">Date <span id="sortInd-date" style="font-size: 11px; color: var(--ink-muted);">↓</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -344,6 +470,10 @@ pub fn render_posts_view_with_matrix(
 
         <script>
             let activeStatusFilter = 'all';
+            const currentListPostType = '{post_type_slug}';
+            let currentSortCol = 'date';
+            let currentSortAsc = false;
+            let listScreenState = {{ hiddenCols: {{}}, perPage: 50 }};
 
             function toggleSelectAll(master) {{
                 document.querySelectorAll('#postsTable tbody input[name="post[]"]').forEach(cb => {{
@@ -364,10 +494,165 @@ pub fn render_posts_view_with_matrix(
                     btn.style.background = 'var(--ink)';
                     btn.style.color = 'var(--paper-raised)';
                 }}
+                const emptyBtn = document.getElementById('btnEmptyTrash');
+                if (emptyBtn) {{
+                    emptyBtn.style.display = (status === 'trash' || ({trash_count} > 0 && status === 'trash')) ? 'inline-flex' : 'none';
+                }}
                 const master = document.getElementById('selectAllPosts');
                 if (master) master.checked = false;
                 const q = document.getElementById('postSearchInput') ? document.getElementById('postSearchInput').value : '';
                 filterRows(q);
+            }}
+
+            function openQuickEditRow(id) {{
+                const existing = document.getElementById('quick-edit-' + id);
+                if (existing) {{
+                    existing.remove();
+                    return;
+                }}
+                document.querySelectorAll('tr.dp-quick-edit-row').forEach(el => el.remove());
+                const row = document.getElementById('post-' + id);
+                if (!row) return;
+
+                const title = row.getAttribute('data-title') || '';
+                const slug = row.getAttribute('data-slug') || '';
+                const dateRaw = (row.getAttribute('data-date') || '').slice(0, 16);
+                const status = row.getAttribute('data-status') || 'publish';
+                const parent = row.getAttribute('data-parent') || '0';
+                const menuOrder = row.getAttribute('data-menu-order') || '0';
+                const tpl = row.getAttribute('data-template') || 'default';
+                const sticky = row.getAttribute('data-sticky') === '1';
+                const password = row.getAttribute('data-password') || '';
+                const commentStatus = row.getAttribute('data-comment-status') || 'open';
+                const pingStatus = row.getAttribute('data-ping-status') || 'open';
+
+                const qeTr = document.createElement('tr');
+                qeTr.id = 'quick-edit-' + id;
+                qeTr.className = 'dp-quick-edit-row';
+                qeTr.style.background = 'var(--paper-raised)';
+                qeTr.innerHTML = `
+                    <td colspan="6" style="padding: 16px 20px; border-top: 2px solid var(--press); border-bottom: 2px solid var(--press);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <strong style="font-size: 13px; color: var(--press); text-transform: uppercase; letter-spacing: 0.04em;">⚡ Quick Edit — #${{id}}</strong>
+                            <span style="font-size: 11.5px; color: var(--ink-muted);">Saves directly via <code>PUT /wp-json/wp/v2/posts/${{id}}</code></span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                            <div>
+                                <div style="margin-bottom: 8px;">
+                                    <label class="form-label" style="font-size: 11.5px;">Title</label>
+                                    <input type="text" id="qe-title-${{id}}" class="form-input" value="${{title.replace(/"/g, '&quot;')}}" style="font-size: 12.5px; padding: 6px 10px;" />
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <label class="form-label" style="font-size: 11.5px;">Slug</label>
+                                    <input type="text" id="qe-slug-${{id}}" class="form-input" value="${{slug.replace(/"/g, '&quot;')}}" style="font-size: 12.5px; font-family: var(--font-mono); padding: 6px 10px;" />
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 11.5px;">Date</label>
+                                    <input type="datetime-local" id="qe-date-${{id}}" class="form-input" value="${{dateRaw}}" style="font-size: 12.5px; padding: 6px 10px;" />
+                                </div>
+                            </div>
+                            <div>
+                                <div style="margin-bottom: 8px;">
+                                    <label class="form-label" style="font-size: 11.5px;">Status</label>
+                                    <select id="qe-status-${{id}}" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                                        <option value="publish" ${{status === 'publish' ? 'selected' : ''}}>Published</option>
+                                        <option value="draft" ${{status === 'draft' ? 'selected' : ''}}>Draft</option>
+                                        <option value="pending" ${{status === 'pending' ? 'selected' : ''}}>Pending Review</option>
+                                        <option value="private" ${{status === 'private' ? 'selected' : ''}}>Private</option>
+                                        <option value="future" ${{status === 'future' ? 'selected' : ''}}>Scheduled</option>
+                                    </select>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <label class="form-label" style="font-size: 11.5px;">Password <span style="font-weight:400;color:var(--ink-muted);">(or leave blank)</span></label>
+                                    <input type="text" id="qe-password-${{id}}" class="form-input" value="${{password.replace(/"/g, '&quot;')}}" placeholder="Public" style="font-size: 12.5px; padding: 6px 10px;" />
+                                </div>
+                                <div style="display: flex; gap: 14px; padding-top: 6px;">
+                                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;">
+                                        <input type="checkbox" id="qe-sticky-${{id}}" ${{sticky ? 'checked' : ''}} /> Make this post sticky
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                    <div>
+                                        <label class="form-label" style="font-size: 11.5px;">Parent ID</label>
+                                        <input type="number" id="qe-parent-${{id}}" class="form-input" value="${{parent}}" style="font-size: 12.5px; padding: 6px 10px;" />
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 11.5px;">Order</label>
+                                        <input type="number" id="qe-order-${{id}}" class="form-input" value="${{menuOrder}}" style="font-size: 12.5px; padding: 6px 10px;" />
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <label class="form-label" style="font-size: 11.5px;">Template</label>
+                                    <select id="qe-template-${{id}}" class="form-select" style="font-size: 12.5px; padding: 6px 10px;">
+                                        <option value="default" ${{tpl === 'default' ? 'selected' : ''}}>Default Template</option>
+                                        <option value="full-width" ${{tpl === 'full-width' ? 'selected' : ''}}>Full-Width Clean Canvas</option>
+                                        <option value="canvas" ${{tpl === 'canvas' ? 'selected' : ''}}>DayStudio Canvas</option>
+                                        <option value="landing" ${{tpl === 'landing' ? 'selected' : ''}}>Landing Page Hero</option>
+                                        <option value="editorial" ${{tpl === 'editorial' ? 'selected' : ''}}>Editorial Longform</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; gap: 14px; padding-top: 6px;">
+                                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;">
+                                        <input type="checkbox" id="qe-comments-${{id}}" ${{commentStatus !== 'closed' ? 'checked' : ''}} /> Allow Comments
+                                    </label>
+                                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;">
+                                        <input type="checkbox" id="qe-pings-${{id}}" ${{pingStatus !== 'closed' ? 'checked' : ''}} /> Allow Pings
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule);">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('quick-edit-${{id}}')?.remove()">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="saveQuickEditRow(${{id}})">Update</button>
+                        </div>
+                    </td>
+                `;
+                row.insertAdjacentElement('afterend', qeTr);
+            }}
+
+            async function saveQuickEditRow(id) {{
+                const title = document.getElementById('qe-title-' + id)?.value.trim() || 'Untitled';
+                const slug = document.getElementById('qe-slug-' + id)?.value.trim() || undefined;
+                const dateVal = document.getElementById('qe-date-' + id)?.value || '';
+                const status = document.getElementById('qe-status-' + id)?.value || 'publish';
+                const password = document.getElementById('qe-password-' + id)?.value || '';
+                const sticky = !!document.getElementById('qe-sticky-' + id)?.checked;
+                const parent = parseInt(document.getElementById('qe-parent-' + id)?.value || '0', 10) || 0;
+                const menu_order = parseInt(document.getElementById('qe-order-' + id)?.value || '0', 10) || 0;
+                const template = document.getElementById('qe-template-' + id)?.value || 'default';
+                const comment_status = document.getElementById('qe-comments-' + id)?.checked ? 'open' : 'closed';
+                const ping_status = document.getElementById('qe-pings-' + id)?.checked ? 'open' : 'closed';
+
+                const payload = {{
+                    title,
+                    slug,
+                    status,
+                    password,
+                    sticky,
+                    parent,
+                    menu_order,
+                    template,
+                    comment_status,
+                    ping_status,
+                    date: dateVal ? (dateVal.length === 16 ? dateVal + ':00' : dateVal) : undefined
+                }};
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/posts/' + id, {{
+                        method: 'PUT',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify(payload)
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ Quick Edit saved for #' + id);
+                        setTimeout(() => window.location.reload(), 400);
+                    }} else {{
+                        showToast('Failed to save Quick Edit', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
             }}
 
             async function duplicatePostRow(id) {{
@@ -433,6 +718,97 @@ pub fn render_posts_view_with_matrix(
                 }}
             }}
 
+            async function emptyTrashForPostType() {{
+                if (!confirm('Permanently delete all items in Trash? This action cannot be undone.')) return;
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/posts/empty-trash', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ post_type: currentListPostType }})
+                    }});
+                    if (res.ok) {{
+                        const data = await res.json();
+                        showToast('✓ Emptied Trash (' + (data.deleted_count || 0) + ' deleted)');
+                        setTimeout(() => window.location.reload(), 450);
+                    }} else {{
+                        showToast('Failed to empty trash', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
+            function openBulkEditDrawer(checkedBoxes) {{
+                const drawer = document.getElementById('bulkEditDrawer');
+                const pills = document.getElementById('bulkEditSelectedPills');
+                const badge = document.getElementById('bulkEditCountBadge');
+                if (!drawer || !pills) return;
+                badge.textContent = checkedBoxes.length + ' selected';
+                pills.innerHTML = checkedBoxes.map(cb => {{
+                    const row = cb.closest('tr');
+                    const title = (row && row.getAttribute('data-title')) || ('#' + cb.value);
+                    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;background:var(--paper-raised);padding:4px 8px;border-radius:4px;border:1px solid var(--rule);">
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">#${{cb.value}} — ${{title}}</span>
+                        <button type="button" onclick="uncheckBulkEditItem(${{cb.value}})" style="border:none;background:none;color:var(--oxide);cursor:pointer;font-size:12px;">✕</button>
+                    </div>`;
+                }}).join('');
+                drawer.style.display = 'block';
+            }}
+
+            function uncheckBulkEditItem(id) {{
+                const cb = document.querySelector(`#postsTable tbody input[name="post[]"][value="${{id}}"]`);
+                if (cb) cb.checked = false;
+                const checked = Array.from(document.querySelectorAll('#postsTable tbody input[name="post[]"]:checked'));
+                if (checked.length === 0) closeBulkEditDrawer();
+                else openBulkEditDrawer(checked);
+            }}
+
+            function closeBulkEditDrawer() {{
+                const drawer = document.getElementById('bulkEditDrawer');
+                if (drawer) drawer.style.display = 'none';
+            }}
+
+            async function submitBulkEdit() {{
+                const checked = Array.from(document.querySelectorAll('#postsTable tbody input[name="post[]"]:checked'));
+                const post_ids = checked.map(cb => parseInt(cb.value, 10)).filter(n => !isNaN(n));
+                if (post_ids.length === 0) {{
+                    showToast('No items selected', true);
+                    return;
+                }}
+                const statusVal = document.getElementById('bulkEditStatus')?.value || '-1';
+                const tplVal = document.getElementById('bulkEditTemplate')?.value || '-1';
+                const stickyVal = document.getElementById('bulkEditSticky')?.value || '-1';
+                const commentsVal = document.getElementById('bulkEditComments')?.value || '-1';
+                const pingsVal = document.getElementById('bulkEditPings')?.value || '-1';
+                const addTagsVal = document.getElementById('bulkEditAddTags')?.value.trim() || '';
+
+                const payload = {{
+                    post_ids,
+                    status: statusVal !== '-1' ? statusVal : undefined,
+                    template: tplVal !== '-1' ? tplVal : undefined,
+                    sticky: stickyVal === 'true' ? true : (stickyVal === 'false' ? false : undefined),
+                    comment_status: commentsVal !== '-1' ? commentsVal : undefined,
+                    ping_status: pingsVal !== '-1' ? pingsVal : undefined,
+                    add_tags: addTagsVal || undefined
+                }};
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/posts/bulk-edit', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify(payload)
+                    }});
+                    if (res.ok) {{
+                        const data = await res.json();
+                        showToast('✓ Bulk updated ' + (data.updated_count || post_ids.length) + ' item(s)');
+                        setTimeout(() => window.location.reload(), 450);
+                    }} else {{
+                        showToast('Bulk Edit failed', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
             async function applyBulkActions() {{
                 const select = document.getElementById('bulkActionSelect');
                 const action = select ? select.value : '';
@@ -443,6 +819,10 @@ pub fn render_posts_view_with_matrix(
                 const checked = Array.from(document.querySelectorAll('#postsTable tbody input[name="post[]"]:checked'));
                 if (checked.length === 0) {{
                     showToast('No items selected.', true);
+                    return;
+                }}
+                if (action === 'edit') {{
+                    openBulkEditDrawer(checked);
                     return;
                 }}
                 if (action === 'delete' && !confirm('Permanently delete ' + checked.length + ' item(s)?')) {{
@@ -481,23 +861,153 @@ pub fn render_posts_view_with_matrix(
                 setTimeout(() => window.location.reload(), 600);
             }}
 
+            function sortPostsTable(col) {{
+                if (currentSortCol === col) {{
+                    currentSortAsc = !currentSortAsc;
+                }} else {{
+                    currentSortCol = col;
+                    currentSortAsc = col !== 'date';
+                }}
+                ['title', 'author', 'date'].forEach(c => {{
+                    const ind = document.getElementById('sortInd-' + c);
+                    if (ind) ind.textContent = c === currentSortCol ? (currentSortAsc ? '↑' : '↓') : '↕';
+                }});
+                const tbody = document.querySelector('#postsTable tbody');
+                if (!tbody) return;
+                document.querySelectorAll('tr.dp-quick-edit-row').forEach(el => el.remove());
+                const rows = Array.from(tbody.querySelectorAll('tr[data-status]'));
+                rows.sort((a, b) => {{
+                    const av = (a.getAttribute('data-' + col) || '').toLowerCase();
+                    const bv = (b.getAttribute('data-' + col) || '').toLowerCase();
+                    if (av < bv) return currentSortAsc ? -1 : 1;
+                    if (av > bv) return currentSortAsc ? 1 : -1;
+                    return 0;
+                }});
+                rows.forEach(r => tbody.appendChild(r));
+            }}
+
             function filterRows(q) {{
                 const filter = (q || '').toLowerCase();
                 const langSel = document.getElementById('langFilterSelect');
                 const activeLang = langSel ? (langSel.value || 'all').toLowerCase() : 'all';
+                const monthSel = document.getElementById('monthFilterSelect');
+                const activeMonth = monthSel ? (monthSel.value || 'all') : 'all';
+                const catSel = document.getElementById('catFilterSelect');
+                const activeCat = catSel ? (catSel.value || 'all').toLowerCase() : 'all';
+                const authorSel = document.getElementById('authorFilterSelect');
+                const activeAuthor = authorSel ? (authorSel.value || 'all').toLowerCase() : 'all';
+                const maxPerPage = parseInt(listScreenState.perPage || 50, 10) || 50;
+
                 const rows = document.querySelectorAll('#postsTable tbody tr[data-status]');
+                let shownCount = 0;
                 rows.forEach(r => {{
                     const text = r.textContent.toLowerCase();
                     const rowStatus = r.getAttribute('data-status') || 'publish';
                     const rowLang = (r.getAttribute('data-lang') || 'en').toLowerCase();
+                    const rowMonth = r.getAttribute('data-month') || '';
+                    const rowCats = (r.getAttribute('data-categories') || '').toLowerCase();
+                    const rowAuthor = (r.getAttribute('data-author') || '').toLowerCase();
+
                     const statusMatch = activeStatusFilter === 'all' ? (rowStatus !== 'trash') : (rowStatus === activeStatusFilter);
                     const langMatch = activeLang === 'all' || rowLang === activeLang;
+                    const monthMatch = activeMonth === 'all' || rowMonth === activeMonth;
+                    const catMatch = activeCat === 'all' || rowCats.split(',').map(s => s.trim()).includes(activeCat);
+                    const authorMatch = activeAuthor === 'all' || rowAuthor === activeAuthor;
                     const textMatch = !filter || text.includes(filter);
-                    r.style.display = (statusMatch && langMatch && textMatch) ? '' : 'none';
+
+                    if (statusMatch && langMatch && monthMatch && catMatch && authorMatch && textMatch) {{
+                        shownCount++;
+                        r.style.display = shownCount <= maxPerPage ? '' : 'none';
+                    }} else {{
+                        r.style.display = 'none';
+                    }}
                 }});
             }}
 
+            function toggleListScreenOptions() {{
+                const p = document.getElementById('listScreenOptionsPanel');
+                if (p) p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
+            }}
+
+            function togglePostsListColumn(colClass, visible) {{
+                listScreenState.hiddenCols[colClass] = !visible;
+                document.querySelectorAll('#postsTable .' + colClass).forEach(el => {{
+                    el.style.display = visible ? '' : 'none';
+                }});
+                savePostsListScreenState();
+            }}
+
+            function onListPerPageChange(val) {{
+                listScreenState.perPage = parseInt(val, 10) || 50;
+                filterRows(document.getElementById('postSearchInput')?.value || '');
+                savePostsListScreenState();
+            }}
+
+            function savePostsListScreenState() {{
+                fetch('/wp-json/daypress/v1/user-preferences', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ screens: {{ posts_list: listScreenState }} }})
+                }}).catch(() => {{}});
+            }}
+
             document.addEventListener('DOMContentLoaded', async () => {{
+                // Populate dynamic Month, Category, and Author filter dropdowns from table rows
+                const months = new Set();
+                const cats = new Set();
+                const authors = new Set();
+                document.querySelectorAll('#postsTable tbody tr[data-status]').forEach(r => {{
+                    const m = r.getAttribute('data-month');
+                    if (m && m.length === 7) months.add(m);
+                    (r.getAttribute('data-categories') || '').split(',').map(s => s.trim()).filter(Boolean).forEach(c => cats.add(c));
+                    const a = r.getAttribute('data-author');
+                    if (a) authors.add(a);
+                }});
+                const monthSel = document.getElementById('monthFilterSelect');
+                if (monthSel && months.size > 0) {{
+                    Array.from(months).sort().reverse().forEach(m => {{
+                        const opt = document.createElement('option');
+                        opt.value = m; opt.textContent = '📅 ' + m;
+                        monthSel.appendChild(opt);
+                    }});
+                }}
+                const catSel = document.getElementById('catFilterSelect');
+                if (catSel && cats.size > 0) {{
+                    Array.from(cats).sort().forEach(c => {{
+                        const opt = document.createElement('option');
+                        opt.value = c.toLowerCase(); opt.textContent = '🏷 ' + c;
+                        catSel.appendChild(opt);
+                    }});
+                }}
+                const authorSel = document.getElementById('authorFilterSelect');
+                if (authorSel && authors.size > 0) {{
+                    Array.from(authors).sort().forEach(a => {{
+                        const opt = document.createElement('option');
+                        opt.value = a.toLowerCase(); opt.textContent = '👤 ' + a;
+                        authorSel.appendChild(opt);
+                    }});
+                }}
+
+                fetch('/wp-json/daypress/v1/user-preferences')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {{
+                        const prefs = data && data.preferences && data.preferences.screens && data.preferences.screens.posts_list;
+                        if (prefs && typeof prefs === 'object') {{
+                            listScreenState = Object.assign(listScreenState, prefs);
+                            Object.entries(listScreenState.hiddenCols || {{}}).forEach(([colClass, hidden]) => {{
+                                const cb = document.querySelector(`.dp-list-col-cb[data-col="${{colClass}}"]`);
+                                if (cb) cb.checked = !hidden;
+                                document.querySelectorAll('#postsTable .' + colClass).forEach(el => {{
+                                    el.style.display = hidden ? 'none' : '';
+                                }});
+                            }});
+                            const ppSel = document.getElementById('listPerPageSelect');
+                            if (ppSel && listScreenState.perPage) ppSel.value = String(listScreenState.perPage);
+                            filterRows(document.getElementById('postSearchInput')?.value || '');
+                        }}
+                    }})
+                    .catch(() => {{}});
+
                 const langSel = document.getElementById('langFilterSelect');
                 if (!langSel) return;
                 const urlParams = new URLSearchParams(window.location.search);
@@ -524,6 +1034,7 @@ pub fn render_posts_view_with_matrix(
         </script>
         "##,
         post_type_label = post_type_label,
+        post_type_slug = escape_html(post_type),
         header_footer_btn = header_footer_btn,
         fourth_col_header = fourth_col_header,
         add_new_url = add_new_url,

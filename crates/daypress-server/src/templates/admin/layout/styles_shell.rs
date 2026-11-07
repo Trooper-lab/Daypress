@@ -391,5 +391,88 @@ pub fn get_styles_shell() -> &'static str {
 			justify-content: space-between;
 			padding: 0 36px;
 		}
+
+		/* ==================== COLLAPSIBLE SIDEBAR (WordPress Folded Menu Parity) ==================== */
+		.desk-collapse-btn {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			width: 100%;
+			margin-top: 10px;
+			padding: 6px 8px;
+			background: transparent;
+			border: 1px solid var(--desk-rule);
+			border-radius: var(--radius-sm);
+			color: var(--desk-muted);
+			font: 500 12px/16px var(--font-sans);
+			cursor: pointer;
+			transition: color 0.12s, border-color 0.12s, background 0.12s;
+		}
+		.desk-collapse-btn:hover {
+			color: var(--desk-ink);
+			border-color: var(--desk-muted);
+			background: var(--desk-raised);
+		}
+		body.dp-sidebar-collapsed {
+			--sidebar-w: 58px;
+		}
+		body.dp-sidebar-collapsed .desk-brand {
+			padding: 18px 0 12px;
+			text-align: center;
+		}
+		body.dp-sidebar-collapsed .desk-wordmark {
+			font-size: 0;
+			gap: 0;
+			justify-content: center;
+		}
+		body.dp-sidebar-collapsed .desk-site,
+		body.dp-sidebar-collapsed .desk-search span,
+		body.dp-sidebar-collapsed .desk-search kbd,
+		body.dp-sidebar-collapsed .nav-item > span:not(.nav-badge),
+		body.dp-sidebar-collapsed .desk-account,
+		body.dp-sidebar-collapsed .desk-version,
+		body.dp-sidebar-collapsed .desk-collapse-label {
+			display: none !important;
+		}
+		body.dp-sidebar-collapsed .desk-search {
+			margin: 0 8px 8px;
+			justify-content: center;
+			padding: 7px 0;
+		}
+		body.dp-sidebar-collapsed .desk-search::before {
+			content: "⌕";
+			font-size: 14px;
+		}
+		body.dp-sidebar-collapsed .nav-item {
+			justify-content: center;
+			padding: 11px 0;
+		}
+		body.dp-sidebar-collapsed .nav-badge {
+			position: absolute;
+			top: 3px;
+			right: 4px;
+			font-size: 9.5px;
+		}
+		body.dp-sidebar-collapsed .nav-group.open > .nav-submenu {
+			display: none;
+		}
+		body.dp-sidebar-collapsed .nav-group:hover > .nav-submenu {
+			display: flex;
+			position: fixed;
+			left: var(--sidebar-w);
+			top: 120px;
+			min-width: 200px;
+			padding: 6px 0;
+			background: var(--desk-raised);
+			border: 1px solid var(--desk-rule);
+			z-index: 99999;
+		}
+		body.dp-sidebar-collapsed .desk-footer {
+			padding: 10px 8px 14px;
+		}
+		body.dp-sidebar-collapsed .desk-collapse-btn {
+			justify-content: center;
+			margin-top: 0;
+		}
 "#
 }

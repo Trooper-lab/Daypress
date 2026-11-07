@@ -965,4 +965,61 @@ impl Database {
         )?;
         Ok(modified)
     }
+
+    pub fn get_user_screen_preferences(&self, user_id: i64) -> Result<serde_json::Value> {
+        let conn = self.conn.lock().unwrap();
+        let raw: Option<String> = conn
+            .query_row(
+                "SELECT meta_value FROM usermeta WHERE user_id = ?1 AND meta_key = '_daypress_screen_prefs'",
+                params![user_id],
+                |r| r.get(0),
+            )
+            .ok();
+        let parsed = raw
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .unwrap_or_else(|| serde_json::json!({}));
+        Ok(parsed)
+    }
+
+    pub fn save_user_screen_preferences(
+        &self,
+        user_id: i64,
+        patch: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let mut current = self.get_user_screen_preferences(user_id)?;
+        if !current.is_object() {
+            current = serde_json::json!({});
+        }
+        let effective_patch = patch
+            .get("preferences")
+            .filter(|v| v.is_object())
+            .unwrap_or(patch);
+        if let (Some(cur_obj), Some(patch_obj)) =
+            (current.as_object_mut(), effective_patch.as_object())
+        {
+            for (k, v) in patch_obj {
+                if k == "screens" {
+                    let entry = cur_obj
+                        .entry("screens".to_string())
+                        .or_insert_with(|| serde_json::json!({}));
+                    if !entry.is_object() {
+                        *entry = serde_json::json!({});
+                    }
+                    if let (Some(cur_screens), Some(patch_screens)) =
+                        (entry.as_object_mut(), v.as_object())
+                    {
+                        for (sk, sv) in patch_screens {
+                            cur_screens.insert(sk.clone(), sv.clone());
+                        }
+                    }
+                } else {
+                    cur_obj.insert(k.clone(), v.clone());
+                }
+            }
+        }
+        let serialized = serde_json::to_string(&current).unwrap_or_else(|_| "{}".to_string());
+        let conn = self.conn.lock().unwrap();
+        Self::upsert_usermeta(&conn, user_id, "_daypress_screen_prefs", &serialized)?;
+        Ok(current)
+    }
 }

@@ -214,6 +214,14 @@ pub fn render_actions_script(
                 const coauthor_ids = coauthorEl
                     ? (coauthorEl.value || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0)
                     : undefined;
+                const stickyEl = document.getElementById('post_sticky');
+                const sticky = stickyEl ? !!stickyEl.checked : false;
+                const passwordEl = document.getElementById('post_password');
+                const password = passwordEl ? passwordEl.value : '';
+                const commentStatusEl = document.getElementById('post_comment_status');
+                const comment_status = commentStatusEl ? (commentStatusEl.checked ? 'open' : 'closed') : 'open';
+                const pingStatusEl = document.getElementById('post_ping_status');
+                const ping_status = pingStatusEl ? (pingStatusEl.checked ? 'open' : 'closed') : 'open';
 
                 const payload = {{
                     title: title || 'Untitled',
@@ -225,6 +233,10 @@ pub fn render_actions_script(
                     parent,
                     menu_order,
                     template,
+                    sticky,
+                    password,
+                    comment_status,
+                    ping_status,
                     featured_media: featured_media > 0 ? featured_media : undefined,
                     categories,
                     tags,
@@ -362,11 +374,7 @@ pub fn render_actions_script(
                     const res = await fetch('/wp-json/daypress/v1/templates/assign-page', {{
                         method: 'POST',
                         headers: {{ 'Content-Type': 'application/json' }},
-                        body: JSON.stringify({{
-                            post_id: pid,
-                            header: hSel.value,
-                            footer: fSel.value
-                        }})
+                        body: JSON.stringify({{ post_id: pid, header: hSel.value, footer: fSel.value }})
                     }});
                     if (res.ok) {{
                         const matrix = await res.json();
@@ -377,17 +385,11 @@ pub fn render_actions_script(
                             updateEditorSlotSummary('footer', matchedRow.footer);
                         }}
                         showToast('✓ Header & Footer assignment updated in SQLite');
-                    }} else {{
-                        showToast('Failed to update Header/Footer assignment', true);
-                    }}
-                }} catch (e) {{
-                    showToast('Network error: ' + e, true);
-                }}
+                    }} else {{ showToast('Failed to update Header/Footer assignment', true); }}
+                }} catch (e) {{ showToast('Network error: ' + e, true); }}
             }}
 
-            document.addEventListener('DOMContentLoaded', () => {{
-                loadEditorHeaderFooterState();
-            }});
+            document.addEventListener('DOMContentLoaded', () => {{ loadEditorHeaderFooterState(); }});
         "#,
         post_type = post_type,
         type_singular = type_singular,

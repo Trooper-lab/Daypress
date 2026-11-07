@@ -82,30 +82,38 @@ pub const JS_ACF_RENDER: &str = r###"
                         </div>
                     ` : '';
 
+                    const isCollapsed = !!b.collapsed;
+                    const isHidden = !!b.hidden;
                     return `
-                        <div class="acf-block-card" style="border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--paper-raised); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,0.04);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--paper-raised); border-bottom: 1px solid var(--rule);">
+                        <div class="acf-block-card" draggable="true" ondragstart="onAcfBlockDragStart(event, ${i})" ondragover="onAcfBlockDragOver(event)" ondrop="onAcfBlockDrop(event, ${i})" style="border: 1px solid ${isHidden ? 'var(--ochre)' : 'var(--rule-strong)'}; border-radius: var(--radius-sm); background: var(--paper-raised); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,0.04); opacity: ${isHidden ? '0.68' : '1'};">
+                            <div ondblclick="toggleAcfBlockCollapsed(${i})" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--paper-raised); border-bottom: ${isCollapsed ? 'none' : '1px solid var(--rule)'}; cursor: grab;">
                                 <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                                    <span title="Drag to reorder block" style="cursor: grab; color: var(--ink-muted); font-size: 13px; user-select: none;">⠿</span>
+                                    <button type="button" class="btn btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px;" title="${isCollapsed ? 'Expand Block' : 'Collapse Block'}" onclick="toggleAcfBlockCollapsed(${i})">${isCollapsed ? '▸' : '▾'}</button>
                                     <span style="font-size: 11px; font-weight: 700; font-family: var(--font-mono); color: var(--ink-muted);">#${i + 1}</span>
                                     <span style="background: ${b.badgeBg}; color: ${b.badgeColor}; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap;">${b.blockType}</span>
                                     <strong style="font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeAttr(mainTitle)}</strong>
+                                    ${isHidden ? '<span class="badge badge-draft" style="font-size: 10px;">Hidden / Muted</span>' : ''}
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 4px;">
                                     <button type="button" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; height: 24px;" title="Move Up" onclick="moveAcfBlock(${i}, -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
                                     <button type="button" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; height: 24px;" title="Move Down" onclick="moveAcfBlock(${i}, 1)" ${i === acfBlocks.length - 1 ? 'disabled' : ''}>↓</button>
+                                    <button type="button" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; height: 24px; ${isHidden ? 'color: var(--ochre); border-color: var(--ochre);' : ''}" title="${isHidden ? 'Unhide Block on Page' : 'Hide / Mute Block on Page without deleting'}" onclick="toggleAcfBlockHidden(${i})">${isHidden ? '🙈' : '👁'}</button>
                                     <button type="button" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; height: 24px;" title="Duplicate Section" onclick="duplicateAcfBlock(${i})">⧉</button>
                                     <button type="button" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; height: 24px; font-family: var(--font-mono);" title="Inspect / Edit Section HTML" onclick="toggleAcfRawHtml(${i})">&lt;/&gt;</button>
                                     <button type="button" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; height: 24px; color: var(--oxide);" title="Delete Section" onclick="deleteAcfBlock(${i})">✕</button>
                                 </div>
                             </div>
-                            ${controlsHtml}
-                            <div style="padding: 12px 14px;">
-                                ${headingsEditorHtml || '<div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 6px;">Dynamic ACF / Gutenberg template block</div>'}
-                                ${paragraphsEditorHtml}
-                                ${buttonsEditorHtml}
-                                <div id="acfRawWrap_${i}" style="display: ${b.showRaw ? 'block' : 'none'}; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule);">
-                                    <label style="font-size: 11px; font-weight: 700; color: var(--ink-muted); display: block; margin-bottom: 4px; font-family: var(--font-mono);">Section HTML Markup (Synced with Post Content &amp; DayStudio AST)</label>
-                                    <textarea class="form-textarea" rows="5" style="font-family: var(--font-mono); font-size: 11.5px; background: var(--ink); color: var(--ink-muted); padding: 10px;" oninput="updateAcfRawHtml(${i}, this.value)">${(b.outerHtml || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                            <div style="display: ${isCollapsed ? 'none' : 'block'};">
+                                ${controlsHtml}
+                                <div style="padding: 12px 14px;">
+                                    ${headingsEditorHtml || '<div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 6px;">Dynamic ACF / Gutenberg template block</div>'}
+                                    ${paragraphsEditorHtml}
+                                    ${buttonsEditorHtml}
+                                    <div id="acfRawWrap_${i}" style="display: ${b.showRaw ? 'block' : 'none'}; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule);">
+                                        <label style="font-size: 11px; font-weight: 700; color: var(--ink-muted); display: block; margin-bottom: 4px; font-family: var(--font-mono);">Section HTML Markup (Synced with Post Content &amp; DayStudio AST)</label>
+                                        <textarea class="form-textarea" rows="5" style="font-family: var(--font-mono); font-size: 11.5px; background: var(--ink); color: var(--ink-muted); padding: 10px;" oninput="updateAcfRawHtml(${i}, this.value)">${(b.outerHtml || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                                    </div>
                                 </div>
                             </div>
                         </div>

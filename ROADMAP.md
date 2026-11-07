@@ -16,6 +16,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
 | **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
+| **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Up next** |
 | **`1.0`** | First Stable Release | Planned |
 
@@ -97,6 +98,20 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 - [x] Multi-language content linking (`/en/`, `/de/`, `/nl/`) with automatic `hreflang` sitemaps, language switcher widget, localized `/d-admin/` UI, and **WPML / Polylang** migration converter
 - [x] Editorial workflow upgrades: **1-Click Post/Page Duplication**, multi-author bylines (`Co-Authors Plus` parity), **Shareable Secret Draft Preview Links** (no login required), and scheduled revisions to already-published pages
 - [x] **Visual Side-by-Side AST Revision Diffs** & per-node cherry-pick restore inside Daystudio
+
+### `0.8.5` — WordPress-Native Admin & Editor Ergonomics (`Shipped`)
+- [x] **Post & Page Editor Ergonomics (`/d-admin/post-new`, `/d-admin/post-edit`)**:
+  - [x] **Screen Options Drawer** (`⚙ Screen Options ▾`) with per-user meta box visibility checkboxes, 1-Column / 2-Column layout toggle, and Collapse/Expand/Reset controls persisted to `usermeta` (`_daypress_screen_prefs` via `/wp-json/daypress/v1/user-preferences`)
+  - [x] **Collapsible, Reorderable & Drag-and-Drop Meta Boxes** (`↑` / `↓` / `⇄` column move / `▾` collapse + HTML5 drag-and-drop) across all main and sidebar editor panels
+  - [x] **Collapsible, Drag-and-Drop & Hideable Block Stack**: Always-available block inserter (Gutenberg core blocks + custom ACF blocks), per-block `▾`/`▸` collapse, `Collapse All` / `Expand All`, and `👁`/`🙈` mute/hide block without deleting (`data-dp-hidden="true"`)
+  - [x] **Distraction-Free Fullscreen Mode** (`⛶ Fullscreen`), **Sticky Post** checkbox, **Password-Protected Post** field, standalone **Discussion** meta box (`comment_status` / `ping_status`), and dedicated **Excerpt** meta box
+- [x] **Posts & Pages List Table Ergonomics (`/d-admin/posts`, `/d-admin/pages`)**:
+  - [x] Inline **Quick Edit** row drawer (Title, Slug, Status, Date, Author, Password, Categories, Template, Menu Order, Sticky, Allow Comments)
+  - [x] Multi-row **Bulk Edit** drawer (`POST /wp-json/daypress/v1/posts/bulk-edit`), **Empty Trash** button (`POST /wp-json/daypress/v1/posts/empty-trash`), clickable column sorting (`Title`, `Author`, `Date`), Month/Category/Author filter bar, and List Table **Screen Options**
+- [x] **Dashboard, Comments, Appearance & Media Library Ergonomics**:
+  - [x] Collapsible, movable & hideable **Dashboard Widgets** with **Recent Comments Moderation** card and **Collapsible Left Admin Sidebar** (`64px` icon rail)
+  - [x] **Comments** inline Reply, inline Quick Edit, multi-row Bulk Actions (`POST /wp-json/daypress/v1/comments/bulk`), and `Empty Spam` / `Empty Trash`
+  - [x] **Menus** nested hierarchy indentation (`← Outdent` / `→ Indent`), `↑`/`↓` reorder, `New tab` toggle, and Posts/Categories quick-add; **Widgets** `↑`/`↓` reorder; **Media Library** `⊞ Grid` / `☰ List` view toggle and `☑ Bulk Select` mode
 
 ### `0.9` — Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates (`Up next`)
 - [ ] Native subscriber lists with double opt-in, member-gated posts, and automated new-post email digests via SMTP/SES/Resend (`MailPoet` / `Ghost` parity)

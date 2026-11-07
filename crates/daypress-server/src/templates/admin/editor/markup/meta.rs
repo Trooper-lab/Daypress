@@ -109,7 +109,7 @@ pub fn render_acf_fields_card(existing: Option<&DaypressPostResponse>, _post_typ
     let header_left = get_meta("header_left");
 
     format!(
-        r#"<div class="day-card" style="padding: 22px;">
+        r#"<div class="day-card" id="metabox-acf_settings" data-metabox-id="acf_settings" data-metabox-title="Theme Header &amp; ACF Page Settings" style="padding: 22px;">
             <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <h2 class="day-card-title">Theme Header &amp; ACF Page Settings</h2>
@@ -117,6 +117,7 @@ pub fn render_acf_fields_card(existing: Option<&DaypressPostResponse>, _post_typ
                 </div>
                 <span style="font-size: 11.5px; color: var(--ink-muted); font-family: var(--font-mono);">postmeta synced</span>
             </div>
+            <div class="day-card-body" style="padding: 0;">
 
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
@@ -144,6 +145,7 @@ pub fn render_acf_fields_card(existing: Option<&DaypressPostResponse>, _post_typ
             <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
                 <label class="form-label">Hero Banner Intro / Left Copy (<code>header_left</code>)</label>
                 <textarea rows="2" class="form-textarea acf-meta-input" data-acf-key="header_left" placeholder="Optional hero subtitle / intro paragraph..." oninput="onAcfFieldChange()">{header_left}</textarea>
+            </div>
             </div>
         </div>"#
     )
@@ -173,7 +175,7 @@ pub fn render_structured_field_groups(
         }
 
         html.push_str(&format!(
-            r#"<div class="day-card dp-structured-field-group" data-field-group-key="{group_key}" style="padding: 22px;">
+            r#"<div class="day-card dp-structured-field-group" data-field-group-key="{group_key}" data-metabox-id="structured_fields" data-metabox-title="{group_title}" style="padding: 22px;">
                 <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 class="day-card-title">{group_title}</h2>
@@ -184,7 +186,7 @@ pub fn render_structured_field_groups(
                         <a href="/d-admin/content-types?tab=fields" style="font-size: 11.5px; color: var(--press); text-decoration: none; font-weight: 600;">Schema &nearr;</a>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                <div class="day-card-body" style="padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
                     {fields_html}
                 </div>
             </div>"#

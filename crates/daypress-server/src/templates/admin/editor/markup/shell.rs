@@ -100,21 +100,31 @@ pub fn render_editor_card(p: &EditorCardParams) -> String {
 
                 <div id="editorCanvasWrapper" style="position: relative;">
                     <div id="acfBlocksContainer" style="display: block;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                 <span style="font-size: 12px; font-weight: 700; color: var(--ink);">Block Stack</span>
                                 <span id="acfBlockCountBadge" style="background: var(--press-wash); color: var(--press); border: 1px solid var(--press); border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600;">0 sections</span>
+                                <button type="button" class="btn btn-secondary" style="height: 24px; padding: 0 8px; font-size: 11px;" title="Collapse all blocks to compact headers" onclick="toggleAllAcfBlocks(true)">▴ Collapse All</button>
+                                <button type="button" class="btn btn-secondary" style="height: 24px; padding: 0 8px; font-size: 11px;" title="Expand all blocks" onclick="toggleAllAcfBlocks(false)">▾ Expand All</button>
                             </div>
                             <div id="acfBlockInserter" style="display: {acf_inserter_display}; gap: 6px; align-items: center;">
                                 <select id="newAcfBlockSelect" class="form-select" style="height: 28px; padding: 2px 8px; font-size: 11.5px; width: auto;">
-                                    <option value="section_white">+ ACF Section (White + Content)</option>
-                                    <option value="section_black">+ ACF Section (Black + Diagonal Angle)</option>
-                                    <option value="section_blue">+ ACF Section (Blue + Content)</option>
-                                    <option value="acf_3col">+ ACF Block: 3-Col Feature Cards (acf/threecol)</option>
-                                    <option value="acf_logos">+ ACF Block: Client Logos Carousel (acf/logos)</option>
-                                    <option value="acf_trainingen">+ ACF Block: Showcase Carousel (acf/showcase)</option>
-                                    <option value="acf_faq">+ ACF Block: FAQ Accordion (acf/faq)</option>
-                                    <option value="acf_quotes">+ ACF Block: Quotes Testimonial Slider (acf/quotes)</option>
+                                    <optgroup label="Core Gutenberg Blocks">
+                                        <option value="wp_paragraph">+ Paragraph Block (core/paragraph)</option>
+                                        <option value="wp_heading">+ Heading + Lead Copy (core/heading)</option>
+                                        <option value="wp_columns_2">+ 2-Column Split Row (core/columns)</option>
+                                        <option value="wp_cta_box">+ Callout / CTA Banner (core/group)</option>
+                                    </optgroup>
+                                    <optgroup label="ACF &amp; Theme Sections">
+                                        <option value="section_white">+ ACF Section (White + Content)</option>
+                                        <option value="section_black">+ ACF Section (Black + Diagonal Angle)</option>
+                                        <option value="section_blue">+ ACF Section (Blue + Content)</option>
+                                        <option value="acf_3col">+ ACF Block: 3-Col Feature Cards (acf/threecol)</option>
+                                        <option value="acf_logos">+ ACF Block: Client Logos Carousel (acf/logos)</option>
+                                        <option value="acf_trainingen">+ ACF Block: Showcase Carousel (acf/showcase)</option>
+                                        <option value="acf_faq">+ ACF Block: FAQ Accordion (acf/faq)</option>
+                                        <option value="acf_quotes">+ ACF Block: Quotes Testimonial Slider (acf/quotes)</option>
+                                    </optgroup>
                                 </select>
                                 <button type="button" class="btn btn-primary" style="height: 28px; padding: 0 12px; font-size: 11.5px;" onclick="insertNewAcfSection()">+ Add Block</button>
                             </div>
@@ -162,7 +172,17 @@ pub struct SeoCardParams<'a> {
 
 pub fn render_seo_card(p: &SeoCardParams) -> String {
     format!(
-        r#"<div class="day-card" style="padding: 22px;">
+        r#"<div class="day-card" id="metabox-excerpt" data-metabox-id="excerpt" data-metabox-title="Excerpt" style="padding: 22px;">
+            <div class="day-card-header" style="padding: 0 0 12px 0; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="day-card-title">Excerpt</h2>
+                <span style="font-size: 11.5px; color: var(--ink-muted);">Optional handcrafted summary</span>
+            </div>
+            <div class="day-card-body" style="padding: 0;">
+                <textarea id="excerpt" rows="3" class="form-textarea" placeholder="Write an excerpt (optional summary for blog archives, RSS feeds, and search previews)..." oninput="updateSerpPreview(); markDirty();">{initial_excerpt}</textarea>
+                <small style="color: var(--ink-muted); font-size: 11.5px; margin-top: 6px; display: block;">Excerpts are optional hand-crafted summaries of your content that can be used in your theme.</small>
+            </div>
+        </div>
+        <div class="day-card" id="metabox-seo_studio" data-metabox-id="seo_studio" data-metabox-title="Daypress SEO &amp; Readability Studio" style="padding: 22px;">
             <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <h2 class="day-card-title">Daypress SEO &amp; Readability Studio</h2>
@@ -172,7 +192,7 @@ pub fn render_seo_card(p: &SeoCardParams) -> String {
                     SEO Score: 85 / 100
                 </div>
             </div>
-
+            <div class="day-card-body" style="padding: 0;">
             <div style="margin-bottom: 18px; background: var(--paper-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px;">
                 <span style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--ink-muted); letter-spacing: 0.05em; display: block; margin-bottom: 6px;">Google Search Snippet Preview</span>
                 <div id="serpTitle" style="color: #1a0dab; font-size: 17px; font-weight: 500; text-decoration: underline; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{initial_title} – {site_title}</div>
@@ -207,11 +227,6 @@ pub fn render_seo_card(p: &SeoCardParams) -> String {
                 <textarea id="seo_description" rows="2" class="form-textarea" placeholder="Compelling 120–158 character summary for search results..." oninput="updateSerpPreview(); markDirty();">{initial_seo_desc}</textarea>
             </div>
 
-            <div class="form-group" style="margin-bottom: 14px;">
-                <label class="form-label">Post Excerpt (Theme Archive Summary)</label>
-                <textarea id="excerpt" rows="2" class="form-textarea" placeholder="Handcrafted summary for blog archives and RSS feeds..." oninput="updateSerpPreview(); markDirty();">{initial_excerpt}</textarea>
-            </div>
-
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Canonical URL Override</label>
@@ -229,6 +244,7 @@ pub fn render_seo_card(p: &SeoCardParams) -> String {
                     <span>Discourage search engines from indexing this {type_singular} (<code>noindex, follow</code>)</span>
                 </label>
                 <div id="seoChecklistSummary" style="font-size: 12px; color: var(--ink-muted);"></div>
+            </div>
             </div>
         </div>"#,
         initial_title = p.initial_title,

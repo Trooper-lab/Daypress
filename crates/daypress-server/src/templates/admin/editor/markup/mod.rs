@@ -200,7 +200,7 @@ pub fn render_post_new_view_with_fields(
         initial_content: &initial_content,
         locked_banner_html: &theme_preview_css,
         standard_editor_display: "display: block;",
-        acf_inserter_display: if uses_acf { "flex" } else { "none" },
+        acf_inserter_display: "flex",
     });
 
     let acf_card = if uses_acf {
@@ -297,6 +297,25 @@ pub fn render_post_new_view_with_fields(
         initial_lang_code,
         initial_coauthor_ids: &initial_coauthor_ids,
         initial_author_display,
+        initial_sticky_checked: if existing.map(|p| p.sticky).unwrap_or(false) {
+            "checked"
+        } else {
+            ""
+        },
+        initial_password: existing.map(|p| p.password.as_str()).unwrap_or(""),
+        comment_open_checked: if existing
+            .map(|p| p.comment_status != "closed")
+            .unwrap_or(true)
+        {
+            "checked"
+        } else {
+            ""
+        },
+        ping_open_checked: if existing.map(|p| p.ping_status != "closed").unwrap_or(true) {
+            "checked"
+        } else {
+            ""
+        },
     });
 
     let media_modal = render_media_picker_modal(&media_picker_items);
@@ -314,56 +333,53 @@ pub fn render_post_new_view_with_fields(
         r#"
         <div class="page-header">
             <div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <h1 class="page-title">{title_label}</h1>
-                    <span class="badge badge-published" style="font-size: 11px; text-transform: uppercase;">{post_type}</span>
-                </div>
+                <div style="display: flex; align-items: center; gap: 10px;"><h1 class="page-title">{title_label}</h1><span class="badge badge-published" style="font-size: 11px; text-transform: uppercase;">{post_type}</span></div>
                 <p class="page-subtitle">Craft and publish high-performance editorial content directly to embedded Rusqlite</p>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                {top_builder_btn}
-                {duplicate_btn_html}
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary" id="btnEditorScreenOptions" onclick="toggleEditorScreenOptions()" title="WordPress Screen Options: Show/Hide Meta Boxes &amp; Column Layout">⚙ Screen Options ▾</button>
+                <button type="button" class="btn btn-secondary" id="btnEditorFullscreen" onclick="toggleEditorDistractionFree()" title="Distraction-Free Fullscreen Mode (Shift+Alt+F)">⛶ Fullscreen</button>
+                {top_builder_btn} {duplicate_btn_html}
                 <button type="button" class="btn btn-secondary" onclick="saveDraft()">Save Draft</button>
                 <button type="button" class="btn btn-secondary" onclick="previewPage()">View Live ↗</button>
                 <button type="button" class="btn btn-primary dp-publish-btn" onclick="document.getElementById('postFormSubmit').click()">{btn_text}</button>
             </div>
         </div>
-
+        <div id="editorScreenOptionsPanel" class="day-card" style="display: none; padding: 16px 20px; margin-bottom: 18px; border: 1px solid var(--press); background: var(--paper-raised);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule);">
+                <div style="display: flex; align-items: center; gap: 10px;"><strong style="font-size: 13px; color: var(--ink);">Screen Options — Boxes &amp; Layout</strong><span class="badge badge-published" style="font-size: 10.5px;">Persisted in User Preferences (SQLite)</span></div>
+                <div style="display: flex; gap: 6px; align-items: center;"><button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="toggleAllEditorMetaBoxes(true)">Collapse All Boxes</button><button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="toggleAllEditorMetaBoxes(false)">Expand All Boxes</button><button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="resetEditorScreenOptions()">Reset Defaults</button></div>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">Screen Elements (Check to Show / Uncheck to Hide)</div>
+                <div id="editorScreenOptionsCheckboxes" style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px;">
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="status_visibility" checked onchange="onEditorScreenOptionToggle('status_visibility', this.checked)" /> Status &amp; Visibility</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="i18n" checked onchange="onEditorScreenOptionToggle('i18n', this.checked)" /> Language &amp; Translations</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="editorial_workflow" checked onchange="onEditorScreenOptionToggle('editorial_workflow', this.checked)" /> Editorial Workflow</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="page_attributes" checked onchange="onEditorScreenOptionToggle('page_attributes', this.checked)" /> Page Attributes</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="header_footer" checked onchange="onEditorScreenOptionToggle('header_footer', this.checked)" /> Header &amp; Footer</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="taxonomies" checked onchange="onEditorScreenOptionToggle('taxonomies', this.checked)" /> Categories &amp; Tags</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="discussion" checked onchange="onEditorScreenOptionToggle('discussion', this.checked)" /> Discussion</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="featured_image" checked onchange="onEditorScreenOptionToggle('featured_image', this.checked)" /> Featured Image</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="revisions" checked onchange="onEditorScreenOptionToggle('revisions', this.checked)" /> Revisions</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="excerpt" checked onchange="onEditorScreenOptionToggle('excerpt', this.checked)" /> Excerpt</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="structured_fields" checked onchange="onEditorScreenOptionToggle('structured_fields', this.checked)" /> Structured Fields</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="acf_settings" checked onchange="onEditorScreenOptionToggle('acf_settings', this.checked)" /> ACF Page Settings</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="custom_fields" checked onchange="onEditorScreenOptionToggle('custom_fields', this.checked)" /> Custom Fields (<code>postmeta</code>)</label><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-screen-opt-cb" data-box-id="seo_studio" checked onchange="onEditorScreenOptionToggle('seo_studio', this.checked)" /> SEO &amp; Readability Studio</label>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 18px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12.5px;">
+                <span style="font-size: 11.5px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em;">Layout Columns:</span>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="editorScreenLayoutCols" id="editorCols1" value="1" onchange="setEditorColumnLayout(1)" /> 1 Column (Full-Width Stack)</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="editorScreenLayoutCols" id="editorCols2" value="2" checked onchange="setEditorColumnLayout(2)" /> 2 Columns (Main + Sidebar)</label>
+                <span style="margin-left: auto; font-size: 11.5px; color: var(--ink-muted);">Tip: Use <strong>↑ ↓ ⇄ ▾</strong> or drag any card header to reorder, move between columns, or collapse.</span>
+            </div>
+        </div>
         <form id="postForm" onsubmit="savePost(event)">
             <button type="submit" id="postFormSubmit" style="display: none;"></button>
             <input type="hidden" id="featured_media" value="{initial_featured_media}" />
-            <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 24px;">
-                <div style="display: flex; flex-direction: column; gap: 20px;">
-                    {editor_card}
-                    {structured_fields_card}
-                    {acf_card}
-                    {custom_fields_card}
-                    {seo_card}
-                </div>
+            <div id="editorColumnsGrid" style="display: grid; grid-template-columns: 3fr 1fr; gap: 24px;">
+                <div id="editorMainColumn" style="display: flex; flex-direction: column; gap: 20px;">{editor_card}{structured_fields_card}{acf_card}{custom_fields_card}{seo_card}</div>
                 {sidebar_html}
             </div>
         </form>
-
         {media_modal}
-
-        <script>
-            {editor_scripts}
-        </script>
-        "#,
-        title_label = title_label,
-        post_type = post_type,
-        top_builder_btn = top_builder_btn,
-        duplicate_btn_html = duplicate_btn_html,
-        btn_text = btn_text,
-        initial_featured_media = initial_featured_media,
-        editor_card = editor_card,
-        structured_fields_card = structured_fields_card,
-        acf_card = acf_card,
-        custom_fields_card = custom_fields_card,
-        seo_card = seo_card,
-        sidebar_html = sidebar_html,
-        media_modal = media_modal,
-        editor_scripts = editor_scripts,
+        <script>{editor_scripts}</script>
+        "#
     );
 
     let tab = match post_type {

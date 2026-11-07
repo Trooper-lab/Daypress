@@ -203,7 +203,9 @@ pub const JS_ACF_BLOCKS: &str = r###"
                     buttons,
                     slideCount,
                     outerHtml: html,
-                    showRaw: false
+                    showRaw: false,
+                    collapsed: false,
+                    hidden: el.getAttribute('data-dp-hidden') === 'true' || (el.getAttribute('style') || '').includes('display:none')
                 };
             }
 
@@ -306,53 +308,83 @@ pub const JS_ACF_BLOCKS: &str = r###"
                 renderAcfBlocksList();
             }
 
+            let draggedAcfBlockIdx = null;
+            function onAcfBlockDragStart(ev, idx) {
+                draggedAcfBlockIdx = idx;
+                if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', String(idx)); }
+            }
+            function onAcfBlockDragOver(ev) {
+                ev.preventDefault();
+                if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+            }
+            function onAcfBlockDrop(ev, targetIdx) {
+                ev.preventDefault();
+                if (draggedAcfBlockIdx === null || draggedAcfBlockIdx === targetIdx) return;
+                const moved = acfBlocks.splice(draggedAcfBlockIdx, 1)[0];
+                acfBlocks.splice(targetIdx, 0, moved);
+                draggedAcfBlockIdx = null;
+                syncAcfBlocksToTextarea(); renderAcfBlocksList(); showToast('✓ Block reordered');
+            }
+            function toggleAcfBlockCollapsed(idx) {
+                if (!acfBlocks[idx]) return;
+                acfBlocks[idx].collapsed = !acfBlocks[idx].collapsed; renderAcfBlocksList();
+            }
+            function toggleAllAcfBlocks(collapse) {
+                acfBlocks.forEach(b => { b.collapsed = !!collapse; }); renderAcfBlocksList();
+            }
+            function toggleAcfBlockHidden(idx) {
+                const b = acfBlocks[idx];
+                if (!b) return;
+                const nextHidden = !b.hidden;
+                mutateAcfBlockDom(idx, (el) => {
+                    const st = (el.getAttribute('style') || '').replace(/display\s*:\s*none\s*;?/gi, '').trim();
+                    if (nextHidden) {
+                        el.setAttribute('data-dp-hidden', 'true');
+                        el.setAttribute('style', (st ? st + '; ' : '') + 'display:none;');
+                    } else {
+                        el.removeAttribute('data-dp-hidden');
+                        if (st) el.setAttribute('style', st); else el.removeAttribute('style');
+                    }
+                });
+                acfBlocks[idx].hidden = nextHidden;
+                renderAcfBlocksList();
+                showToast(nextHidden ? 'Block muted/hidden from frontend output' : '✓ Block visible on frontend');
+            }
             function duplicateAcfBlock(idx) {
                 if (!acfBlocks[idx]) return;
-                const copy = JSON.parse(JSON.stringify(acfBlocks[idx]));
-                acfBlocks.splice(idx + 1, 0, copy);
-                syncAcfBlocksToTextarea();
-                renderAcfBlocksList();
-                showToast('✓ ACF Section duplicated');
+                acfBlocks.splice(idx + 1, 0, JSON.parse(JSON.stringify(acfBlocks[idx])));
+                syncAcfBlocksToTextarea(); renderAcfBlocksList(); showToast('✓ ACF Section duplicated');
             }
-
             function deleteAcfBlock(idx) {
                 if (!acfBlocks[idx]) return;
                 acfBlocks.splice(idx, 1);
-                syncAcfBlocksToTextarea();
-                renderAcfBlocksList();
-                showToast('Section removed');
+                syncAcfBlocksToTextarea(); renderAcfBlocksList(); showToast('Section removed');
             }
 
             function insertNewAcfSection() {
                 const sel = document.getElementById('newAcfBlockSelect');
                 const tpl = sel ? sel.value : 'section_white';
-                let snippet = '';
-                if (tpl === 'section_white') {
-                    snippet = `<section class="section white"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>CONTENT SECTION</h2><p>Add your rich text and block components here.</p><div class="wp-block-buttons"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/contact/">Get in touch</a></div></div></div></div></div></section>`;
-                } else if (tpl === 'section_black') {
-                    snippet = `<section class="section black angle"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>HIGH-CONTRAST SECTION</h2><p>High-contrast section with modern accent background.</p><a href="/about/" class="btn btn-primary">Learn more</a></div></div></div></section>`;
-                } else if (tpl === 'section_blue') {
-                    snippet = `<section class="section blue angle"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>PRIMARY CALL TO ACTION</h2><p>Featured call-to-action section in theme primary color.</p><a href="/contact/" class="btn btn-primary">Schedule a consultation</a></div></div></div></section>`;
-                } else if (tpl === 'acf_3col') {
-                    snippet = `<section class="section white"><div class="container"><h2>THREE-COLUMN FEATURES</h2><div class="row"><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature One</h3><p>Fast, modular architecture designed for performance.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature Two</h3><p>Native Rust execution with zero PHP latency.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature Three</h3><p>1-Click seamless migration from legacy WordPress.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div></div></div></section>`;
-                } else if (tpl === 'acf_logos') {
-                    snippet = `<section class="section logo white"><div class="container"><h2 class="text-center">TRUSTED PARTNERS</h2><div class="logo-grid" style="display: flex; justify-content: space-around; align-items: center; gap: 24px; flex-wrap: wrap;"><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 1</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 2</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 3</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 4</div></div></div></section>`;
-                } else if (tpl === 'acf_trainingen') {
-                    snippet = `<section class="section black angle"><div class="container"><h2>FEATURE SHOWCASE</h2><div class="row"><div class="col-md-4"><div class="card"><div class="card-body"><h3>Showcase Item</h3><p>Detailed overview of key deliverables and outcomes.</p><a href="/showcase/" class="btn btn-primary">View details</a></div></div></div></div></div></section>`;
-                } else if (tpl === 'acf_faq') {
-                    snippet = `<section class="section white"><div class="container"><h2>FREQUENTLY ASKED QUESTIONS</h2><div class="accordion"><div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button" type="button">What features are supported?</button></h3><div class="accordion-collapse collapse show"><div class="accordion-body"><p>Daypress natively supports Elementor, Divi, Gutenberg block themes, and ACF fields with sub-millisecond SSR latency.</p></div></div></div></div></div></section>`;
-                } else if (tpl === 'acf_quotes') {
-                    snippet = `<section class="section blue angle"><div class="container"><h2>CLIENT TESTIMONIALS</h2><div class="swiper quoteSwiper"><div class="swiper-wrapper"><div class="swiper-slide"><blockquote><p>"Daypress delivered instant acceleration and rock-solid stability."</p><footer>— Technology Director</footer></blockquote></div></div></div></div></section>`;
-                }
-
-                const parser = new DOMParser();
-                const doc = parser.parseFromString('<div id="new-root">' + snippet + '</div>', 'text/html');
+                const snippets = {
+                    wp_paragraph: `<div class="wp-block-group"><p>Write your paragraph copy here. You can reorder, collapse, or hide this block at any time.</p></div>`,
+                    wp_heading: `<section class="wp-block-group"><h2>Section Heading</h2><p>Supporting lead paragraph for this section.</p></section>`,
+                    wp_columns_2: `<section class="section white"><div class="container"><div class="row"><div class="col-md-6"><h3>Left Column</h3><p>First column content and details.</p></div><div class="col-md-6"><h3>Right Column</h3><p>Second column content and details.</p></div></div></div></section>`,
+                    wp_cta_box: `<section class="section blue"><div class="container"><h2>Ready to get started?</h2><p>Add a compelling call to action for your visitors.</p><a href="/contact/" class="btn btn-primary">Contact Us</a></div></section>`,
+                    section_white: `<section class="section white"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>CONTENT SECTION</h2><p>Add your rich text and block components here.</p><div class="wp-block-buttons"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/contact/">Get in touch</a></div></div></div></div></div></section>`,
+                    section_black: `<section class="section black angle"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>HIGH-CONTRAST SECTION</h2><p>High-contrast section with modern accent background.</p><a href="/about/" class="btn btn-primary">Learn more</a></div></div></div></section>`,
+                    section_blue: `<section class="section blue angle"><div class="container"><div class="row justify-content-center"><div class="col-md-10"><h2>PRIMARY CALL TO ACTION</h2><p>Featured call-to-action section in theme primary color.</p><a href="/contact/" class="btn btn-primary">Schedule a consultation</a></div></div></div></section>`,
+                    acf_3col: `<section class="section white"><div class="container"><h2>THREE-COLUMN FEATURES</h2><div class="row"><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature One</h3><p>Fast, modular architecture designed for performance.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature Two</h3><p>Native Rust execution with zero PHP latency.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div><div class="col-md-4"><div class="card"><div class="card-body"><h3>Feature Three</h3><p>1-Click seamless migration from legacy WordPress.</p><a href="#" class="btn btn-primary">Read more</a></div></div></div></div></div></section>`,
+                    acf_logos: `<section class="section logo white"><div class="container"><h2 class="text-center">TRUSTED PARTNERS</h2><div class="logo-grid" style="display: flex; justify-content: space-around; align-items: center; gap: 24px; flex-wrap: wrap;"><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 1</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 2</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 3</div><div class="logo-item" style="font-weight: 700; font-size: 18px; color: var(--ink-muted);">PARTNER 4</div></div></div></section>`,
+                    acf_trainingen: `<section class="section black angle"><div class="container"><h2>FEATURE SHOWCASE</h2><div class="row"><div class="col-md-4"><div class="card"><div class="card-body"><h3>Showcase Item</h3><p>Detailed overview of key deliverables and outcomes.</p><a href="/showcase/" class="btn btn-primary">View details</a></div></div></div></div></div></section>`,
+                    acf_faq: `<section class="section white"><div class="container"><h2>FREQUENTLY ASKED QUESTIONS</h2><div class="accordion"><div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button" type="button">What features are supported?</button></h3><div class="accordion-collapse collapse show"><div class="accordion-body"><p>Daypress natively supports Elementor, Divi, Gutenberg block themes, and ACF fields with sub-millisecond SSR latency.</p></div></div></div></div></div></section>`,
+                    acf_quotes: `<section class="section blue angle"><div class="container"><h2>CLIENT TESTIMONIALS</h2><div class="swiper quoteSwiper"><div class="swiper-wrapper"><div class="swiper-slide"><blockquote><p>"Daypress delivered instant acceleration and rock-solid stability."</p><footer>— Technology Director</footer></blockquote></div></div></div></div></section>`,
+                };
+                const snippet = snippets[tpl] || '';
+                const doc = new DOMParser().parseFromString('<div id="new-root">' + snippet + '</div>', 'text/html');
                 const el = doc.getElementById('new-root').firstElementChild;
                 if (el) {
                     acfBlocks.push(inspectAcfDomNode(el, acfBlocks.length));
-                    syncAcfBlocksToTextarea();
-                    renderAcfBlocksList();
-                    showToast('✓ Added ' + (sel.options[sel.selectedIndex]?.text || 'ACF Block'));
+                    syncAcfBlocksToTextarea(); renderAcfBlocksList();
+                    showToast('✓ Added ' + (sel.options[sel.selectedIndex]?.text || 'Block'));
                 }
             }
 "###;

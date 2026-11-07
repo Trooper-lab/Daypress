@@ -502,6 +502,22 @@ fn daypress_v1_routes() -> Router<Database> {
             "/posts/{id}/revisions/{rev_id}/cherry-pick",
             axum::routing::post(cherry_pick_revision_node_v1_handler),
         )
+        .route(
+            "/user-preferences",
+            get(get_user_preferences_v1_handler).post(save_user_preferences_v1_handler),
+        )
+        .route(
+            "/posts/bulk-edit",
+            axum::routing::post(bulk_edit_posts_v1_handler),
+        )
+        .route(
+            "/posts/empty-trash",
+            axum::routing::post(empty_trash_posts_v1_handler),
+        )
+        .route(
+            "/comments/bulk",
+            axum::routing::post(bulk_comments_v1_handler),
+        )
 }
 
 pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {

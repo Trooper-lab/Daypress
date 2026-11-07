@@ -192,6 +192,15 @@ impl Database {
             .ok()
             .unwrap_or_default();
 
+        post.password = conn
+            .query_row(
+                "SELECT COALESCE(post_password, '') FROM posts WHERE ID = ?1",
+                params![post.id],
+                |r| r.get::<_, String>(0),
+            )
+            .ok()
+            .unwrap_or_default();
+
         let post_link = post.link.clone();
         post.comments = conn
             .prepare_cached(
@@ -340,6 +349,7 @@ impl Database {
             comment_status,
             ping_status,
             sticky: is_sticky == 1,
+            password: String::new(),
             template: String::new(),
             format: "standard".to_string(),
             meta: serde_json::json!({}),

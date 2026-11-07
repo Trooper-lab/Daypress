@@ -24,6 +24,8 @@ pub struct DaypressPostResponse {
     pub comment_status: String,
     pub ping_status: String,
     pub sticky: bool,
+    #[serde(default)]
+    pub password: String,
     pub template: String,
     pub format: String,
     pub meta: serde_json::Value,
@@ -213,6 +215,14 @@ pub struct CreatePostRequest {
     pub translation_group_id: Option<String>,
     #[serde(default)]
     pub coauthors: Option<Vec<i64>>,
+    #[serde(default)]
+    pub sticky: Option<bool>,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub comment_status: Option<String>,
+    #[serde(default)]
+    pub ping_status: Option<String>,
 }
 
 pub fn default_post_status() -> String {
@@ -275,6 +285,14 @@ pub struct UpdatePostRequest {
     pub translation_group_id: Option<String>,
     #[serde(default)]
     pub coauthors: Option<Vec<i64>>,
+    #[serde(default)]
+    pub sticky: Option<bool>,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub comment_status: Option<String>,
+    #[serde(default)]
+    pub ping_status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

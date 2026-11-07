@@ -1835,4 +1835,105 @@ mod v08_tests {
             "Arabic SSR must include German hreflang alternate"
         );
     }
+
+    #[tokio::test]
+    async fn test_v0_8_5_wp_admin_qol_and_editor_ergonomics() {
+        use axum::body::Body;
+        use axum::http::{Request, StatusCode};
+        use tower::ServiceExt;
+
+        let db = Database::new_in_memory().expect("in-memory db");
+
+        // 1. User Screen Preferences persistence & merge
+        let initial_prefs = db.get_user_screen_preferences(1).expect("get prefs");
+        assert!(initial_prefs.is_object());
+
+        let saved_prefs = db
+            .save_user_screen_preferences(
+                1,
+                &serde_json::json!({
+                    "preferences": {
+                        "sidebar_collapsed": true,
+                        "media_view_mode": "list",
+                        "editor_post": {
+                            "columns": 1,
+                            "hidden": { "metabox-custom-fields": true }
+                        }
+                    }
+                }),
+            )
+            .expect("save prefs");
+        assert_eq!(saved_prefs["sidebar_collapsed"], serde_json::json!(true));
+        assert_eq!(saved_prefs["media_view_mode"], serde_json::json!("list"));
+        assert_eq!(saved_prefs["editor_post"]["columns"], serde_json::json!(1));
+
+        // 2. Sticky, Password, Comment Status & Ping Status persistence
+        let created = db
+            .create_post(&CreatePostRequest {
+                title: "Sticky Protected Post".to_string(),
+                content: "<p>Hello QoL</p>".to_string(),
+                status: "publish".to_string(),
+                post_type: "post".to_string(),
+                sticky: Some(true),
+                password: Some("secret123".to_string()),
+                comment_status: Some("closed".to_string()),
+                ping_status: Some("closed".to_string()),
+                ..Default::default()
+            })
+            .expect("create sticky post");
+        assert!(created.sticky, "Created post must be sticky");
+        assert_eq!(created.password, "secret123");
+        assert_eq!(created.comment_status, "closed");
+        assert_eq!(created.ping_status, "closed");
+
+        let updated = db
+            .update_post(
+                created.id,
+                &UpdatePostRequest {
+                    sticky: Some(false),
+                    password: Some(String::new()),
+                    comment_status: Some("open".to_string()),
+                    ping_status: Some("open".to_string()),
+                    ..Default::default()
+                },
+            )
+            .expect("update sticky post")
+            .expect("post exists");
+        assert!(!updated.sticky, "Post sticky should be cleared");
+        assert_eq!(updated.password, "");
+        assert_eq!(updated.comment_status, "open");
+        assert_eq!(updated.ping_status, "open");
+
+        // 3. Empty Trash for post_type
+        let trashed = db
+            .create_post(&CreatePostRequest {
+                title: "To Be Purged".to_string(),
+                content: "<p>Trash</p>".to_string(),
+                status: "trash".to_string(),
+                post_type: "post".to_string(),
+                ..Default::default()
+            })
+            .expect("create trashed post");
+        let purged_count = db
+            .empty_trash_posts(Some("post"))
+            .expect("empty trash posts");
+        assert!(purged_count >= 1);
+        assert!(
+            db.get_post_by_id(trashed.id).expect("query").is_none(),
+            "Trashed post must be permanently deleted"
+        );
+
+        // 4. REST user-preferences endpoint
+        let app = create_app(db.clone());
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .uri("/wp-json/daypress/v1/user-preferences")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
 }

@@ -52,6 +52,7 @@ pub fn render_core_script(
                 updateWordCount();
                 updateSerpPreview();
                 checkLocalDraftRecovery();
+                initEditorMetaBoxesAndScreenOptions();
             }});
 
             function onAcfFieldChange() {{ markDirty(); }}
@@ -348,36 +349,23 @@ pub fn render_core_script(
                 if (mode === 'blocks') {{
                     parseAndRenderAcfBlocks();
                     if (acfContainer) acfContainer.style.display = 'block';
-                    visualEditor.style.display = 'none';
-                    contentArea.style.display = 'none';
+                    visualEditor.style.display = 'none'; contentArea.style.display = 'none';
                     if (toolbar) toolbar.style.display = 'none';
-                    if (btnBlocks) {{
-                        btnBlocks.style.background = 'var(--paper-raised)';
-                        btnBlocks.style.color = 'var(--ink)';
-                        btnBlocks.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    }}
+                    if (btnBlocks) {{ btnBlocks.style.background = 'var(--paper-raised)'; btnBlocks.style.color = 'var(--ink)'; btnBlocks.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'; }}
                     if (!silent) showToast('Switched to Blocks View');
                 }} else if (mode === 'visual') {{
                     visualEditor.innerHTML = cleanWpContent(contentArea.value);
-                    if (!visualEditor.innerHTML || visualEditor.innerHTML.trim() === '') {{
-                        visualEditor.innerHTML = '<p><br></p>';
-                    }}
+                    if (!visualEditor.innerHTML || visualEditor.innerHTML.trim() === '') visualEditor.innerHTML = '<p><br></p>';
                     if (acfContainer) acfContainer.style.display = 'none';
-                    visualEditor.style.display = 'block';
-                    contentArea.style.display = 'none';
+                    visualEditor.style.display = 'block'; contentArea.style.display = 'none';
                     if (toolbar) toolbar.style.display = 'flex';
-                    btnVisual.style.background = 'var(--paper-raised)';
-                    btnVisual.style.color = 'var(--ink)';
-                    btnVisual.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    btnVisual.style.background = 'var(--paper-raised)'; btnVisual.style.color = 'var(--ink)'; btnVisual.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
                     if (!silent) showToast('Switched to Visual Editor');
                 }} else if (mode === 'html') {{
                     if (acfContainer) acfContainer.style.display = 'none';
-                    visualEditor.style.display = 'none';
-                    contentArea.style.display = 'block';
+                    visualEditor.style.display = 'none'; contentArea.style.display = 'block';
                     if (toolbar) toolbar.style.display = 'flex';
-                    btnHtml.style.background = 'var(--paper-raised)';
-                    btnHtml.style.color = 'var(--ink)';
-                    btnHtml.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    btnHtml.style.background = 'var(--paper-raised)'; btnHtml.style.color = 'var(--ink)'; btnHtml.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
                     if (!silent) showToast('Switched to HTML Source View');
                 }}
                 updateWordCount();
@@ -391,9 +379,6 @@ pub fn render_core_script(
                 document.getElementById('wordCount').textContent = words + ' words';
                 document.getElementById('readTime').textContent = readTime + ' min read';
             }}
-        "#,
-        site_title = site_title,
-        initial_id = initial_id,
-        has_visual_layout = has_visual_layout,
+        "#
     )
 }

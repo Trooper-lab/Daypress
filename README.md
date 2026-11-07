@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.8.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.8.5).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -33,7 +33,8 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - Posts, pages, categories, tags, and navigation menus.
 - **Zero-Code Content Model Hub (`/d-admin/content-types` — CPT UI + ACF Parity)**: visual Custom Post Type (CPT) & Custom Taxonomy builder with 7 1-click starter blueprints (`Case Studies`, `Team`, `Docs`, `Jobs`, `Events`, `Portfolio`, `Testimonials`), typed Structured Field Groups (`text`, `textarea`, `wysiwyg`, `number`, `date`, `url`, `true_false`, `select`, `checkbox`, `media`, `post_object`, and nested `repeater` tables), dynamic REST v2 routes (`/wp-json/wp/v2/{cpt_slug}`), `{{acf.*}}` SSR token bindings, and automatic 1-click ingestion of **Advanced Custom Fields (ACF)** and **Custom Post Type UI** schemas during WXR/JSON migrations.
 - **Multilingual (`i18n` — WPML & Polylang Parity) & Editorial Workflows (`/d-admin/languages`)**: multi-language content linking (`daypress_languages` & `daypress_translations`) with Polylang/WPML-style URL routing (`/slug/` for default locale, `/de/slug/` or `/nl/slug/` for secondary locales), automatic `<link rel="alternate" hreflang="...">` & `sitemap.xml` `xhtml:link` alternates, native `LanguageSwitcher` Daystudio widget & `[daypress_language_switcher]` shortcode, localized `/d-admin/` UI (`en`, `de`, `nl`, `fr`, `es`), **1-Click Post/Page Duplication**, **Multi-Author Bylines** (`Co-Authors Plus` parity), **Shareable Secret Draft Preview Links** (`/preview/{token}`, no login required), **Scheduled Revisions to Already-Published Pages**, and **Visual Side-by-Side AST Revision Diffs** with per-node cherry-pick restore in Daystudio.
-- A post editor with visual, block, and HTML source modes, schema-driven Structured Field Group cards, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
+- A post editor with visual, block, and HTML source modes, **WordPress-native Screen Options** (meta box visibility toggles, 1/2-column layout switch, per-user `_daypress_screen_prefs` persistence), **collapsible, reorderable & drag-and-drop meta boxes**, **collapsible, reorderable & hideable (`👁`/`🙈`) Block Stack cards**, distraction-free **Fullscreen Mode**, **Sticky** & **Password-Protected** posts, standalone **Discussion** & **Excerpt** panels, schema-driven Structured Field Group cards, plus automatic revision snapshots on edit with restore/delete controls and a bulk revision cleanup tool in `/d-admin/tools`.
+- **WordPress-Native List Tables, Dashboard & Admin Ergonomics**: inline **Quick Edit** and multi-row **Bulk Edit** drawers on Posts/Pages (`/wp-json/daypress/v1/posts/bulk-edit`), **Empty Trash** (`/wp-json/daypress/v1/posts/empty-trash`), sortable columns (`Title`, `Author`, `Date`), Month/Category/Author filters, collapsible/movable **Dashboard Widgets** with a **Recent Comments Moderation** card, collapsible `64px` left admin sidebar, **Comments** inline Reply + Quick Edit + Bulk Actions, **Menus** nested hierarchy indentation (`← Outdent` / `→ Indent`) + Posts/Categories quick-add, and **Media Library** `⊞ Grid` / `☰ List` view toggle + `☑ Bulk Select` mode.
 - **Media Library DAM (`/d-admin/upload`)**: virtual media folders & tags, 1-click **Replace Media File Without Changing URL/ID** (`Enable Media Replace` parity), dual **AVIF + WebP** encoding alongside thumbnail/medium crops, interactive focal-point crop picker (`object-position`), sanitized SVG uploads, and an Unused Asset Scanner.
 - Comments with moderation and discussion settings (who can comment, manual approval).
 - Users with application passwords, Two-Factor Authentication (RFC 6238 TOTP authenticator app + single-use backup recovery codes on `/d-admin/profile`), fine-grained WordPress-parity role capabilities (`Administrator`, `Editor`, `Author`, `Contributor`, `Subscriber`), per-user session sign-out ("Log Out Everywhere Else" on `/d-admin/profile`), plus personal data export and erase tools.
@@ -137,7 +138,8 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.5.1`** | Dynamic Theme Templates, Synced Components (Symbols), Mega Menus, Media DAM & Edge TLS/R2 | **Shipped** |
 | **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
 | **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
-| **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Early preview (Now)** |
+| **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
+| **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Early preview (Now)** |
 | **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Up next** |
 | **`1.0`** | First Stable Release | Planned |
 
@@ -264,7 +266,7 @@ If you can't install plugins, you can import a standard WordPress export file (*
 
 ## Connecting an AI assistant (MCP)
 
-Daypress includes a [Model Context Protocol](https://modelcontextprotocol.io) server, so assistants such as Claude Desktop, Claude Code, or Cursor can list, write, and edit content.
+Daypress includes a [Model Context Protocol](https://modelcontextprotocol.io) server alongside ready-to-use agent playbooks in [`AGENTS.md`](AGENTS.md) and [`.agents/skills/`](.agents/skills/), so assistants such as Claude Desktop, Claude Code, Cursor, Antigravity, or Codex can set up your site, design pages in DayStudio, model Custom Post Types & forms, migrate WordPress exports, and publish to the edge.
 
 **Stdio** (the assistant starts Daypress itself; build with `cargo build --release` first):
 
@@ -279,7 +281,7 @@ Daypress includes a [Model Context Protocol](https://modelcontextprotocol.io) se
 }
 ```
 
-**HTTP** (against a running server): send JSON-RPC 2.0 requests to `POST /mcp`. This requires an administrator, for example with an application password created under **Users → Profile**:
+**HTTP** (against a running server): send JSON-RPC 2.0 requests to `POST /mcp`. This requires an administrator, for example with an application password generated in 1 click under **Get Started** (`/d-admin/getting-started`) or **Users → Profile**:
 
 ```bash
 curl -X POST http://localhost:8090/mcp \
@@ -294,14 +296,21 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_get_post` | Get one post or page by `id` or `slug` |
 | `daypress_create_post` | Create a post or page, as a draft or published |
 | `daypress_update_post` | Update title, content, excerpt, status, or SEO fields |
+| `daypress_import_html_design` | Transpile a full HTML5/CSS document into 100% native DayStudio AST blocks, extract `<header>`/`<footer>`, and optionally set as Front Page |
 | `daypress_get_post_layout` | Read a page's DayStudio layout (JSON) |
 | `daypress_update_post_layout` | Validate and save a DayStudio layout |
+| `daypress_update_global_styles` | Update `DaystudioKit` global colors, typography scales, container width, and custom CSS |
 | `daypress_list_terms` | List categories or tags |
 | `daypress_get_settings` | Read site settings |
 | `daypress_update_option` | Change a site option, such as the title or tagline |
 | `daypress_import_wp_bundle` | Import a WordPress JSON bundle |
 | `daypress_get_publish_status` | Read static edge publishing config and published route count |
 | `daypress_publish_site` | Configure or trigger a static edge deployment (Cloudflare Pages, Netlify, or local folder) |
+| `daypress_provision_cpt_preset` | Provision a 1-click Custom Post Type blueprint (`case_studies`, `team`, `docs`, `jobs`, `events`, `portfolio`, `testimonials`) |
+| `daypress_list_post_types` | List all registered Custom Post Types and item counts |
+| `daypress_save_post_type` | Create or update a Custom Post Type definition |
+| `daypress_list_field_groups` | List ACF-parity Structured Field Groups and location rules |
+| `daypress_save_field_group` | Create or update a Structured Field Group (`text`, `wysiwyg`, `number`, `select`, `media`, `repeater`, etc.) |
 | `daypress_list_forms` | List all FormStudio forms, schemas, and submission counts |
 | `daypress_get_form` | Retrieve a single FormStudio form by ID |
 | `daypress_create_form` | Create a new FormStudio form with fields and settings |
@@ -313,6 +322,8 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_list_media_folders` | List or create virtual Media Library DAM folders |
 | `daypress_scan_unused_media` | Scan all media attachments for unreferenced assets across posts, templates, and options |
 | `daypress_get_storage_s3_status` | Read S3 / Cloudflare R2 media offload and continuous SQLite replica status |
+| `daypress_search` | Search published posts, pages, and CPTs via SQLite FTS5 BM25 instant search |
+| `daypress_audit_post` | Run the live WCAG 2.1 AA/AAA contrast, broken-link, heading hierarchy, and SEO linter |
 | `daypress_list_languages` | List active site languages, default language, and URL prefixing strategy |
 | `daypress_link_translations` | Link posts/pages across locales into a shared translation group (`hreflang`) |
 | `daypress_duplicate_post` | Clone any post or page in 1 click as a `(Copy)` draft preserving layout, ACF meta, taxonomies, and co-authors |

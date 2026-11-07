@@ -95,7 +95,10 @@ pub fn render_media_view(
 
             media_cards.push_str(&format!(
                 r#"
-                <div class="day-card media-asset-card" data-media-id="{id}" data-folder-id="{folder_attr}" data-tags="{tags_csv}" style="display: flex; flex-direction: column; overflow: hidden; cursor: pointer;" onclick="openMediaDetails({id})">
+                <div class="day-card media-asset-card" id="mediaCard-{id}" data-media-id="{id}" data-folder-id="{folder_attr}" data-tags="{tags_csv}" style="position: relative; display: flex; flex-direction: column; overflow: hidden; cursor: pointer;" onclick="handleMediaCardClick(event, {id})">
+                    <div class="media-bulk-check-wrap" style="display: none; position: absolute; top: 8px; left: 8px; z-index: 5; background: rgba(15, 23, 42, 0.78); padding: 4px 6px; border-radius: 4px;" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="media-bulk-checkbox" value="{id}" onchange="syncMediaSelection({id}, this.checked)" style="cursor: pointer; width: 15px; height: 15px;" />
+                    </div>
                     {preview_html}
                     <div style="padding: 12px; flex: 1;">
                         <div style="font-weight: 600; font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{title_escaped}">{title_escaped}</div>
@@ -186,6 +189,11 @@ pub fn render_media_view(
             </div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <span class="badge badge-published" style="padding: 6px 12px; font-size: 12px;">{media_count} Assets</span>
+                <div style="display: inline-flex; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden;">
+                    <button type="button" id="btnMediaViewGrid" class="btn btn-primary" style="border-radius: 0; border: none; padding: 6px 11px; font-size: 12px;" onclick="setMediaViewMode('grid')" title="Grid View">&#8862; Grid</button>
+                    <button type="button" id="btnMediaViewList" class="btn btn-secondary" style="border-radius: 0; border: none; padding: 6px 11px; font-size: 12px;" onclick="setMediaViewMode('list')" title="List View">&#9776; List</button>
+                </div>
+                <button type="button" class="btn btn-secondary" id="btnMediaBulkSelect" onclick="toggleMediaBulkSelectMode()">&#9745; Bulk Select</button>
                 <button type="button" class="btn btn-secondary" id="scanUnusedBtn" onclick="scanUnusedMedia()" style="display: inline-flex; align-items: center; gap: 6px;">
                     <span>Scan Unused Assets</span>
                     <span id="unusedAssetsBadge" style="display: none; background: var(--oxide); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px;">0</span>
@@ -195,6 +203,25 @@ pub fn render_media_view(
                 </button>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaUploadInput').click()">+ Upload Files</button>
                 <input type="file" id="mediaUploadInput" multiple accept="image/*,video/*,application/pdf,.svg" style="display: none;" onchange="uploadFiles(this.files)" />
+            </div>
+        </div>
+
+        <!-- Bulk Select Action Bar -->
+        <div id="mediaBulkActionBar" class="day-card" style="display: none; padding: 12px 18px; margin-bottom: 16px; border: 1px solid var(--press); background: var(--press-wash); align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span id="mediaBulkSelectedCount" style="font-size: 12.5px; font-weight: 700; color: var(--press);">0 selected</span>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11.5px;" onclick="selectAllVisibleMedia(true)">Select All Visible</button>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11.5px;" onclick="selectAllVisibleMedia(false)">Clear Selection</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <select id="bulkMediaFolderSelect" class="form-input" style="width: 170px; height: 32px; padding: 4px 8px; font-size: 12px;">
+                    <option value="">&mdash; Move to Folder &mdash;</option>
+                    <option value="0">Uncategorized</option>
+                </select>
+                <button type="button" class="btn btn-secondary" style="padding: 5px 11px; font-size: 12px;" onclick="bulkMoveSelectedMedia()">Move</button>
+                <input type="text" id="bulkMediaTagInput" class="form-input" placeholder="Add tag..." style="width: 140px; height: 32px; padding: 4px 8px; font-size: 12px;" />
+                <button type="button" class="btn btn-secondary" style="padding: 5px 11px; font-size: 12px;" onclick="bulkTagSelectedMedia()">+ Tag</button>
+                <button type="button" class="btn btn-secondary" style="padding: 5px 12px; font-size: 12px; color: var(--oxide); border-color: var(--oxide);" onclick="bulkDeleteSelectedMedia()">Delete Selected</button>
             </div>
         </div>
 
@@ -240,6 +267,25 @@ pub fn render_media_view(
         <!-- Media Grid -->
         <div id="mediaGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px;">
             {media_cards}
+        </div>
+
+        <!-- Media List View Table -->
+        <div id="mediaListViewContainer" class="day-table-wrapper" style="display: none;">
+            <table class="day-table">
+                <thead>
+                    <tr>
+                        <th style="width: 36px;"><input type="checkbox" onchange="selectAllVisibleMedia(this.checked)" /></th>
+                        <th style="width: 64px;">Preview</th>
+                        <th>File / Title</th>
+                        <th>MIME Type</th>
+                        <th>Folder &amp; Tags</th>
+                        <th>Size</th>
+                        <th>Date</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="mediaListTableBody"></tbody>
+            </table>
         </div>
 
         <!-- Attachment Details Modal -->
@@ -330,6 +376,9 @@ pub fn render_media_view(
             let activeFolderFilter = 'all';
             let unusedMediaIds = null;
             let foldersList = [];
+            let mediaViewMode = 'grid';
+            let mediaBulkSelectActive = false;
+            const selectedMediaIds = new Set();
 
             async function loadMediaFolders() {{
                 try {{
@@ -337,14 +386,22 @@ pub fn render_media_view(
                     if (!res.ok) return;
                     foldersList = await res.json();
                     renderFolderControls();
+                    renderMediaListView();
                 }} catch (e) {{
                     console.error('Failed to load media folders', e);
                 }}
             }}
 
+            function getFolderNameById(fid) {{
+                if (!fid || String(fid) === '0') return 'Uncategorized';
+                const found = foldersList.find(f => String(f.id) === String(fid));
+                return found ? found.name : 'Uncategorized';
+            }}
+
             function renderFolderControls() {{
                 const container = document.getElementById('dynamicFolderTabs');
                 const selectEl = document.getElementById('modalFolderSelect');
+                const bulkSelectEl = document.getElementById('bulkMediaFolderSelect');
                 if (container) {{
                     container.innerHTML = '';
                     foldersList.forEach(f => {{
@@ -392,6 +449,236 @@ pub fn render_media_view(
                     }});
                     if (prevVal) selectEl.value = prevVal;
                 }}
+
+                if (bulkSelectEl) {{
+                    const prevBulkVal = bulkSelectEl.value;
+                    bulkSelectEl.innerHTML = '<option value="">\u2014 Move to Folder \u2014</option><option value="0">Uncategorized</option>';
+                    foldersList.forEach(f => {{
+                        const opt = document.createElement('option');
+                        opt.value = String(f.id);
+                        opt.textContent = f.name;
+                        bulkSelectEl.appendChild(opt);
+                    }});
+                    if (prevBulkVal) bulkSelectEl.value = prevBulkVal;
+                }}
+            }}
+
+            function setMediaViewMode(mode, skipSave) {{
+                mediaViewMode = mode === 'list' ? 'list' : 'grid';
+                const gridEl = document.getElementById('mediaGridContainer');
+                const listEl = document.getElementById('mediaListViewContainer');
+                const btnGrid = document.getElementById('btnMediaViewGrid');
+                const btnList = document.getElementById('btnMediaViewList');
+                if (gridEl) gridEl.style.display = mediaViewMode === 'grid' ? 'grid' : 'none';
+                if (listEl) listEl.style.display = mediaViewMode === 'list' ? 'block' : 'none';
+                if (btnGrid) btnGrid.className = mediaViewMode === 'grid' ? 'btn btn-primary' : 'btn btn-secondary';
+                if (btnList) btnList.className = mediaViewMode === 'list' ? 'btn btn-primary' : 'btn btn-secondary';
+                renderMediaListView();
+                if (!skipSave) {{
+                    try {{ localStorage.setItem('dp_media_view_mode', mediaViewMode); }} catch (_) {{}}
+                    fetch('/wp-json/daypress/v1/user-preferences', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ preferences: {{ media_view_mode: mediaViewMode }} }})
+                    }}).catch(() => {{}});
+                }}
+            }}
+
+            function toggleMediaBulkSelectMode() {{
+                mediaBulkSelectActive = !mediaBulkSelectActive;
+                const btn = document.getElementById('btnMediaBulkSelect');
+                const bar = document.getElementById('mediaBulkActionBar');
+                if (btn) {{
+                    btn.className = mediaBulkSelectActive ? 'btn btn-primary' : 'btn btn-secondary';
+                    btn.textContent = mediaBulkSelectActive ? '\u2713 Bulk Select Active' : '\u2611 Bulk Select';
+                }}
+                if (bar) bar.style.display = mediaBulkSelectActive ? 'flex' : 'none';
+                document.querySelectorAll('.media-bulk-check-wrap').forEach(el => {{
+                    el.style.display = mediaBulkSelectActive ? 'block' : 'none';
+                }});
+                if (!mediaBulkSelectActive) {{
+                    selectAllVisibleMedia(false);
+                }}
+            }}
+
+            function handleMediaCardClick(event, id) {{
+                if (mediaBulkSelectActive) {{
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const nextChecked = !selectedMediaIds.has(Number(id));
+                    syncMediaSelection(id, nextChecked);
+                }} else {{
+                    openMediaDetails(id);
+                }}
+            }}
+
+            function syncMediaSelection(id, isChecked) {{
+                const numId = Number(id);
+                if (isChecked) {{
+                    selectedMediaIds.add(numId);
+                }} else {{
+                    selectedMediaIds.delete(numId);
+                }}
+                document.querySelectorAll('.media-bulk-checkbox[value="' + numId + '"]').forEach(cb => {{
+                    cb.checked = isChecked;
+                }});
+                const card = document.getElementById('mediaCard-' + numId);
+                if (card) {{
+                    card.style.outline = isChecked ? '2px solid var(--press)' : 'none';
+                }}
+                const countEl = document.getElementById('mediaBulkSelectedCount');
+                if (countEl) countEl.textContent = selectedMediaIds.size + ' selected';
+                if (selectedMediaIds.size > 0 && !mediaBulkSelectActive) {{
+                    const bar = document.getElementById('mediaBulkActionBar');
+                    if (bar) bar.style.display = 'flex';
+                }}
+            }}
+
+            function selectAllVisibleMedia(selectAll) {{
+                document.querySelectorAll('.media-asset-card').forEach(card => {{
+                    if (card.style.display !== 'none') {{
+                        const id = Number(card.getAttribute('data-media-id'));
+                        syncMediaSelection(id, selectAll);
+                    }}
+                }});
+                if (!selectAll) {{
+                    selectedMediaIds.clear();
+                    document.querySelectorAll('.media-bulk-checkbox').forEach(cb => {{ cb.checked = false; }});
+                    document.querySelectorAll('.media-asset-card').forEach(c => {{ c.style.outline = 'none'; }});
+                    const countEl = document.getElementById('mediaBulkSelectedCount');
+                    if (countEl) countEl.textContent = '0 selected';
+                }}
+            }}
+
+            async function bulkMoveSelectedMedia() {{
+                const folderVal = document.getElementById('bulkMediaFolderSelect')?.value || '';
+                if (folderVal === '') {{
+                    showToast('Choose a target folder first', true);
+                    return;
+                }}
+                const ids = Array.from(selectedMediaIds);
+                if (ids.length === 0) {{
+                    showToast('Select at least one media asset first', true);
+                    return;
+                }}
+                const targetFolderId = Number(folderVal);
+                showToast('Moving ' + ids.length + ' asset(s)...');
+                let updated = 0;
+                for (const id of ids) {{
+                    try {{
+                        const res = await fetch('/wp-json/wp/v2/media/' + id, {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ folder_id: targetFolderId }})
+                        }});
+                        if (res.ok) {{
+                            updated++;
+                            if (mediaData[id]) mediaData[id].folder_id = targetFolderId > 0 ? targetFolderId : null;
+                            const card = document.getElementById('mediaCard-' + id);
+                            if (card) card.setAttribute('data-folder-id', String(targetFolderId));
+                        }}
+                    }} catch (_) {{}}
+                }}
+                showToast('\u2713 Moved ' + updated + ' asset(s)');
+                await loadMediaFolders();
+                applyMediaFilters();
+            }}
+
+            async function bulkTagSelectedMedia() {{
+                const newTag = (document.getElementById('bulkMediaTagInput')?.value || '').trim();
+                if (!newTag) {{
+                    showToast('Enter a tag to add', true);
+                    return;
+                }}
+                const ids = Array.from(selectedMediaIds);
+                if (ids.length === 0) {{
+                    showToast('Select at least one media asset first', true);
+                    return;
+                }}
+                showToast('Tagging ' + ids.length + ' asset(s) with #' + newTag + '...');
+                let updated = 0;
+                for (const id of ids) {{
+                    const item = mediaData[id];
+                    if (!item) continue;
+                    const existingTags = Array.isArray(item.tags) ? item.tags.slice() : [];
+                    if (!existingTags.includes(newTag)) existingTags.push(newTag);
+                    try {{
+                        const res = await fetch('/wp-json/wp/v2/media/' + id, {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ tags: existingTags }})
+                        }});
+                        if (res.ok) updated++;
+                    }} catch (_) {{}}
+                }}
+                showToast('\u2713 Tagged ' + updated + ' asset(s)');
+                setTimeout(() => window.location.reload(), 450);
+            }}
+
+            async function bulkDeleteSelectedMedia() {{
+                const ids = Array.from(selectedMediaIds);
+                if (ids.length === 0) {{
+                    showToast('Select at least one media asset first', true);
+                    return;
+                }}
+                if (!confirm('Permanently delete ' + ids.length + ' selected media asset(s)?')) return;
+                let deleted = 0;
+                for (const id of ids) {{
+                    try {{
+                        const res = await fetch('/wp-json/wp/v2/media/' + id, {{ method: 'DELETE' }});
+                        if (res.ok) deleted++;
+                    }} catch (_) {{}}
+                }}
+                showToast('\u2713 Deleted ' + deleted + ' media asset(s)');
+                setTimeout(() => window.location.reload(), 450);
+            }}
+
+            function renderMediaListView() {{
+                const tbody = document.getElementById('mediaListTableBody');
+                if (!tbody) return;
+                const q = (document.getElementById('mediaTagFilterInput')?.value || '').trim().toLowerCase();
+                let html = '';
+                mediaList.forEach(item => {{
+                    const id = Number(item.id);
+                    const folderId = item.folder_id ? String(item.folder_id) : '0';
+                    const tagsArr = Array.isArray(item.tags) ? item.tags : [];
+                    const tagsStr = tagsArr.join(',').toLowerCase();
+                    const titleStr = (item.title || '').toLowerCase();
+
+                    const matchFolder = (activeFolderFilter === 'all') || (folderId === activeFolderFilter);
+                    const matchQuery = !q || tagsStr.includes(q) || titleStr.includes(q);
+                    const matchUnused = (unusedMediaIds === null) || unusedMediaIds.has(id);
+                    if (!matchFolder || !matchQuery || !matchUnused) return;
+
+                    const isImg = (item.mime_type || '').startsWith('image/');
+                    const thumbHtml = isImg
+                        ? '<img src="' + item.source_url + '" alt="" style="width: 44px; height: 44px; object-fit: cover; border-radius: 4px; background: var(--ink);" loading="lazy" />'
+                        : '<span style="display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;background:var(--paper-sunk);border-radius:4px;font-family:var(--font-mono);font-size:10px;color:var(--ink-muted);">FILE</span>';
+                    const checkedAttr = selectedMediaIds.has(id) ? 'checked' : '';
+                    const sizeStr = item.file_size ? (Math.round(item.file_size / 1024) + ' KB') : '\u2014';
+                    const dateStr = item.date ? item.date.substring(0, 10) : '\u2014';
+                    const folderLabel = getFolderNameById(folderId);
+                    const tagBadges = tagsArr.map(t => '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--press-wash);color:var(--press);margin-left:4px;">#' + t + '</span>').join('');
+
+                    html += '<tr data-media-id="' + id + '">' +
+                        '<td><input type="checkbox" class="media-bulk-checkbox" value="' + id + '" ' + checkedAttr + ' onchange="syncMediaSelection(' + id + ', this.checked)" /></td>' +
+                        '<td onclick="openMediaDetails(' + id + ')" style="cursor:pointer;">' + thumbHtml + '</td>' +
+                        '<td onclick="openMediaDetails(' + id + ')" style="cursor:pointer;"><div style="font-weight:600;color:var(--ink);">' + (item.title || 'Untitled') + '</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);">' + item.source_url + '</div></td>' +
+                        '<td><span style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-muted);">' + (item.mime_type || '') + '</span></td>' +
+                        '<td><span class="badge badge-draft" style="font-size:11px;">' + folderLabel + '</span>' + tagBadges + '</td>' +
+                        '<td style="font-family:var(--font-mono);font-size:12px;color:var(--ink-muted);">' + sizeStr + '</td>' +
+                        '<td style="font-size:12px;color:var(--ink-muted);">' + dateStr + '</td>' +
+                        '<td style="text-align:right;white-space:nowrap;">' +
+                            '<button type="button" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;margin-right:4px;" onclick="openMediaDetails(' + id + ')">Edit</button>' +
+                            '<button type="button" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;margin-right:4px;" onclick="copyMediaUrl(\'' + item.source_url + '\')">Copy URL</button>' +
+                            '<button type="button" class="btn btn-secondary" style="padding:3px 8px;font-size:11.5px;color:var(--oxide);" onclick="deleteMedia(' + id + ')">Delete</button>' +
+                        '</td>' +
+                    '</tr>';
+                }});
+                if (!html) {{
+                    html = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--ink-muted);">No matching media assets found.</td></tr>';
+                }}
+                tbody.innerHTML = html;
             }}
 
             async function createMediaFolder() {{
@@ -499,6 +786,7 @@ pub fn render_media_view(
                         statusEl.textContent = 'Showing ' + visibleCount + ' of ' + cards.length + ' asset(s)';
                     }}
                 }}
+                renderMediaListView();
             }}
 
             async function scanUnusedMedia() {{
@@ -794,8 +1082,24 @@ pub fn render_media_view(
                 }}
             }}
 
-            document.addEventListener('DOMContentLoaded', () => {{
-                loadMediaFolders();
+            document.addEventListener('DOMContentLoaded', async () => {{
+                try {{
+                    const savedMode = localStorage.getItem('dp_media_view_mode');
+                    if (savedMode === 'list' || savedMode === 'grid') {{
+                        setMediaViewMode(savedMode, true);
+                    }}
+                }} catch (_) {{}}
+                await loadMediaFolders();
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/user-preferences');
+                    if (res.ok) {{
+                        const data = await res.json();
+                        const prefs = data && data.preferences ? data.preferences : {{}};
+                        if (prefs.media_view_mode === 'list' || prefs.media_view_mode === 'grid') {{
+                            setMediaViewMode(prefs.media_view_mode, true);
+                        }}
+                    }}
+                }} catch (_) {{}}
             }});
         </script>
         "##,

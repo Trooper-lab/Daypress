@@ -31,6 +31,10 @@ pub struct SidebarParams<'a> {
     pub initial_lang_code: &'a str,
     pub initial_coauthor_ids: &'a str,
     pub initial_author_display: &'a str,
+    pub initial_sticky_checked: &'a str,
+    pub initial_password: &'a str,
+    pub comment_open_checked: &'a str,
+    pub ping_open_checked: &'a str,
 }
 
 pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> String {
@@ -75,7 +79,7 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
             }
 
             out.push_str(&format!(
-                r#"<div class="day-card" id="taxonomy-card-{tax_slug}">
+                r#"<div class="day-card" id="taxonomy-card-{tax_slug}" data-metabox-id="taxonomies" data-metabox-title="{tax_name}">
                     <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h2 class="day-card-title">{tax_name}</h2>
                         <a href="/d-admin/edit-tags?taxonomy={tax_slug}" target="_blank" style="font-size: 11.5px; color: var(--press); text-decoration: none;">Manage</a>
@@ -120,7 +124,7 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
             }
 
             out.push_str(&format!(
-                r#"<div class="day-card" id="taxonomy-card-{tax_slug}">
+                r#"<div class="day-card" id="taxonomy-card-{tax_slug}" data-metabox-id="taxonomies" data-metabox-title="{tax_name}">
                     <div class="day-card-header">
                         <h2 class="day-card-title">{tax_name}</h2>
                     </div>
@@ -146,7 +150,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
     } else {
         format!(
             r#"<!-- Legacy Category & Tag Cards -->
-            <div class="day-card" style="{post_tax_style}">
+            <div class="day-card" data-metabox-id="taxonomies" style="{post_tax_style}">
                 <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="day-card-title">Categories</h2>
                     <a href="/d-admin/edit-tags?taxonomy=category" target="_blank" style="font-size: 11.5px; color: var(--press); text-decoration: none;">Manage</a>
@@ -163,7 +167,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                     </div>
                 </div>
             </div>
-            <div class="day-card" style="{post_tax_style}">
+            <div class="day-card" data-metabox-id="taxonomies" style="{post_tax_style}">
                 <div class="day-card-header">
                     <h2 class="day-card-title">Tags</h2>
                 </div>
@@ -186,24 +190,28 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
     let initial_lang_code = escape_html(p.initial_lang_code);
     let initial_coauthor_ids = escape_html(p.initial_coauthor_ids);
     let initial_author_display = escape_html(p.initial_author_display);
+    let initial_password = escape_html(p.initial_password);
 
     format!(
-        r#"<div style="display: flex; flex-direction: column; gap: 20px;">
+        r#"<div id="editorSideColumn" style="display: flex; flex-direction: column; gap: 20px;">
             <!-- 1. Publish Card -->
-            <div class="day-card">
+            <div class="day-card" id="metabox-status_visibility" data-metabox-id="status_visibility" data-metabox-title="Status &amp; Visibility">
                 <div class="day-card-header"><h2 class="day-card-title">Status &amp; Visibility</h2></div>
                 <div class="day-card-body">
                     <div class="form-group">
                         <label class="form-label">Status</label>
                         <select id="post_status" class="form-select">
-                            <option value="publish" {is_pub_selected}>Published</option>
-                            <option value="draft" {is_draft_selected}>Draft</option>
-                            <option value="pending" {is_pending_selected}>Pending Review</option>
-                            <option value="private" {is_private_selected}>Private</option>
-                            <option value="future" {is_future_selected}>Scheduled</option>
+                            <option value="publish" {is_pub_selected}>Published</option><option value="draft" {is_draft_selected}>Draft</option><option value="pending" {is_pending_selected}>Pending Review</option><option value="private" {is_private_selected}>Private</option><option value="future" {is_future_selected}>Scheduled</option>
                         </select>
                     </div>
                     {schedule_html}
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label class="form-label">Password Protection <span style="font-weight: 400; color: var(--ink-muted); font-size: 11px;">(Optional)</span></label>
+                        <input type="text" id="post_password" class="form-input" value="{initial_password}" placeholder="Leave blank for public access..." style="padding: 6px 10px; font-size: 12px;" oninput="markDirty()" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--ink); font-weight: 500;"><input type="checkbox" id="post_sticky" {initial_sticky_checked} onchange="markDirty()" /><span>Stick to the top of the blog (Sticky)</span></label>
+                    </div>
                     <div class="form-group">
                         <label class="form-label">Author &amp; Co-Authors</label>
                         <div id="coauthorsPillBox" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px;">
@@ -230,7 +238,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                 </div>
             </div>
             <!-- 1b. Multilingual (i18n) & Translations Card -->
-            <div class="day-card" id="editorI18nCard">
+            <div class="day-card" id="editorI18nCard" data-metabox-id="i18n" data-metabox-title="Language &amp; Translations">
                 <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="day-card-title">Language &amp; Translations</h2>
                     <a href="/d-admin/languages" target="_blank" style="font-size: 11.5px; color: var(--press); text-decoration: none; font-weight: 600;">Languages &nearr;</a>
@@ -258,7 +266,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                 </div>
             </div>
             <!-- 1c. Editorial Workflow: Secret Preview Links & Scheduled Revisions -->
-            <div class="day-card" id="editorEditorialWorkflowCard">
+            <div class="day-card" id="editorEditorialWorkflowCard" data-metabox-id="editorial_workflow" data-metabox-title="Editorial Workflow">
                 <div class="day-card-header"><h2 class="day-card-title">Editorial Workflow</h2></div>
                 <div class="day-card-body">
                     <div style="margin-bottom: 12px;">
@@ -284,7 +292,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                 </div>
             </div>
             <!-- 2. Page Attributes Card (when post_type == page) -->
-            <div class="day-card" style="{page_attr_style}">
+            <div class="day-card" id="metabox-page_attributes" data-metabox-id="page_attributes" data-metabox-title="Page Attributes" style="{page_attr_style}">
                 <div class="day-card-header"><h2 class="day-card-title">Page Attributes</h2></div>
                 <div class="day-card-body">
                     <div class="form-group">
@@ -310,7 +318,7 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                 </div>
             </div>
             <!-- 2b. Header & Footer Assignment Card -->
-            <div class="day-card" id="editorHeaderFooterCard">
+            <div class="day-card" id="editorHeaderFooterCard" data-metabox-id="header_footer" data-metabox-title="Header &amp; Footer">
                 <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="day-card-title">Header &amp; Footer</h2>
                     <a href="/d-admin/headers-footers" target="_blank" style="font-size: 11.5px; color: var(--press); text-decoration: none; font-weight: 600;">Manager &nearr;</a>
@@ -340,19 +348,20 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
             </div>
             <!-- 3. Dynamic Taxonomies -->
             {taxonomies_section}
-            <!-- 4. Featured Image Card -->
-            <div class="day-card" id="editorRevisionsCard" style="display: none;">
-                <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2 class="day-card-title">Revisions</h2>
-                    <span id="editorRevisionsCount" class="badge badge-draft" style="font-size: 11px;">0</span>
-                </div>
+            <!-- 3b. Discussion Card -->
+            <div class="day-card" id="metabox-discussion" data-metabox-id="discussion" data-metabox-title="Discussion">
+                <div class="day-card-header"><h2 class="day-card-title">Discussion</h2></div>
                 <div class="day-card-body">
-                    <div id="editorRevisionsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
-                        <div style="font-size: 12px; color: var(--ink-muted);">No revisions recorded yet.</div>
-                    </div>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; cursor: pointer; color: var(--ink);"><input type="checkbox" id="post_comment_status" {comment_open_checked} onchange="markDirty()" /><span>Allow comments</span></label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--ink);"><input type="checkbox" id="post_ping_status" {ping_open_checked} onchange="markDirty()" /><span>Allow trackbacks and pingbacks on this page</span></label>
                 </div>
             </div>
-            <div class="day-card">
+            <!-- 4. Revisions & Featured Image Card -->
+            <div class="day-card" id="editorRevisionsCard" data-metabox-id="revisions" data-metabox-title="Revisions" style="display: none;">
+                <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;"><h2 class="day-card-title">Revisions</h2><span id="editorRevisionsCount" class="badge badge-draft" style="font-size: 11px;">0</span></div>
+                <div class="day-card-body"><div id="editorRevisionsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;"><div style="font-size: 12px; color: var(--ink-muted);">No revisions recorded yet.</div></div></div>
+            </div>
+            <div class="day-card" id="metabox-featured_image" data-metabox-id="featured_image" data-metabox-title="Featured Image">
                 <div class="day-card-header"><h2 class="day-card-title">Featured Image</h2></div>
                 <div class="day-card-body">{featured_img_preview}</div>
             </div>
@@ -363,6 +372,8 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
         is_private_selected = p.is_private_selected,
         is_future_selected = p.is_future_selected,
         schedule_html = p.schedule_html,
+        initial_password = initial_password,
+        initial_sticky_checked = p.initial_sticky_checked,
         initial_date = p.initial_date,
         initial_modified = p.initial_modified,
         btn_text = p.btn_text,
@@ -375,6 +386,8 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
         tpl_editorial_sel = p.tpl_editorial_sel,
         initial_menu_order = p.initial_menu_order,
         taxonomies_section = taxonomies_section,
+        comment_open_checked = p.comment_open_checked,
+        ping_open_checked = p.ping_open_checked,
         featured_img_preview = p.featured_img_preview,
     )
 }

@@ -86,14 +86,42 @@ pub fn render_dashboard_view(
             <div>
                 <h1 class="page-title">{greeting}</h1>
             </div>
-            <div class="topbar-actions">
+            <div class="topbar-actions" style="display: flex; align-items: center; gap: 10px;">
                 <span class="day-meta">{today}</span>
+                <button type="button" class="btn btn-secondary" onclick="toggleDashScreenOptions()" title="Customize Dashboard Widgets &amp; Columns">⚙ Screen Options ▾</button>
                 <a href="/d-admin/post-new" class="btn btn-primary">New post</a>
             </div>
         </div>
 
+        <div id="dashScreenOptionsPanel" class="day-card" style="display: none; padding: 16px 20px; margin-bottom: 18px; border: 1px solid var(--press); background: var(--paper-raised);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <strong style="font-size: 13px; color: var(--ink);">Dashboard Screen Options</strong>
+                    <span class="badge badge-published" style="font-size: 10.5px;">Persisted in User Preferences (SQLite)</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="toggleAllDashWidgets(true)">Collapse All</button>
+                    <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="toggleAllDashWidgets(false)">Expand All</button>
+                    <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="resetDashScreenOptions()">Reset Defaults</button>
+                </div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; margin-bottom: 12px;">
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="kpi_summary" checked onchange="onDashOptionToggle('kpi_summary', this.checked)" /> At a Glance (KPI Summary)</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="quick_draft" checked onchange="onDashOptionToggle('quick_draft', this.checked)" /> Quick Post Composer</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="recent_activity" checked onchange="onDashOptionToggle('recent_activity', this.checked)" /> Recent Activity</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="recent_comments" checked onchange="onDashOptionToggle('recent_comments', this.checked)" /> Recent Comments Moderation</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="sqlite_storage" checked onchange="onDashOptionToggle('sqlite_storage', this.checked)" /> Embedded Rusqlite Storage</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="growth_suite" checked onchange="onDashOptionToggle('growth_suite', this.checked)" /> Growth &amp; Compliance Suite</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12.5px;">
+                <strong style="font-size: 11.5px; text-transform: uppercase; color: var(--ink-muted);">Dashboard Columns:</strong>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="dashCols" id="dashCols1" value="1" onchange="setDashColumns(1)" /> 1 Column</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="dashCols" id="dashCols2" value="2" checked onchange="setDashColumns(2)" /> 2 Columns (Default)</label>
+            </div>
+        </div>
+
         <!-- 4 KPI Summary Cards -->
-        <div class="kpi-grid">
+        <div class="kpi-grid" id="dashKpiSummary" data-dash-section="kpi_summary">
             <div class="kpi-card">
                 <div class="kpi-label">Total Posts</div>
                 <div class="kpi-value">{total_posts}</div>
@@ -117,10 +145,10 @@ pub fn render_dashboard_view(
         </div>
 
         <!-- 2-Column Dashboard Grid -->
-        <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 24px;">
+        <div id="dashColumnsGrid" style="display: grid; grid-template-columns: 3fr 2fr; gap: 24px;">
             <!-- Left: Quick Composer & Recent Activity -->
-            <div>
-                <div class="day-card">
+            <div id="dashColLeft" style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="day-card" id="dash-widget-quick_draft" data-dash-widget="quick_draft">
                     <div class="day-card-header">
                         <h2 class="day-card-title">Quick Post Composer</h2>
                         <span style="font-size: 11.5px; color: var(--ink-muted);">Instant async save</span>
@@ -141,7 +169,7 @@ pub fn render_dashboard_view(
                     </div>
                 </div>
 
-                <div class="day-card">
+                <div class="day-card" id="dash-widget-recent_activity" data-dash-widget="recent_activity">
                     <div class="day-card-header">
                         <h2 class="day-card-title">Recent Activity</h2>
                         <a href="/d-admin/edit" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View All Posts &rarr;</a>
@@ -152,11 +180,23 @@ pub fn render_dashboard_view(
                         </ul>
                     </div>
                 </div>
+
+                <div class="day-card" id="dash-widget-recent_comments" data-dash-widget="recent_comments">
+                    <div class="day-card-header">
+                        <h2 class="day-card-title">Recent Comments</h2>
+                        <a href="/d-admin/edit-comments" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">Moderation Queue &rarr;</a>
+                    </div>
+                    <div class="day-card-body">
+                        <div id="dashRecentCommentsList" style="display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; color: var(--ink-muted);">
+                            Loading recent comments...
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Right: Storage Health & Verification -->
-            <div>
-                <div class="day-card">
+            <div id="dashColRight" style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="day-card" id="dash-widget-sqlite_storage" data-dash-widget="sqlite_storage">
                     <div class="day-card-header">
                         <h2 class="day-card-title">Embedded Rusqlite Storage</h2>
                         <span class="badge badge-published">Active (WAL)</span>
@@ -185,7 +225,7 @@ pub fn render_dashboard_view(
                     </div>
                 </div>
 
-                <div class="day-card">
+                <div class="day-card" id="dash-widget-growth_suite" data-dash-widget="growth_suite">
                     <div class="day-card-header">
                         <h2 class="day-card-title">v0.4 Growth &amp; Compliance Suite</h2>
                         <span class="badge badge-published">Zero Plugins</span>
@@ -210,6 +250,209 @@ pub fn render_dashboard_view(
         </div>
 
         <script>
+            let dashScreenState = {{ columns: 2, hidden: {{}}, collapsed: {{}}, leftOrder: [], rightOrder: [] }};
+
+            function toggleDashScreenOptions() {{
+                const p = document.getElementById('dashScreenOptionsPanel');
+                if (p) p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
+            }}
+
+            function saveDashScreenState() {{
+                const leftCol = document.getElementById('dashColLeft');
+                const rightCol = document.getElementById('dashColRight');
+                if (leftCol) dashScreenState.leftOrder = Array.from(leftCol.querySelectorAll(':scope > .day-card[data-dash-widget]')).map(el => el.getAttribute('data-dash-widget'));
+                if (rightCol) dashScreenState.rightOrder = Array.from(rightCol.querySelectorAll(':scope > .day-card[data-dash-widget]')).map(el => el.getAttribute('data-dash-widget'));
+                try {{ localStorage.setItem('daypress_dash_screen_v1', JSON.stringify(dashScreenState)); }} catch (_) {{}}
+                fetch('/wp-json/daypress/v1/user-preferences', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ screens: {{ dashboard: dashScreenState }} }})
+                }}).catch(() => {{}});
+            }}
+
+            function applyDashScreenState() {{
+                const grid = document.getElementById('dashColumnsGrid');
+                const cols = dashScreenState.columns === 1 ? 1 : 2;
+                if (grid) grid.style.gridTemplateColumns = cols === 1 ? '1fr' : '3fr 2fr';
+                const r1 = document.getElementById('dashCols1');
+                const r2 = document.getElementById('dashCols2');
+                if (r1) r1.checked = cols === 1;
+                if (r2) r2.checked = cols === 2;
+
+                const kpi = document.getElementById('dashKpiSummary');
+                if (kpi) kpi.style.display = dashScreenState.hidden['kpi_summary'] ? 'none' : '';
+
+                const leftCol = document.getElementById('dashColLeft');
+                const rightCol = document.getElementById('dashColRight');
+                (dashScreenState.leftOrder || []).forEach(wid => {{
+                    const el = document.querySelector(`.day-card[data-dash-widget="${{wid}}"]`);
+                    if (el && leftCol) leftCol.appendChild(el);
+                }});
+                (dashScreenState.rightOrder || []).forEach(wid => {{
+                    const el = document.querySelector(`.day-card[data-dash-widget="${{wid}}"]`);
+                    if (el && rightCol) rightCol.appendChild(el);
+                }});
+
+                document.querySelectorAll('.day-card[data-dash-widget]').forEach(card => {{
+                    const wid = card.getAttribute('data-dash-widget');
+                    card.style.display = dashScreenState.hidden[wid] ? 'none' : '';
+                    const isCol = !!dashScreenState.collapsed[wid];
+                    const body = card.querySelector('.day-card-body');
+                    const btn = card.querySelector('.dp-dash-collapse-btn');
+                    if (body) body.style.display = isCol ? 'none' : '';
+                    if (btn) btn.textContent = isCol ? '▸' : '▾';
+                    card.classList.toggle('dp-dash-collapsed', isCol);
+                }});
+
+                document.querySelectorAll('.dp-dash-opt-cb[data-widget]').forEach(cb => {{
+                    const wid = cb.getAttribute('data-widget');
+                    cb.checked = !dashScreenState.hidden[wid];
+                }});
+            }}
+
+            function onDashOptionToggle(wid, visible) {{
+                dashScreenState.hidden[wid] = !visible;
+                applyDashScreenState();
+                saveDashScreenState();
+            }}
+
+            function setDashColumns(cols) {{
+                dashScreenState.columns = Number(cols) === 1 ? 1 : 2;
+                applyDashScreenState();
+                saveDashScreenState();
+            }}
+
+            function toggleAllDashWidgets(collapse) {{
+                document.querySelectorAll('.day-card[data-dash-widget]').forEach(card => {{
+                    dashScreenState.collapsed[card.getAttribute('data-dash-widget')] = !!collapse;
+                }});
+                applyDashScreenState();
+                saveDashScreenState();
+            }}
+
+            function resetDashScreenOptions() {{
+                dashScreenState = {{ columns: 2, hidden: {{}}, collapsed: {{}}, leftOrder: [], rightOrder: [] }};
+                try {{ localStorage.removeItem('daypress_dash_screen_v1'); }} catch (_) {{}}
+                saveDashScreenState();
+                window.location.reload();
+            }}
+
+            function moveDashWidget(card, dir) {{
+                const parent = card.parentElement;
+                if (!parent) return;
+                const siblings = Array.from(parent.querySelectorAll(':scope > .day-card[data-dash-widget]'));
+                const idx = siblings.indexOf(card);
+                const target = siblings[idx + dir];
+                if (!target) return;
+                if (dir < 0) parent.insertBefore(card, target);
+                else parent.insertBefore(target, card);
+                saveDashScreenState();
+            }}
+
+            function moveDashWidgetCol(card) {{
+                const leftCol = document.getElementById('dashColLeft');
+                const rightCol = document.getElementById('dashColRight');
+                if (!leftCol || !rightCol) return;
+                if (card.parentElement === leftCol) rightCol.appendChild(card);
+                else leftCol.appendChild(card);
+                saveDashScreenState();
+            }}
+
+            async function loadDashRecentComments() {{
+                const box = document.getElementById('dashRecentCommentsList');
+                if (!box) return;
+                try {{
+                    const res = await fetch('/wp-json/wp/v2/comments?per_page=5');
+                    if (!res.ok) {{ box.textContent = 'No recent comments.'; return; }}
+                    const list = await res.json();
+                    if (!Array.isArray(list) || list.length === 0) {{
+                        box.innerHTML = '<div style="padding: 8px 0; color: var(--ink-muted);">No comments yet.</div>';
+                        return;
+                    }}
+                    box.innerHTML = list.slice(0, 5).map(c => {{
+                        const id = c.id;
+                        const author = (c.author_name || 'Anonymous').replace(/</g, '&lt;');
+                        const excerpt = ((c.content && c.content.rendered) ? c.content.rendered : '').replace(/<[^>]*>/g, '').slice(0, 120);
+                        const status = c.status || 'approved';
+                        return `<div style="padding: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-raised);">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                <strong style="color:var(--ink);">${{author}}</strong>
+                                <span class="badge ${{status === 'approved' || status === '1' ? 'badge-published' : 'badge-draft'}}" style="font-size:10px;">${{status}}</span>
+                            </div>
+                            <div style="color:var(--ink);margin-bottom:8px;font-size:12.5px;">${{excerpt}}</div>
+                            <div style="display:flex;gap:8px;font-size:11.5px;">
+                                <a href="#" onclick="dashModerateComment(${{id}}, 'approve'); return false;" style="color:var(--moss);font-weight:600;text-decoration:none;">Approve</a>
+                                <a href="#" onclick="dashModerateComment(${{id}}, 'unapprove'); return false;" style="color:var(--ochre);font-weight:600;text-decoration:none;">Unapprove</a>
+                                <a href="#" onclick="dashModerateComment(${{id}}, 'spam'); return false;" style="color:var(--oxide);text-decoration:none;">Spam</a>
+                                <a href="#" onclick="dashModerateComment(${{id}}, 'trash'); return false;" style="color:var(--oxide);text-decoration:none;">Trash</a>
+                            </div>
+                        </div>`;
+                    }}).join('');
+                }} catch (_) {{
+                    box.textContent = 'No recent comments.';
+                }}
+            }}
+
+            async function dashModerateComment(id, action) {{
+                try {{
+                    const res = await fetch('/wp-json/daypress/v1/comments/bulk', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ comment_ids: [id], action }})
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ Comment #' + id + ' updated (' + action + ')');
+                        loadDashRecentComments();
+                    }}
+                }} catch (_) {{}}
+            }}
+
+            document.addEventListener('DOMContentLoaded', () => {{
+                document.querySelectorAll('.day-card[data-dash-widget]').forEach(card => {{
+                    const header = card.querySelector('.day-card-header');
+                    if (!header || header.querySelector('.dp-dash-controls')) return;
+                    const wid = card.getAttribute('data-dash-widget');
+                    const ctrl = document.createElement('div');
+                    ctrl.className = 'dp-dash-controls';
+                    ctrl.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;';
+                    ctrl.innerHTML = `
+                        <button type="button" class="btn btn-secondary" style="padding:1px 5px;font-size:11px;height:22px;" title="Move Up">↑</button>
+                        <button type="button" class="btn btn-secondary" style="padding:1px 5px;font-size:11px;height:22px;" title="Move Down">↓</button>
+                        <button type="button" class="btn btn-secondary" style="padding:1px 5px;font-size:11px;height:22px;" title="Move Column">⇄</button>
+                        <button type="button" class="btn btn-secondary dp-dash-collapse-btn" style="padding:1px 6px;font-size:11px;height:22px;" title="Collapse / Expand">▾</button>
+                    `;
+                    const btns = ctrl.querySelectorAll('button');
+                    btns[0].onclick = () => moveDashWidget(card, -1);
+                    btns[1].onclick = () => moveDashWidget(card, 1);
+                    btns[2].onclick = () => moveDashWidgetCol(card);
+                    btns[3].onclick = () => {{
+                        dashScreenState.collapsed[wid] = !dashScreenState.collapsed[wid];
+                        applyDashScreenState();
+                        saveDashScreenState();
+                    }};
+                    header.appendChild(ctrl);
+                }});
+
+                try {{
+                    const raw = localStorage.getItem('daypress_dash_screen_v1');
+                    if (raw) dashScreenState = Object.assign(dashScreenState, JSON.parse(raw));
+                }} catch (_) {{}}
+                applyDashScreenState();
+
+                fetch('/wp-json/daypress/v1/user-preferences')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {{
+                        const remote = data && data.preferences && data.preferences.screens && data.preferences.screens.dashboard;
+                        if (remote && typeof remote === 'object') {{
+                            dashScreenState = Object.assign(dashScreenState, remote);
+                            applyDashScreenState();
+                        }}
+                    }})
+                    .catch(() => {{}});
+
+                loadDashRecentComments();
+            }});
+
             async function quickPost(e, customStatus) {{
                 if (e) e.preventDefault();
                 const title = document.getElementById('quickTitle').value;
