@@ -54,8 +54,16 @@ impl Database {
             )));
         }
         crate::legacy::upgrade_schema(&conn)?;
+        conn.execute_batch(super::ddl::SUBSYSTEMS_SCHEMA_SQL)?;
         conn.execute_batch(super::ddl::PASSWORD_RESETS_SCHEMA_SQL)?;
         conn.execute_batch(super::ddl::V08_I18N_AND_EDITORIAL_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_NEWSLETTERS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_WEBHOOKS_AND_SHORTLINKS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_AB_AND_WEB_VITALS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_WASM_EXTENSIONS_SCHEMA_SQL)?;
+        let _ = conn.execute_batch(super::ddl::FTS5_SEARCH_SCHEMA_SQL);
+        let _ = crate::theme_builder::schema::init_theme_builder_schema(&conn);
+        conn.execute_batch(super::ddl::V10_SCHEMA_MIGRATIONS_SQL)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_path_buf(),

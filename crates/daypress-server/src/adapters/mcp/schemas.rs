@@ -581,6 +581,28 @@ pub fn mcp_tools_manifest() -> Value {
                         "attrs": { "type": "object" }
                     }
                 }
+            },
+            {
+                "name": "daypress_security_audit",
+                "description": "Run the Daypress 1.0 Security & Production Readiness Audit, SQLite Schema v100 Contract check, Wasm Host ABI v1 check, and 70%+ WordPress Migration Corpus Sign-Off.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "daypress_run_benchmark",
+                "description": "Run the reproducible Daypress 1.0 Performance, Latency (p50/p95/p99 µs) & Memory Benchmark Suite across SSR Hot Cache, Cold AST Compile, SQLite FTS5 BM25 Search, REST API v2, and Wasm Sandbox.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "iterations": {
+                            "type": "integer",
+                            "default": 25,
+                            "description": "Number of timed iterations per workload (5..=500)."
+                        }
+                    }
+                }
             }
         ]
     })

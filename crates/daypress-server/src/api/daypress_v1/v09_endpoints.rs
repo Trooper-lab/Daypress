@@ -525,3 +525,51 @@ pub(crate) async fn execute_wasm_extension_v1_handler(
     let out = db.execute_wasm_extension(&slug, export_name, &payload.attrs, &payload.content)?;
     Ok(Json(out))
 }
+
+// --- Daypress 1.0 Readiness, Security Audit, Schema Contract & Reproducible Benchmark Suite ---
+
+pub(crate) async fn security_audit_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::adapters::database::v10_readiness::SecurityAuditReport>, AppError> {
+    Ok(Json(db.run_security_and_readiness_audit()))
+}
+
+pub(crate) async fn schema_contract_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::adapters::database::v10_readiness::SchemaContractReport>, AppError> {
+    Ok(Json(db.verify_schema_contract()))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RunBenchmarkPayload {
+    pub iterations: Option<usize>,
+}
+
+pub(crate) async fn run_benchmark_suite_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+    payload: Option<Json<RunBenchmarkPayload>>,
+) -> Result<Json<crate::adapters::database::v10_readiness::BenchmarkSuiteReport>, AppError> {
+    let iterations = payload
+        .and_then(|Json(p)| p.iterations)
+        .unwrap_or(25)
+        .clamp(5, 500);
+    Ok(Json(db.run_benchmark_suite(iterations)))
+}
+
+pub(crate) async fn get_latest_benchmark_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::adapters::database::v10_readiness::BenchmarkSuiteReport>, AppError> {
+    Ok(Json(db.get_or_run_benchmark_suite()))
+}
+
+pub(crate) async fn migration_corpus_signoff_v1_handler(
+    _auth: crate::auth::EditorUser,
+    State(db): State<Database>,
+) -> Result<Json<crate::adapters::database::v10_readiness::MigrationCorpusSignoffReport>, AppError>
+{
+    Ok(Json(db.run_migration_corpus_signoff()))
+}

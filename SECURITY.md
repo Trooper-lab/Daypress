@@ -4,8 +4,9 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.2.x   | ✅        |
-| < 0.2   | ❌        |
+| 1.0.x (`1.0.0-beta.1+`) | ✅ |
+| 0.9.x   | ✅        |
+| < 0.9   | ❌        |
 
 Security fixes land on `main` and ship in the next patch release of the latest minor version.
 

@@ -1039,6 +1039,21 @@ fn apply_baseline_security_headers(resp: &mut axum::response::Response) {
             headers.insert(axum::http::header::REFERRER_POLICY, v);
         }
     }
+    if !headers.contains_key("permissions-policy") {
+        if let Ok(v) = "camera=(), microphone=(), geolocation=(), payment=()".parse() {
+            headers.insert("permissions-policy", v);
+        }
+    }
+    if !headers.contains_key("cross-origin-opener-policy") {
+        if let Ok(v) = "same-origin".parse() {
+            headers.insert("cross-origin-opener-policy", v);
+        }
+    }
+    if !headers.contains_key(axum::http::header::CONTENT_SECURITY_POLICY) {
+        if let Ok(v) = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'".parse() {
+            headers.insert(axum::http::header::CONTENT_SECURITY_POLICY, v);
+        }
+    }
 }
 
 /// Axum middleware: every admin screen and `/d-admin/api/*` endpoint requires a valid,

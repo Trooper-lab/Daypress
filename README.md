@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.9.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: 1.0 Beta (`v1.0.0-beta.1`).** Daypress now includes a locked SQLite Schema Contract (`v100`), WebAssembly Host ABI (`v1`), a built-in 10-point Security & Production Readiness Audit (`daypress doctor` & `/d-admin/site-health`), reproducible performance benchmarks ([`BENCHMARKS.md`](BENCHMARKS.md)), and `70%+` (`95%–100%` tested) 1-Click WordPress migration sign-off across Elementor, Divi, Gutenberg, and Classic sites. Always keep backups when upgrading or migrating production sites.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -70,6 +70,7 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - A "Lost your password?" email flow with single-use reset links that expire after an hour, plus a `daypress reset-password <user> [--sign-out-everyone] [--disable-2fa]` command for when email isn't set up or a 2FA device is lost.
 - Two-Factor Authentication (2FA) via RFC 6238 TOTP authenticator apps and 8 single-use recovery codes, enforced across `/login` (`/login/2fa`), JWT token issuance, and primary-password Basic Auth (`X-Daypress-OTP`).
 - The admin area and the write APIs require authentication (a session cookie, an application password, or a JWT) and enforce per-role WordPress capability checks across `/d-admin/*`, `/wp-json/wp/v2/*`, and `/wp-json/daypress/v1/*`.
+- **1.0 Production Readiness & Security Audit (`daypress doctor --benchmark` & `/d-admin/site-health`)**: automated 10-point verification of Argon2id password hashes, 256-bit HMAC session secret entropy, SQLite WAL & foreign-key integrity, Schema Contract `v100`, WebAssembly Host ABI `v1` fuel/memory isolation, SSRF protection on webhooks & forms, open-redirect/CRLF guards on shortlinks, SVG upload sanitization, and baseline HTTP security headers (`CSP frame-ancestors 'self'`, `COOP: same-origin`, `Permissions-Policy`, `X-Content-Type-Options: nosniff`).
 
 **APIs**
 - A subset of the WordPress REST API (`/wp-json/wp/v2/`): posts, pages, media, categories, tags, comments, users, settings, menus, search, and more.

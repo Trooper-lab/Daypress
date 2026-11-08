@@ -21,8 +21,28 @@ use std::sync::{Arc, Mutex, OnceLock};
 use thiserror::Error;
 
 pub const WASM_MAGIC_HEADER: [u8; 8] = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+/// Stable Daypress 1.0 WebAssembly Extension Host ABI version (`v1`).
+///
+/// Extensions targeting ABI v1 are guaranteed forward-compatibility across all `1.x` releases.
+pub const WASM_ABI_VERSION: u32 = 1;
 pub const DEFAULT_FUEL_LIMIT: u64 = 50_000;
 pub const DEFAULT_MAX_MEMORY_PAGES: u32 = 16; // 1 MiB
+
+/// Canonical list of host imports guaranteed by Daypress Wasm Host ABI v1.
+pub const SUPPORTED_HOST_IMPORTS: &[&str] = &[
+    "env.dp_emit_str",
+    "env.dp_emit_attr",
+    "env.dp_emit_input",
+    "env.dp_kv_set",
+    "env.dp_kv_get_emit",
+    "env.dp_kv_incr_emit",
+    "env.dp_option_emit",
+    "env.dp_http_get",
+    "env.dp_abi_version",
+];
+
+/// Canonical list of extension exports invoked by the Daypress host runtime under ABI v1.
+pub const SUPPORTED_EXPORTS: &[&str] = &["render_shortcode", "filter_content"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WasmCapabilities {
@@ -112,6 +132,17 @@ pub struct WasmModuleInspection {
     pub max_memory_pages: Option<u32>,
     pub imports: Vec<String>,
     pub exports: Vec<String>,
+}
+
+/// Result of verifying a `.wasm` binary against the Daypress 1.0 Stable Host ABI v1 contract.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WasmAbiCompatibilityReport {
+    pub abi_version: u32,
+    pub is_compatible: bool,
+    pub sha256: String,
+    pub recognized_imports: Vec<String>,
+    pub unsupported_imports: Vec<String>,
+    pub recognized_exports: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -249,6 +280,35 @@ pub fn inspect_wasm_binary(wasm_bytes: &[u8]) -> Result<WasmModuleInspection, Wa
         max_memory_pages: parsed.max_memory_pages,
         imports,
         exports,
+    })
+}
+
+/// Checks whether a `.wasm` binary conforms to the Daypress 1.0 Stable Host ABI v1 contract.
+pub fn check_abi_compatibility(wasm_bytes: &[u8]) -> Result<WasmAbiCompatibilityReport, WasmError> {
+    let inspection = inspect_wasm_binary(wasm_bytes)?;
+    let mut recognized_imports = Vec::new();
+    let mut unsupported_imports = Vec::new();
+    for imp in &inspection.imports {
+        if SUPPORTED_HOST_IMPORTS.contains(&imp.as_str()) {
+            recognized_imports.push(imp.clone());
+        } else {
+            unsupported_imports.push(imp.clone());
+        }
+    }
+    let recognized_exports: Vec<String> = inspection
+        .exports
+        .iter()
+        .filter(|e| SUPPORTED_EXPORTS.contains(&e.as_str()))
+        .cloned()
+        .collect();
+    let is_compatible = unsupported_imports.is_empty() && !recognized_exports.is_empty();
+    Ok(WasmAbiCompatibilityReport {
+        abi_version: WASM_ABI_VERSION,
+        is_compatible,
+        sha256: inspection.sha256,
+        recognized_imports,
+        unsupported_imports,
+        recognized_exports,
     })
 }
 
@@ -654,6 +714,9 @@ pub fn execute_wasm_export<H: WasmHostEnvironment>(
                             let _len = stack.pop().unwrap_or(0);
                             let _ptr = stack.pop().unwrap_or(0);
                         }
+                        "dp_abi_version" => {
+                            stack.push(WASM_ABI_VERSION as i32);
+                        }
                         _ => {}
                     }
                 }
@@ -1009,5 +1072,20 @@ mod tests {
             &mut host,
         );
         assert_eq!(res, Err(WasmError::FuelExhausted { limit: 500 }));
+    }
+
+    #[test]
+    fn test_wasm_abi_v1_compatibility_check() {
+        let wasm_bytes = compile_template_to_wasm_binary(
+            r#"<span class="abi-v1">{{attr:label|OK}} ({{kv_incr:runs}})</span>"#,
+            1,
+        );
+        let report = check_abi_compatibility(&wasm_bytes).expect("abi compatibility check");
+        assert_eq!(report.abi_version, WASM_ABI_VERSION);
+        assert!(report.is_compatible);
+        assert!(report.unsupported_imports.is_empty());
+        assert!(report
+            .recognized_exports
+            .contains(&"render_shortcode".to_string()));
     }
 }

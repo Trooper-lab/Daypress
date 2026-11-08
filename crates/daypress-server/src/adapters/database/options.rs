@@ -778,4 +778,18 @@ impl crate::ports::output::OptionRepository for Database {
             }
         }
     }
+
+    fn security_audit_json(&self) -> DomainResult<serde_json::Value> {
+        let security = Database::run_security_and_readiness_audit(self);
+        let migration_signoff = Database::run_migration_corpus_signoff(self);
+        Ok(serde_json::json!({
+            "security_audit": security,
+            "migration_corpus_signoff": migration_signoff,
+        }))
+    }
+
+    fn run_benchmark_json(&self, iterations: usize) -> DomainResult<serde_json::Value> {
+        let report = Database::run_benchmark_suite(self, iterations);
+        serde_json::to_value(report).map_err(|e| DomainError::Internal(e.to_string()))
+    }
 }

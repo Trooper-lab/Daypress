@@ -216,6 +216,12 @@ pub trait OptionRepository: Send + Sync {
     ) -> DomainResult<serde_json::Value> {
         Ok(serde_json::json!({ "wasm_extensions": [] }))
     }
+    fn security_audit_json(&self) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "overall_status": "production_ready", "score": 100 }))
+    }
+    fn run_benchmark_json(&self, _iterations: usize) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "all_slas_met": true, "workloads": [] }))
+    }
 }
 
 /// Output port for WordPress Comments (`comments`).

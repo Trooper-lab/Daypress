@@ -513,7 +513,9 @@ pub fn render_admin_shell(
 
 <script>
 	const DAY_QS_SCREENS = [
-		['Dashboard', '/d-admin/'], ['All Posts', '/d-admin/edit'], ['Add New Post', '/d-admin/post-new'],
+		['Dashboard', '/d-admin/'], ['Get Started & AI Agent Key', '/d-admin/getting-started'],
+		['Updates & Self-Updater', '/d-admin/update-core'],
+		['All Posts', '/d-admin/edit'], ['Add New Post', '/d-admin/post-new'],
 		['Categories', '/d-admin/edit-tags?taxonomy=category'], ['Tags', '/d-admin/edit-tags?taxonomy=post_tag'],
 		['Media Library', '/d-admin/upload'], ['Upload Media', '/d-admin/media-new'],
 		['All Pages', '/d-admin/edit?post_type=page'], ['Add New Page', '/d-admin/post-new?post_type=page'],
@@ -530,7 +532,7 @@ pub fn render_admin_shell(
 		{qs_plugin_screens}['Users', '/d-admin/users'], ['Add New User', '/d-admin/user-new'],
 		['Profile', '/d-admin/profile'], ['Tools', '/d-admin/tools'], ['Import', '/d-admin/import'],
 		['Export', '/d-admin/export'],
-		['Site Health', '/d-admin/site-health'], ['Export Personal Data', '/d-admin/export-personal-data'],
+		['Site Health (1.0 Security Audit & Benchmarks)', '/d-admin/site-health'], ['Export Personal Data', '/d-admin/export-personal-data'],
 		['Erase Personal Data', '/d-admin/erase-personal-data'], ['General Settings', '/d-admin/options-general'],
 		['Writing Settings', '/d-admin/options-writing'], ['Reading Settings', '/d-admin/options-reading'],
 		['Discussion Settings', '/d-admin/options-discussion'], ['Media Settings', '/d-admin/options-media'],

@@ -32,6 +32,7 @@ pub mod settings_extra;
 pub mod taxonomies;
 pub mod taxonomies_discovery;
 pub mod users;
+pub mod v10_readiness;
 pub mod wasm_extensions;
 pub mod webhooks_shortlinks;
 

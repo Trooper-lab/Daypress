@@ -98,12 +98,15 @@ impl Database {
         }
         let target_url = req.target_url.trim();
         if target_url.is_empty()
+            || target_url.contains(['\r', '\n'])
+            || target_url.starts_with("//")
+            || target_url.starts_with("/\\")
             || (!target_url.starts_with("http://")
                 && !target_url.starts_with("https://")
                 && !target_url.starts_with('/'))
         {
             return Err(AppError::BadRequest(
-                "Target URL must start with https://, http://, or /".to_string(),
+                "Target URL must start with https://, http://, or a single relative / (protocol-relative // and CRLF characters are rejected)".to_string(),
             ));
         }
         let status_code = match req.status_code {

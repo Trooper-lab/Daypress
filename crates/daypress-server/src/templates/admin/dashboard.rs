@@ -227,10 +227,14 @@ pub fn render_dashboard_view(
 
                 <div class="day-card" id="dash-widget-growth_suite" data-dash-widget="growth_suite">
                     <div class="day-card-header">
-                        <h2 class="day-card-title">v0.4 Growth &amp; Compliance Suite</h2>
+                        <h2 class="day-card-title">Growth, Security &amp; 1.0 Readiness Suite</h2>
                         <span class="badge badge-published">Zero Plugins</span>
                     </div>
                     <div class="day-card-body" style="display: flex; flex-direction: column; gap: 10px;">
+                        <a href="/d-admin/site-health" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
+                            <span>🛡️ 1.0 Security Audit, Schema v100 &amp; Benchmarks</span>
+                            <span>&rarr;</span>
+                        </a>
                         <a href="/d-admin/analytics" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
                             <span>📊 Cookieless Analytics Dashboard</span>
                             <span>&rarr;</span>
@@ -240,7 +244,7 @@ pub fn render_dashboard_view(
                             <span>&rarr;</span>
                         </a>
                         <a href="/d-admin/options-privacy" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
-                            <span>🛡️ GDPR Cookie Consent Banner</span>
+                            <span>🔒 GDPR Cookie Consent Banner</span>
                             <span>&rarr;</span>
                         </a>
                     </div>
@@ -829,7 +833,7 @@ pub fn render_updates_view_with_status(
                     <div style="display:grid;grid-template-columns: 1fr 2fr;gap:8px;">
                         <div>
                             <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Version Tag (optional)</label>
-                            <input type="text" id="update-archive-version" name="version" placeholder="e.g. 0.2.0" class="form-input" style="width:100%;font-size:12px;" />
+                            <input type="text" id="update-archive-version" name="version" placeholder="e.g. 1.0.0" class="form-input" style="width:100%;font-size:12px;" />
                         </div>
                         <div>
                             <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Expected SHA-256 (optional)</label>
@@ -1347,6 +1351,7 @@ Available MCP tools (via JSON-RPC `tools/call` on POST {site_url}/mcp):
 - `daypress_import_html_design` (converts full HTML/CSS pages into native DayStudio Visual Builder AST layouts and sets the front page)
 - `daypress_get_post_layout`, `daypress_update_post_layout`
 - `daypress_get_settings`, `daypress_update_option`
+- `daypress_security_audit`, `daypress_run_benchmark` (runs the 1.0 10-point security & readiness audit, Schema v100 check, and 5-workload benchmark suite)
 - `daypress_publish_site`, `daypress_get_publish_status` (compiles the site to a static edge bundle and deploys to Cloudflare Pages, Netlify, or local .ZIP)
 
 Please inspect the current site via `daypress_get_settings` and `daypress_list_posts`, and help me design and build my website.</pre>

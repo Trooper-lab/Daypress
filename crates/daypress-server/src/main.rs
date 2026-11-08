@@ -14,8 +14,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
-#[command(name = "daypress")]
-#[command(about = "Daypress: Self-Hosted Rust CMS with 1-Click WP Migration & Built-in MCP Server")]
+#[command(
+    name = "daypress",
+    version,
+    about = "Daypress: Self-Hosted Rust CMS with 1-Click WP Migration & Built-in MCP Server"
+)]
 pub struct Cli {
     /// Port to listen on (overridable via PORT env var)
     #[arg(short, long, env = "PORT", default_value_t = 8090)]
@@ -76,6 +79,16 @@ pub enum Command {
         #[arg(long)]
         disable_2fa: bool,
     },
+    /// Run the Daypress 1.0 Security & Readiness Audit, Schema Contract check, and Migration Corpus Sign-Off.
+    Doctor {
+        /// Also run the reproducible 5-workload performance benchmark suite
+        #[arg(long)]
+        benchmark: bool,
+
+        /// Emit JSON output for CI/automation pipelines
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[tokio::main]
@@ -111,6 +124,10 @@ async fn main() {
             *sign_out_everyone,
             *disable_2fa,
         ));
+    }
+
+    if let Some(Command::Doctor { benchmark, json }) = &args.command {
+        std::process::exit(run_doctor(&args.db, *benchmark, *json));
     }
 
     if args.mcp_stdio {
@@ -195,6 +212,97 @@ fn run_mcp_stdio(args: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn run_doctor(db_path: &Path, run_benchmarks: bool, json_output: bool) -> i32 {
+    let db = match SqliteDatabase::new(db_path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("doctor failed to open {}: {e}", db_path.display());
+            return 1;
+        }
+    };
+    let audit = db.run_security_and_readiness_audit();
+    let migration = db.run_migration_corpus_signoff();
+    let bench = if run_benchmarks {
+        Some(db.run_benchmark_suite(25))
+    } else {
+        None
+    };
+
+    if json_output {
+        let payload = serde_json::json!({
+            "security_audit": audit,
+            "migration_corpus_signoff": migration,
+            "benchmark_suite": bench,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
+    } else {
+        println!(
+            "Daypress v{} — 1.0 Production Readiness & Security Audit",
+            audit.release_version
+        );
+        println!("Database: {}", db_path.display());
+        println!(
+            "Status:   {} (Score: {}/100, {}/{} checks passed)",
+            audit.overall_status.to_uppercase(),
+            audit.score,
+            audit.passed_count,
+            audit.checks.len()
+        );
+        println!(
+            "Schema:   v{} (compatible={}, tables={}/{}, FTS5={})",
+            audit.schema_contract.schema_version,
+            audit.schema_contract.backward_compatible,
+            audit.schema_contract.present_tables_count,
+            audit.schema_contract.required_tables_count,
+            audit.schema_contract.fts5_search_ready
+        );
+        println!(
+            "Wasm ABI: v{} ({} host imports guaranteed)",
+            audit.schema_contract.wasm_abi_version,
+            audit.schema_contract.wasm_supported_imports.len()
+        );
+        println!(
+            "WP 1-Click Migration Sign-Off: {:.1}% aggregate fidelity across {} archetypes (threshold >= {:.1}%, pass={})",
+            migration.aggregate_fidelity_pct,
+            migration.archetypes_tested,
+            migration.required_threshold_pct,
+            migration.passes_v1_signoff
+        );
+        for check in &audit.checks {
+            let icon = match check.status.as_str() {
+                "pass" => "✓",
+                "warn" => "!",
+                _ => "✗",
+            };
+            println!("  [{icon}] {}: {}", check.title, check.detail);
+        }
+        if let Some(ref b) = bench {
+            println!(
+                "\nBenchmark Suite ({} iterations/workload, {:.1}x average speedup vs WP+PHP):",
+                b.iterations_per_workload, b.summary_speedup_vs_wp
+            );
+            for w in &b.workloads {
+                println!(
+                    "  - {}: p50={:.2}µs, p95={:.2}µs, p99={:.2}µs ({:.0} ops/s, {:.1}x vs WP)",
+                    w.name, w.p50_us, w.p95_us, w.p99_us, w.ops_per_sec, w.speedup_vs_wp
+                );
+            }
+        }
+    }
+
+    if audit.failed_count == 0
+        && audit.schema_contract.backward_compatible
+        && migration.passes_v1_signoff
+    {
+        0
+    } else {
+        1
+    }
+}
+
 fn format_bind_error(port: u16, err: &std::io::Error) -> String {
     if err.kind() == std::io::ErrorKind::AddrInUse {
         format!(
@@ -233,7 +341,10 @@ fn print_startup_banner(
     needs_onboarding: bool,
 ) {
     println!("============================================================");
-    println!("           🦀 Daypress: The All-in-One Rust CMS             ");
+    println!(
+        "       🦀 Daypress v{}: The All-in-One Rust CMS",
+        env!("CARGO_PKG_VERSION")
+    );
     println!("============================================================");
     println!("✓ Architecture:       Hexagonal (Domain / Ports / Application / Adapters)");
     println!("✓ License:            AGPLv3 + Commercial Dual-License");
@@ -467,5 +578,47 @@ mod tests {
         assert_eq!(cli.tls_email.as_deref(), Some("admin@example.com"));
         assert_eq!(cli.tls_cert_dir, PathBuf::from("custom/tls"));
         assert_eq!(cli.https_port, 8443);
+    }
+
+    #[test]
+    fn cli_parses_doctor_and_reset_password_subcommands() {
+        let doc = Cli::try_parse_from([
+            "daypress",
+            "--db",
+            "custom/daypress.sqlite",
+            "doctor",
+            "--benchmark",
+            "--json",
+        ])
+        .expect("parse doctor subcommand");
+        assert_eq!(doc.db, PathBuf::from("custom/daypress.sqlite"));
+        match doc.command {
+            Some(Command::Doctor { benchmark, json }) => {
+                assert!(benchmark);
+                assert!(json);
+            }
+            other => panic!("expected Doctor command, got {other:?}"),
+        }
+
+        let rst = Cli::try_parse_from([
+            "daypress",
+            "reset-password",
+            "admin",
+            "--sign-out-everyone",
+            "--disable-2fa",
+        ])
+        .expect("parse reset-password subcommand");
+        match rst.command {
+            Some(Command::ResetPassword {
+                username,
+                sign_out_everyone,
+                disable_2fa,
+            }) => {
+                assert_eq!(username, "admin");
+                assert!(sign_out_everyone);
+                assert!(disable_2fa);
+            }
+            other => panic!("expected ResetPassword command, got {other:?}"),
+        }
     }
 }

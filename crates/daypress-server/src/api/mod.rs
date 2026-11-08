@@ -605,6 +605,20 @@ fn daypress_v1_routes() -> Router<Database> {
             "/wasm-extensions/{slug}/execute",
             axum::routing::post(execute_wasm_extension_v1_handler),
         )
+        .route(
+            "/security/audit",
+            get(security_audit_v1_handler).post(security_audit_v1_handler),
+        )
+        .route("/schema/contract", get(schema_contract_v1_handler))
+        .route("/benchmarks/latest", get(get_latest_benchmark_v1_handler))
+        .route(
+            "/benchmarks/run",
+            get(run_benchmark_suite_v1_handler).post(run_benchmark_suite_v1_handler),
+        )
+        .route(
+            "/migration/signoff",
+            get(migration_corpus_signoff_v1_handler).post(migration_corpus_signoff_v1_handler),
+        )
 }
 
 pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {
@@ -674,7 +688,12 @@ pub async fn rest_index_root(State(db): State<Database>) -> Json<Value> {
             "/daypress/v1/vacuum": { "namespace": "daypress/v1", "methods": ["GET", "POST"] },
             "/daypress/v1/integrity-check": { "namespace": "daypress/v1", "methods": ["GET"] },
             "/daypress/v1/import": { "namespace": "daypress/v1", "methods": ["POST"] },
-            "/daypress/v1/import-wxr": { "namespace": "daypress/v1", "methods": ["POST"] }
+            "/daypress/v1/import-wxr": { "namespace": "daypress/v1", "methods": ["POST"] },
+            "/daypress/v1/security/audit": { "namespace": "daypress/v1", "methods": ["GET", "POST"] },
+            "/daypress/v1/schema/contract": { "namespace": "daypress/v1", "methods": ["GET"] },
+            "/daypress/v1/benchmarks/latest": { "namespace": "daypress/v1", "methods": ["GET"] },
+            "/daypress/v1/benchmarks/run": { "namespace": "daypress/v1", "methods": ["GET", "POST"] },
+            "/daypress/v1/migration/signoff": { "namespace": "daypress/v1", "methods": ["GET", "POST"] }
         },
         "_links": {
             "help": [{ "href": "https://developer.wordpress.org/rest-api/" }]

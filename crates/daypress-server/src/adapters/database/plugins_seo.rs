@@ -166,6 +166,15 @@ impl Database {
     }
 
     pub fn save_form_record(&self, req: &CreateFormRequest) -> Result<i64> {
+        let wh_url = req.settings.webhook_url.trim();
+        if !wh_url.is_empty() {
+            Self::validate_webhook_target_url_ssrf(wh_url).map_err(|e| {
+                rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    e.to_string(),
+                )))
+            })?;
+        }
         let saved_id = {
             let conn = self.conn.lock().unwrap();
             let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();

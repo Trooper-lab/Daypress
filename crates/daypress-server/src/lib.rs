@@ -503,3 +503,5 @@ mod tests_v04_v05;
 mod tests_v08;
 #[cfg(test)]
 mod tests_v09;
+#[cfg(test)]
+mod tests_v10;

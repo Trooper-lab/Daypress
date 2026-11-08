@@ -93,7 +93,7 @@ When a user asks you to **"set up and build my website"**, follow this 6-step wo
 
 ---
 
-### 3. Complete MCP Tool Reference (45 Built-in Tools)
+### 3. Complete MCP Tool Reference (47 Built-in Tools)
 
 | Category | MCP Tool | Purpose |
 | :--- | :--- | :--- |
@@ -136,6 +136,8 @@ When a user asks you to **"set up and build my website"**, follow this 6-step wo
 | | `daypress_create_preview_link` | Issue a time-bound, revocable secret draft preview URL (`/preview/{token}`). |
 | | `daypress_schedule_revision` | Schedule an atomic future content/AST update for an already-published post or page. |
 | | `daypress_diff_revisions` | Compute a structural node-by-node AST diff between two revisions (or against live). |
+| **1.0 Readiness, Security & Benchmarks** | `daypress_security_audit` | Run the 10-point Security & Production Readiness Audit, SQLite Schema v100 Contract check, Wasm ABI v1 check, and 70%+ WP Migration Corpus Sign-Off. |
+| | `daypress_run_benchmark` | Run the reproducible 5-workload performance, latency (`p50`/`p95`/`p99` µs), and memory benchmark suite vs. WordPress + PHP-FPM/Redis. |
 | **Media, Storage, Migration & Deploy** | `daypress_list_media_folders` | List or create virtual Media Library DAM folders (`create_name`, `parent_id`). |
 | | `daypress_scan_unused_media` | Scan for unreferenced media attachments across posts, templates, and options. |
 | | `daypress_get_storage_s3_status` | Read S3 / Cloudflare R2 media offload and continuous SQLite replica status. |
@@ -192,4 +194,4 @@ Daypress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
      - **`0.8.0`** (`Shipped`): Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs
      - **`0.8.5`** (`Shipped`): WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit)
      - **`0.9.0`** (`Shipped`): Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates
-     - **`1.0`** (`Up next`): First Stable Release (External Audit, Reproducible Benchmarks, Stable Schema/ABI & 70%+ WP Migration Sign-off)
+     - **`1.0`** (`In Beta — v1.0.0-beta.1`): First Stable Release (Automated Security & Readiness Audit, Reproducible Benchmarks, Stable Schema v100 / Wasm ABI v1 & 70%+ WP Migration Sign-off)

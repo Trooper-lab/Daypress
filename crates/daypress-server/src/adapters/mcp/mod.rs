@@ -64,7 +64,7 @@ pub fn handle_mcp_rpc(service: &CmsService, req: JsonRpcRequest) -> JsonRpcRespo
             })),
             error: None,
         },
-        "notifications/initialized" | "ping" => JsonRpcResponse {
+        "notifications/initialized" | "notifications/cancelled" | "ping" => JsonRpcResponse {
             jsonrpc: "2.0".into(),
             id,
             result: Some(json!({})),
@@ -74,6 +74,24 @@ pub fn handle_mcp_rpc(service: &CmsService, req: JsonRpcRequest) -> JsonRpcRespo
             jsonrpc: "2.0".into(),
             id,
             result: Some(mcp_tools_manifest()),
+            error: None,
+        },
+        "resources/list" => JsonRpcResponse {
+            jsonrpc: "2.0".into(),
+            id,
+            result: Some(json!({ "resources": [] })),
+            error: None,
+        },
+        "resources/templates/list" => JsonRpcResponse {
+            jsonrpc: "2.0".into(),
+            id,
+            result: Some(json!({ "resourceTemplates": [] })),
+            error: None,
+        },
+        "prompts/list" => JsonRpcResponse {
+            jsonrpc: "2.0".into(),
+            id,
+            result: Some(json!({ "prompts": [] })),
             error: None,
         },
         "tools/call" => {
@@ -355,7 +373,11 @@ fn dispatch_tool_call(
             let lower_opt = name.trim().to_ascii_lowercase();
             if matches!(
                 lower_opt.as_str(),
-                "auth_secret" | "daypress_auth_secret" | "jwt_secret"
+                "auth_secret"
+                    | "daypress_auth_secret"
+                    | "daypress_session_secret"
+                    | "session_secret"
+                    | "jwt_secret"
             ) {
                 return Err(DomainError::Validation(format!(
                     "Option '{}' is a protected cryptographic secret and cannot be modified via MCP.",
@@ -715,6 +737,15 @@ fn dispatch_tool_call(
         "daypress_manage_wasm_extensions" => {
             service.options_repo().manage_wasm_extensions_json(&args)
         }
+        "daypress_security_audit" => service.options_repo().security_audit_json(),
+        "daypress_run_benchmark" => {
+            let iterations = args
+                .get("iterations")
+                .and_then(Value::as_u64)
+                .unwrap_or(25)
+                .clamp(5, 500) as usize;
+            service.options_repo().run_benchmark_json(iterations)
+        }
         unknown => Err(DomainError::NotFound(format!(
             "Unknown MCP tool: {unknown}"
         ))),
@@ -743,7 +774,15 @@ pub fn run_stdio_mcp_loop(service: &CmsService) -> std::io::Result<()> {
             continue;
         }
         let response = match serde_json::from_str::<JsonRpcRequest>(trimmed) {
-            Ok(req) => handle_mcp_rpc(service, req),
+            Ok(req) => {
+                // Per JSON-RPC 2.0 & MCP stdio specification, notifications (no `id` or `notifications/*`)
+                // must not emit a response frame on stdout.
+                if req.id.is_none() || req.method.starts_with("notifications/") {
+                    let _ = handle_mcp_rpc(service, req);
+                    continue;
+                }
+                handle_mcp_rpc(service, req)
+            }
             Err(e) => JsonRpcResponse {
                 jsonrpc: "2.0".into(),
                 id: Value::Null,
@@ -1008,5 +1047,80 @@ mod tests {
             assert!(!post.content.rendered.is_empty());
             assert!(!post.content.rendered.contains("contenteditable"));
         }
+    }
+
+    #[test]
+    fn test_mcp_all_47_tools_manifest_and_protocol_compliance() {
+        let db = Database::new_in_memory().expect("in-memory db");
+        let service = CmsService::from_adapter(db);
+
+        // 1. Verify initialize version matches CARGO_PKG_VERSION (1.0.0-beta.1)
+        let init_resp = handle_mcp_rpc(
+            &service,
+            JsonRpcRequest {
+                jsonrpc: Some("2.0".into()),
+                id: Some(json!(1)),
+                method: "initialize".into(),
+                params: json!({}),
+            },
+        );
+        let init_res = init_resp.result.expect("init result");
+        assert_eq!(init_res["serverInfo"]["version"], env!("CARGO_PKG_VERSION"));
+
+        // 2. Verify resources/list and prompts/list return clean empty arrays
+        for (method, key) in [
+            ("resources/list", "resources"),
+            ("resources/templates/list", "resourceTemplates"),
+            ("prompts/list", "prompts"),
+        ] {
+            let resp = handle_mcp_rpc(
+                &service,
+                JsonRpcRequest {
+                    jsonrpc: Some("2.0".into()),
+                    id: Some(json!(2)),
+                    method: method.into(),
+                    params: json!({}),
+                },
+            );
+            assert!(resp.error.is_none(), "{method} should not error");
+            assert!(resp.result.unwrap()[key].is_array());
+        }
+
+        // 3. Verify all 47 tools in manifest are valid and wired in dispatch_tool_call
+        let manifest = mcp_tools_manifest();
+        let tools = manifest["tools"].as_array().expect("tools array");
+        assert_eq!(tools.len(), 47, "Expected exactly 47 MCP tools in manifest");
+
+        for tool in tools {
+            let name = tool["name"].as_str().expect("tool name");
+            let desc = tool["description"].as_str().expect("tool description");
+            assert!(!name.is_empty() && !desc.is_empty());
+            assert_eq!(tool["inputSchema"]["type"], "object");
+
+            // Dispatch with empty args: even if a tool requires parameters (Validation error),
+            // it must NEVER fail with "Unknown MCP tool".
+            let res = dispatch_tool_call(&service, name, json!({}));
+            if let Err(err) = res {
+                let msg = err.to_string();
+                assert!(
+                    !msg.contains("Unknown MCP tool"),
+                    "Tool {name} is in schemas.rs but missing in dispatch_tool_call: {msg}"
+                );
+            }
+        }
+
+        // 4. Verify daypress_session_secret is blocked from modification via daypress_update_option
+        let blocked = dispatch_tool_call(
+            &service,
+            "daypress_update_option",
+            json!({
+                "name": "daypress_session_secret",
+                "value": "attacker_controlled"
+            }),
+        );
+        assert!(
+            blocked.is_err(),
+            "daypress_session_secret must be protected"
+        );
     }
 }

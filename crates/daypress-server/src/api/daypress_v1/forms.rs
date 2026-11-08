@@ -212,29 +212,33 @@ pub(crate) async fn deliver_form_submission_notifications(
         }
     }
 
-    // 3. Optional Outbound Webhook
+    // 3. Optional Outbound Webhook (validated against SSRF guard before dispatch)
     let mut webhook_status = "none".to_string();
     let wh_url = settings.webhook_url.trim();
     if !wh_url.is_empty() {
         webhook_status = "failed".to_string();
-        if let Ok(client) = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(6))
-            .build()
-        {
-            let wh_payload = serde_json::json!({
-                "event": "form.submitted",
-                "form_id": form_rec.id,
-                "form_title": form_rec.title,
-                "entry_id": entry_id,
-                "source_url": source_url,
-                "data": data_map,
-                "attachments": attachments,
-            });
-            if let Ok(resp) = client.post(wh_url).json(&wh_payload).send().await {
-                if resp.status().is_success() {
-                    webhook_status = "sent".to_string();
+        if Database::validate_webhook_target_url_ssrf(wh_url).is_ok() {
+            if let Ok(client) = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(6))
+                .build()
+            {
+                let wh_payload = serde_json::json!({
+                    "event": "form.submitted",
+                    "form_id": form_rec.id,
+                    "form_title": form_rec.title,
+                    "entry_id": entry_id,
+                    "source_url": source_url,
+                    "data": data_map,
+                    "attachments": attachments,
+                });
+                if let Ok(resp) = client.post(wh_url).json(&wh_payload).send().await {
+                    if resp.status().is_success() {
+                        webhook_status = "sent".to_string();
+                    }
                 }
             }
+        } else {
+            webhook_status = "blocked_ssrf".to_string();
         }
     }
 

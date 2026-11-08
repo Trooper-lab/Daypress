@@ -6,17 +6,17 @@ class Daypress < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/Daypress/daypress/releases/download/v#{version}/daypress-v#{version}-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/Trooper-lab/daypress/releases/download/v#{version}/daypress-v#{version}-aarch64-apple-darwin.tar.gz"
       sha256 "{{SHA256_DARWIN_ARM64}}"
     else
-      url "https://github.com/Daypress/daypress/releases/download/v#{version}/daypress-v#{version}-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/Trooper-lab/daypress/releases/download/v#{version}/daypress-v#{version}-x86_64-apple-darwin.tar.gz"
       sha256 "{{SHA256_DARWIN_AMD64}}"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/Daypress/daypress/releases/download/v#{version}/daypress-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/Trooper-lab/daypress/releases/download/v#{version}/daypress-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
       sha256 "{{SHA256_LINUX_AMD64}}"
     end
   end

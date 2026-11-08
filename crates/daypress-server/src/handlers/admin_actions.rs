@@ -399,7 +399,12 @@ pub async fn handle_admin_export_json_download(State(db): State<Database>) -> im
 pub async fn handle_admin_site_health(State(db): State<Database>) -> Html<String> {
     let settings = db.get_settings().unwrap_or_default();
     let stats = db.get_stats().unwrap_or_default();
-    Html(templates::render_site_health_view(&settings, &stats))
+    let audit = db.run_security_and_readiness_audit();
+    let migration = db.run_migration_corpus_signoff();
+    let bench = db.get_or_run_benchmark_suite();
+    Html(templates::render_site_health_view_with_audit(
+        &settings, &stats, &audit, &migration, &bench,
+    ))
 }
 
 pub async fn handle_admin_export_personal_data(State(db): State<Database>) -> Html<String> {

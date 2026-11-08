@@ -593,3 +593,29 @@ CREATE TABLE IF NOT EXISTS daypress_wasm_kv (
     PRIMARY KEY (extension_slug, kv_key)
 );
 "#;
+
+/// Canonical SQLite `PRAGMA user_version` for Daypress 1.0 (`v1.0.0-beta.1` and `1.x` series).
+///
+/// All `1.x` releases guarantee non-breaking additive migrations from `DAYPRESS_SCHEMA_VERSION = 100`.
+pub const DAYPRESS_SCHEMA_VERSION: i32 = 100;
+
+/// v1.0 Stable Schema Migration Ledger (`daypress_schema_migrations`) & `PRAGMA user_version = 100`.
+pub const V10_SCHEMA_MIGRATIONS_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS daypress_schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO daypress_schema_migrations (version, name) VALUES
+    (1,   'v0.1_core_wp_tables_and_ast'),
+    (40,  'v0.4_formstudio_analytics_and_redirects'),
+    (51,  'v0.5_theme_templates_symbols_and_media_dam'),
+    (60,  'v0.6_custom_post_types_and_acf_field_groups'),
+    (70,  'v0.7_sqlite_fts5_bm25_search_and_triggers'),
+    (80,  'v0.8_multilingual_i18n_and_editorial_preview_tokens'),
+    (90,  'v0.9_newsletters_webhooks_ab_vitals_and_wasm'),
+    (100, 'v1.0_stable_schema_contract_lock');
+
+PRAGMA user_version = 100;
+"#;
