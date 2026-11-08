@@ -18,7 +18,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
 | **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
 | **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Shipped** |
-| **`1.0`** | First Stable Release | **Up next** |
+| **`1.0`** | First Stable Release (100/100 Security Audit, Benchmarks, Stable Schema v100 & 100% WP Migration Sign-Off) | **Shipped in Beta (`v1.0.0-beta.1`)** |
 
 ---
 
