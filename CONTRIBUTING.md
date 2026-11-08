@@ -39,8 +39,9 @@ cargo build
 ## 📐 Architecture & Workspace Guidelines
 
 Daypress is structured as a **Virtual Cargo Workspace**:
-- **`crates/daypress-server`**: Main HTTP application, Axum routing, Rusqlite persistence, SSR templates, and WordPress REST API v2 endpoints.
-- **`crates/daypress-ast`**: Unified layout AST and the Elementor, Divi, and Gutenberg transpilers.
+- **`crates/daypress-server`**: Main HTTP application, Axum routing, Rusqlite persistence, SSR templates, MCP server, and WordPress REST API v2 + Daypress v1 endpoints.
+- **`crates/daypress-ast`**: Unified layout AST (`DaypressLayout`) and the Elementor, Divi, Gutenberg, and raw HTML5/CSS transpilers.
+- **`crates/daypress-wasm`**: Fuel-metered, capability-gated WebAssembly (`.wasm`) binary validator, stack VM, and extension compiler.
 - **`crates/daypress-transpiler`**: AI verification agent and Golden Master differential tester.
 - **`crates/generated_slugify`**: Rust ports of WordPress core functions, verified against Golden Master fixtures generated from the original PHP.
 

@@ -35,7 +35,9 @@ Please include:
 
 In scope:
 
-- `daypress-server`: the public site, the admin portal (`/d-admin`), the REST APIs (`/wp-json/*`), authentication and sessions, file uploads, and the importers (JSON bundle and WXR).
+- `daypress-server`: the public site, the admin portal (`/d-admin`), the REST APIs (`/wp-json/*`), the MCP endpoint (`POST /mcp`), authentication and sessions, file uploads, and the importers (JSON bundle and WXR).
+- `daypress-ast`: HTML/CSS and page-builder AST sanitization and SSR rendering.
+- `daypress-wasm`: the `.wasm` extension validator, fuel metering, memory bounds, and capability sandbox.
 - The WordPress migrator plugin (`daypress-migrator.php`).
 
 Out of scope:
@@ -47,6 +49,7 @@ Out of scope:
 
 ## Running Daypress safely
 
+- Run `daypress doctor --db data/daypress.sqlite` (or check `/d-admin/site-health`) to execute the built-in 10-point Security & Production Readiness Audit before going live.
 - Set `DAYPRESS_ADMIN_PASSWORD`, or change the generated first-run password right after your first login.
-- Serve Daypress behind HTTPS (for example, through a reverse proxy).
+- Serve Daypress over HTTPS—either via built-in automatic Let's Encrypt TLS (`--tls-domain example.com --tls-email admin@example.com`) or behind a TLS-terminating reverse proxy.
 - Keep regular backups of your database and `uploads/` folder.

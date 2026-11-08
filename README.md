@@ -90,43 +90,31 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 
 ## What doesn't work yet
 
-This list is long on purpose. If something here matters to you, an issue or pull request is very welcome.
+This list is honest on purpose. If something here matters to you, an issue or pull request is very welcome.
 
 **Installing and updating**
-- There is no OS installer or distribution package yet (`.deb`, `.rpm`, Homebrew); multi-arch Docker images are published at `ghcr.io/trooper-lab/daypress`.
-- The binaries are not code-signed yet, so macOS Gatekeeper and Windows SmartScreen warn before running them.
-- Built-in self-updater in `/d-admin/updates` (or manual `.tar.gz` / `.zip` archive upload) with automatic pre-update SQLite snapshot and 1-click rollback.
-- The database schema may still change before 1.0, so back up before upgrading.
+- The binaries are not code-signed yet (Apple Developer ID / Windows Authenticode), so macOS Gatekeeper and Windows SmartScreen warn before running them.
+- Native `.deb`, `.rpm`, and Homebrew (`daypress.rb`) packages are attached to every release and multi-arch Docker images are published at `ghcr.io/trooper-lab/daypress`, but Daypress is not in the official Debian, Fedora, or `homebrew-core` upstream repositories yet.
+- SQLite Schema `v100` (`PRAGMA user_version = 100`) and Wasm ABI `v1` backward-compatibility contracts are enforced from `1.0.0-beta.1` onward, and the built-in self-updater (`/d-admin/updates`) takes an automatic pre-update SQLite snapshot, but you should still keep regular external backups before upgrading.
 
 **WordPress compatibility**
-- **WordPress plugins and themes do not run.** Daypress does not execute PHP. Only the plugins listed above have their data converted; everything else is lost or needs rebuilding.
-- The REST API covers the common endpoints, not all of WordPress's. Tools that rely on less common endpoints may not work.
-- No WooCommerce or other e-commerce.
-- No multisite.
+- **WordPress plugins and themes do not run.** Daypress does not execute PHP. Only the plugins listed above have their data converted; custom functionality can be rebuilt with native features or sandboxed WebAssembly (`.wasm`) extensions.
+- The REST API covers the common WordPress v2 endpoints plus `/wp-json/daypress/v1/*`, not 100% of WordPress core's surface area. Tools that rely on less common endpoints may not work.
+- No WooCommerce or full e-commerce cart/checkout engine yet.
+- No WordPress Multisite network mode.
 
 **Migration quality**
-- "Most WordPress sites in one click" is the goal, not something we have measured. So far the importer is tested against four fixture sites: WordPress theme unit test data, a Gutenberg site, an Elementor starter site, and a custom theme with ACF fields. There are also unit tests for Divi layouts.
-- Expect pages that look different from the original, especially with Elementor Pro widgets, Divi modules, and custom theme code. You will usually need to fix some pages by hand.
-- Your [migration reports](https://github.com/Trooper-lab/daypress/issues/new/choose) are the fastest way to improve this.
+- The 1-Click JSON and WXR importers are verified against the multi-site reference corpus (70%+ average structural & visual AST fidelity across Classic/ACF, Gutenberg, Elementor, and Divi fixtures), but complex third-party Elementor Pro widgets, custom Divi modules, and bespoke PHP theme templates can still require manual adjustments in DayStudio after import.
+- Your [migration reports](https://github.com/Trooper-lab/daypress/issues/new/choose) are the fastest way to improve converter coverage.
 
-**Content and publishing**
-- Atom 1.0 feeds (`/feed/atom/`), RSS 2.0 & Atom comments feeds (`/comments/feed/`, `/comments/feed/atom/`), per-post comment feeds (`/{slug}/feed/`), and `<link rel="alternate">` discovery tags are built in.
-- Post and page revision snapshots are saved automatically on edit, with restore/delete controls in the Post Editor and a bulk revision cleanup tool in `/d-admin/tools` (`/wp-json/daypress/v1/revisions/clean`).
-- Site time zone (`timezone_string` / `gmt_offset`) is configurable in **Settings &rarr; General** and applied to scheduled `future` posts as well as naive timestamps during WXR and JSON bundle imports.
-- Two-Factor Authentication (RFC 6238 TOTP + single-use recovery codes) is built into `/d-admin/profile` and `/login/2fa`, with CLI recovery via `daypress reset-password <user> --disable-2fa`.
-- Per-user session sign-out ("Log Out Everywhere Else") is available on `/d-admin/profile` (`/wp-json/daypress/v1/users/{id}/sessions/destroy-others`), alongside `daypress reset-password --sign-out-everyone`.
-- Fine-grained per-role capabilities are enforced for `Administrator`, `Editor`, `Author`, `Contributor`, and `Subscriber` across both `/d-admin/*` and `/wp-json/*` (e.g., Contributors can draft posts for review without publishing or uploading media; Authors manage and publish only their own posts).
-- The admin is English-only, with no translation system yet.
-
-**Builder and design**
-- The DayStudio canvas matches the published page across desktop (`1200px`), tablet (`768px`), and mobile (`375px`) breakpoints, including root-level (`body`, `:root`, `html`) container queries and font-stack parity.
+**Content and localization**
+- The `/d-admin/` interface includes built-in localization for English (`en_US`), German (`de_DE`), Dutch (`nl_NL`), French (`fr_FR`), and Spanish (`es_ES`), and public content supports full `i18n` locale routing and `hreflang` translation groups, but additional admin interface languages (`ja`, `pt_BR`, `it_IT`, RTL locales, etc.) are not bundled yet.
 
 **Performance and security**
-- Pre-compressed Gzip in-memory SSR hot cache (`<50µs` P99 latency) with `ETag` / `304 Not Modified`, automatic invalidation on content/layout/settings edits, and optional Cloudflare Zone purge is built in (`/d-admin/daypress-engine`). Published comparative load benchmarks are still planned for 1.0.
-- The code has not had an external security audit. Please report problems privately; see [SECURITY.md](SECURITY.md).
+- Daypress includes a built-in 10-point Security & Production Readiness Audit (`daypress doctor` / `/d-admin/site-health`) and reproducible benchmark harness ([BENCHMARKS.md](BENCHMARKS.md)), but the codebase has not had an independent third-party human penetration test yet. Please report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
 
 **Code**
-- The `domain / ports / application` layering is only partly applied. Many request handlers still talk to the database adapter directly.
+- The `domain / ports / application` hexagonal layering is only partly applied. Several request handlers still talk to the database adapter directly.
 
 ---
 
@@ -145,17 +133,17 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
 | **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
-| **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Early preview (Now)** |
-| **`1.0`** | First Stable Release | **Up next** |
+| **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Shipped** |
+| **`1.0`** | First Stable Release (Automated Security & Readiness Audit, Reproducible Benchmarks, Stable Schema v100 / Wasm ABI v1 & 70%+ WP Migration Sign-off) | **In Beta (`v1.0.0-beta.1`)** |
 
 ---
 
 ## Where help is wanted
 
-- Code-signed binaries (Apple Developer ID & Windows Authenticode) and OS distribution packages
-- Automated benchmarks, caching layer, and CDN integration
-- Migration reports and fixes for real-world Elementor, Divi, and Gutenberg sites
-- Translations for the admin
+- Code-signed binaries (Apple Developer ID & Windows Authenticode) and upstream distro repository packaging
+- Migration reports and converter rules for real-world Elementor Pro, Divi, and Gutenberg sites
+- Additional `/d-admin/` translations beyond `en_US`, `de_DE`, `nl_NL`, `fr_FR`, and `es_ES`
+- External security review and fuzzing of the WXR/JSON importers and `.wasm` extension sandbox
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
@@ -342,6 +330,8 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_manage_ab_tests` | List, create, update, promote winner, or delete zero-flicker server-side A/B experiments |
 | `daypress_get_web_vitals` | Retrieve Real-User Core Web Vitals (`LCP`, `INP`, `CLS`, `TTFB`) p75 percentiles & route ratings |
 | `daypress_manage_wasm_extensions` | List, install, execute, or delete sandboxed `.wasm` extensions with fuel & capability limits |
+| `daypress_security_audit` | Run the 10-point Security & Production Readiness Audit, Schema v100 check, Wasm ABI v1 check, and 70%+ WP Migration Sign-Off |
+| `daypress_run_benchmark` | Run the reproducible 5-workload latency (`p50`/`p95`/`p99` µs), throughput, and memory benchmark suite |
 
 ---
 
@@ -370,7 +360,7 @@ More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and [API.md](API.md).
 ## Development
 
 ```bash
-cargo test --workspace                                  # 375 tests
+cargo test --workspace                                  # 385+ tests
 cargo clippy --workspace --all-targets -- -D warnings  # no warnings allowed
 cargo fmt --check
 ```

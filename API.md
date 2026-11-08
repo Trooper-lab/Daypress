@@ -629,8 +629,48 @@ Dynamic streaming XML sitemap conforming to sitemaps.org 0.9 protocol, indexing 
 #### `GET /robots.txt`
 Standard search crawler directives linking to `/sitemap.xml` with administration route exclusions.
 
-#### `GET /feed/`, `GET /category/{slug}/feed/`, `GET /tag/{slug}/feed/`
-RSS 2.0 feeds (`application/rss+xml`) of published blog posts, newest first, limited to Settings → Reading → "Syndication feeds show the most recent" (default 10). Each item has its title, permalink, `guid`, `pubDate`, author (`dc:creator`), categories and tags, an excerpt and the post HTML (`content:encoded`). Term feeds return `404` for an unknown slug. Public pages advertise `/feed/` with `<link rel="alternate" type="application/rss+xml">`.
+#### `GET /feed/`, `GET /feed/atom/`, `GET /comments/feed/`, `GET /category/{slug}/feed/`, `GET /tag/{slug}/feed/`
+RSS 2.0 (`application/rss+xml`) and Atom 1.0 (`application/atom+xml`) feeds of published blog posts and comments, newest first, limited to Settings → Reading → "Syndication feeds show the most recent" (default 10). Each item has its title, permalink, `guid`, `pubDate`, author (`dc:creator`), categories and tags, an excerpt and the post HTML (`content:encoded`). Term feeds return `404` for an unknown slug. Public pages advertise `/feed/` and `/feed/atom/` with `<link rel="alternate">`.
+
+---
+
+### Extended Daypress `v0.4`–`v1.0` REST & MCP Endpoints
+
+#### Dynamic Templates, Custom Post Types & Structured Fields (`0.5`–`0.6`)
+- `GET / POST /wp-json/daypress/v1/templates`: List or save Dynamic Theme Templates (`header`, `footer`, `single_post`, `single_page`, `archive`, `error_404`), Synced Components (`symbol`), and Site-Wide Popups (`popup`).
+- `GET / POST /wp-json/daypress/v1/content-types`: List or save Custom Post Types and Custom Taxonomies.
+- `POST /wp-json/daypress/v1/content-types/preset`: Provision a 1-click CPT blueprint (`case_studies`, `team`, `docs`, `jobs`, `events`, `portfolio`, `testimonials`).
+- `GET / POST /wp-json/daypress/v1/field-groups`: List or save ACF-parity Structured Field Groups (`text`, `wysiwyg`, `number`, `select`, `media`, `repeater`, `relationship`, etc.).
+- `GET /wp-json/daypress/v1/loop-grid`: Filter and paginate collection items by `post_type`, taxonomy term, search query, and sort order.
+
+#### Instant Search, Social Cards & Live SEO/WCAG Linter (`0.7`)
+- `GET /wp-json/daypress/v1/search?q={query}&post_type={type}&taxonomy={tax}&term={slug}`: Query the SQLite FTS5 BM25 instant search index with prefix matching, typo tolerance, and `<mark>` snippets.
+- `GET /og/{post_id}.svg` and `GET /og/{post_id}.png`: Dynamic OpenGraph & X/Twitter social card renderer (`1200x630`).
+- `GET /wp-json/daypress/v1/seo/audit/{id}`: Run the WCAG 2.1 AA/AAA contrast, broken internal link, heading hierarchy (`H1` &rarr; `H2` &rarr; `H3`), and SEO linter for a post or page.
+
+#### Multilingual (`i18n`), Editorial Workflows & Admin Ergonomics (`0.8`–`0.8.5`)
+- `GET / POST /wp-json/daypress/v1/languages`: Read or update active site locales, default language, and URL prefix strategy.
+- `POST /wp-json/daypress/v1/translations/link`: Link localized posts or pages into a shared `hreflang` translation group.
+- `POST /wp-json/daypress/v1/posts/{id}/duplicate`: Clone a post or page into a `(Copy)` draft preserving AST layout, ACF meta, taxonomies, and co-authors.
+- `POST /wp-json/daypress/v1/posts/{id}/preview-link`: Issue or revoke a secret time-bound draft preview URL (`/preview/{token}`).
+- `POST /wp-json/daypress/v1/posts/{id}/schedule-revision`: Schedule an atomic future content/AST revision for an already-published post or page.
+- `GET /wp-json/daypress/v1/revisions/diff?post_id={id}&from={rev_a}&to={rev_b}`: Compute a structural node-by-node AST diff between two revisions.
+- `POST /wp-json/daypress/v1/posts/bulk-edit` and `POST /wp-json/daypress/v1/posts/empty-trash`: Bulk-update status/author/categories/comments or permanently purge trashed posts.
+- `GET / POST /wp-json/daypress/v1/user-preferences`: Read or save per-user Screen Options and draggable/collapsible meta-box layout preferences.
+
+#### Newsletters, Shortlinks, Outbound Webhooks, A/B Testing, Web Vitals & Wasm (`0.9`)
+- `POST /wp-json/daypress/v1/newsletters/subscribe` & `GET /wp-json/daypress/v1/newsletters/confirm`: Double opt-in subscriber intake and token confirmation.
+- `GET / POST /wp-json/daypress/v1/newsletters/subscribers` & `POST /wp-json/daypress/v1/newsletters/campaigns`: Manage subscribers and send batch email campaigns.
+- `GET / POST / DELETE /wp-json/daypress/v1/shortlinks`: Manage `/go/{slug}` branded shortlinks (`301`/`302`/`307`) with click and UTM attribution tracking.
+- `GET / POST / DELETE /wp-json/daypress/v1/webhooks` & `POST /wp-json/daypress/v1/webhooks/deliveries/{id}/replay`: Manage HMAC-SHA256 signed outbound webhooks (`X-Daypress-Signature-256`) and replay deliveries.
+- `GET / POST / DELETE /wp-json/daypress/v1/ab-tests` & `POST /wp-json/daypress/v1/ab-tests/{id}/convert`: Manage zero-flicker server-side A/B experiments and record conversion events.
+- `POST /wp-json/daypress/v1/web-vitals` & `GET /wp-json/daypress/v1/web-vitals/summary`: Ingest and summarize Real-User Core Web Vitals (`LCP`, `INP`, `CLS`, `TTFB`) `p75` percentiles.
+- `GET / POST / DELETE /wp-json/daypress/v1/wasm/extensions` & `POST /wp-json/daypress/v1/wasm/extensions/{slug}/execute`: Install, inspect, execute, or delete sandboxed `.wasm` extensions (`crates/daypress-wasm`).
+
+#### 1.0 Security Audit, Benchmarks & Built-in MCP Server (`1.0`)
+- `GET /wp-json/daypress/v1/readiness/audit`: Run the 10-point Security & Production Readiness Audit, SQLite Schema `v100` contract check, Wasm ABI `v1` check, and 70%+ WP Migration Corpus Sign-Off.
+- `POST /wp-json/daypress/v1/benchmarks/run`: Run the reproducible 5-workload latency (`p50`/`p95`/`p99` µs), throughput, and memory benchmark suite.
+- `POST /mcp`: Built-in JSON-RPC 2.0 **Model Context Protocol (MCP)** endpoint exposing all 47 tools (`initialize`, `tools/list`, `tools/call`) via HTTP Basic Auth (`username:application_password`).
 
 ---
 
