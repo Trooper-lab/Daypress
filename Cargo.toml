@@ -5,10 +5,11 @@ members = [
     "crates/daypress-transpiler",
     "crates/generated_slugify",
     "crates/daypress-ast",
+    "crates/daypress-wasm",
 ]
 
 [workspace.package]
-version = "0.8.5"
+version = "0.9.0"
 edition = "2021"
 authors = ["Daypress Core Team"]
 license = "AGPL-3.0-or-later"
@@ -76,4 +77,10 @@ opt-level = 3
 debug = "line-tables-only"
 
 [profile.dev.package."*"]
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+
+[profile.test.package."*"]
 debug = false

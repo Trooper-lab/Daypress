@@ -4,6 +4,7 @@
 //! all Hexagonal Output Ports (`PostRepository`, `TaxonomyRepository`, `OptionRepository`,
 //! `CommentRepository`, `MigrationRepository`).
 
+pub mod ab_vitals;
 pub mod admin_lists;
 pub mod comments;
 pub mod content_model;
@@ -16,6 +17,7 @@ pub mod media;
 pub mod migration;
 #[cfg(test)]
 mod migration_tests;
+pub mod newsletters;
 pub mod options;
 pub mod password_resets;
 pub mod plugins_seo;
@@ -30,6 +32,8 @@ pub mod settings_extra;
 pub mod taxonomies;
 pub mod taxonomies_discovery;
 pub mod users;
+pub mod wasm_extensions;
+pub mod webhooks_shortlinks;
 
 use rusqlite::Connection;
 use std::path::PathBuf;

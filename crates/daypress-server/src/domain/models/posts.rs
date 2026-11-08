@@ -73,6 +73,13 @@ pub struct DaypressPostResponse {
     pub scheduled_revision_id: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scheduled_revision_date: Option<String>,
+    /// Member gate visibility (`"public"`, `"subscribers_only"`, `"members_only"`).
+    #[serde(default = "default_member_gate")]
+    pub member_gate: String,
+}
+
+pub fn default_member_gate() -> String {
+    "public".to_string()
 }
 
 pub fn default_post_lang_code() -> String {
@@ -223,6 +230,10 @@ pub struct CreatePostRequest {
     pub comment_status: Option<String>,
     #[serde(default)]
     pub ping_status: Option<String>,
+    #[serde(default)]
+    pub member_gate: Option<String>,
+    #[serde(default)]
+    pub send_newsletter_digest: Option<bool>,
 }
 
 pub fn default_post_status() -> String {
@@ -293,6 +304,10 @@ pub struct UpdatePostRequest {
     pub comment_status: Option<String>,
     #[serde(default)]
     pub ping_status: Option<String>,
+    #[serde(default)]
+    pub member_gate: Option<String>,
+    #[serde(default)]
+    pub send_newsletter_digest: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -15,14 +15,16 @@ use std::sync::{Arc, Mutex};
 
 impl Database {
     /// Slugs that would be shadowed by a built-in route, so content can never claim them.
-    const RESERVED_SLUGS: [&'static str; 17] = [
+    const RESERVED_SLUGS: [&'static str; 19] = [
         "admin",
         "author",
         "category",
         "feed",
+        "go",
         "login",
         "logout",
         "d-admin",
+        "newsletter",
         "page",
         "robots.txt",
         "search",
@@ -304,6 +306,19 @@ impl Database {
                 );
             }
         }
+        if let Some(ref gate) = req.member_gate {
+            let norm = match gate.trim().to_ascii_lowercase().as_str() {
+                "subscribers_only" | "subscribers" => "subscribers_only",
+                "members_only" | "members" => "members_only",
+                _ => "public",
+            };
+            if norm != "public" {
+                let _ = conn.execute(
+                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_daypress_member_gate', ?2)",
+                    params![id, norm],
+                );
+            }
+        }
 
         if let Some(ref coauthors) = req.coauthors {
             let _ = Self::set_post_coauthors_with_conn(&conn, id, coauthors);
@@ -328,7 +343,23 @@ impl Database {
 
         drop(conn);
         self.invalidate_hot_cache("post_created");
-        Ok(self.get_post_by_id(id)?.unwrap())
+        let created_post = self.get_post_by_id(id)?.unwrap();
+        let _ = self.maybe_send_new_post_digest(&created_post, req.send_newsletter_digest);
+        if created_post.status == "publish"
+            && (created_post.post_type == "post" || created_post.post_type == "page")
+        {
+            let _ = self.dispatch_outbound_webhook_event(
+                "post.published",
+                serde_json::json!({
+                    "post_id": created_post.id,
+                    "post_type": created_post.post_type,
+                    "title": created_post.title.rendered,
+                    "slug": created_post.slug,
+                    "link": created_post.link
+                }),
+            );
+        }
+        Ok(created_post)
     }
 
     pub fn update_post(
@@ -619,6 +650,23 @@ impl Database {
                 );
             }
         }
+        if let Some(ref gate) = req.member_gate {
+            let _ = tx.execute(
+                "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = '_daypress_member_gate'",
+                params![id],
+            );
+            let norm = match gate.trim().to_ascii_lowercase().as_str() {
+                "subscribers_only" | "subscribers" => "subscribers_only",
+                "members_only" | "members" => "members_only",
+                _ => "public",
+            };
+            if norm != "public" {
+                let _ = tx.execute(
+                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_daypress_member_gate', ?2)",
+                    params![id, norm],
+                );
+            }
+        }
 
         // Persist custom / ACF postmeta fields when provided in `req.meta` or `req.acf`
         for src_meta in [&req.meta, &req.acf] {
@@ -670,7 +718,27 @@ impl Database {
         tx.commit()?;
         drop(conn);
         self.invalidate_hot_cache("post_updated");
-        self.get_post_by_id(id)
+        let updated_post = self.get_post_by_id(id)?;
+        if let Some(ref p) = updated_post {
+            let _ = self.maybe_send_new_post_digest(p, req.send_newsletter_digest);
+            let evt = if p.status == "publish" {
+                "post.published"
+            } else {
+                "post.updated"
+            };
+            let _ = self.dispatch_outbound_webhook_event(
+                evt,
+                serde_json::json!({
+                    "post_id": p.id,
+                    "post_type": p.post_type,
+                    "status": p.status,
+                    "title": p.title.rendered,
+                    "slug": p.slug,
+                    "link": p.link
+                }),
+            );
+        }
+        Ok(updated_post)
     }
 
     /// 1-Click Duplicate Post / Page (`Yoast Duplicate Post` parity):

@@ -10,7 +10,6 @@ pub struct SidebarParams<'a> {
     pub is_pending_selected: &'a str,
     pub is_private_selected: &'a str,
     pub is_future_selected: &'a str,
-    /// Date/time picker for the "Scheduled" status (`markup/schedule.rs`).
     pub schedule_html: &'a str,
     pub initial_date: &'a str,
     pub initial_modified: &'a str,
@@ -35,18 +34,19 @@ pub struct SidebarParams<'a> {
     pub initial_password: &'a str,
     pub comment_open_checked: &'a str,
     pub ping_open_checked: &'a str,
+    pub gate_public_sel: &'a str,
+    pub gate_subscribers_sel: &'a str,
+    pub gate_members_sel: &'a str,
 }
 
 pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> String {
     if is_page && taxonomies.is_empty() {
         return String::new();
     }
-
     let mut out = String::new();
     for tax in taxonomies {
         let tax_slug = escape_html(&tax.slug);
         let tax_name = escape_html(&tax.name);
-
         if tax.hierarchical {
             let mut terms_html = String::new();
             for term in &tax.terms {
@@ -57,27 +57,17 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                 };
                 let indent = if term.parent > 0 { 16 } else { 0 };
                 let term_name = escape_html(&term.name);
-
                 terms_html.push_str(&format!(
-                    r#"<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer; padding-left: {indent}px;">
-                        <input type="checkbox" class="taxonomy-term-checkbox" data-taxonomy="{tax_slug}" name="post_category" value="{term_id}" {checked} />
-                        <span>{term_name}</span>
-                    </label>"#,
-                    indent = indent,
-                    tax_slug = tax_slug,
-                    term_id = term.id,
-                    checked = checked,
-                    term_name = term_name,
+                    r#"<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer; padding-left: {indent}px;"><input type="checkbox" class="taxonomy-term-checkbox" data-taxonomy="{tax_slug}" name="post_category" value="{term_id}" {checked} /><span>{term_name}</span></label>"#,
+                    indent = indent, tax_slug = tax_slug, term_id = term.id, checked = checked, term_name = term_name,
                 ));
             }
-
             if terms_html.is_empty() {
                 terms_html = format!(
                     r#"<p style="font-size: 12px; color: var(--ink-muted); margin: 0 0 8px 0;">No {} found.</p>"#,
                     tax_name
                 );
             }
-
             out.push_str(&format!(
                 r#"<div class="day-card" id="taxonomy-card-{tax_slug}" data-metabox-id="taxonomies" data-metabox-title="{tax_name}">
                     <div class="day-card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -85,9 +75,7 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                         <a href="/d-admin/edit-tags?taxonomy={tax_slug}" target="_blank" style="font-size: 11.5px; color: var(--press); text-decoration: none;">Manage</a>
                     </div>
                     <div class="day-card-body">
-                        <div id="taxonomy-list-{tax_slug}" style="max-height: 160px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px;">
-                            {terms_html}
-                        </div>
+                        <div id="taxonomy-list-{tax_slug}" style="max-height: 160px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px;">{terms_html}</div>
                         <div style="border-top: 1px solid var(--rule); padding-top: 10px;">
                             <div style="display: flex; gap: 6px; align-items: stretch;">
                                 <input type="text" id="new_term_{tax_slug}" placeholder="New {tax_name}..." class="form-input" style="padding: 6px 10px; font-size: 12.5px;" onkeydown="if(event.key==='Enter'){{event.preventDefault();inlineAddTaxonomyTerm('{tax_slug}');}}" />
@@ -98,7 +86,6 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                 </div>"#
             ));
         } else {
-            // Flat taxonomy (like post_tag)
             let assigned_names: Vec<String> = tax
                 .terms
                 .iter()
@@ -106,7 +93,6 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                 .map(|t| t.name.clone())
                 .collect();
             let initial_val = escape_html(&assigned_names.join(", "));
-
             let mut known_map = serde_json::Map::new();
             for term in &tax.terms {
                 known_map.insert(term.name.to_lowercase(), serde_json::json!(term.id));
@@ -114,7 +100,6 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
             let known_terms_esc = escape_html(
                 &serde_json::to_string(&known_map).unwrap_or_else(|_| "{}".to_string()),
             );
-
             let mut chips_html = String::new();
             for term in tax.terms.iter().take(12) {
                 let t_esc = escape_html(&term.name);
@@ -122,25 +107,19 @@ pub fn render_taxonomy_cards(taxonomies: &[TaxonomyInfo], is_page: bool) -> Stri
                     r#"<span class="badge" onclick="appendFlatTaxonomyTerm('{tax_slug}', '{t_esc}')" style="cursor: pointer; font-size: 11px; background: var(--paper-sunk); color: var(--ink-muted);">+ {t_esc}</span>"#
                 ));
             }
-
             out.push_str(&format!(
                 r#"<div class="day-card" id="taxonomy-card-{tax_slug}" data-metabox-id="taxonomies" data-metabox-title="{tax_name}">
-                    <div class="day-card-header">
-                        <h2 class="day-card-title">{tax_name}</h2>
-                    </div>
+                    <div class="day-card-header"><h2 class="day-card-title">{tax_name}</h2></div>
                     <div class="day-card-body">
                         <input type="text" id="taxonomy_input_{tax_slug}" class="form-input taxonomy-flat-input" data-taxonomy="{tax_slug}" data-known-terms="{known_terms_esc}" value="{initial_val}" placeholder="Separate with commas..." style="margin-bottom: 8px;" />
                         <small style="color: var(--ink-muted); font-size: 11.5px; margin-bottom: 10px; display: block;">Separate {tax_name} with commas.</small>
                         <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px;">Popular {tax_name}:</div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                            {chips_html}
-                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">{chips_html}</div>
                     </div>
                 </div>"#
             ));
         }
     }
-
     out
 }
 
@@ -208,6 +187,17 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
                     <div class="form-group" style="margin-bottom: 10px;">
                         <label class="form-label">Password Protection <span style="font-weight: 400; color: var(--ink-muted); font-size: 11px;">(Optional)</span></label>
                         <input type="text" id="post_password" class="form-input" value="{initial_password}" placeholder="Leave blank for public access..." style="padding: 6px 10px; font-size: 12px;" oninput="markDirty()" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label class="form-label">Member Gate / Access</label>
+                        <select id="post_member_gate" class="form-select" onchange="markDirty()">
+                            <option value="public" {gate_public_sel}>Public &mdash; Everyone</option>
+                            <option value="subscribers_only" {gate_subscribers_sel}>Subscribers Only &mdash; Newsletter Gate</option>
+                            <option value="members_only" {gate_members_sel}>Members Only &mdash; Logged-In Members</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--ink); font-weight: 500;"><input type="checkbox" id="send_newsletter_digest" onchange="markDirty()" /><span>Email digest to newsletter subscribers on publish</span></label>
                     </div>
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--ink); font-weight: 500;"><input type="checkbox" id="post_sticky" {initial_sticky_checked} onchange="markDirty()" /><span>Stick to the top of the blog (Sticky)</span></label>
@@ -389,5 +379,8 @@ pub fn render_editor_sidebar(p: &SidebarParams) -> String {
         comment_open_checked = p.comment_open_checked,
         ping_open_checked = p.ping_open_checked,
         featured_img_preview = p.featured_img_preview,
+        gate_public_sel = p.gate_public_sel,
+        gate_subscribers_sel = p.gate_subscribers_sel,
+        gate_members_sel = p.gate_members_sel,
     )
 }

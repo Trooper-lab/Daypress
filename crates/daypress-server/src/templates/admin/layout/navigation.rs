@@ -158,7 +158,16 @@ pub struct NavState {
     pub sub_plug_new: &'static str,
     pub sub_plug_editor: &'static str,
     pub is_seo: &'static str,
+    pub is_marketing: &'static str,
+    pub is_marketing_open: &'static str,
+    pub sub_mkt_overview: &'static str,
     pub is_forms: &'static str,
+    pub is_newsletters: &'static str,
+    pub is_whatsapp_chat: &'static str,
+    pub is_webhooks: &'static str,
+    pub is_ab_testing: &'static str,
+    pub is_code_snippets: &'static str,
+    pub is_wasm: &'static str,
     pub is_analytics: &'static str,
     pub is_backups: &'static str,
     pub is_users: &'static str,
@@ -338,6 +347,7 @@ impl NavState {
             || current_tab == "plugin-install"
             || current_tab == "plugin-editor"
             || current_tab == "plugin-settings"
+            || current_tab == "wasm"
         {
             "active"
         } else {
@@ -361,7 +371,49 @@ impl NavState {
         };
 
         let is_seo = if current_tab == "seo" { "active" } else { "" };
+        let is_marketing = if current_tab == "marketing"
+            || current_tab == "forms"
+            || current_tab == "newsletters"
+            || current_tab == "analytics"
+            || current_tab == "whatsapp-chat"
+        {
+            "active"
+        } else {
+            ""
+        };
+        let is_marketing_open = if !is_marketing.is_empty() { "open" } else { "" };
+        let sub_mkt_overview = if current_tab == "marketing" {
+            "active"
+        } else {
+            ""
+        };
         let is_forms = if current_tab == "forms" { "active" } else { "" };
+        let is_newsletters = if current_tab == "newsletters" {
+            "active"
+        } else {
+            ""
+        };
+        let is_whatsapp_chat = if current_tab == "whatsapp-chat" {
+            "active"
+        } else {
+            ""
+        };
+        let is_webhooks = if current_tab == "webhooks" || current_tab == "shortlinks" {
+            "active"
+        } else {
+            ""
+        };
+        let is_ab_testing = if current_tab == "ab-testing" {
+            "active"
+        } else {
+            ""
+        };
+        let is_code_snippets = if current_tab == "code-snippets" {
+            "active"
+        } else {
+            ""
+        };
+        let is_wasm = if current_tab == "wasm" { "active" } else { "" };
         let is_analytics = if current_tab == "analytics" {
             "active"
         } else {
@@ -395,6 +447,10 @@ impl NavState {
         let is_tools = if current_tab == "tools"
             || current_tab == "import"
             || current_tab == "export"
+            || current_tab == "webhooks"
+            || current_tab == "shortlinks"
+            || current_tab == "ab-testing"
+            || current_tab == "code-snippets"
             || current_tab == "seo"
             || current_tab == "backups"
             || current_tab == "site-health"
@@ -548,7 +604,16 @@ impl NavState {
             sub_plug_new,
             sub_plug_editor,
             is_seo,
+            is_marketing,
+            is_marketing_open,
+            sub_mkt_overview,
             is_forms,
+            is_newsletters,
+            is_whatsapp_chat,
+            is_webhooks,
+            is_ab_testing,
+            is_code_snippets,
+            is_wasm,
             is_analytics,
             is_backups,
             is_users,

@@ -830,6 +830,68 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
     if let Some(cookie_header) = parts.headers.get(header::COOKIE) {
         if let Ok(cookie_str) = cookie_header.to_str() {
             if let Some(user) = session_user_from_cookie_header(cookie_str, db) {
+                let is_mutating = !matches!(
+                    parts.method,
+                    axum::http::Method::GET
+                        | axum::http::Method::HEAD
+                        | axum::http::Method::OPTIONS
+                );
+                if is_mutating {
+                    // If an explicit X-WP-Nonce header is supplied with a session cookie, verify it
+                    if let Some(nonce_val) = parts
+                        .headers
+                        .get("x-wp-nonce")
+                        .and_then(|v| v.to_str().ok())
+                    {
+                        if !verify_rest_nonce(nonce_val.trim(), "wp_rest", user.user_id, &secret) {
+                            return Err(AppError::Forbidden(
+                                "Cookie check failed (invalid X-WP-Nonce).".to_string(),
+                            ));
+                        }
+                    } else {
+                        // Enforce Same-Origin / Sec-Fetch-Site CSRF protection on cookie-authenticated mutations
+                        if let Some(sec_site) = parts
+                            .headers
+                            .get("sec-fetch-site")
+                            .and_then(|v| v.to_str().ok())
+                        {
+                            let s = sec_site.trim().to_ascii_lowercase();
+                            if s == "cross-site" || s == "same-site" {
+                                return Err(AppError::Forbidden(
+                                    "Cross-site cookie mutation blocked (CSRF protection)."
+                                        .to_string(),
+                                ));
+                            }
+                        }
+                        if let (Some(origin), Some(host)) = (
+                            parts
+                                .headers
+                                .get(header::ORIGIN)
+                                .and_then(|v| v.to_str().ok()),
+                            parts
+                                .headers
+                                .get(header::HOST)
+                                .and_then(|v| v.to_str().ok()),
+                        ) {
+                            let origin_host = origin
+                                .trim()
+                                .trim_start_matches("https://")
+                                .trim_start_matches("http://")
+                                .split('/')
+                                .next()
+                                .unwrap_or("");
+                            if !origin_host.is_empty()
+                                && origin_host != "null"
+                                && !origin_host.eq_ignore_ascii_case(host.trim())
+                            {
+                                return Err(AppError::Forbidden(
+                                    "Cross-origin cookie mutation blocked (CSRF protection)."
+                                        .to_string(),
+                                ));
+                            }
+                        }
+                    }
+                }
                 return Ok(user);
             }
         }
@@ -960,6 +1022,25 @@ fn url_encode_component(raw: &str) -> String {
     out
 }
 
+fn apply_baseline_security_headers(resp: &mut axum::response::Response) {
+    let headers = resp.headers_mut();
+    if !headers.contains_key(axum::http::header::X_CONTENT_TYPE_OPTIONS) {
+        if let Ok(v) = "nosniff".parse() {
+            headers.insert(axum::http::header::X_CONTENT_TYPE_OPTIONS, v);
+        }
+    }
+    if !headers.contains_key(axum::http::header::X_FRAME_OPTIONS) {
+        if let Ok(v) = "SAMEORIGIN".parse() {
+            headers.insert(axum::http::header::X_FRAME_OPTIONS, v);
+        }
+    }
+    if !headers.contains_key(axum::http::header::REFERRER_POLICY) {
+        if let Ok(v) = "strict-origin-when-cross-origin".parse() {
+            headers.insert(axum::http::header::REFERRER_POLICY, v);
+        }
+    }
+}
+
 /// Axum middleware: every admin screen and `/d-admin/api/*` endpoint requires a valid,
 /// signed login session. Unauthenticated page loads are redirected to `/login`
 /// (with `redirect_to`), API calls receive `401`. Screens outside the user's role
@@ -973,7 +1054,9 @@ pub async fn admin_session_gate(
 
     let path = req.uri().path().to_string();
     if !path_requires_admin_session(&path) {
-        return next.run(req).await;
+        let mut resp = next.run(req).await;
+        apply_baseline_security_headers(&mut resp);
+        return resp;
     }
 
     // Same credentials as the REST API: signed session cookie, Basic (user or application
@@ -1059,7 +1142,9 @@ pub async fn admin_session_gate(
 
     let mut req = req;
     req.extensions_mut().insert(user);
-    ADMIN_CONTEXT.scope(ctx, next.run(req)).await
+    let mut resp = ADMIN_CONTEXT.scope(ctx, next.run(req)).await;
+    apply_baseline_security_headers(&mut resp);
+    resp
 }
 
 /// Only allow local, same-site redirect targets after login (prevents open redirects).

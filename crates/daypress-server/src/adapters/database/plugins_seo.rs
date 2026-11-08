@@ -24,6 +24,7 @@ impl Database {
                 "INSERT INTO daypress_forms (title, schema_json, settings_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
                 params![title, schema_json, settings_json, now],
             )?;
+            Self::activate_builtin_plugin_with_conn(&conn, "daypress-forms");
             conn.last_insert_rowid()
         };
         self.invalidate_hot_cache("form_created");
@@ -178,7 +179,7 @@ impl Database {
                 req.title.trim()
             };
 
-            if let Some(id) = req.id.filter(|&id| id > 0) {
+            let id = if let Some(id) = req.id.filter(|&id| id > 0) {
                 let updated = conn.execute(
                     "UPDATE daypress_forms SET title = ?1, schema_json = ?2, settings_json = ?3, updated_at = ?4 WHERE id = ?5",
                     params![title, schema_json, settings_json, now, id],
@@ -198,7 +199,9 @@ impl Database {
                     params![title, schema_json, settings_json, now],
                 )?;
                 conn.last_insert_rowid()
-            }
+            };
+            Self::activate_builtin_plugin_with_conn(&conn, "daypress-forms");
+            id
         };
         self.invalidate_hot_cache("form_saved");
         Ok(saved_id)
@@ -456,6 +459,7 @@ impl Database {
                    is_active = 1"#,
             params![src, dst, code, now],
         )?;
+        Self::activate_builtin_plugin_with_conn(&conn, "daypress-seo");
 
         let rule = conn.query_row(
             "SELECT id, source_path, target_url, status_code, hits, is_active, created_at FROM daypress_redirects WHERE source_path = ?1",
@@ -565,16 +569,41 @@ impl Database {
     // NATIVE SUBSYSTEMS: PLUGIN ECOSYSTEM REGISTRY & COMMUNITY EXTENSIONS
     // =========================================================================
 
+    pub(crate) fn activate_builtin_plugin_with_conn(conn: &Connection, slug: &str) {
+        let _ = conn.execute(
+            "UPDATE daypress_plugins SET is_active = 1 WHERE slug = ?1",
+            params![slug],
+        );
+    }
+
     pub fn ensure_builtin_plugins_seeded_with_conn(conn: &Connection) -> Result<()> {
+        let catalog_ready: Option<String> = conn
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'daypress_plugins_catalog_v090'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        if catalog_ready.as_deref() == Some("1") {
+            let builtin_count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM daypress_plugins WHERE is_builtin = 1",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+            if builtin_count >= 13 {
+                return Ok(());
+            }
+        }
+
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         for manifest in crate::plugins::builtin_plugins_catalog() {
             let mut default_cfg = std::collections::HashMap::new();
             for field in &manifest.settings_schema {
                 default_cfg.insert(field.key.clone(), field.default_value.clone());
             }
-            let is_always_on = crate::plugins::is_core_always_on(&manifest.slug);
-            let default_active = is_always_on
-                || !matches!(manifest.slug.as_str(), "whatsapp-chat" | "code-snippets");
+            let default_active = false;
             let manifest_json =
                 serde_json::to_string(&manifest).unwrap_or_else(|_| "{}".to_string());
             let config_json =
@@ -588,8 +617,7 @@ impl Database {
                        version = excluded.version,
                        description = excluded.description,
                        is_builtin = 1,
-                       manifest_json = excluded.manifest_json,
-                       is_active = CASE WHEN ?9 = 1 THEN 1 ELSE daypress_plugins.is_active END"#,
+                       manifest_json = excluded.manifest_json"#,
                 params![
                     manifest.slug,
                     manifest.name,
@@ -599,11 +627,83 @@ impl Database {
                     manifest_json,
                     config_json,
                     now,
-                    if is_always_on { 1 } else { 0 },
                 ],
             );
         }
+
+        // One-time migration: ensure pre-0.9 databases reset built-in plugins to deactivated by default
+        let migrated: Option<String> = conn
+            .query_row(
+                "SELECT option_value FROM options WHERE option_name = 'daypress_plugins_default_inactive_v09'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        if migrated.is_none() {
+            let _ = conn.execute(
+                "UPDATE daypress_plugins SET is_active = 0 WHERE is_builtin = 1",
+                [],
+            );
+            let _ = conn.execute(
+                "INSERT INTO options (option_name, option_value) VALUES ('daypress_plugins_default_inactive_v09', '1')
+                 ON CONFLICT(option_name) DO UPDATE SET option_value = '1'",
+                [],
+            );
+            let _ = conn.execute(
+                "INSERT INTO options (option_name, option_value) VALUES ('active_plugins', '[]')
+                 ON CONFLICT(option_name) DO UPDATE SET option_value = '[]'",
+                [],
+            );
+        }
+        let _ = conn.execute(
+            "INSERT INTO options (option_name, option_value) VALUES ('daypress_plugins_catalog_v090', '1')
+             ON CONFLICT(option_name) DO UPDATE SET option_value = '1'",
+            [],
+        );
+
         Ok(())
+    }
+
+    pub fn get_active_installed_plugins(&self) -> Result<Vec<InstalledPluginRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
+        let mut stmt = conn.prepare_cached(
+            "SELECT slug, name, version, description, is_builtin, is_active, manifest_json, config_json, updated_at FROM daypress_plugins WHERE is_active = 1 ORDER BY is_builtin DESC, name ASC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let slug: String = r.get(0)?;
+            let name: String = r.get(1)?;
+            let version: String = r.get(2)?;
+            let description: String = r.get(3)?;
+            let is_builtin: i64 = r.get(4)?;
+            let is_active: i64 = r.get(5)?;
+            let manifest_raw: String = r.get(6)?;
+            let config_raw: String = r.get(7)?;
+            let updated_at: String = r.get(8)?;
+
+            let manifest: PluginManifest =
+                serde_json::from_str(&manifest_raw).unwrap_or_else(|_| PluginManifest {
+                    slug: slug.clone(),
+                    name: name.clone(),
+                    version: version.clone(),
+                    author: "Community".to_string(),
+                    description: description.clone(),
+                    settings_url: None,
+                    is_builtin: is_builtin != 0,
+                    settings_schema: vec![],
+                    hooks: PluginHooksManifest::default(),
+                });
+            let config: std::collections::HashMap<String, String> =
+                serde_json::from_str(&config_raw).unwrap_or_default();
+
+            Ok(InstalledPluginRecord {
+                manifest,
+                active: is_active != 0,
+                config,
+                installed_at: updated_at,
+            })
+        })?;
+        Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
     pub fn get_all_installed_plugins(&self) -> Result<Vec<InstalledPluginRecord>> {
@@ -663,21 +763,9 @@ impl Database {
                 params![slug],
                 |r| r.get(0),
             );
-            match res {
-                Ok(v) => v != 0,
-                Err(_) => {
-                    // Default active for built-in catalog plugins before table seed
-                    matches!(
-                        slug,
-                        "daypress-seo" | "daypress-forms" | "daypress-wal-optimizer"
-                    )
-                }
-            }
+            matches!(res, Ok(v) if v != 0)
         } else {
-            matches!(
-                slug,
-                "daypress-seo" | "daypress-forms" | "daypress-wal-optimizer"
-            )
+            false
         }
     }
 
@@ -1047,6 +1135,8 @@ impl Database {
                 now
             ],
         )?;
+        drop(conn);
+        self.record_ab_conversion_for_visitor(visitor_hash, ev_type, goal_name);
         Ok(())
     }
 

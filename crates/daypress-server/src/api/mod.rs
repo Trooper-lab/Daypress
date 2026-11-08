@@ -134,7 +134,12 @@ pub fn api_routes() -> Router<Database> {
                 .patch(update_page)
                 .delete(delete_page),
         )
-        .route("/wp/v2/media", get(list_media).post(upload_media))
+        .route(
+            "/wp/v2/media",
+            get(list_media)
+                .post(upload_media)
+                .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024)),
+        )
         .route(
             "/wp/v2/media/{id}",
             get(get_media_item)
@@ -517,6 +522,88 @@ fn daypress_v1_routes() -> Router<Database> {
         .route(
             "/comments/bulk",
             axum::routing::post(bulk_comments_v1_handler),
+        )
+        .route(
+            "/newsletters/subscribe",
+            axum::routing::post(subscribe_newsletter_v1_handler),
+        )
+        .route(
+            "/newsletters/unlock",
+            axum::routing::post(unlock_newsletter_gate_v1_handler),
+        )
+        .route(
+            "/newsletters/subscribers",
+            get(list_newsletter_subscribers_v1_handler),
+        )
+        .route(
+            "/newsletters/subscribers/{id}",
+            axum::routing::patch(update_newsletter_subscriber_v1_handler)
+                .post(update_newsletter_subscriber_v1_handler)
+                .delete(delete_newsletter_subscriber_v1_handler),
+        )
+        .route(
+            "/newsletters/campaigns",
+            get(list_newsletter_campaigns_v1_handler).post(create_newsletter_campaign_v1_handler),
+        )
+        .route(
+            "/newsletters/settings",
+            axum::routing::post(save_newsletter_settings_v1_handler),
+        )
+        .route(
+            "/shortlinks",
+            get(list_shortlinks_v1_handler).post(save_shortlink_v1_handler),
+        )
+        .route(
+            "/shortlinks/{id}",
+            axum::routing::delete(delete_shortlink_v1_handler),
+        )
+        .route(
+            "/webhooks",
+            get(list_webhooks_v1_handler).post(save_webhook_v1_handler),
+        )
+        .route(
+            "/webhooks/{id}",
+            axum::routing::delete(delete_webhook_v1_handler),
+        )
+        .route(
+            "/webhooks/deliveries",
+            get(list_webhook_deliveries_v1_handler),
+        )
+        .route(
+            "/webhooks/deliveries/{id}/replay",
+            axum::routing::post(replay_webhook_delivery_v1_handler),
+        )
+        .route(
+            "/webhooks/test",
+            axum::routing::post(test_webhook_v1_handler),
+        )
+        .route(
+            "/ab-tests",
+            get(list_ab_tests_v1_handler).post(save_ab_test_v1_handler),
+        )
+        .route(
+            "/ab-tests/{id}",
+            axum::routing::delete(delete_ab_test_v1_handler),
+        )
+        .route(
+            "/ab-tests/{id}/promote",
+            axum::routing::post(promote_ab_test_winner_v1_handler),
+        )
+        .route(
+            "/analytics/vitals",
+            get(get_web_vitals_summary_v1_handler).post(record_web_vitals_v1_handler),
+        )
+        .route(
+            "/wasm-extensions",
+            get(list_wasm_extensions_v1_handler).post(install_wasm_extension_v1_handler),
+        )
+        .route(
+            "/wasm-extensions/{slug}",
+            axum::routing::delete(delete_wasm_extension_v1_handler),
+        )
+        .route(
+            "/wasm-extensions/{slug}/execute",
+            axum::routing::post(execute_wasm_extension_v1_handler),
         )
 }
 

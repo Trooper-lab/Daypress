@@ -41,6 +41,7 @@ flate2 = { workspace = true }
 semver = { workspace = true }
 ab_glyph = "0.2.32"
 daypress-ast = { path = "../daypress-ast" }
+daypress-wasm = { path = "../daypress-wasm" }
 generated_slugify = { path = "../generated_slugify" }
 
 [dev-dependencies]

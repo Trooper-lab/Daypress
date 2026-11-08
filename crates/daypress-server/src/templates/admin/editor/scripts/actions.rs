@@ -222,6 +222,10 @@ pub fn render_actions_script(
                 const comment_status = commentStatusEl ? (commentStatusEl.checked ? 'open' : 'closed') : 'open';
                 const pingStatusEl = document.getElementById('post_ping_status');
                 const ping_status = pingStatusEl ? (pingStatusEl.checked ? 'open' : 'closed') : 'open';
+                const memberGateEl = document.getElementById('post_member_gate');
+                const member_gate = memberGateEl ? (memberGateEl.value || 'public') : 'public';
+                const digestEl = document.getElementById('send_newsletter_digest');
+                const send_newsletter_digest = digestEl && digestEl.checked ? true : undefined;
 
                 const payload = {{
                     title: title || 'Untitled',
@@ -237,6 +241,8 @@ pub fn render_actions_script(
                     password,
                     comment_status,
                     ping_status,
+                    member_gate,
+                    send_newsletter_digest,
                     featured_media: featured_media > 0 ? featured_media : undefined,
                     categories,
                     tags,
@@ -330,33 +336,20 @@ pub fn render_actions_script(
                             }}
                             html += '</optgroup>';
                         }}
-                        html += '<optgroup label="System Overrides">';
-                        html += '<option value="fallback"' + (currentVal === 'fallback' ? ' selected' : '') + '>Built-in Theme Fallback ' + slotLabel + '</option>';
-                        html += '<option value="none"' + (currentVal === 'none' ? ' selected' : '') + '>Hide / No ' + slotLabel + ' on this Page</option>';
-                        html += '</optgroup>';
+                        html += '<optgroup label="System Overrides"><option value="fallback"' + (currentVal === 'fallback' ? ' selected' : '') + '>Built-in Theme Fallback ' + slotLabel + '</option><option value="none"' + (currentVal === 'none' ? ' selected' : '') + '>Hide / No ' + slotLabel + ' on this Page</option></optgroup>';
                         return html;
                     }};
-
                     const pid = activePostId ? parseInt(activePostId, 10) : 0;
                     const allRows = (matrix.pages || []).concat(matrix.posts || []);
                     const matchedRow = pid > 0 ? allRows.find(r => r.post_id === pid) : null;
                     const defaultRouteKey = '{post_type}' === 'page' ? 'all_pages' : 'all_posts';
                     const fallbackRow = (matrix.routes || []).find(r => r.route_key === defaultRouteKey) || (matrix.routes || [])[0];
                     const activeRow = matchedRow || fallbackRow;
-
                     const hVal = matchedRow ? (matchedRow.header.mode || 'inherit') : 'inherit';
                     const fVal = matchedRow ? (matchedRow.footer.mode || 'inherit') : 'inherit';
-
-                    const headers = (matrix.templates || []).filter(t => t.template_type === 'header');
-                    const footers = (matrix.templates || []).filter(t => t.template_type === 'footer');
-
-                    hSel.innerHTML = buildOpts(headers, 'Header', hVal);
-                    fSel.innerHTML = buildOpts(footers, 'Footer', fVal);
-
-                    if (activeRow) {{
-                        updateEditorSlotSummary('header', activeRow.header);
-                        updateEditorSlotSummary('footer', activeRow.footer);
-                    }}
+                    hSel.innerHTML = buildOpts((matrix.templates || []).filter(t => t.template_type === 'header'), 'Header', hVal);
+                    fSel.innerHTML = buildOpts((matrix.templates || []).filter(t => t.template_type === 'footer'), 'Footer', fVal);
+                    if (activeRow) {{ updateEditorSlotSummary('header', activeRow.header); updateEditorSlotSummary('footer', activeRow.footer); }}
                 }} catch (_) {{}}
             }}
 
@@ -365,25 +358,16 @@ pub fn render_actions_script(
                 const hSel = document.getElementById('editorHeaderSelect');
                 const fSel = document.getElementById('editorFooterSelect');
                 if (!hSel || !fSel) return;
-                if (pid <= 0) {{
-                    markDirty();
-                    showToast('Header/Footer selection will be applied when you save this {type_singular}.');
-                    return;
-                }}
+                if (pid <= 0) {{ markDirty(); showToast('Header/Footer selection will be applied when you save this {type_singular}.'); return; }}
                 try {{
                     const res = await fetch('/wp-json/daypress/v1/templates/assign-page', {{
-                        method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
                         body: JSON.stringify({{ post_id: pid, header: hSel.value, footer: fSel.value }})
                     }});
                     if (res.ok) {{
                         const matrix = await res.json();
-                        const allRows = (matrix.pages || []).concat(matrix.posts || []);
-                        const matchedRow = allRows.find(r => r.post_id === pid);
-                        if (matchedRow) {{
-                            updateEditorSlotSummary('header', matchedRow.header);
-                            updateEditorSlotSummary('footer', matchedRow.footer);
-                        }}
+                        const matchedRow = ((matrix.pages || []).concat(matrix.posts || [])).find(r => r.post_id === pid);
+                        if (matchedRow) {{ updateEditorSlotSummary('header', matchedRow.header); updateEditorSlotSummary('footer', matchedRow.footer); }}
                         showToast('✓ Header & Footer assignment updated in SQLite');
                     }} else {{ showToast('Failed to update Header/Footer assignment', true); }}
                 }} catch (e) {{ showToast('Network error: ' + e, true); }}

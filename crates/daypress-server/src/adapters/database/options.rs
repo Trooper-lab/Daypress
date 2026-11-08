@@ -14,7 +14,8 @@ use std::sync::{Arc, Mutex};
 impl Database {
     pub fn get_option(&self, name: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT option_value FROM options WHERE option_name = ?1")?;
+        let mut stmt =
+            conn.prepare_cached("SELECT option_value FROM options WHERE option_name = ?1")?;
         let mut rows = stmt.query_map(params![name], |r| r.get(0))?;
         match rows.next() {
             Some(res) => Ok(Some(res?)),
@@ -36,36 +37,56 @@ impl Database {
     }
 
     pub fn get_settings(&self) -> Result<DaypressSettingsResponse> {
-        let pending_comments_count: i64 = {
+        let (pending_comments_count, active_plugin_slugs, opts): (
+            i64,
+            Vec<String>,
+            std::collections::HashMap<String, String>,
+        ) = {
             let conn = self.conn.lock().unwrap();
-            conn.query_row(
-                "SELECT COUNT(*) FROM comments WHERE comment_approved = '0' OR comment_approved = 'hold' OR comment_approved = 'pending'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap_or(0)
+            let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
+            let pending = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM comments WHERE comment_approved = '0' OR comment_approved = 'hold' OR comment_approved = 'pending'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+            let slugs = conn
+                .prepare_cached(
+                    "SELECT slug FROM daypress_plugins WHERE is_active = 1 ORDER BY slug ASC",
+                )
+                .and_then(|mut stmt| {
+                    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+                    Ok(rows.filter_map(|r| r.ok()).collect::<Vec<String>>())
+                })
+                .unwrap_or_default();
+            let options_map = conn
+                .prepare_cached("SELECT option_name, option_value FROM options")
+                .and_then(|mut stmt| {
+                    let rows = stmt
+                        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+                    Ok(rows
+                        .filter_map(|r| r.ok())
+                        .collect::<std::collections::HashMap<String, String>>())
+                })
+                .unwrap_or_default();
+            (pending, slugs, options_map)
         };
 
+        let opt = |key: &str| -> Option<String> { opts.get(key).cloned() };
+        let cpt_definitions = self.list_post_type_definitions().unwrap_or_default();
+        let custom_post_types: Vec<String> =
+            cpt_definitions.iter().map(|d| d.slug.clone()).collect();
+
         Ok(DaypressSettingsResponse {
-            title: self
-                .get_option("blogname")?
-                .unwrap_or_else(|| "WordPress Reference".to_string()),
-            description: self
-                .get_option("blogdescription")?
-                .unwrap_or_else(|| "".to_string()),
-            url: self
-                .get_option("siteurl")?
-                .unwrap_or_else(|| "http://localhost:8090".to_string()),
-            email: self
-                .get_option("admin_email")?
-                .unwrap_or_else(|| "admin@example.com".to_string()),
-            timezone: self
-                .get_option("timezone_string")?
+            title: opt("blogname").unwrap_or_else(|| "WordPress Reference".to_string()),
+            description: opt("blogdescription").unwrap_or_default(),
+            url: opt("siteurl").unwrap_or_else(|| "http://localhost:8090".to_string()),
+            email: opt("admin_email").unwrap_or_else(|| "admin@example.com".to_string()),
+            timezone: opt("timezone_string")
                 .filter(|s| !s.trim().is_empty())
                 .or_else(|| {
-                    self.get_option("gmt_offset")
-                        .ok()
-                        .flatten()
+                    opt("gmt_offset")
                         .filter(|s| !s.trim().is_empty() && s.trim() != "0")
                         .map(|off| {
                             if off.starts_with('+')
@@ -83,129 +104,79 @@ impl Database {
                         })
                 })
                 .unwrap_or_else(|| "UTC".to_string()),
-            date_format: self
-                .get_option("date_format")?
-                .unwrap_or_else(|| "F j, Y".to_string()),
-            time_format: self
-                .get_option("time_format")?
-                .unwrap_or_else(|| "g:i a".to_string()),
-            start_of_week: self
-                .get_option("start_of_week")?
+            date_format: opt("date_format").unwrap_or_else(|| "F j, Y".to_string()),
+            time_format: opt("time_format").unwrap_or_else(|| "g:i a".to_string()),
+            start_of_week: opt("start_of_week")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1),
-            language: self
-                .get_option("WPLANG")?
+            language: opt("WPLANG")
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "en_US".to_string()),
-            use_smilies: self
-                .get_option("use_smilies")?
+            use_smilies: opt("use_smilies")
                 .map(|v| v == "1" || v == "true")
                 .unwrap_or(true),
-            default_category: self
-                .get_option("default_category")?
+            default_category: opt("default_category")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1),
-            default_post_format: self
-                .get_option("default_post_format")?
+            default_post_format: opt("default_post_format")
                 .unwrap_or_else(|| "standard".to_string()),
-            posts_per_page: self
-                .get_option("posts_per_page")?
+            posts_per_page: opt("posts_per_page")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(10),
-            show_on_front: self
-                .get_option("show_on_front")?
-                .unwrap_or_else(|| "posts".to_string()),
-            page_on_front: self
-                .get_option("page_on_front")?
+            show_on_front: opt("show_on_front").unwrap_or_else(|| "posts".to_string()),
+            page_on_front: opt("page_on_front")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0),
-            page_for_posts: self
-                .get_option("page_for_posts")?
+            page_for_posts: opt("page_for_posts")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0),
-            active_theme: self
-                .get_option("daypress_active_theme")?
+            active_theme: opt("daypress_active_theme")
                 .filter(|s| !s.trim().is_empty())
-                .or_else(|| {
-                    self.get_option("stylesheet")
-                        .ok()
-                        .flatten()
-                        .filter(|s| !s.trim().is_empty())
-                })
-                .or_else(|| {
-                    self.get_option("daypress_imported_theme")
-                        .ok()
-                        .flatten()
-                        .filter(|s| !s.trim().is_empty())
-                })
+                .or_else(|| opt("stylesheet").filter(|s| !s.trim().is_empty()))
+                .or_else(|| opt("daypress_imported_theme").filter(|s| !s.trim().is_empty()))
                 .unwrap_or_else(|| "Daypress Daylight".to_string()),
             custom_css: crate::legacy::rewrite_daystudio_style_prefixes(
-                &self
-                    .get_option("custom_css")?
-                    .or_else(|| self.get_option("daypress_custom_css").ok().flatten())
+                &opt("custom_css")
+                    .or_else(|| opt("daypress_custom_css"))
                     .unwrap_or_default(),
             ),
-            brand_color: self
-                .get_option("daypress_brand_color")?
+            brand_color: opt("daypress_brand_color")
                 .filter(|s| !s.trim().is_empty())
                 .unwrap_or_else(|| "#a8401b".to_string()),
-            typography_scale: self
-                .get_option("daypress_typography_scale")?
+            typography_scale: opt("daypress_typography_scale")
                 .filter(|s| !s.trim().is_empty())
                 .unwrap_or_else(|| "serif".to_string()),
-            nav_menu_items: self
-                .get_option("daypress_nav_menu_items")?
+            nav_menu_items: opt("daypress_nav_menu_items")
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default(),
-            widgets_json: self.get_option("daypress_widgets")?.unwrap_or_default(),
-            active_plugins: self
-                .get_option("active_plugins")?
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_else(|| {
-                    vec![
-                        "elementor".to_string(),
-                        "woocommerce".to_string(),
-                        "yoast-seo".to_string(),
-                    ]
-                }),
+            widgets_json: opt("daypress_widgets").unwrap_or_default(),
+            active_plugins: active_plugin_slugs,
             pending_comments_count,
             daystudio_kit_css: crate::legacy::rewrite_daystudio_style_prefixes(
-                &self
-                    .get_option("daypress_elementor_kit_css")?
+                &opt("daypress_elementor_kit_css")
                     .filter(|s| !s.trim().is_empty())
-                    .or_else(|| self.get_option("elementor_active_kit_css").ok().flatten())
+                    .or_else(|| opt("elementor_active_kit_css"))
                     .unwrap_or_default(),
             ),
             daystudio_header_html: crate::legacy::rewrite_daystudio_style_prefixes(
-                &self
-                    .get_option("daypress_elementor_header_html")?
-                    .unwrap_or_default(),
+                &opt("daypress_elementor_header_html").unwrap_or_default(),
             ),
             daystudio_footer_html: crate::legacy::rewrite_daystudio_style_prefixes(
-                &self
-                    .get_option("daypress_elementor_footer_html")?
-                    .unwrap_or_default(),
+                &opt("daypress_elementor_footer_html").unwrap_or_default(),
             ),
-            daystudio_popups_html: self
-                .get_option("daypress_elementor_popups_html")?
-                .unwrap_or_default(),
-            blog_public: self
-                .get_option("blog_public")?
+            daystudio_popups_html: opt("daypress_elementor_popups_html").unwrap_or_default(),
+            blog_public: opt("blog_public")
                 .map(|v| !matches!(v.trim(), "0" | "false"))
                 .unwrap_or(true),
-            privacy_policy_page_id: self
-                .get_option("wp_page_for_privacy_policy")?
+            privacy_policy_page_id: opt("wp_page_for_privacy_policy")
                 .and_then(|v| v.trim().parse().ok())
                 .unwrap_or(0),
-            site_logo_url: self.get_option("daypress_site_logo")?.unwrap_or_default(),
-            site_favicon_url: self
-                .get_option("daypress_site_favicon")?
-                .unwrap_or_default(),
-            custom_post_types: self.get_registered_post_types().unwrap_or_default(),
-            cpt_definitions: self.list_post_type_definitions().unwrap_or_default(),
+            site_logo_url: opt("daypress_site_logo").unwrap_or_default(),
+            site_favicon_url: opt("daypress_site_favicon").unwrap_or_default(),
+            custom_post_types,
+            cpt_definitions,
             custom_taxonomies: self.list_custom_taxonomy_definitions().unwrap_or_default(),
-            theme_assets_html: self
-                .get_option("daypress_theme_assets")?
+            theme_assets_html: opt("daypress_theme_assets")
                 .map(|raw| {
                     if let Ok(manifest) =
                         serde_json::from_str::<crate::theme::ThemeAssetsManifest>(&raw)
@@ -582,5 +553,229 @@ impl crate::ports::output::OptionRepository for Database {
         let report = Database::diff_post_revisions(self, post_id, from_id, to_rev_id)
             .map_err(|e| DomainError::Storage(e.to_string()))?;
         serde_json::to_value(report).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn list_subscribers_json(
+        &self,
+        status: Option<&str>,
+        list: Option<&str>,
+    ) -> DomainResult<serde_json::Value> {
+        let subscribers = Database::list_subscribers(self, status, list, None, false)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        let stats = Database::get_newsletter_stats(self)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        Ok(serde_json::json!({
+            "subscribers": subscribers,
+            "stats": stats,
+        }))
+    }
+
+    fn create_newsletter_campaign_json(
+        &self,
+        payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        let req: CreateNewsletterCampaignRequest = serde_json::from_value(payload.clone())
+            .map_err(|e| DomainError::Validation(format!("Invalid campaign payload: {e}")))?;
+        let campaign = Database::create_and_send_campaign(self, &req, "broadcast", None)
+            .map_err(|e| DomainError::Validation(e.to_string()))?;
+        serde_json::to_value(campaign).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn manage_shortlinks_json(
+        &self,
+        payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        let action = payload
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("list");
+        match action {
+            "create" | "save" | "upsert" => {
+                let req: CreateShortlinkRequest =
+                    serde_json::from_value(payload.clone()).map_err(|e| {
+                        DomainError::Validation(format!("Invalid shortlink payload: {e}"))
+                    })?;
+                let saved = Database::save_shortlink(self, &req)
+                    .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(saved).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            "delete" => {
+                let id = payload
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or_else(|| DomainError::Validation("'id' is required for delete".into()))?;
+                let deleted = Database::delete_shortlink(self, id)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "deleted": deleted, "id": id }))
+            }
+            _ => {
+                let links = Database::list_shortlinks(self)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "shortlinks": links }))
+            }
+        }
+    }
+
+    fn manage_webhooks_json(&self, payload: &serde_json::Value) -> DomainResult<serde_json::Value> {
+        let action = payload
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("list");
+        match action {
+            "create" | "save" | "upsert" => {
+                let req: CreateWebhookEndpointRequest = serde_json::from_value(payload.clone())
+                    .map_err(|e| {
+                        DomainError::Validation(format!("Invalid webhook payload: {e}"))
+                    })?;
+                let saved = Database::save_webhook_endpoint(self, &req)
+                    .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(saved).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            "delete" => {
+                let id = payload
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or_else(|| DomainError::Validation("'id' is required for delete".into()))?;
+                let deleted = Database::delete_webhook_endpoint(self, id)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "deleted": deleted, "id": id }))
+            }
+            "replay" => {
+                let delivery_id = payload
+                    .get("delivery_id")
+                    .or_else(|| payload.get("id"))
+                    .and_then(|v| v.as_i64())
+                    .ok_or_else(|| DomainError::Validation("'delivery_id' is required".into()))?;
+                let replayed = Database::replay_webhook_delivery_sync(self, delivery_id)
+                    .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(replayed).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            _ => {
+                let webhooks = Database::list_webhook_endpoints(self)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                let deliveries = Database::list_webhook_deliveries(self, None, 25)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({
+                    "webhooks": webhooks,
+                    "deliveries": deliveries,
+                }))
+            }
+        }
+    }
+
+    fn manage_ab_tests_json(&self, payload: &serde_json::Value) -> DomainResult<serde_json::Value> {
+        let action = payload
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("list");
+        match action {
+            "create" | "save" | "upsert" => {
+                let req: CreateAbTestRequest =
+                    serde_json::from_value(payload.clone()).map_err(|e| {
+                        DomainError::Validation(format!("Invalid ab_test payload: {e}"))
+                    })?;
+                let saved = Database::save_ab_test(self, &req)
+                    .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(saved).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            "promote" => {
+                let test_id = payload
+                    .get("id")
+                    .or_else(|| payload.get("test_id"))
+                    .and_then(|v| v.as_i64())
+                    .ok_or_else(|| {
+                        DomainError::Validation("'id' is required for promote".into())
+                    })?;
+                let winner = payload
+                    .get("winner")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("B");
+                let promoted = Database::promote_ab_test_winner(self, test_id, winner)
+                    .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(promoted).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            "delete" => {
+                let id = payload
+                    .get("id")
+                    .and_then(|v| v.as_i64())
+                    .ok_or_else(|| DomainError::Validation("'id' is required for delete".into()))?;
+                let deleted = Database::delete_ab_test(self, id)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "deleted": deleted, "id": id }))
+            }
+            _ => {
+                let post_id = payload.get("post_id").and_then(|v| v.as_i64());
+                let tests = Database::list_ab_tests(self, post_id)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "ab_tests": tests }))
+            }
+        }
+    }
+
+    fn get_web_vitals_json(&self) -> DomainResult<serde_json::Value> {
+        let vitals = Database::get_core_web_vitals_summary(self)
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        serde_json::to_value(vitals).map_err(|e| DomainError::Internal(e.to_string()))
+    }
+
+    fn manage_wasm_extensions_json(
+        &self,
+        payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        let action = payload
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("list");
+        match action {
+            "install" | "create" | "save" => {
+                let req: InstallWasmExtensionRequest = serde_json::from_value(payload.clone())
+                    .map_err(|e| {
+                        DomainError::Validation(format!("Invalid wasm extension payload: {e}"))
+                    })?;
+                let saved = Database::install_or_update_wasm_extension(self, &req)
+                    .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(saved).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            "execute" => {
+                let slug = payload
+                    .get("slug")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| DomainError::Validation("'slug' is required".into()))?;
+                let export_name = payload
+                    .get("export_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("render_shortcode");
+                let mut attrs = std::collections::HashMap::new();
+                if let Some(obj) = payload.get("attrs").and_then(|v| v.as_object()) {
+                    for (k, v) in obj {
+                        if let Some(s) = v.as_str() {
+                            attrs.insert(k.clone(), s.to_string());
+                        }
+                    }
+                }
+                let content = payload
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let out =
+                    Database::execute_wasm_extension(self, slug, export_name, &attrs, content)
+                        .map_err(|e| DomainError::Validation(e.to_string()))?;
+                serde_json::to_value(out).map_err(|e| DomainError::Internal(e.to_string()))
+            }
+            "delete" => {
+                let slug = payload
+                    .get("slug")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| DomainError::Validation("'slug' is required".into()))?;
+                let deleted = Database::delete_wasm_extension(self, slug)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "deleted": deleted, "slug": slug }))
+            }
+            _ => {
+                let exts = Database::list_wasm_extensions(self)
+                    .map_err(|e| DomainError::Storage(e.to_string()))?;
+                Ok(serde_json::json!({ "wasm_extensions": exts }))
+            }
+        }
     }
 }

@@ -44,7 +44,7 @@ pub fn render_plugins_view(
         };
 
         let origin_badge = if record.manifest.is_builtin {
-            r#"<span style="font-size:10.5px; background:var(--press-wash); color:var(--press); border:1px solid var(--press); padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600;">Built-In Core</span>"#
+            ""
         } else {
             r#"<span style="font-size:10.5px; background:var(--press-wash); color:var(--press); border:1px solid var(--press); padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600;">Community Extension</span>"#
         };
@@ -693,6 +693,24 @@ pub fn render_plugin_settings_view(
     } else {
         r#"<span class="badge badge-draft">Inactive</span>"#
     };
+    let toggle_btn = if crate::plugins::is_core_always_on(&record.manifest.slug) {
+        String::new()
+    } else if record.active {
+        format!(
+            r#"<button type="button" class="btn btn-secondary" onclick="togglePluginActiveState('{slug}', false)">Deactivate Module</button>"#,
+            slug = slug
+        )
+    } else {
+        format!(
+            r#"<button type="button" class="btn btn-secondary" style="border-color:var(--moss);color:var(--moss);font-weight:700;" onclick="togglePluginActiveState('{slug}', true)">Activate Module</button>"#,
+            slug = slug
+        )
+    };
+    let nav_tab = match record.manifest.slug.as_str() {
+        "whatsapp-chat" => "whatsapp-chat",
+        "code-snippets" => "code-snippets",
+        _ => "plugin-settings",
+    };
 
     let mut fields_html = String::new();
     for field in &record.manifest.settings_schema {
@@ -778,6 +796,7 @@ pub fn render_plugin_settings_view(
             </div>
             <div style="display:flex;gap:10px;">
                 <a href="/d-admin/plugins" class="btn btn-secondary">&larr; All Plugins</a>
+                {toggle_btn}
                 <button type="button" class="btn btn-primary" onclick="savePluginSettings('{slug}')">Save Settings to SQLite</button>
             </div>
         </div>
@@ -792,6 +811,24 @@ pub fn render_plugin_settings_view(
         </div>
 
         <script>
+            async function togglePluginActiveState(plugin, activate) {{
+                try {{
+                    const res = await fetch('/d-admin/api/plugins', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ plugin, active: activate }})
+                    }});
+                    if (res.ok) {{
+                        showToast('✓ ' + plugin + (activate ? ' activated!' : ' deactivated!'));
+                        setTimeout(() => window.location.reload(), 350);
+                    }} else {{
+                        showToast('Failed to update module state', true);
+                    }}
+                }} catch (e) {{
+                    showToast('Network error: ' + e, true);
+                }}
+            }}
+
             async function savePluginSettings(slug) {{
                 const config = {{}};
                 document.querySelectorAll('.plugin-cfg-field').forEach(el => {{
@@ -822,13 +859,14 @@ pub fn render_plugin_settings_view(
         "##,
         name = name,
         active_badge = active_badge,
+        toggle_btn = toggle_btn,
         desc = desc,
         slug = slug,
         shortcode_info = shortcode_info,
         fields_html = fields_html
     );
 
-    render_admin_shell("plugin-settings", &name, &body, settings)
+    render_admin_shell(nav_tab, &name, &body, settings)
 }
 
 // 5. Full SEO Toolkit & Redirection Suite (/d-admin/seo)

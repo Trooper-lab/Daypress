@@ -93,7 +93,7 @@ When a user asks you to **"set up and build my website"**, follow this 6-step wo
 
 ---
 
-### 3. Complete MCP Tool Reference (38 Built-in Tools)
+### 3. Complete MCP Tool Reference (45 Built-in Tools)
 
 | Category | MCP Tool | Purpose |
 | :--- | :--- | :--- |
@@ -122,6 +122,13 @@ When a user asks you to **"set up and build my website"**, follow this 6-step wo
 | | `daypress_update_form` | Update an existing FormStudio form's fields or settings. |
 | | `daypress_list_form_submissions` | Query the FormStudio Submissions Vault (`form_id`, `status`, `search`, `starred_only`). |
 | | `daypress_get_analytics` | Read the Cookieless Analytics summary (`today`, `7d`, `30d`, `90d`, `12m`, `all`). |
+| | `daypress_get_web_vitals` | Read Real-User Core Web Vitals (`LCP`, `INP`, `CLS`, `TTFB`) p75 percentiles & route ratings. |
+| **Newsletters, Webhooks, A/B & Wasm (`0.9`)** | `daypress_list_subscribers` | List newsletter subscribers and mailing list statistics (`status`, `list`, `search`). |
+| | `daypress_create_newsletter_campaign` | Create (and optionally send) a newsletter campaign to confirmed subscribers. |
+| | `daypress_manage_shortlinks` | List, create, update, or delete `/go/*` branded shortlinks with click & UTM tracking. |
+| | `daypress_manage_webhooks` | List, create, update, delete, or replay HMAC-SHA256 signed outbound webhooks. |
+| | `daypress_manage_ab_tests` | List, create, update, promote winner, or delete zero-flicker server-side A/B experiments. |
+| | `daypress_manage_wasm_extensions` | List, install, execute, or delete sandboxed `.wasm` extensions with fuel & capability limits. |
 | **Search, SEO & WCAG Linter** | `daypress_search` | Query the SQLite FTS5 BM25 instant search index with typo tolerance and highlighted snippets. |
 | | `daypress_audit_post` | Run the WCAG 2.1 AA/AAA contrast, broken internal link, heading hierarchy, and SEO linter. |
 | **Multilingual & Editorial** | `daypress_list_languages` | List active site languages, default locale, and URL prefix strategy. |
@@ -184,5 +191,5 @@ Daypress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
      - **`0.7.0`** (`Shipped`): SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter
      - **`0.8.0`** (`Shipped`): Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs
      - **`0.8.5`** (`Shipped`): WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit)
-     - **`0.9`** (`Up next`): Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates
-     - **`1.0`** (`Planned`): First Stable Release (External Audit, Reproducible Benchmarks, Stable Schema/ABI & 70%+ WP Migration Sign-off)
+     - **`0.9.0`** (`Shipped`): Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates
+     - **`1.0`** (`Up next`): First Stable Release (External Audit, Reproducible Benchmarks, Stable Schema/ABI & 70%+ WP Migration Sign-off)

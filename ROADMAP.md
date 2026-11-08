@@ -17,8 +17,8 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
 | **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
-| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Up next** |
-| **`1.0`** | First Stable Release | Planned |
+| **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Shipped** |
+| **`1.0`** | First Stable Release | **Up next** |
 
 ---
 
@@ -113,13 +113,13 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
   - [x] **Comments** inline Reply, inline Quick Edit, multi-row Bulk Actions (`POST /wp-json/daypress/v1/comments/bulk`), and `Empty Spam` / `Empty Trash`
   - [x] **Menus** nested hierarchy indentation (`← Outdent` / `→ Indent`), `↑`/`↓` reorder, `New tab` toggle, and Posts/Categories quick-add; **Widgets** `↑`/`↓` reorder; **Media Library** `⊞ Grid` / `☰ List` view toggle and `☑ Bulk Select` mode
 
-### `0.9` — Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates (`Up next`)
-- [ ] Native subscriber lists with double opt-in, member-gated posts, and automated new-post email digests via SMTP/SES/Resend (`MailPoet` / `Ghost` parity)
-- [ ] Branded shortlinks (`/go/*`) with click tracking and **HMAC-Signed Outbound Webhooks** (Slack, Discord, HubSpot, Zapier)
-- [ ] **Zero-Flicker Server-Side A/B Split Testing** on any Daystudio heading, CTA, or section with built-in conversion stats & Real-User Core Web Vitals (`LCP` / `INP` / `CLS`) telemetry
-- [ ] Sandboxed **WebAssembly (`.wasm`) Extension Crates** with explicit capability permissions
+### `0.9.0` — Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates (`Shipped`)
+- [x] Native subscriber lists with double opt-in, member-gated posts, and automated new-post email digests via SMTP/SES/Resend (`MailPoet` / `Ghost` parity)
+- [x] Branded shortlinks (`/go/*`) with click tracking and **HMAC-Signed Outbound Webhooks** (Slack, Discord, HubSpot, Zapier)
+- [x] **Zero-Flicker Server-Side A/B Split Testing** on any Daystudio heading, CTA, or section with built-in conversion stats & Real-User Core Web Vitals (`LCP` / `INP` / `CLS`) telemetry
+- [x] Sandboxed **WebAssembly (`.wasm`) Extension Crates** with explicit capability permissions
 
-### `1.0` — First Stable Release (`Planned`)
+### `1.0` — First Stable Release (`Up next`)
 - [ ] External third-party security audit
 - [ ] Published reproducible load, latency, and memory benchmark suite (Daypress vs. WordPress + PHP-FPM/Redis)
 - [ ] Stable SQLite schema & WebAssembly extension ABI backward-compatibility guarantees

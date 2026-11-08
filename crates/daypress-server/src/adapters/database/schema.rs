@@ -480,6 +480,10 @@ impl Database {
         conn.execute_batch(super::ddl::SUBSYSTEMS_SCHEMA_SQL)?;
         conn.execute_batch(super::ddl::PASSWORD_RESETS_SCHEMA_SQL)?;
         conn.execute_batch(super::ddl::V08_I18N_AND_EDITORIAL_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_NEWSLETTERS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_WEBHOOKS_AND_SHORTLINKS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_AB_AND_WEB_VITALS_SCHEMA_SQL)?;
+        conn.execute_batch(super::ddl::V09_WASM_EXTENSIONS_SCHEMA_SQL)?;
         let _ = conn.execute_batch(super::ddl::FTS5_SEARCH_SCHEMA_SQL);
         crate::theme_builder::schema::init_theme_builder_schema(&conn)?;
         let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
@@ -531,6 +535,7 @@ impl Database {
             let _ = conn.execute(alter_sql, []);
         }
         let _ = Self::ensure_fts_backfilled_with_conn(&conn);
+        let _ = conn.execute_batch("PRAGMA optimize;");
         Ok(())
     }
 
@@ -607,32 +612,7 @@ impl Database {
         )?;
 
         // 6. Seed First-Party Toggleable Modules & Built-in Plugins Catalog
-        for manifest in crate::plugins::builtin_plugins_catalog() {
-            let mut default_cfg = std::collections::HashMap::new();
-            for field in &manifest.settings_schema {
-                default_cfg.insert(field.key.clone(), field.default_value.clone());
-            }
-            let default_active =
-                !matches!(manifest.slug.as_str(), "whatsapp-chat" | "code-snippets");
-            let manifest_json =
-                serde_json::to_string(&manifest).unwrap_or_else(|_| "{}".to_string());
-            let config_json =
-                serde_json::to_string(&default_cfg).unwrap_or_else(|_| "{}".to_string());
-            let _ = conn.execute(
-                r#"INSERT OR IGNORE INTO daypress_plugins (slug, name, version, description, category, is_builtin, is_active, manifest_json, config_json, updated_at)
-                   VALUES (?1, ?2, ?3, ?4, 'builtin', 1, ?5, ?6, ?7, ?8)"#,
-                params![
-                    manifest.slug,
-                    manifest.name,
-                    manifest.version,
-                    manifest.description,
-                    if default_active { 1 } else { 0 },
-                    manifest_json,
-                    config_json,
-                    now
-                ],
-            );
-        }
+        let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);
 
         // 7. Seed a default Contact Form if daypress_forms is empty
         let form_count: i64 = conn

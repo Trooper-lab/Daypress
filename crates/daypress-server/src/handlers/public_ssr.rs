@@ -194,9 +194,12 @@ pub async fn handle_home_or_query(
         || params.dp_term.is_some()
         || params.dp_sort.is_some()
         || params.dp_q.is_some()
-        || params.dp_page.is_some();
+        || params.dp_page.is_some()
+        || params.subscriber_token.is_some();
 
-    if user.is_none() && !has_dp_filter {
+    let has_sub_cookie =
+        extract_subscriber_token(&headers, params.subscriber_token.as_deref()).is_some();
+    if user.is_none() && !has_dp_filter && !has_sub_cookie {
         if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
             return hit;
         }
@@ -212,6 +215,13 @@ pub async fn handle_home_or_query(
             .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
         {
             let raw_layout = db.get_post_layout(id).unwrap_or(None);
+            let (is_gated, is_gate_locked) = apply_member_gate_to_post(
+                &db,
+                &mut post,
+                user.as_ref(),
+                &headers,
+                params.subscriber_token.as_deref(),
+            );
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
             let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
                 &post.content.rendered,
@@ -230,19 +240,23 @@ pub async fn handle_home_or_query(
                 settings.page_on_front > 0 && post.id == settings.page_on_front,
                 terms,
             );
-            let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
-                &db,
-                &req_ctx,
-                &settings,
-                Some(&post),
-                raw_layout.as_deref(),
-                params.dp_tax.clone(),
-                params.dp_term.clone(),
-                params.dp_sort.clone(),
-                params.dp_q.clone(),
-                params.dp_page,
-            )
-            .or(raw_layout);
+            let layout_json = if is_gate_locked {
+                None
+            } else {
+                SsrInjector::hydrate_post_layout_json_with_query(
+                    &db,
+                    &req_ctx,
+                    &settings,
+                    Some(&post),
+                    raw_layout.as_deref(),
+                    params.dp_tax.clone(),
+                    params.dp_term.clone(),
+                    params.dp_sort.clone(),
+                    params.dp_q.clone(),
+                    params.dp_page,
+                )
+                .or(raw_layout)
+            };
             let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                 &db,
                 &req_ctx,
@@ -258,10 +272,13 @@ pub async fn handle_home_or_query(
             );
             let final_html =
                 crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
+            let visitor_hash = compute_visitor_hash_from_headers(&headers);
+            let (final_html, ab_assignments) =
+                db.apply_ab_experiments_for_post(post.id, &visitor_hash, &final_html);
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some() || has_dp_filter,
+                user.is_some() || has_dp_filter || is_gated || !ab_assignments.is_empty(),
                 final_html,
             );
         } else {
@@ -288,11 +305,11 @@ pub async fn handle_home_or_query(
         {
             let raw_layout = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&page));
-            let expanded = crate::plugins::expand_shortcodes_in_content(
-                &page.content.rendered,
-                &db,
-                &settings,
-            );
+            let expanded = if raw_layout.is_none() {
+                crate::plugins::expand_shortcodes_in_content(&page.content.rendered, &db, &settings)
+            } else {
+                page.content.rendered.clone()
+            };
             page.content.rendered = format!(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
@@ -331,10 +348,20 @@ pub async fn handle_home_or_query(
             );
             let final_html =
                 crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&page), html);
+            let (final_html, ab_assignments) = if settings
+                .active_plugins
+                .iter()
+                .any(|p| p == "daypress-ab-testing")
+            {
+                let visitor_hash = compute_visitor_hash_from_headers(&headers);
+                db.apply_ab_experiments_for_post(page.id, &visitor_hash, &final_html)
+            } else {
+                (final_html, Vec::new())
+            };
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some() || has_dp_filter,
+                user.is_some() || has_dp_filter || !ab_assignments.is_empty(),
                 final_html,
             );
         } else {
@@ -362,11 +389,15 @@ pub async fn handle_home_or_query(
             let raw_layout = db.get_post_layout(front_page.id).unwrap_or(None);
             let hooks =
                 crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&front_page));
-            let expanded = crate::plugins::expand_shortcodes_in_content(
-                &front_page.content.rendered,
-                &db,
-                &settings,
-            );
+            let expanded = if raw_layout.is_none() {
+                crate::plugins::expand_shortcodes_in_content(
+                    &front_page.content.rendered,
+                    &db,
+                    &settings,
+                )
+            } else {
+                front_page.content.rendered.clone()
+            };
             front_page.content.rendered = format!(
                 "{}{}{}",
                 hooks.content_before_html, expanded, hooks.content_after_html
@@ -404,10 +435,20 @@ pub async fn handle_home_or_query(
                 Some(&front_page),
                 html,
             );
+            let (final_html, ab_assignments) = if settings
+                .active_plugins
+                .iter()
+                .any(|p| p == "daypress-ab-testing")
+            {
+                let visitor_hash = compute_visitor_hash_from_headers(&headers);
+                db.apply_ab_experiments_for_post(front_page.id, &visitor_hash, &final_html)
+            } else {
+                (final_html, Vec::new())
+            };
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some() || has_dp_filter,
+                user.is_some() || has_dp_filter || !ab_assignments.is_empty(),
                 final_html,
             );
         }
@@ -666,13 +707,16 @@ pub async fn handle_single(
         || paged.dp_term.is_some()
         || paged.dp_sort.is_some()
         || paged.dp_q.is_some()
-        || paged.dp_page.is_some();
+        || paged.dp_page.is_some()
+        || paged.subscriber_token.is_some();
     let cache_key = if page_num <= 1 {
         req_path.clone()
     } else {
         format!("{}?paged={}", req_path, page_num)
     };
-    if user.is_none() && !has_dp_filter {
+    let has_sub_cookie =
+        extract_subscriber_token(&headers, paged.subscriber_token.as_deref()).is_some();
+    if user.is_none() && !has_dp_filter && !has_sub_cookie {
         if let Some(hit) = db.hot_cache.try_serve(&cache_key, &headers) {
             return hit;
         }
@@ -687,12 +731,16 @@ pub async fn handle_single(
                 let raw_layout = db.get_post_layout(loc_front.id).unwrap_or(None);
                 let hooks =
                     crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&loc_front));
-                let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
-                    &loc_front.content.rendered,
-                    &db,
-                    &settings,
-                    Some(&loc_front),
-                );
+                let expanded = if raw_layout.is_none() {
+                    crate::plugins::expand_shortcodes_in_content_for_post(
+                        &loc_front.content.rendered,
+                        &db,
+                        &settings,
+                        Some(&loc_front),
+                    )
+                } else {
+                    loc_front.content.rendered.clone()
+                };
                 loc_front.content.rendered = format!(
                     "{}{}{}",
                     hooks.content_before_html, expanded, hooks.content_after_html
@@ -825,13 +873,25 @@ pub async fn handle_single(
             );
         }
 
-        let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
-            &post.content.rendered,
+        let (is_gated, is_gate_locked) = apply_member_gate_to_post(
             &db,
-            &settings,
-            Some(&post),
+            &mut post,
+            user.as_ref(),
+            &headers,
+            paged.subscriber_token.as_deref(),
         );
+
+        let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
+        let expanded = if raw_layout.is_none() || is_gate_locked {
+            crate::plugins::expand_shortcodes_in_content_for_post(
+                &post.content.rendered,
+                &db,
+                &settings,
+                Some(&post),
+            )
+        } else {
+            post.content.rendered.clone()
+        };
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html
@@ -844,19 +904,23 @@ pub async fn handle_single(
             settings.page_on_front > 0 && post.id == settings.page_on_front,
             terms,
         );
-        let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
-            &db,
-            &req_ctx,
-            &settings,
-            Some(&post),
-            raw_layout.as_deref(),
-            paged.dp_tax.clone(),
-            paged.dp_term.clone(),
-            paged.dp_sort.clone(),
-            paged.dp_q.clone(),
-            paged.dp_page,
-        )
-        .or(raw_layout);
+        let layout_json = if is_gate_locked {
+            None
+        } else {
+            SsrInjector::hydrate_post_layout_json_with_query(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&post),
+                raw_layout.as_deref(),
+                paged.dp_tax.clone(),
+                paged.dp_term.clone(),
+                paged.dp_sort.clone(),
+                paged.dp_q.clone(),
+                paged.dp_page,
+            )
+            .or(raw_layout)
+        };
         let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
             &db,
             &req_ctx,
@@ -873,10 +937,20 @@ pub async fn handle_single(
         );
         let final_html =
             crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
+        let (final_html, ab_assignments) = if settings
+            .active_plugins
+            .iter()
+            .any(|p| p == "daypress-ab-testing")
+        {
+            let visitor_hash = compute_visitor_hash_from_headers(&headers);
+            db.apply_ab_experiments_for_post(post.id, &visitor_hash, &final_html)
+        } else {
+            (final_html, Vec::new())
+        };
         return db.hot_cache.store_and_serve(
             &cache_key,
             &headers,
-            user.is_some() || has_dp_filter,
+            user.is_some() || has_dp_filter || is_gated || !ab_assignments.is_empty(),
             final_html,
         );
     }
@@ -974,4 +1048,257 @@ pub(crate) fn hydrate_post_terms(
         }
     }
     terms
+}
+
+/// Computes the daily-salted cookieless `visitor_hash` (`SHA-256(ip + user_agent + YYYY-MM-DD)`)
+/// matching `record_analytics_event_handler` so A/B test exposures and conversions correlate 1:1.
+pub fn compute_visitor_hash_from_headers(headers: &HeaderMap) -> String {
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(str::trim)
+        .unwrap_or("127.0.0.1");
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(client_ip.as_bytes());
+    hasher.update(ua.as_bytes());
+    hasher.update(today.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+/// Extracts a newsletter subscriber verification token from `?subscriber_token=` or `Cookie: daypress_subscriber=...`.
+pub fn extract_subscriber_token(headers: &HeaderMap, query_token: Option<&str>) -> Option<String> {
+    if let Some(qt) = query_token.map(str::trim).filter(|s| !s.is_empty()) {
+        return Some(qt.to_string());
+    }
+    let cookie_hdr = headers.get(header::COOKIE)?.to_str().ok()?;
+    for part in cookie_hdr.split(';') {
+        let trimmed = part.trim();
+        if let Some(val) = trimmed.strip_prefix("daypress_subscriber=") {
+            let v = val.trim();
+            if !v.is_empty() {
+                return Some(v.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Applies `post.member_gate` (`"public"`, `"subscribers_only"`, `"members_only"`).
+/// Returns `(is_gated, is_locked)`. When `is_locked` is `true`, `post.content.rendered` is replaced
+/// with a teaser preview + the Member Gate Paywall / Subscriber Unlock card.
+pub fn apply_member_gate_to_post(
+    db: &Database,
+    post: &mut models::DaypressPostResponse,
+    user: Option<&crate::auth::AuthUser>,
+    headers: &HeaderMap,
+    query_subscriber_token: Option<&str>,
+) -> (bool, bool) {
+    let gate = post.member_gate.trim().to_ascii_lowercase();
+    if gate != "subscribers_only" && gate != "members_only" {
+        return (false, false);
+    }
+
+    let is_unlocked = if gate == "members_only" {
+        user.is_some()
+    } else {
+        user.is_some()
+            || extract_subscriber_token(headers, query_subscriber_token)
+                .is_some_and(|tok| db.verify_subscriber_token(&tok))
+    };
+
+    if is_unlocked {
+        return (true, false);
+    }
+
+    let raw = &post.content.rendered;
+    let teaser = if let Some(more_idx) = raw.find("<!--more-->") {
+        raw[..more_idx].to_string()
+    } else if !post.excerpt.rendered.trim().is_empty() {
+        format!("<p>{}</p>", post.excerpt.rendered.trim())
+    } else {
+        let preview_chars: String = raw.chars().take(280).collect();
+        format!(
+            "<div class=\"dp-gated-teaser\">{}&hellip;</div>",
+            preview_chars
+        )
+    };
+    let gate_card = crate::plugins::render_member_gate_paywall_html(&post.title.rendered, &gate);
+    post.content.rendered = format!("{}\n{}", teaser, gate_card);
+    (true, true)
+}
+
+/// `GET /newsletter/confirm/{token}`: Confirms a double opt-in subscriber and sets the `daypress_subscriber` cookie.
+pub async fn handle_newsletter_confirm(
+    State(db): State<Database>,
+    AxPath(token): AxPath<String>,
+) -> Response {
+    let settings = db.get_settings().unwrap_or_default();
+    match db.confirm_subscriber_by_token(&token) {
+        Ok(Some(sub)) => {
+            let cookie_tok = sub
+                .unsubscribe_token
+                .as_deref()
+                .or(sub.confirm_token.as_deref())
+                .unwrap_or(&token);
+            let cookie_val = format!(
+                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax",
+                cookie_tok
+            );
+            let return_url = if sub.source_url.trim().starts_with('/') {
+                sub.source_url.trim().to_string()
+            } else {
+                "/".to_string()
+            };
+            let html = format!(
+                r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Subscription Confirmed &mdash; {site_title}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fafaf9; color: #18181b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px;">
+    <main style="max-width: 480px; width: 100%; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 16px; padding: 36px 28px; text-align: center; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06);">
+        <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
+        <h1 style="margin: 0 0 10px; font-size: 22px; font-weight: 800;">Subscription Confirmed!</h1>
+        <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #52525b;">Thank you for confirming <strong>{email}</strong>. Your browser is now unlocked for all subscriber-exclusive posts on <strong>{site_title}</strong>.</p>
+        <a href="{return_url}" style="display: inline-block; background: #a8401b; color: #ffffff; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 8px;">Continue Reading &rarr;</a>
+    </main>
+</body>
+</html>"#,
+                site_title = crate::templates::utils::escape_html(&settings.title),
+                email = crate::templates::utils::escape_html(&sub.email),
+                return_url = crate::templates::utils::escape_html(&return_url),
+            );
+            let mut resp_headers = HeaderMap::new();
+            if let Ok(hv) = cookie_val.parse() {
+                resp_headers.insert(header::SET_COOKIE, hv);
+            }
+            (StatusCode::OK, resp_headers, Html(html)).into_response()
+        }
+        _ => (
+            StatusCode::NOT_FOUND,
+            Html(
+                "<!DOCTYPE html><html><body style=\"font-family:sans-serif;text-align:center;padding:60px;\"><h1>Invalid or expired confirmation link</h1><p><a href=\"/\">Return home</a></p></body></html>"
+                    .to_string(),
+            ),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET|POST /newsletter/unsubscribe/{token}`: 1-Click RFC-8058 unsubscribe handler.
+pub async fn handle_newsletter_unsubscribe(
+    State(db): State<Database>,
+    AxPath(token): AxPath<String>,
+) -> Response {
+    let settings = db.get_settings().unwrap_or_default();
+    match db.unsubscribe_by_token(&token) {
+        Ok(Some(sub)) => {
+            let mut resp_headers = HeaderMap::new();
+            if let Ok(hv) = "daypress_subscriber=; Path=/; Max-Age=0; SameSite=Lax".parse() {
+                resp_headers.insert(header::SET_COOKIE, hv);
+            }
+            let html = format!(
+                r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unsubscribed &mdash; {site_title}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fafaf9; color: #18181b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px;">
+    <main style="max-width: 480px; width: 100%; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 16px; padding: 36px 28px; text-align: center;">
+        <h1 style="margin: 0 0 10px; font-size: 22px; font-weight: 800;">You Have Been Unsubscribed</h1>
+        <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #52525b;"><strong>{email}</strong> has been removed from our active mailing list and will no longer receive email dispatches.</p>
+        <a href="/" style="display: inline-block; background: #18181b; color: #ffffff; font-weight: 600; text-decoration: none; padding: 11px 22px; border-radius: 8px;">Return to {site_title}</a>
+    </main>
+</body>
+</html>"#,
+                site_title = crate::templates::utils::escape_html(&settings.title),
+                email = crate::templates::utils::escape_html(&sub.email),
+            );
+            (StatusCode::OK, resp_headers, Html(html)).into_response()
+        }
+        _ => (
+            StatusCode::NOT_FOUND,
+            Html(
+                "<!DOCTYPE html><html><body style=\"font-family:sans-serif;text-align:center;padding:60px;\"><h1>Unsubscribe link not found</h1><p><a href=\"/\">Return home</a></p></body></html>"
+                    .to_string(),
+            ),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET /go/{slug}`: Branded Shortlinks & Affiliate Tracker (`Pretty Links` parity).
+/// Resolves `/go/{slug}`, appends configured UTM parameters (`utm_source`, `utm_medium`,
+/// `utm_campaign`), increments click + unique visitor counters, logs a cookieless analytics
+/// conversion event, and returns an HTTP `301`/`302`/`307` redirect with optional
+/// `X-Robots-Tag: nofollow, sponsored` header.
+pub async fn handle_shortlink_redirect(
+    State(db): State<Database>,
+    AxPath(slug): AxPath<String>,
+    headers: HeaderMap,
+) -> Response {
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(str::trim)
+        .unwrap_or("127.0.0.1");
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(client_ip.as_bytes());
+    hasher.update(ua.as_bytes());
+    hasher.update(today.as_bytes());
+    let visitor_hash = hex::encode(hasher.finalize());
+
+    let referrer = headers
+        .get(header::REFERER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    match db.resolve_shortlink_and_record_click(&slug, &visitor_hash, referrer) {
+        Some((resolved_target, status_code)) => {
+            let status = match status_code {
+                301 => StatusCode::MOVED_PERMANENTLY,
+                302 => StatusCode::FOUND,
+                307 => StatusCode::TEMPORARY_REDIRECT,
+                308 => StatusCode::PERMANENT_REDIRECT,
+                _ => StatusCode::TEMPORARY_REDIRECT,
+            };
+            let mut resp_headers = HeaderMap::new();
+            if let Ok(loc) = resolved_target.parse() {
+                resp_headers.insert(header::LOCATION, loc);
+            }
+            if let Ok(robots_val) = "nofollow, sponsored".parse() {
+                resp_headers.insert("X-Robots-Tag", robots_val);
+            }
+            if let Ok(cc) = "no-store, no-cache, must-revalidate".parse() {
+                resp_headers.insert(header::CACHE_CONTROL, cc);
+            }
+            (status, resp_headers, "").into_response()
+        }
+        None => (
+            StatusCode::NOT_FOUND,
+            Html(
+                "<!DOCTYPE html><html><body style=\"font-family:sans-serif;text-align:center;padding:60px;\"><h1>Shortlink not found</h1><p><a href=\"/\">Return home</a></p></body></html>"
+                    .to_string(),
+            ),
+        )
+            .into_response(),
+    }
 }

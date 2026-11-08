@@ -696,6 +696,12 @@ fn serve_image_in_memory(img: &image::DynamicImage, target: &Path) -> Result<Res
     if let Ok(cc) = "public, max-age=86400".parse() {
         headers.insert(header::CACHE_CONTROL, cc);
     }
+    if let Ok(nosniff) = "nosniff".parse() {
+        headers.insert(header::X_CONTENT_TYPE_OPTIONS, nosniff);
+    }
+    if let Ok(csp) = "default-src 'none'; style-src 'unsafe-inline'; sandbox".parse() {
+        headers.insert(header::CONTENT_SECURITY_POLICY, csp);
+    }
     Ok((StatusCode::OK, headers, Body::from(bytes.into_inner())).into_response())
 }
 
@@ -714,6 +720,12 @@ fn serve_file_response(path: &Path) -> Result<Response, StatusCode> {
         header::CACHE_CONTROL,
         "public, max-age=31536000, immutable".parse().unwrap(),
     );
+    if let Ok(nosniff) = "nosniff".parse() {
+        headers.insert(header::X_CONTENT_TYPE_OPTIONS, nosniff);
+    }
+    if let Ok(csp) = "default-src 'none'; style-src 'unsafe-inline'; sandbox".parse() {
+        headers.insert(header::CONTENT_SECURITY_POLICY, csp);
+    }
 
     Ok((StatusCode::OK, headers, Body::from(bytes)).into_response())
 }

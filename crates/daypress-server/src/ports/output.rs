@@ -176,6 +176,46 @@ pub trait OptionRepository: Send + Sync {
     ) -> DomainResult<serde_json::Value> {
         Err(crate::domain::errors::DomainError::NotFound("mock".into()))
     }
+    fn list_subscribers_json(
+        &self,
+        _status: Option<&str>,
+        _list: Option<&str>,
+    ) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "subscribers": [], "stats": {} }))
+    }
+    fn create_newsletter_campaign_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Err(crate::domain::errors::DomainError::NotFound("mock".into()))
+    }
+    fn manage_shortlinks_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "shortlinks": [] }))
+    }
+    fn manage_webhooks_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "webhooks": [], "deliveries": [] }))
+    }
+    fn manage_ab_tests_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "ab_tests": [] }))
+    }
+    fn get_web_vitals_json(&self) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({}))
+    }
+    fn manage_wasm_extensions_json(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> DomainResult<serde_json::Value> {
+        Ok(serde_json::json!({ "wasm_extensions": [] }))
+    }
 }
 
 /// Output port for WordPress Comments (`comments`).

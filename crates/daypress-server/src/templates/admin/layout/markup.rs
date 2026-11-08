@@ -66,6 +66,126 @@ pub fn render_admin_shell(
         .filter(|c| c.is_ascii_alphanumeric())
         .collect();
 
+    let has_plugin = |slug: &str| settings.active_plugins.iter().any(|p| p == slug);
+
+    let nav_sub_wasm = if has_plugin("daypress-wasm-runtime") || current_tab == "wasm" {
+        format!(
+            r#"<a href="/d-admin/wasm" class="nav-subitem {}">Wasm Extensions (.wasm)</a>"#,
+            nav.is_wasm
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_forms = if has_plugin("daypress-forms") || current_tab == "forms" {
+        format!(
+            r#"<a href="/d-admin/forms" class="nav-subitem {}">{}</a>"#,
+            nav.is_forms,
+            tr("nav.forms")
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_newsletters = if has_plugin("daypress-newsletters") || current_tab == "newsletters"
+    {
+        format!(
+            r#"<a href="/d-admin/newsletters" class="nav-subitem {}">Newsletters</a>"#,
+            nav.is_newsletters
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_whatsapp = if has_plugin("whatsapp-chat") || current_tab == "whatsapp-chat" {
+        format!(
+            r#"<a href="/d-admin/plugin-settings?plugin=whatsapp-chat" class="nav-subitem {}">WhatsApp Chat</a>"#,
+            nav.is_whatsapp_chat
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_webhooks = if has_plugin("daypress-webhooks")
+        || current_tab == "webhooks"
+        || current_tab == "shortlinks"
+    {
+        format!(
+            r#"<a href="/d-admin/webhooks" class="nav-subitem {}">Shortlinks &amp; Webhooks</a>"#,
+            nav.is_webhooks
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_ab_testing = if has_plugin("daypress-ab-testing") || current_tab == "ab-testing" {
+        format!(
+            r#"<a href="/d-admin/ab-testing" class="nav-subitem {}">A/B Testing &amp; Vitals</a>"#,
+            nav.is_ab_testing
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_code_snippets = if has_plugin("code-snippets") || current_tab == "code-snippets" {
+        format!(
+            r#"<a href="/d-admin/plugin-settings?plugin=code-snippets" class="nav-subitem {}">Header &amp; Footer Snippets</a>"#,
+            nav.is_code_snippets
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_seo = if has_plugin("daypress-seo") || current_tab == "seo" {
+        format!(
+            r#"<a href="/d-admin/seo" class="nav-subitem {}">SEO &amp; Redirects</a>"#,
+            nav.is_seo
+        )
+    } else {
+        String::new()
+    };
+
+    let nav_sub_backups = if has_plugin("daypress-backups") || current_tab == "backups" {
+        format!(
+            r#"<a href="/d-admin/backups" class="nav-subitem {}">Backups</a>"#,
+            nav.is_backups
+        )
+    } else {
+        String::new()
+    };
+
+    let mut qs_plugin_screens = String::new();
+    if has_plugin("daypress-forms") {
+        qs_plugin_screens.push_str("['Forms Studio', '/d-admin/forms'], ");
+    }
+    if has_plugin("daypress-newsletters") {
+        qs_plugin_screens.push_str("['Newsletters & Member Gate', '/d-admin/newsletters'], ");
+    }
+    if has_plugin("whatsapp-chat") {
+        qs_plugin_screens
+            .push_str("['WhatsApp Chat', '/d-admin/plugin-settings?plugin=whatsapp-chat'], ");
+    }
+    if has_plugin("code-snippets") {
+        qs_plugin_screens.push_str(
+            "['Header & Footer Snippets', '/d-admin/plugin-settings?plugin=code-snippets'], ",
+        );
+    }
+    if has_plugin("daypress-webhooks") {
+        qs_plugin_screens.push_str("['Shortlinks & Webhooks', '/d-admin/webhooks'], ");
+    }
+    if has_plugin("daypress-ab-testing") {
+        qs_plugin_screens.push_str("['A/B Testing & Vitals', '/d-admin/ab-testing'], ");
+    }
+    if has_plugin("daypress-wasm-runtime") {
+        qs_plugin_screens.push_str("['Wasm Extensions (.wasm)', '/d-admin/wasm'], ");
+    }
+    if has_plugin("daypress-seo") {
+        qs_plugin_screens.push_str("['SEO & Redirects', '/d-admin/seo'], ");
+    }
+    if has_plugin("daypress-backups") {
+        qs_plugin_screens.push_str("['Backups', '/d-admin/backups'], ");
+    }
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="{html_lang}" data-admin-color="{admin_color}">
@@ -270,23 +390,23 @@ pub fn render_admin_shell(
 				<div class="nav-submenu">
 					<a href="/d-admin/plugins" class="nav-subitem {sub_plug_list}">Installed Plugins</a>
 					<a href="/d-admin/plugin-install" class="nav-subitem {sub_plug_new}">Add New &amp; SDK</a>
+					{nav_sub_wasm}
 				</div>
 			</div>
 
-			<!-- 8b. FORMS STUDIO -->
-			<div class="nav-group">
-				<a href="/d-admin/forms" class="nav-item {is_forms}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-					<span>{nav_forms}</span>
+			<!-- 8b. MARKETING (Overview, Forms, Newsletters, Analytics, WhatsApp Chat) -->
+			<div class="nav-group {is_marketing_open}">
+				<a href="/d-admin/marketing" class="nav-item {is_marketing}">
+					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path></svg>
+					<span>Marketing</span>
 				</a>
-			</div>
-
-			<!-- 8c. COOKIELESS ANALYTICS -->
-			<div class="nav-group">
-				<a href="/d-admin/analytics" class="nav-item {is_analytics}">
-					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-					<span>{nav_analytics}</span>
-				</a>
+				<div class="nav-submenu">
+					<a href="/d-admin/marketing" class="nav-subitem {sub_mkt_overview}">Overview</a>
+					{nav_sub_forms}
+					{nav_sub_newsletters}
+					<a href="/d-admin/analytics" class="nav-subitem {is_analytics}">{nav_analytics}</a>
+					{nav_sub_whatsapp}
+				</div>
 			</div>
 
 			<!-- 9. USERS -->
@@ -312,8 +432,11 @@ pub fn render_admin_shell(
 					<a href="/d-admin/tools" class="nav-subitem {sub_tools_avail}">Available Tools</a>
 					<a href="/d-admin/import" class="nav-subitem {sub_tools_import}">Import</a>
 					<a href="/d-admin/export" class="nav-subitem {sub_tools_export}">Export</a>
-					<a href="/d-admin/seo" class="nav-subitem {is_seo}">SEO &amp; Redirects</a>
-					<a href="/d-admin/backups" class="nav-subitem {is_backups}">Backups</a>
+					{nav_sub_webhooks}
+					{nav_sub_ab_testing}
+					{nav_sub_code_snippets}
+					{nav_sub_seo}
+					{nav_sub_backups}
 					<a href="/d-admin/site-health" class="nav-subitem {sub_tools_health}">Site Health</a>
 					<a href="/d-admin/export-personal-data" class="nav-subitem {sub_tools_exp_data}">Export Personal Data</a>
 					<a href="/d-admin/erase-personal-data" class="nav-subitem {sub_tools_era_data}">Erase Personal Data</a>
@@ -403,9 +526,10 @@ pub fn render_admin_shell(
 		['Customize', '/d-admin/customize'],
 		['Widgets', '/d-admin/widgets'], ['Menus', '/d-admin/nav-menus'], ['Theme File Editor', '/d-admin/theme-editor'],
 		['Installed Plugins', '/d-admin/plugins'], ['Add New Plugin', '/d-admin/plugin-install'],
-		['Forms Studio', '/d-admin/forms'], ['Users', '/d-admin/users'], ['Add New User', '/d-admin/user-new'],
+		['Marketing Hub', '/d-admin/marketing'],
+		{qs_plugin_screens}['Users', '/d-admin/users'], ['Add New User', '/d-admin/user-new'],
 		['Profile', '/d-admin/profile'], ['Tools', '/d-admin/tools'], ['Import', '/d-admin/import'],
-		['Export', '/d-admin/export'], ['SEO & Redirects', '/d-admin/seo'], ['Backups', '/d-admin/backups'],
+		['Export', '/d-admin/export'],
 		['Site Health', '/d-admin/site-health'], ['Export Personal Data', '/d-admin/export-personal-data'],
 		['Erase Personal Data', '/d-admin/erase-personal-data'], ['General Settings', '/d-admin/options-general'],
 		['Writing Settings', '/d-admin/options-writing'], ['Reading Settings', '/d-admin/options-reading'],
@@ -615,10 +739,20 @@ pub fn render_admin_shell(
         is_plugins_open = nav.is_plugins_open,
         sub_plug_list = nav.sub_plug_list,
         sub_plug_new = nav.sub_plug_new,
-        is_seo = nav.is_seo,
-        is_forms = nav.is_forms,
+        is_marketing = nav.is_marketing,
+        is_marketing_open = nav.is_marketing_open,
+        sub_mkt_overview = nav.sub_mkt_overview,
         is_analytics = nav.is_analytics,
-        is_backups = nav.is_backups,
+        nav_sub_wasm = nav_sub_wasm,
+        nav_sub_forms = nav_sub_forms,
+        nav_sub_newsletters = nav_sub_newsletters,
+        nav_sub_whatsapp = nav_sub_whatsapp,
+        nav_sub_webhooks = nav_sub_webhooks,
+        nav_sub_ab_testing = nav_sub_ab_testing,
+        nav_sub_code_snippets = nav_sub_code_snippets,
+        nav_sub_seo = nav_sub_seo,
+        nav_sub_backups = nav_sub_backups,
+        qs_plugin_screens = qs_plugin_screens,
         is_users = nav.is_users,
         is_users_open = nav.is_users_open,
         sub_users_all = nav.sub_users_all,
@@ -667,7 +801,6 @@ pub fn render_admin_shell(
         nav_comments = tr("nav.comments"),
         nav_appearance = tr("nav.appearance"),
         nav_plugins = tr("nav.plugins"),
-        nav_forms = tr("nav.forms"),
         nav_analytics = tr("nav.analytics"),
         nav_users = tr("nav.users"),
         nav_tools = tr("nav.tools"),

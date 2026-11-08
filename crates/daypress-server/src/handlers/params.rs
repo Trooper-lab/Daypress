@@ -19,6 +19,7 @@ pub struct QueryPostParams {
     pub dp_q: Option<String>,
     pub dp_page: Option<usize>,
     pub preview_token: Option<String>,
+    pub subscriber_token: Option<String>,
     pub lang: Option<String>,
 }
 
@@ -36,6 +37,7 @@ pub struct PagedQuery {
     pub dp_q: Option<String>,
     pub dp_page: Option<usize>,
     pub preview_token: Option<String>,
+    pub subscriber_token: Option<String>,
     pub lang: Option<String>,
 }
 

@@ -229,8 +229,34 @@ pub(crate) async fn upload_media(
             })
             .collect::<String>();
 
-        let is_svg = clean_name.to_ascii_lowercase().ends_with(".svg")
-            || content_type_raw.eq_ignore_ascii_case("image/svg+xml");
+        let lower_name = clean_name.to_ascii_lowercase();
+        let lower_ct = content_type_raw.trim().to_ascii_lowercase();
+        let is_dangerous_ext = [
+            ".html", ".htm", ".xhtml", ".shtml", ".js", ".mjs", ".cjs", ".php", ".phtml", ".phar",
+            ".sh", ".bat", ".cmd", ".exe", ".dll", ".msi", ".ps1", ".vbs", ".jsp", ".asp", ".aspx",
+        ]
+        .iter()
+        .any(|ext| lower_name.ends_with(ext));
+        let is_dangerous_mime = matches!(
+            lower_ct.as_str(),
+            "text/html"
+                | "application/xhtml+xml"
+                | "application/javascript"
+                | "text/javascript"
+                | "application/x-javascript"
+                | "application/x-httpd-php"
+                | "application/x-sh"
+                | "application/x-msdownload"
+        );
+        if is_dangerous_ext || is_dangerous_mime {
+            return Err(AppError::BadRequest(format!(
+                "Uploading executable or HTML/script files ('{}') is not permitted for security reasons.",
+                clean_name
+            )));
+        }
+
+        let is_svg =
+            lower_name.ends_with(".svg") || content_type_raw.eq_ignore_ascii_case("image/svg+xml");
         let content_type = if is_svg {
             "image/svg+xml".to_string()
         } else {

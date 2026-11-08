@@ -865,6 +865,50 @@ pub fn render_base_layout(
 				if (g) window.daypressTrack(g);
 			}}
 		}});
+		if (window.PerformanceObserver) {{
+			var vitals = {{ lcp_ms: null, inp_ms: null, cls_score: 0, ttfb_ms: null }};
+			var vitalsSent = false;
+			try {{
+				var navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+				if (navEntry && navEntry.responseStart > 0) vitals.ttfb_ms = Math.round(navEntry.responseStart);
+				new PerformanceObserver(function(list) {{
+					var entries = list.getEntries();
+					var last = entries[entries.length - 1];
+					if (last) vitals.lcp_ms = Math.round(last.startTime);
+				}}).observe({{ type: 'largest-contentful-paint', buffered: true }});
+				new PerformanceObserver(function(list) {{
+					list.getEntries().forEach(function(entry) {{
+						if (!entry.hadRecentInput) vitals.cls_score = Math.round((vitals.cls_score + entry.value) * 1000) / 1000;
+					}});
+				}}).observe({{ type: 'layout-shift', buffered: true }});
+				new PerformanceObserver(function(list) {{
+					list.getEntries().forEach(function(entry) {{
+						if (entry.duration && (!vitals.inp_ms || entry.duration > vitals.inp_ms)) vitals.inp_ms = Math.round(entry.duration);
+					}});
+				}}).observe({{ type: 'event', buffered: true, durationThreshold: 16 }});
+			}} catch(e) {{}}
+			function flushVitals() {{
+				if (vitalsSent || !canTrack() || !window.fetch) return;
+				if (vitals.lcp_ms === null && vitals.ttfb_ms === null) return;
+				vitalsSent = true;
+				fetch('/wp-json/daypress/v1/analytics/vitals', {{
+					method: 'POST',
+					headers: {{ 'Content-Type': 'application/json' }},
+					body: JSON.stringify({{
+						page_url: window.location.pathname,
+						device_type: window.innerWidth < 768 ? 'mobile' : (window.innerWidth < 1024 ? 'tablet' : 'desktop'),
+						lcp_ms: vitals.lcp_ms,
+						inp_ms: vitals.inp_ms,
+						cls_score: vitals.cls_score,
+						ttfb_ms: vitals.ttfb_ms
+					}}),
+					keepalive: true
+				}}).catch(function(){{}});
+			}}
+			document.addEventListener('visibilitychange', function() {{
+				if (document.visibilityState === 'hidden') flushVitals();
+			}});
+		}}
 	}})();
 	</script>
 

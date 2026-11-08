@@ -3,6 +3,44 @@ use crate::models::{DaypressSettingsResponse, DbStats};
 
 // 1. Available Tools (/d-admin/tools)
 pub fn render_tools_view(settings: &DaypressSettingsResponse, stats: &DbStats) -> String {
+    let has_plugin = |slug: &str| settings.active_plugins.iter().any(|p| p == slug);
+
+    let webhooks_card = if has_plugin("daypress-webhooks") {
+        r#"<div class="day-card" style="padding: 24px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Branded Shortlinks (<code>/go/*</code>) &amp; Signed Webhooks</h3>
+            <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px; line-height: 1.5;">
+                Create first-party <code>/go/slug</code> affiliate/campaign shortlinks with click &amp; UTM tracking, and configure HMAC-SHA256 signed outbound webhooks with 1-click replay.
+            </p>
+            <a href="/d-admin/webhooks" class="btn btn-secondary" style="font-size: 12.5px;">Open Shortlinks &amp; Webhooks &rarr;</a>
+        </div>"#
+    } else {
+        ""
+    };
+
+    let ab_card = if has_plugin("daypress-ab-testing") {
+        r#"<div class="day-card" style="padding: 24px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Zero-Flicker A/B Experiments &amp; Web Vitals</h3>
+            <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px; line-height: 1.5;">
+                Run zero-flicker server-side A/B split experiments with two-proportion Z-test significance and monitor real-user LCP, INP, CLS, and TTFB p75 telemetry.
+            </p>
+            <a href="/d-admin/ab-testing" class="btn btn-secondary" style="font-size: 12.5px;">Open A/B Testing &amp; Vitals &rarr;</a>
+        </div>"#
+    } else {
+        ""
+    };
+
+    let snippets_card = if has_plugin("code-snippets") {
+        r#"<div class="day-card" style="padding: 24px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Header, Footer &amp; Script Injector</h3>
+            <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px; line-height: 1.5;">
+                Safely inject custom HTML, CSS, tracking pixels, or scripts directly into <code>&lt;head&gt;</code>, <code>&lt;body&gt;</code>, or <code>&lt;footer&gt;</code> across your site.
+            </p>
+            <a href="/d-admin/plugin-settings?plugin=code-snippets" class="btn btn-secondary" style="font-size: 12.5px;">Configure Snippets &rarr;</a>
+        </div>"#
+    } else {
+        ""
+    };
+
     let body = format!(
         r##"
         <div class="page-header">
@@ -16,6 +54,10 @@ pub fn render_tools_view(settings: &DaypressSettingsResponse, stats: &DbStats) -
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+            {webhooks_card}
+            {ab_card}
+            {snippets_card}
+
             <div class="day-card" style="padding: 24px;">
                 <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Categories and Tags Converter</h3>
                 <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px; line-height: 1.5;">
@@ -117,6 +159,9 @@ pub fn render_tools_view(settings: &DaypressSettingsResponse, stats: &DbStats) -
             }}
         </script>
         "##,
+        webhooks_card = webhooks_card,
+        ab_card = ab_card,
+        snippets_card = snippets_card,
         db_path = stats.db_path,
         db_size_kb = stats.file_size_bytes / 1024,
         page_count = stats.page_count,

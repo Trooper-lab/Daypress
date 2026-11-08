@@ -259,6 +259,7 @@ CREATE TABLE IF NOT EXISTS daypress_plugins (
     config_json TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_daypress_plugins_active ON daypress_plugins(is_active, slug);
 
 -- Native Subsystems: Static Edge Publishing & Deployment Ledger
 CREATE TABLE IF NOT EXISTS daypress_deployments (
@@ -433,4 +434,162 @@ CREATE TABLE IF NOT EXISTS daypress_preview_tokens (
     revoked_at INTEGER DEFAULT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_preview_tokens_post ON daypress_preview_tokens(post_id, expires_at);
+"#;
+
+/// v0.9 Pillar 1: Built-in Newsletters, Member-Gated Posts & Automated Email Digests (`MailPoet` / `Ghost` parity).
+pub const V09_NEWSLETTERS_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS daypress_subscribers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    lists_json TEXT NOT NULL DEFAULT '["general"]',
+    confirm_token TEXT NOT NULL UNIQUE,
+    unsubscribe_token TEXT NOT NULL UNIQUE,
+    source_url TEXT NOT NULL DEFAULT '',
+    ip_hash TEXT NOT NULL DEFAULT '',
+    confirmed_at TEXT DEFAULT NULL,
+    unsubscribed_at TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subscribers_status ON daypress_subscribers(status, created_at);
+
+CREATE TABLE IF NOT EXISTS daypress_newsletter_campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    target_list TEXT NOT NULL DEFAULT 'general',
+    campaign_type TEXT NOT NULL DEFAULT 'broadcast',
+    post_id INTEGER DEFAULT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    recipient_count INTEGER NOT NULL DEFAULT 0,
+    sent_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    sent_at TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_newsletter_campaigns_post ON daypress_newsletter_campaigns(post_id, campaign_type);
+"#;
+
+/// v0.9 Pillar 2: Branded Shortlinks (`/go/*`) & HMAC-Signed Outbound Webhooks (`Pretty Links` / `WP Webhooks` parity).
+pub const V09_WEBHOOKS_AND_SHORTLINKS_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS daypress_shortlinks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    target_url TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    status_code INTEGER NOT NULL DEFAULT 302,
+    utm_source TEXT NOT NULL DEFAULT '',
+    utm_medium TEXT NOT NULL DEFAULT '',
+    utm_campaign TEXT NOT NULL DEFAULT '',
+    clicks INTEGER NOT NULL DEFAULT 0,
+    last_clicked_at TEXT DEFAULT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_shortlinks_slug ON daypress_shortlinks(slug, is_active);
+
+CREATE TABLE IF NOT EXISTS daypress_webhooks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    target_url TEXT NOT NULL,
+    preset TEXT NOT NULL DEFAULT 'generic',
+    events_json TEXT NOT NULL DEFAULT '["post.published","form.submitted"]',
+    secret TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS daypress_webhook_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    webhook_id INTEGER NOT NULL,
+    webhook_name TEXT NOT NULL DEFAULT '',
+    event_name TEXT NOT NULL,
+    target_url TEXT NOT NULL,
+    request_headers_json TEXT NOT NULL DEFAULT '{}',
+    payload_json TEXT NOT NULL,
+    signature_header TEXT NOT NULL DEFAULT '',
+    response_status INTEGER NOT NULL DEFAULT 0,
+    response_body TEXT NOT NULL DEFAULT '',
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    attempt_count INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'delivered',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_hook ON daypress_webhook_deliveries(webhook_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_wh_id_desc ON daypress_webhook_deliveries(webhook_id, id DESC);
+"#;
+
+/// v0.9 Pillar 3: Zero-Flicker Server-Side A/B Split Testing & Real-User Core Web Vitals (`LCP` / `INP` / `CLS`).
+pub const V09_AB_AND_WEB_VITALS_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS daypress_ab_tests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    post_id INTEGER NOT NULL,
+    target_selector TEXT NOT NULL DEFAULT '',
+    control_text TEXT NOT NULL DEFAULT '',
+    variant_text TEXT NOT NULL DEFAULT '',
+    goal_event TEXT NOT NULL DEFAULT 'conversion',
+    traffic_split INTEGER NOT NULL DEFAULT 50,
+    status TEXT NOT NULL DEFAULT 'running',
+    control_views INTEGER NOT NULL DEFAULT 0,
+    control_conversions INTEGER NOT NULL DEFAULT 0,
+    variant_views INTEGER NOT NULL DEFAULT 0,
+    variant_conversions INTEGER NOT NULL DEFAULT 0,
+    winner TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ab_tests_post_status ON daypress_ab_tests(post_id, status);
+
+CREATE TABLE IF NOT EXISTS daypress_ab_exposures (
+    test_id INTEGER NOT NULL,
+    visitor_hash TEXT NOT NULL,
+    variant TEXT NOT NULL,
+    converted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (test_id, visitor_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_ab_exposures_visitor ON daypress_ab_exposures(visitor_hash, converted);
+
+CREATE TABLE IF NOT EXISTS daypress_web_vitals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_url TEXT NOT NULL,
+    device_type TEXT NOT NULL DEFAULT 'desktop',
+    lcp_ms REAL DEFAULT NULL,
+    inp_ms REAL DEFAULT NULL,
+    cls_score REAL DEFAULT NULL,
+    ttfb_ms REAL DEFAULT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_vitals_created ON daypress_web_vitals(created_at, page_url);
+"#;
+
+/// v0.9 Pillar 4: Sandboxed WebAssembly (`.wasm`) Extension Crates (`daypress_wasm_extensions`, `daypress_wasm_kv`).
+pub const V09_WASM_EXTENSIONS_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS daypress_wasm_extensions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL DEFAULT '1.0.0',
+    description TEXT NOT NULL DEFAULT '',
+    shortcode TEXT NOT NULL DEFAULT '',
+    capabilities_json TEXT NOT NULL DEFAULT '{"shortcodes":true}',
+    fuel_limit INTEGER NOT NULL DEFAULT 50000,
+    max_memory_pages INTEGER NOT NULL DEFAULT 16,
+    wasm_sha256 TEXT NOT NULL,
+    wasm_bytes BLOB NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    executions INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wasm_extensions_active ON daypress_wasm_extensions(is_active, shortcode);
+
+CREATE TABLE IF NOT EXISTS daypress_wasm_kv (
+    extension_slug TEXT NOT NULL COLLATE NOCASE,
+    kv_key TEXT NOT NULL,
+    kv_value TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (extension_slug, kv_key)
+);
 "#;

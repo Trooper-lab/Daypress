@@ -10,10 +10,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
     vec![
         PluginManifest {
             slug: "daypress-seo".to_string(),
-            name: "Daypress SEO & Redirection Suite".to_string(),
+            name: "Search, Schema & Redirection Studio".to_string(),
             version: "2.5.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "Full Yoast & RankMath parity: Per-post SEO title/description/focus-keyphrase analyzer, Schema.org JSON-LD graph, OpenGraph cards, 301/302 Redirect Manager, and 404 Monitor.".to_string(),
+            description: "Per-post SEO title, meta description & focus-keyphrase analyzer, Schema.org JSON-LD knowledge graph, OpenGraph social cards, 301/302 Redirect Manager, and 404 Monitor.".to_string(),
             settings_url: Some("/d-admin/seo".to_string()),
             is_builtin: true,
             // Global SEO settings live in `options` and are edited on /d-admin/seo
@@ -23,10 +23,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "daypress-forms".to_string(),
-            name: "Daypress Forms Studio & Submissions Vault".to_string(),
+            name: "FormStudio & Submissions Vault".to_string(),
             version: "3.0.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "All-in-One FormStudio (WPForms, Gravity Forms & CF7 parity): Multi-step wizard forms, multi-column layouts, conditional field visibility, calculated fields, visitor file uploads, honeypot/timestamp/Turnstile anti-spam, and a fail-safe SQLite Submissions Vault with 1-click email retry.".to_string(),
+            description: "Multi-step wizard forms, multi-column layouts, conditional field visibility, calculated fields, visitor file uploads, honeypot/Turnstile anti-spam, and a fail-safe SQLite Submissions Vault with 1-click email retry.".to_string(),
             settings_url: Some("/d-admin/forms".to_string()),
             is_builtin: true,
             // Per-form settings (notifications, honeypot, webhooks) are stored on each form
@@ -36,10 +36,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "daypress-cookie-consent".to_string(),
-            name: "Native GDPR Privacy & Cookie Consent Banner".to_string(),
+            name: "Privacy & Consent Banner".to_string(),
             version: "1.0.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "Complianz & CookieYes parity: Zero-bloat (<2 KB) GDPR/CCPA cookie consent banner with granular script category gating (Necessary, Analytics, Marketing) configured directly in Settings → Privacy.".to_string(),
+            description: "Zero-bloat (<2 KB) GDPR/CCPA & ePrivacy consent banner with granular script category gating (Necessary, Analytics, Marketing) configured in Settings → Privacy.".to_string(),
             settings_url: Some("/d-admin/options-privacy".to_string()),
             is_builtin: true,
             settings_schema: vec![],
@@ -47,10 +47,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "daypress-backups".to_string(),
-            name: "Snapshot & Hot Backup Manager".to_string(),
+            name: "Hot Snapshots & Point-in-Time Backups".to_string(),
             version: "1.8.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "UpdraftPlus & All-in-One WP Migration parity: Zero-downtime SQLite VACUUM INTO hot snapshots, 1-click point-in-time restore, and full JSON/WXR archive downloads.".to_string(),
+            description: "Zero-downtime SQLite VACUUM INTO hot snapshots, 1-click point-in-time restore, and full JSON/WXR portable archive downloads.".to_string(),
             settings_url: Some("/d-admin/backups".to_string()),
             is_builtin: true,
             settings_schema: vec![],
@@ -58,10 +58,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "whatsapp-chat".to_string(),
-            name: "Floating WhatsApp & Lead Chat Button".to_string(),
+            name: "Direct Chat & WhatsApp Launcher".to_string(),
             version: "1.5.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "Joinchat & Click-to-Chat parity: Zero-JS floating WhatsApp chat launcher with customizable phone number, welcome message, CTA tooltip badge, and corner placement.".to_string(),
+            description: "Zero-JS floating click-to-chat launcher with customizable phone number, pre-filled greeting, CTA tooltip badge, and corner placement.".to_string(),
             settings_url: Some("/d-admin/plugin-settings?plugin=whatsapp-chat".to_string()),
             is_builtin: true,
             settings_schema: vec![
@@ -110,10 +110,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "code-snippets".to_string(),
-            name: "WPCode Header, Footer & Custom Snippets".to_string(),
+            name: "Header, Footer & Script Injector".to_string(),
             version: "1.4.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "WPCode & Insert Headers and Footers parity: Safely inject custom HTML, CSS, tracking pixels (GTM, Meta Pixel, Plausible), or scripts into <head>, <body>, or <footer>.".to_string(),
+            description: "Safely inject custom HTML, CSS, tracking pixels (GTM, Meta Pixel, Plausible), or verification tags into <head>, <body>, or <footer>.".to_string(),
             settings_url: Some("/d-admin/plugin-settings?plugin=code-snippets".to_string()),
             is_builtin: true,
             settings_schema: vec![
@@ -146,10 +146,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "daypress-wal-optimizer".to_string(),
-            name: "Daypress WAL Optimizer".to_string(),
+            name: "SQLite WAL Checkpoint & Compaction".to_string(),
             version: "1.0.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "Automated Write-Ahead-Log checkpointing: while active, runs PRAGMA wal_checkpoint(TRUNCATE) every 5 minutes to keep the -wal file small and reads fast.".to_string(),
+            description: "Automated Write-Ahead-Log maintenance: runs PRAGMA wal_checkpoint(TRUNCATE) every 5 minutes to keep the -wal journal compact and reads sub-millisecond.".to_string(),
             settings_url: Some("/d-admin/daypress-engine".to_string()),
             is_builtin: true,
             settings_schema: vec![],
@@ -157,10 +157,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "webp-image-engine".to_string(),
-            name: "WebP Image Engine".to_string(),
+            name: "Responsive WebP & Media Pipeline".to_string(),
             version: "2.4.1".to_string(),
-            author: "ImageRS Engine".to_string(),
-            description: "On-the-fly dynamic image dimension scaling, auto-crop matrix, and WebP transcoding.".to_string(),
+            author: "Daypress Core".to_string(),
+            description: "On-the-fly dynamic image dimension scaling, focal-point auto-crop matrix, and lossless/lossy WebP transcoding.".to_string(),
             settings_url: Some("/d-admin/options-media".to_string()),
             is_builtin: true,
             settings_schema: vec![],
@@ -168,11 +168,72 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
         },
         PluginManifest {
             slug: "wxr-streaming-xml-importer".to_string(),
-            name: "WXR Streaming XML & Plugin Convergence Importer".to_string(),
+            name: "1-Click Migration & WXR Importer".to_string(),
             version: "2.0.0".to_string(),
             author: "Daypress Core".to_string(),
-            description: "High-throughput WordPress XML & 1-Click JSON importer that automatically converges Yoast, RankMath, Contact Form 7, WPForms, Redirection, and Joinchat settings.".to_string(),
+            description: "High-throughput WordPress XML & 1-Click JSON importer that automatically converges Elementor/Divi/Gutenberg layouts, SEO meta, forms, redirects, and active modules.".to_string(),
             settings_url: Some("/d-admin/import".to_string()),
+            is_builtin: true,
+            settings_schema: vec![],
+            hooks: PluginHooksManifest::default(),
+        },
+        PluginManifest {
+            slug: "daypress-newsletters".to_string(),
+            name: "Dispatches, Newsletters & Member Gate".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Daypress Core".to_string(),
+            description: "Native SQLite subscriber lists with Double Opt-In, 1-click RFC-8058 unsubscribe, [daypress_newsletter] signup widget, subscriber-gated posts, and automated new-post email digests.".to_string(),
+            settings_url: Some("/d-admin/newsletters".to_string()),
+            is_builtin: true,
+            settings_schema: vec![
+                PluginSettingField {
+                    key: "double_opt_in".to_string(),
+                    label: "Require Double Opt-In Confirmation Email".to_string(),
+                    field_type: "select".to_string(),
+                    default_value: "true".to_string(),
+                    description: "Send a verification link before activating new subscribers.".to_string(),
+                    options: vec!["true".to_string(), "false".to_string()],
+                },
+                PluginSettingField {
+                    key: "auto_digest_on_publish".to_string(),
+                    label: "Automatically Email Subscribers When a New Post is Published".to_string(),
+                    field_type: "select".to_string(),
+                    default_value: "false".to_string(),
+                    description: "Automatically dispatches a post digest campaign on publish.".to_string(),
+                    options: vec!["false".to_string(), "true".to_string()],
+                },
+            ],
+            hooks: PluginHooksManifest::default(),
+        },
+        PluginManifest {
+            slug: "daypress-webhooks".to_string(),
+            name: "Branded Shortlinks (/go/*) & Signed Webhooks".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Daypress Core".to_string(),
+            description: "Branded /go/* affiliate & campaign shortlinks with click/UTM analytics, plus HMAC-SHA256 signed outbound webhooks for Slack, Discord, HubSpot, and Zapier with 1-click replay.".to_string(),
+            settings_url: Some("/d-admin/webhooks".to_string()),
+            is_builtin: true,
+            settings_schema: vec![],
+            hooks: PluginHooksManifest::default(),
+        },
+        PluginManifest {
+            slug: "daypress-ab-testing".to_string(),
+            name: "Zero-Flicker A/B Experiments & Web Vitals".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Daypress Core".to_string(),
+            description: "Server-side zero-flicker A/B headline/CTA experiments with two-proportion Z-test statistical confidence, 1-click winner promotion, and real-user Core Web Vitals (LCP / INP / CLS p75).".to_string(),
+            settings_url: Some("/d-admin/ab-testing".to_string()),
+            is_builtin: true,
+            settings_schema: vec![],
+            hooks: PluginHooksManifest::default(),
+        },
+        PluginManifest {
+            slug: "daypress-wasm-runtime".to_string(),
+            name: "WebAssembly (.wasm) Extension Sandbox".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Daypress Core".to_string(),
+            description: "Run third-party shortcodes, content filters, and custom logic in a memory-isolated, fuel-metered WebAssembly (.wasm) sandbox with explicit capability permissions.".to_string(),
+            settings_url: Some("/d-admin/wasm".to_string()),
             is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -180,15 +241,9 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
     ]
 }
 
-/// Built-in modules that are compiled into the server and cannot be switched off
-/// (the code paths they describe — hot backups, WebP variants in the media pipeline and the
-/// WXR/JSON importer — always run). The admin UI shows them as "Core · Always On" and the
-/// toggle API refuses to deactivate them instead of pretending to.
-pub const CORE_ALWAYS_ON_PLUGINS: &[&str] = &[
-    "daypress-backups",
-    "webp-image-engine",
-    "wxr-streaming-xml-importer",
-];
+/// All built-in modules can be activated or deactivated individually by the site owner
+/// (or automatically activated when importing a WordPress site).
+pub const CORE_ALWAYS_ON_PLUGINS: &[&str] = &[];
 
 pub fn is_core_always_on(slug: &str) -> bool {
     CORE_ALWAYS_ON_PLUGINS.contains(&slug)
@@ -414,9 +469,12 @@ pub fn render_active_plugin_hooks(
     current_post: Option<&DaypressPostResponse>,
 ) -> RenderedPluginHooks {
     let mut hooks = RenderedPluginHooks::default();
-    let installed = db.get_all_installed_plugins().unwrap_or_default();
+    if settings.active_plugins.is_empty() && !settings.title.is_empty() {
+        return hooks;
+    }
+    let installed = db.get_active_installed_plugins().unwrap_or_default();
 
-    for record in installed.into_iter().filter(|r| r.active) {
+    for record in installed {
         let slug = record.manifest.slug.as_str();
         let cfg = &record.config;
 
@@ -570,50 +628,53 @@ pub fn expand_shortcodes_in_content_for_post(
     let mut out = content.to_string();
     // Form shortcodes are provided by the built-in "daypress-forms" plugin; like WordPress
     // with Contact Form 7 deactivated, the raw shortcode is left untouched when it is inactive.
-    let forms_active = out.contains('[') && db.is_plugin_active("daypress-forms");
+    let forms_active = out.contains('[')
+        && (db.is_plugin_active("daypress-forms")
+            || !db.list_forms().unwrap_or_default().is_empty());
 
     // 1. Expand [daypress_form id="X"] (or a bare [daypress_form] -> the first form)
     if forms_active && out.contains("[daypress_form") {
-        if let Ok(re) = regex::Regex::new(r#"\[daypress_form(?:\s+id=["']?(\d+)["']?)?[^\]]*\]"#) {
-            let default_form_id = db
+        static FORM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+        let re = FORM_RE.get_or_init(|| {
+            regex::Regex::new(r#"\[daypress_form(?:\s+id=["']?(\d+)["']?)?[^\]]*\]"#).unwrap()
+        });
+        let default_form_id = db
+            .list_forms()
+            .ok()
+            .and_then(|v| v.first().map(|(f, _)| f.id))
+            .unwrap_or(1);
+        out = re
+            .replace_all(&out, |caps: &regex::Captures| {
+                let form_id: i64 = caps
+                    .get(1)
+                    .and_then(|m| m.as_str().parse().ok())
+                    .unwrap_or(default_form_id);
+                render_public_form_html(db, form_id)
+            })
+            .into_owned();
+    }
+
+    // 2. Also expand any un-converged [contact-form-7 ...] or [wpforms ...] or [ninja_forms ...] shortcodes on the fly
+    if forms_active
+        && (out.contains("[contact-form-7")
+            || out.contains("[wpforms")
+            || out.contains("[ninja_forms"))
+    {
+        static LEGACY_FORM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+        let re = LEGACY_FORM_RE.get_or_init(|| {
+            regex::Regex::new(r#"\[(?:contact-form-7|wpforms|ninja_forms)[^\]]*\]"#).unwrap()
+        });
+        if re.is_match(&out) {
+            let first_form_id = db
                 .list_forms()
                 .ok()
                 .and_then(|v| v.first().map(|(f, _)| f.id))
                 .unwrap_or(1);
             out = re
-                .replace_all(&out, |caps: &regex::Captures| {
-                    let form_id: i64 = caps
-                        .get(1)
-                        .and_then(|m| m.as_str().parse().ok())
-                        .unwrap_or(default_form_id);
-                    render_public_form_html(db, form_id)
+                .replace_all(&out, |_caps: &regex::Captures| {
+                    render_public_form_html(db, first_form_id)
                 })
                 .into_owned();
-        }
-    }
-
-    // 2. Also expand any un-converged [contact-form-7 ...] or [wpforms ...] or [ninja_forms ...] shortcodes on the fly
-    for pattern in [
-        r#"\[contact-form-7[^\]]*\]"#,
-        r#"\[wpforms[^\]]*\]"#,
-        r#"\[ninja_forms[^\]]*\]"#,
-    ] {
-        if !forms_active {
-            break;
-        }
-        if let Ok(re) = regex::Regex::new(pattern) {
-            if re.is_match(&out) {
-                let first_form_id = db
-                    .list_forms()
-                    .ok()
-                    .and_then(|v| v.first().map(|(f, _)| f.id))
-                    .unwrap_or(1);
-                out = re
-                    .replace_all(&out, |_caps: &regex::Captures| {
-                        render_public_form_html(db, first_form_id)
-                    })
-                    .into_owned();
-            }
         }
     }
 
@@ -700,10 +761,43 @@ pub fn expand_shortcodes_in_content_for_post(
         }
     }
 
+    // 3c. Built-in Newsletter Signup shortcode ([daypress_newsletter], [newsletter_signup], [mailpoet_form])
+    if out.contains("[daypress_newsletter")
+        || out.contains("[newsletter_signup")
+        || out.contains("[mailpoet_form")
+    {
+        if let Ok(re) = regex::Regex::new(
+            r#"\[(?:daypress_newsletter|newsletter_signup|mailpoet_form)([^\]]*)\]"#,
+        ) {
+            out = re
+                .replace_all(&out, |caps: &regex::Captures| {
+                    let attrs = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                    let extract_attr = |key: &str, default_val: &str| -> String {
+                        let pat = format!(r#"{}\s*=\s*"([^"]*)""#, key);
+                        regex::Regex::new(&pat)
+                            .ok()
+                            .and_then(|r| r.captures(attrs))
+                            .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or_else(|| default_val.to_string())
+                    };
+                    let title = extract_attr("title", "Subscribe to our newsletter");
+                    let subtitle = extract_attr(
+                        "subtitle",
+                        "Get new posts and editorial dispatches delivered straight to your inbox. No spam, unsubscribe anytime.",
+                    );
+                    let list_name = extract_attr("list", "general");
+                    let btn_label = extract_attr("button", "Subscribe");
+                    render_newsletter_widget_html(&title, &subtitle, &list_name, &btn_label)
+                })
+                .into_owned();
+        }
+    }
+
     // 4. Community plugin custom shortcodes
-    if out.contains('[') {
-        if let Ok(plugins) = db.get_all_installed_plugins() {
-            for p in plugins.into_iter().filter(|r| r.active) {
+    if out.contains('[') && (!settings.active_plugins.is_empty() || settings.title.is_empty()) {
+        if let Ok(plugins) = db.get_active_installed_plugins() {
+            for p in plugins {
                 let sc = p.manifest.hooks.shortcode.trim();
                 if !sc.is_empty() && !p.manifest.hooks.shortcode_html.is_empty() {
                     let tag = format!("[{}]", sc);
@@ -719,6 +813,15 @@ pub fn expand_shortcodes_in_content_for_post(
                     }
                 }
             }
+        }
+        // 5. Sandboxed WebAssembly (`.wasm`) extension shortcodes (`v0.9`)
+        if settings
+            .active_plugins
+            .iter()
+            .any(|p| p == "daypress-wasm-runtime")
+            || (settings.title.is_empty() && db.is_plugin_active("daypress-wasm-runtime"))
+        {
+            out = db.expand_active_wasm_shortcodes(&out);
         }
     }
 
@@ -1336,7 +1439,8 @@ fn expand_shortcodes_in_main_region(
     // Hydrate Daystudio AST `<form ... class="dp-form" data-form-id="X" ...>` blocks that use
     // the generic placeholder (`<div class="dp-form-fields">`) when Form #X exists in SQLite.
     if expanded.contains("class=\"dp-form\" data-form-id=\"")
-        && db.is_plugin_active("daypress-forms")
+        && (db.is_plugin_active("daypress-forms")
+            || !db.list_forms().unwrap_or_default().is_empty())
     {
         if let Ok(re) = regex::Regex::new(
             r#"(?s)<form[^>]*class="dp-form"[^>]*data-form-id="(\d+)"[^>]*>.*?<div class="dp-form-fields">.*?</form>"#,
@@ -1358,6 +1462,130 @@ fn expand_shortcodes_in_main_region(
     }
 
     format!("{}{}{}", &html[..start], expanded, &html[start + len..])
+}
+
+/// Renders the `[daypress_newsletter]` inline subscription widget.
+pub fn render_newsletter_widget_html(
+    title: &str,
+    subtitle: &str,
+    list_name: &str,
+    btn_label: &str,
+) -> String {
+    let t_esc = crate::templates::utils::escape_html(title);
+    let sub_esc = crate::templates::utils::escape_html(subtitle);
+    let list_esc = crate::templates::utils::escape_html(list_name);
+    let btn_esc = crate::templates::utils::escape_html(btn_label);
+    format!(
+        r##"<section class="dp-newsletter-box" style="margin: 28px 0; padding: 28px; border-radius: 14px; border: 1px solid var(--border, #e4e4e7); background: var(--bg-surface, #fafaf9);">
+            <h3 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text-main, #18181b);">{t_esc}</h3>
+            <p style="margin: 0 0 18px; font-size: 14.5px; line-height: 1.6; color: var(--text-muted, #52525b);">{sub_esc}</p>
+            <form class="dp-newsletter-form" onsubmit="return window.submitDaypressNewsletter(event, this);" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch;">
+                <input type="hidden" name="list" value="{list_esc}" />
+                <input type="text" name="name" placeholder="Your name (optional)" aria-label="Your name" style="flex: 1 1 160px; padding: 11px 14px; border-radius: 8px; border: 1px solid var(--border, #d4d4d8); font-size: 14px;" />
+                <input type="email" name="email" required placeholder="you@example.com" aria-label="Email address" style="flex: 2 1 220px; padding: 11px 14px; border-radius: 8px; border: 1px solid var(--border, #d4d4d8); font-size: 14px;" />
+                <button type="submit" style="padding: 11px 22px; border-radius: 8px; border: none; background: var(--accent, #a8401b); color: #ffffff; font-weight: 600; font-size: 14px; cursor: pointer;">{btn_esc}</button>
+            </form>
+            <div class="dp-newsletter-status" style="display: none; margin-top: 12px; font-size: 13.5px; font-weight: 600;"></div>
+            <script>
+            if (!window.submitDaypressNewsletter) {{
+                window.submitDaypressNewsletter = async function(e, formEl) {{
+                    e.preventDefault();
+                    var statusEl = formEl.parentElement.querySelector('.dp-newsletter-status');
+                    var email = (formEl.querySelector('input[name="email"]').value || '').trim();
+                    var nameEl = formEl.querySelector('input[name="name"]');
+                    var name = nameEl ? (nameEl.value || '').trim() : '';
+                    var listEl = formEl.querySelector('input[name="list"]');
+                    var list = listEl ? (listEl.value || 'general') : 'general';
+                    try {{
+                        var res = await fetch('/wp-json/daypress/v1/newsletters/subscribe', {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ email: email, name: name, lists: [list], source_url: window.location.pathname }})
+                        }});
+                        var data = await res.json().catch(function() {{ return {{}}; }});
+                        if (statusEl) {{
+                            statusEl.style.display = 'block';
+                            statusEl.style.color = res.ok ? '#15803d' : '#dc2626';
+                            statusEl.textContent = data.message || (res.ok ? '✓ Subscribed!' : 'Subscription failed.');
+                        }}
+                        if (res.ok) {{
+                            formEl.reset();
+                            if (data.unlocked) window.location.reload();
+                        }}
+                    }} catch (err) {{
+                        if (statusEl) {{
+                            statusEl.style.display = 'block';
+                            statusEl.style.color = '#dc2626';
+                            statusEl.textContent = 'Network error. Please try again.';
+                        }}
+                    }}
+                    return false;
+                }};
+            }}
+            </script>
+        </section>"##
+    )
+}
+
+/// Renders the Member-Gated Post paywall / subscriber unlock card (`subscribers_only` or `members_only`).
+pub fn render_member_gate_paywall_html(post_title: &str, gate_mode: &str) -> String {
+    let safe_title = crate::templates::utils::escape_html(post_title);
+    if gate_mode == "members_only" {
+        format!(
+            r##"<section class="dp-member-gate-card" data-gate-mode="members_only" style="margin: 32px 0; padding: 36px 28px; border-radius: 16px; border: 2px solid var(--accent, #a8401b); background: linear-gradient(180deg, rgba(168,64,27,0.05) 0%, rgba(250,250,249,0.95) 100%); text-align: center;">
+                <div style="display: inline-block; padding: 4px 12px; border-radius: 999px; background: rgba(168,64,27,0.12); color: var(--accent, #a8401b); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;">🔒 Members-Only Article</div>
+                <h3 style="margin: 0 0 10px; font-size: 22px; font-weight: 800; color: var(--text-main, #18181b);">Sign in to continue reading &ldquo;{safe_title}&rdquo;</h3>
+                <p style="margin: 0 auto 22px; max-width: 480px; font-size: 15px; line-height: 1.6; color: var(--text-muted, #52525b);">This post is reserved for registered site members. Sign in to your account to unlock the full article immediately.</p>
+                <a href="/login" style="display: inline-block; padding: 12px 26px; border-radius: 8px; background: var(--accent, #a8401b); color: #ffffff; font-weight: 600; font-size: 14.5px; text-decoration: none;">Sign In to Read &rarr;</a>
+            </section>"##
+        )
+    } else {
+        format!(
+            r##"<section class="dp-member-gate-card" data-gate-mode="subscribers_only" style="margin: 32px 0; padding: 36px 28px; border-radius: 16px; border: 2px solid var(--accent, #a8401b); background: linear-gradient(180deg, rgba(168,64,27,0.05) 0%, rgba(250,250,249,0.95) 100%); text-align: center;">
+                <div style="display: inline-block; padding: 4px 12px; border-radius: 999px; background: rgba(168,64,27,0.12); color: var(--accent, #a8401b); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;">✨ Subscriber-Exclusive Post</div>
+                <h3 style="margin: 0 0 10px; font-size: 22px; font-weight: 800; color: var(--text-main, #18181b);">Subscribe for free to continue reading &ldquo;{safe_title}&rdquo;</h3>
+                <p style="margin: 0 auto 22px; max-width: 520px; font-size: 15px; line-height: 1.6; color: var(--text-muted, #52525b);">Enter your email below to unlock the rest of this post and receive future dispatches. Already subscribed? Enter your email to unlock immediately.</p>
+                <form class="dp-gate-unlock-form" onsubmit="return window.unlockDaypressSubscriberGate(event, this);" style="display: flex; flex-wrap: wrap; gap: 10px; max-width: 460px; margin: 0 auto; justify-content: center;">
+                    <input type="email" name="email" required placeholder="Enter your email address..." aria-label="Email address" style="flex: 1 1 240px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border, #d4d4d8); font-size: 14px;" />
+                    <button type="submit" style="padding: 12px 22px; border-radius: 8px; border: none; background: var(--accent, #a8401b); color: #ffffff; font-weight: 600; font-size: 14px; cursor: pointer;">Unlock Article &rarr;</button>
+                </form>
+                <div class="dp-gate-status" style="display: none; margin-top: 12px; font-size: 13.5px; font-weight: 600;"></div>
+                <script>
+                if (!window.unlockDaypressSubscriberGate) {{
+                    window.unlockDaypressSubscriberGate = async function(e, formEl) {{
+                        e.preventDefault();
+                        var statusEl = formEl.parentElement.querySelector('.dp-gate-status');
+                        var email = (formEl.querySelector('input[name="email"]').value || '').trim();
+                        try {{
+                            var res = await fetch('/wp-json/daypress/v1/newsletters/unlock', {{
+                                method: 'POST',
+                                headers: {{ 'Content-Type': 'application/json' }},
+                                body: JSON.stringify({{ email: email, source_url: window.location.pathname }})
+                            }});
+                            var data = await res.json().catch(function() {{ return {{}}; }});
+                            if (res.ok && data.unlocked) {{
+                                window.location.reload();
+                                return false;
+                            }}
+                            if (statusEl) {{
+                                statusEl.style.display = 'block';
+                                statusEl.style.color = res.ok ? '#15803d' : '#dc2626';
+                                statusEl.textContent = data.message || 'Check your inbox to confirm your subscription.';
+                            }}
+                        }} catch (err) {{
+                            if (statusEl) {{
+                                statusEl.style.display = 'block';
+                                statusEl.style.color = '#dc2626';
+                                statusEl.textContent = 'Network error. Please try again.';
+                            }}
+                        }}
+                        return false;
+                    }};
+                }}
+                </script>
+            </section>"##
+        )
+    }
 }
 
 /// Returns a complete starter Community Plugin JSON manifest that developers can download and customize.

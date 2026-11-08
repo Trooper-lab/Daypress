@@ -760,6 +760,45 @@ pub fn converge_plugin_options(
         converged_list.push("WP Mail SMTP -> Daypress Native Mailer Settings".to_string());
     }
 
+    // 6. Cookie Consent (`complianz_options`, `cli_settings`, `cookie_law_info`, `moove_gdpr_plugin_settings`)
+    if plugin_options.contains_key("complianz_options")
+        || plugin_options.contains_key("cli_settings")
+        || plugin_options.contains_key("cookie_law_info")
+        || plugin_options.contains_key("moove_gdpr_plugin_settings")
+    {
+        let _ = upsert_option_tx(tx, "daypress_cookie_banner_enabled", "1");
+        let _ = activate_builtin_plugin_tx(tx, "daypress-cookie-consent", None);
+        converged_list.push("GDPR Cookie Consent -> Privacy & Consent Banner".to_string());
+    }
+
+    // 7. Newsletters (`mailpoet_settings`, `newsletter`, `mc4wp`)
+    if plugin_options.contains_key("mailpoet_settings")
+        || plugin_options.contains_key("newsletter")
+        || plugin_options.contains_key("mc4wp")
+    {
+        let _ = activate_builtin_plugin_tx(tx, "daypress-newsletters", None);
+        converged_list
+            .push("MailPoet / Newsletter -> Dispatches, Newsletters & Member Gate".to_string());
+    }
+
+    // 8. Shortlinks & Webhooks (`prli_options`, `wp_webhooks`)
+    if plugin_options.contains_key("prli_options") || plugin_options.contains_key("wp_webhooks") {
+        let _ = activate_builtin_plugin_tx(tx, "daypress-webhooks", None);
+        converged_list
+            .push("Pretty Links / WP Webhooks -> Branded Shortlinks & Signed Webhooks".to_string());
+    }
+
+    // 9. Backups (`updraft_interval`, `ai1wm_backups`)
+    if plugin_options.contains_key("updraft_interval")
+        || plugin_options.contains_key("ai1wm_backups")
+    {
+        let _ = activate_builtin_plugin_tx(tx, "daypress-backups", None);
+        converged_list.push(
+            "UpdraftPlus / All-in-One Migration -> Hot Snapshots & Point-in-Time Backups"
+                .to_string(),
+        );
+    }
+
     converged_list
 }
 

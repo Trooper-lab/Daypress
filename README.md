@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: early preview (v0.8.5).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
+> **Status: early preview (v0.9.0).** Expect rough edges, missing features, and breaking changes before 1.0. Don't use it yet for sites where downtime or data loss would hurt, and keep backups. The sections below list what works and, just as important, what doesn't.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -55,7 +55,11 @@ The long-term goal is a CMS that most WordPress sites can move to with their con
 - **Real-Time Daystudio WCAG 2.1 Contrast, Broken-Link & SEO Linter (`/wp-json/daypress/v1/seo/audit` & Daystudio Linter Drawer)**: live AA/AAA relative-luminance contrast checking across Light & Dark canvas modes, SQLite-backed internal link verification, heading hierarchy checks, and 1-click Auto-Fix.
 - SEO fields per post, `sitemap.xml`, `robots.txt` (including "discourage search engines"), redirects, and a 404 log.
 - **All-in-One FormStudio (`/d-admin/forms`) & Fail-Safe Submissions Vault**: multi-column rows (`1/2`, `1/3`, `2/3`), multi-step wizards with progress bars, conditional field & email routing logic, 15 field types (including isolated private file uploads, star ratings, range sliders, live calculated formulas, and hidden UTM capture), honeypot + timestamp trap + IP rate-limiting + Turnstile/hCaptcha anti-spam, SQLite-first vault persistence before SMTP send, 1-click email retry, and CSV/JSON export.
-- **Full Plausible-Style Cookieless Analytics Dashboard (`/d-admin/analytics`)**: daily rotating SHA-256 visitor hash (zero cookies), interactive SVG time-series chart (`24h`, `7d`, `30d`, `90d`, `12m`, `all`), and breakdown tables for Top Pages, Referrers, UTM Campaigns, Countries, Devices, and Form/Goal Conversions.
+- **Full Plausible-Style Cookieless Analytics Dashboard (`/d-admin/analytics`) & Real-User Core Web Vitals (`LCP` / `INP` / `CLS`)**: daily rotating SHA-256 visitor hash (zero cookies), interactive SVG time-series chart (`24h`, `7d`, `30d`, `90d`, `12m`, `all`), breakdown tables for Top Pages, Referrers, UTM Campaigns, Countries, Devices, and Form/Goal Conversions, plus a `<1 KB` `PerformanceObserver` beacon recording p75 `LCP`, `INP`, `CLS`, and `TTFB` per route.
+- **Built-in Newsletters, Member-Gated Posts & Automated Digests (`/d-admin/newsletters` — `MailPoet` & `Ghost` Parity)**: native subscriber lists with Double Opt-In (`/newsletter/confirm/{token}`), 1-Click RFC-8058 unsubscribe (`/newsletter/unsubscribe/{token}`), member-gated posts (`subscribers_only` / `members_only` + `<!--more-->` paywall divider), `[daypress_newsletter]` shortcode, and automated new-post email digests via SMTP, Resend, or Amazon SES.
+- **Branded Shortlinks (`/go/*`) & HMAC-Signed Outbound Webhooks (`/d-admin/webhooks`)**: 301/302/307 shortlinks with click + UTM + referrer attribution, and HMAC-SHA256 signed outbound webhooks (`X-Daypress-Signature-256`) with Slack/Discord/JSON formatting and 1-click delivery replay.
+- **Zero-Flicker Server-Side A/B Split Testing (`/d-admin/ab-testing`)**: deterministic edge/server-side variant assignment (`Control A` vs `Variant B`), two-proportion Z-test statistical confidence (`95%+`), automatic conversion attribution from FormStudio & Newsletter signups, and 1-click **Promote Winner to Live**.
+- **Sandboxed WebAssembly (`.wasm`) Extension Crates (`crates/daypress-wasm` & `/d-admin/wasm`)**: fuel-metered, linear-memory-capped `.wasm` bytecode sandbox with explicit capability permissions (`shortcodes`, `kv_storage`, `read_options`, `content_filter`, `http_outbound`).
 - **Native Zero-Bloat GDPR / Privacy & Cookie Consent Banner (`/d-admin/options-privacy`)**: customizable `<2 KB` inline consent banner & script-category manager (`Essential`, `Analytics`, `Marketing`).
 - **Pre-Compressed In-Memory SSR Hot Cache (`<50µs` P99 latency)**: automatic Gzip pre-compression, `ETag` / `304 Not Modified`, `X-Daypress-Cache: HIT|MISS|BYPASS`, automatic invalidation on content/layout/template/settings saves, and optional Cloudflare CDN Zone purge.
 - SQLite backup snapshots you can create, download, and restore.
@@ -139,9 +143,9 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.6.0`** | Custom Post Types, Structured Fields (ACF Parity) & Filterable Collection Grids | **Shipped** |
 | **`0.7.0`** | SQLite FTS5 Instant Search, Auto-OG Social Cards, Rich Schema.org & Live SEO/WCAG Linter | **Shipped** |
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
-| **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Early preview (Now)** |
-| **`0.9`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Up next** |
-| **`1.0`** | First Stable Release | Planned |
+| **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
+| **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Early preview (Now)** |
+| **`1.0`** | First Stable Release | **Up next** |
 
 ---
 
@@ -330,6 +334,13 @@ curl -X POST http://localhost:8090/mcp \
 | `daypress_create_preview_link` | Issue a time-bound, revocable secret draft preview URL (`/preview/{token}`) |
 | `daypress_schedule_revision` | Schedule an atomic future content/layout update for an already-published post or page |
 | `daypress_diff_revisions` | Compute a structural AST node-by-node diff between two revisions (or against live) |
+| `daypress_list_subscribers` | List newsletter subscribers and mailing list statistics |
+| `daypress_create_newsletter_campaign` | Create (and optionally send) a newsletter campaign to confirmed subscribers |
+| `daypress_manage_shortlinks` | List, create, update, or delete `/go/*` branded shortlinks with click & UTM tracking |
+| `daypress_manage_webhooks` | List, create, update, delete, or replay HMAC-SHA256 signed outbound webhooks |
+| `daypress_manage_ab_tests` | List, create, update, promote winner, or delete zero-flicker server-side A/B experiments |
+| `daypress_get_web_vitals` | Retrieve Real-User Core Web Vitals (`LCP`, `INP`, `CLS`, `TTFB`) p75 percentiles & route ratings |
+| `daypress_manage_wasm_extensions` | List, install, execute, or delete sandboxed `.wasm` extensions with fuel & capability limits |
 
 ---
 
@@ -347,6 +358,7 @@ curl -X POST http://localhost:8090/mcp \
 | :--- | :--- |
 | `crates/daypress-server` | The CMS: HTTP routes, admin and public templates, REST API, importers, MCP server, SQLite storage |
 | `crates/daypress-ast` | The layout model and the Elementor, Divi, and Gutenberg converters |
+| `crates/daypress-wasm` | Fuel-metered, capability-gated WebAssembly (`.wasm`) binary validator, stack VM, and compiler |
 | `crates/generated_slugify` | Rust ports of WordPress core functions, checked against output from the original PHP |
 | `crates/daypress-transpiler` | Tooling for those PHP-to-Rust ports and their golden-master tests |
 | `daypress-migrator.php` | The WordPress plugin that exports a site for import |

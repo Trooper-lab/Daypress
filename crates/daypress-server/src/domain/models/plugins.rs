@@ -518,3 +518,319 @@ pub struct InstalledPluginRecord {
     pub config: std::collections::HashMap<String, String>,
     pub installed_at: String,
 }
+
+// --- v0.9 Pillar 1: Built-in Newsletters, Member-Gated Posts & Automated Digests ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SubscriberRecord {
+    pub id: i64,
+    pub email: String,
+    pub name: String,
+    pub status: String, // "pending" | "subscribed" | "unsubscribed"
+    pub lists: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unsubscribe_token: Option<String>,
+    pub source_url: String,
+    pub confirmed_at: Option<String>,
+    pub unsubscribed_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct NewsletterSubscribeRequest {
+    pub email: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default = "default_newsletter_lists")]
+    pub lists: Vec<String>,
+    #[serde(default)]
+    pub source_url: String,
+    /// When an administrator imports or adds a subscriber directly, skip double opt-in.
+    #[serde(default)]
+    pub skip_double_opt_in: bool,
+}
+
+pub fn default_newsletter_lists() -> Vec<String> {
+    vec!["general".to_string()]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct NewsletterUnlockRequest {
+    pub email: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct NewsletterCampaignRecord {
+    pub id: i64,
+    pub subject: String,
+    pub body_html: String,
+    pub target_list: String,
+    pub campaign_type: String, // "broadcast" | "digest"
+    pub post_id: Option<i64>,
+    pub status: String, // "draft" | "sending" | "sent" | "failed"
+    pub recipient_count: i64,
+    pub sent_count: i64,
+    pub failed_count: i64,
+    pub sent_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CreateNewsletterCampaignRequest {
+    pub subject: String,
+    pub body_html: String,
+    #[serde(default = "default_newsletter_list_name")]
+    pub target_list: String,
+    #[serde(default = "default_true_bool")]
+    pub send_now: bool,
+}
+
+pub fn default_newsletter_list_name() -> String {
+    "general".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct NewsletterStatsSummary {
+    pub total_subscribers: i64,
+    pub confirmed_subscribers: i64,
+    pub pending_subscribers: i64,
+    pub unsubscribed_count: i64,
+    pub total_campaigns_sent: i64,
+    pub total_emails_delivered: i64,
+}
+
+// --- v0.9 Pillar 2: Branded Shortlinks (`/go/*`) & HMAC-Signed Outbound Webhooks ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ShortlinkRecord {
+    pub id: i64,
+    pub slug: String,
+    pub short_url: String,
+    pub target_url: String,
+    pub title: String,
+    pub status_code: i64,
+    pub utm_source: String,
+    pub utm_medium: String,
+    pub utm_campaign: String,
+    pub clicks: i64,
+    pub last_clicked_at: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CreateShortlinkRequest {
+    pub slug: String,
+    pub target_url: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default = "default_shortlink_status_code")]
+    pub status_code: i64,
+    #[serde(default)]
+    pub utm_source: String,
+    #[serde(default)]
+    pub utm_medium: String,
+    #[serde(default)]
+    pub utm_campaign: String,
+    #[serde(default = "default_true_bool")]
+    pub is_active: bool,
+}
+
+pub fn default_shortlink_status_code() -> i64 {
+    302
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebhookEndpointRecord {
+    pub id: i64,
+    pub name: String,
+    pub target_url: String,
+    pub preset: String, // "generic" | "slack" | "discord" | "hubspot" | "zapier"
+    pub events: Vec<String>,
+    pub secret: String,
+    pub is_active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CreateWebhookEndpointRequest {
+    pub id: Option<i64>,
+    pub name: String,
+    pub target_url: String,
+    #[serde(default = "default_webhook_preset")]
+    pub preset: String,
+    #[serde(default = "default_webhook_events")]
+    pub events: Vec<String>,
+    #[serde(default)]
+    pub secret: String,
+    #[serde(default = "default_true_bool")]
+    pub is_active: bool,
+}
+
+pub fn default_webhook_preset() -> String {
+    "generic".to_string()
+}
+
+pub fn default_webhook_events() -> Vec<String> {
+    vec![
+        "post.published".to_string(),
+        "form.submitted".to_string(),
+        "subscriber.confirmed".to_string(),
+    ]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebhookDeliveryRecord {
+    pub id: i64,
+    pub webhook_id: i64,
+    pub webhook_name: String,
+    pub event_name: String,
+    pub target_url: String,
+    pub request_headers_json: String,
+    pub payload_json: String,
+    pub signature_header: String,
+    pub response_status: i64,
+    pub response_body: String,
+    pub latency_ms: i64,
+    pub attempt_count: i64,
+    pub status: String,
+    pub created_at: String,
+}
+
+// =========================================================================
+// v0.9 Pillar 3: Server-Side A/B Split Testing & Real-User Core Web Vitals
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AbTestRecord {
+    pub id: i64,
+    pub name: String,
+    pub post_id: i64,
+    pub post_title: String,
+    pub target_selector: String,
+    pub control_text: String,
+    pub variant_text: String,
+    pub goal_event: String,
+    pub traffic_split: i64,
+    pub status: String,
+    pub control_views: i64,
+    pub control_conversions: i64,
+    pub variant_views: i64,
+    pub variant_conversions: i64,
+    pub control_cr_pct: f64,
+    pub variant_cr_pct: f64,
+    pub uplift_pct: f64,
+    pub z_score: f64,
+    pub confidence_pct: f64,
+    pub recommended_winner: Option<String>,
+    pub winner: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CreateAbTestRequest {
+    pub id: Option<i64>,
+    pub name: String,
+    pub post_id: i64,
+    #[serde(default)]
+    pub target_selector: String,
+    pub control_text: String,
+    pub variant_text: String,
+    #[serde(default = "default_ab_goal_event")]
+    pub goal_event: String,
+    #[serde(default = "default_ab_traffic_split")]
+    pub traffic_split: i64,
+}
+
+pub fn default_ab_goal_event() -> String {
+    "conversion".to_string()
+}
+
+pub fn default_ab_traffic_split() -> i64 {
+    50
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebVitalsBeaconRequest {
+    #[serde(default = "default_vitals_page_url")]
+    pub page_url: String,
+    #[serde(default = "default_vitals_device")]
+    pub device_type: String,
+    pub lcp_ms: Option<f64>,
+    pub inp_ms: Option<f64>,
+    pub cls_score: Option<f64>,
+    pub ttfb_ms: Option<f64>,
+}
+
+pub fn default_vitals_page_url() -> String {
+    "/".to_string()
+}
+
+pub fn default_vitals_device() -> String {
+    "desktop".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CoreWebVitalsSummary {
+    pub sample_count: i64,
+    pub lcp_p75_ms: f64,
+    pub inp_p75_ms: f64,
+    pub cls_p75: f64,
+    pub ttfb_p75_ms: f64,
+    pub lcp_status: String,
+    pub inp_status: String,
+    pub cls_status: String,
+    pub overall_status: String,
+}
+
+// =========================================================================
+// v0.9 Pillar 4: Sandboxed WebAssembly (`.wasm`) Extension Crates
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WasmExtensionRecord {
+    pub id: i64,
+    pub slug: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub shortcode: String,
+    pub capabilities: daypress_wasm::WasmCapabilities,
+    pub fuel_limit: u64,
+    pub max_memory_pages: u32,
+    pub wasm_sha256: String,
+    pub wasm_size_bytes: usize,
+    pub exports: Vec<String>,
+    pub is_active: bool,
+    pub executions: i64,
+    pub last_error: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct InstallWasmExtensionRequest {
+    pub slug: String,
+    pub name: String,
+    #[serde(default = "default_wasm_version")]
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub shortcode: String,
+    #[serde(default)]
+    pub capabilities: daypress_wasm::WasmCapabilities,
+    pub fuel_limit: Option<u64>,
+    pub max_memory_pages: Option<u32>,
+    /// Either provide raw base64-encoded `.wasm` binary bytes (`wasm_base64`) OR a declarative `template_source`
+    /// that Daypress compiles directly into a standards-compliant `.wasm` binary!
+    pub wasm_base64: Option<String>,
+    pub template_source: Option<String>,
+    #[serde(default = "default_true_bool")]
+    pub is_active: bool,
+}
+
+pub fn default_wasm_version() -> String {
+    "1.0.0".to_string()
+}

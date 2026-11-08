@@ -79,6 +79,14 @@ pub(crate) async fn get_post(
     }
 }
 
+fn strip_unfiltered_scripts_for_non_editors(html: &str) -> String {
+    static SCRIPT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = SCRIPT_RE.get_or_init(|| {
+        regex::Regex::new(r"(?is)<script\b[^>]*>.*?</script\s*>|<script\b[^>]*/?>").unwrap()
+    });
+    re.replace_all(html, "").into_owned()
+}
+
 pub(crate) async fn create_post(
     crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
@@ -98,6 +106,7 @@ pub(crate) async fn create_post(
             }
         }
         payload.author = Some(user.user_id);
+        payload.content = strip_unfiltered_scripts_for_non_editors(&payload.content);
     } else if payload.author.is_none() {
         payload.author = Some(user.user_id);
     }
@@ -118,7 +127,7 @@ pub(crate) async fn update_post(
     crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-    Json(payload): Json<UpdatePostRequest>,
+    Json(mut payload): Json<UpdatePostRequest>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
     let existing = db
         .get_post_by_id(id)?
@@ -132,6 +141,11 @@ pub(crate) async fn update_post(
         return Err(AppError::Forbidden(
             "Sorry, you are not allowed to change the post author.".to_string(),
         ));
+    }
+    if !user.is_editor_or_above() {
+        if let Some(ref c) = payload.content {
+            payload.content = Some(strip_unfiltered_scripts_for_non_editors(c));
+        }
     }
     if !user.can_publish_posts()
         && payload.status.as_deref().is_some_and(|s| {

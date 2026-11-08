@@ -1994,30 +1994,39 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     assert!(plugins_html.contains("pluginSearchInput"));
     assert!(plugins_html.contains("bulkPluginAction"));
 
-    // Verify all 8 built-in plugins are listed
+    // Verify all built-in plugins are listed with editorial Daypress names
     assert!(
-        plugins_html.contains("Daypress SEO &amp; Redirection Suite")
+        plugins_html.contains("Search, Schema &amp; Redirection Studio")
             || plugins_html.contains("Daypress SEO")
     );
     assert!(
-        plugins_html.contains("Daypress Forms Studio &amp; Lead Inbox")
+        plugins_html.contains("FormStudio &amp; Submissions Vault")
             || plugins_html.contains("Daypress Forms")
     );
     assert!(
-        plugins_html.contains("Snapshot &amp; Hot Backup Manager")
+        plugins_html.contains("Hot Snapshots &amp; Point-in-Time Backups")
             || plugins_html.contains("Snapshot")
     );
     assert!(
-        plugins_html.contains("Floating WhatsApp &amp; Lead Chat Button")
+        plugins_html.contains("Direct Chat &amp; WhatsApp Launcher")
             || plugins_html.contains("WhatsApp")
     );
     assert!(
-        plugins_html.contains("WPCode Header, Footer &amp; Custom Snippets")
+        plugins_html.contains("Header, Footer &amp; Script Injector")
             || plugins_html.contains("WPCode")
     );
-    assert!(plugins_html.contains("Daypress WAL Optimizer"));
-    assert!(plugins_html.contains("WebP Image Engine"));
-    assert!(plugins_html.contains("WXR Streaming XML"));
+    assert!(
+        plugins_html.contains("SQLite WAL Checkpoint &amp; Compaction")
+            || plugins_html.contains("Daypress WAL Optimizer")
+    );
+    assert!(
+        plugins_html.contains("Responsive WebP &amp; Media Pipeline")
+            || plugins_html.contains("WebP Image Engine")
+    );
+    assert!(
+        plugins_html.contains("1-Click Migration &amp; WXR Importer")
+            || plugins_html.contains("WXR Streaming XML")
+    );
 
     // Verify forms shortcode expansion works out of the box because daypress-forms is active
     let sample_content = "Please reach out to us: [contact-form-7 id=\"1\" title=\"Contact\"]";
@@ -2098,8 +2107,30 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     assert_eq!(toggle_activate_res.status(), StatusCode::OK);
     assert!(db.is_plugin_active("whatsapp-chat"));
 
-    // 4. Test core always-on plugin protection: cannot deactivate daypress-backups
-    let toggle_core_res = app
+    // 4. Test built-in plugin activation and deactivation (all built-in plugins are freely toggleable in v0.9)
+    let toggle_backups_on = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/d-admin/api/plugins")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "slug": "daypress-backups",
+                        "active": true
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(toggle_backups_on.status(), StatusCode::OK);
+    assert!(db.is_plugin_active("daypress-backups"));
+
+    let toggle_backups_off = app
         .clone()
         .oneshot(
             Request::builder()
@@ -2118,8 +2149,8 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
         )
         .await
         .unwrap();
-    assert_eq!(toggle_core_res.status(), StatusCode::BAD_REQUEST);
-    assert!(db.is_plugin_active("daypress-backups"));
+    assert_eq!(toggle_backups_off.status(), StatusCode::OK);
+    assert!(!db.is_plugin_active("daypress-backups"));
 
     // 5. Test 1-click install of a community extension (cookie-consent)
     let install_res = app

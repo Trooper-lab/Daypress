@@ -201,6 +201,20 @@ impl Database {
             .ok()
             .unwrap_or_default();
 
+        post.member_gate = conn
+            .query_row(
+                "SELECT meta_value FROM postmeta WHERE post_id = ?1 AND meta_key = '_daypress_member_gate'",
+                params![post.id],
+                |r| r.get::<_, String>(0),
+            )
+            .ok()
+            .map(|s| match s.trim().to_ascii_lowercase().as_str() {
+                "subscribers_only" | "subscribers" => "subscribers_only".to_string(),
+                "members_only" | "members" => "members_only".to_string(),
+                _ => "public".to_string(),
+            })
+            .unwrap_or_else(|| "public".to_string());
+
         let post_link = post.link.clone();
         post.comments = conn
             .prepare_cached(
@@ -376,6 +390,7 @@ impl Database {
             coauthors: Vec::new(),
             scheduled_revision_id: None,
             scheduled_revision_date: None,
+            member_gate: "public".to_string(),
         })
     }
 
