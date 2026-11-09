@@ -68,14 +68,10 @@ pub fn render_admin_shell(
 
     let has_plugin = |slug: &str| settings.active_plugins.iter().any(|p| p == slug);
 
-    let nav_sub_wasm = if has_plugin("daypress-wasm-runtime") || current_tab == "wasm" {
-        format!(
-            r#"<a href="/d-admin/wasm" class="nav-subitem {}">Wasm Extensions (.wasm)</a>"#,
-            nav.is_wasm
-        )
-    } else {
-        String::new()
-    };
+    let nav_sub_wasm = format!(
+        r#"<a href="/d-admin/wasm" class="nav-subitem {}">Wasm Extensions (.wasm)</a>"#,
+        nav.is_wasm
+    );
 
     let nav_sub_forms = if has_plugin("daypress-forms") || current_tab == "forms" {
         format!(
@@ -136,25 +132,20 @@ pub fn render_admin_shell(
         String::new()
     };
 
-    let nav_sub_seo = if has_plugin("daypress-seo") || current_tab == "seo" {
-        format!(
-            r#"<a href="/d-admin/seo" class="nav-subitem {}">SEO &amp; Redirects</a>"#,
-            nav.is_seo
-        )
-    } else {
-        String::new()
-    };
+    let nav_sub_seo = format!(
+        r#"<a href="/d-admin/seo" class="nav-subitem {}">SEO &amp; Redirects</a>"#,
+        nav.is_seo
+    );
 
-    let nav_sub_backups = if has_plugin("daypress-backups") || current_tab == "backups" {
-        format!(
-            r#"<a href="/d-admin/backups" class="nav-subitem {}">Backups</a>"#,
-            nav.is_backups
-        )
-    } else {
-        String::new()
-    };
+    let nav_sub_backups = format!(
+        r#"<a href="/d-admin/backups" class="nav-subitem {}">Backups</a>"#,
+        nav.is_backups
+    );
 
     let mut qs_plugin_screens = String::new();
+    qs_plugin_screens.push_str("['Wasm Extensions (.wasm)', '/d-admin/wasm'], ");
+    qs_plugin_screens.push_str("['SEO & Redirects', '/d-admin/seo'], ");
+    qs_plugin_screens.push_str("['Backups', '/d-admin/backups'], ");
     if has_plugin("daypress-forms") {
         qs_plugin_screens.push_str("['Forms Studio', '/d-admin/forms'], ");
     }
@@ -175,15 +166,6 @@ pub fn render_admin_shell(
     }
     if has_plugin("daypress-ab-testing") {
         qs_plugin_screens.push_str("['A/B Testing & Vitals', '/d-admin/ab-testing'], ");
-    }
-    if has_plugin("daypress-wasm-runtime") {
-        qs_plugin_screens.push_str("['Wasm Extensions (.wasm)', '/d-admin/wasm'], ");
-    }
-    if has_plugin("daypress-seo") {
-        qs_plugin_screens.push_str("['SEO & Redirects', '/d-admin/seo'], ");
-    }
-    if has_plugin("daypress-backups") {
-        qs_plugin_screens.push_str("['Backups', '/d-admin/backups'], ");
     }
 
     format!(
@@ -411,7 +393,7 @@ pub fn render_admin_shell(
 				</div>
 			</div>
 
-			<!-- 8b. MARKETING (Overview, Forms, Newsletters, Analytics, WhatsApp Chat) -->
+			<!-- 8b. MARKETING (Overview, SEO & Redirects, Forms, Newsletters, Analytics, WhatsApp Chat) -->
 			<div class="nav-group {is_marketing_open}">
 				<a href="/d-admin/marketing" class="nav-item {is_marketing}">
 					<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path></svg>
@@ -419,6 +401,7 @@ pub fn render_admin_shell(
 				</a>
 				<div class="nav-submenu">
 					<a href="/d-admin/marketing" class="nav-subitem {sub_mkt_overview}">Overview</a>
+					{nav_sub_seo}
 					{nav_sub_forms}
 					{nav_sub_newsletters}
 					<a href="/d-admin/analytics" class="nav-subitem {is_analytics}">{nav_analytics}</a>
@@ -449,11 +432,10 @@ pub fn render_admin_shell(
 					<a href="/d-admin/tools" class="nav-subitem {sub_tools_avail}">Available Tools</a>
 					<a href="/d-admin/import" class="nav-subitem {sub_tools_import}">Import</a>
 					<a href="/d-admin/export" class="nav-subitem {sub_tools_export}">Export</a>
+					{nav_sub_backups}
 					{nav_sub_webhooks}
 					{nav_sub_ab_testing}
 					{nav_sub_code_snippets}
-					{nav_sub_seo}
-					{nav_sub_backups}
 					<a href="/d-admin/site-health" class="nav-subitem {sub_tools_health}">Site Health</a>
 					<a href="/d-admin/export-personal-data" class="nav-subitem {sub_tools_exp_data}">Export Personal Data</a>
 					<a href="/d-admin/erase-personal-data" class="nav-subitem {sub_tools_era_data}">Erase Personal Data</a>

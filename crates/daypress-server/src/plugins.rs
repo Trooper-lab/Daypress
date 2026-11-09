@@ -5,27 +5,16 @@ use crate::models::{
 };
 use std::collections::HashMap;
 
-/// Returns the catalog of built-in Daypress first-party plugins.
+/// Returns the catalog of official Daypress extensions managed on `/d-admin/plugins`.
+/// Core capabilities (WAL optimizer, WebP pipeline, WXR importer, Privacy/Cookie banner,
+/// Wasm host runtime, SEO & Redirects, and Backups) are native Core features, not plugins.
 pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
     vec![
-        PluginManifest {
-            slug: "daypress-seo".to_string(),
-            name: "Search, Schema & Redirection Studio".to_string(),
-            version: "2.5.0".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "Per-post SEO title, meta description & focus-keyphrase analyzer, Schema.org JSON-LD knowledge graph, OpenGraph social cards, 301/302 Redirect Manager, and 404 Monitor.".to_string(),
-            settings_url: Some("/d-admin/seo".to_string()),
-            is_builtin: true,
-            // Global SEO settings live in `options` and are edited on /d-admin/seo
-            // (see `Database::save_global_seo_settings`), so no duplicate plugin-config schema here.
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
         PluginManifest {
             slug: "daypress-forms".to_string(),
             name: "FormStudio & Submissions Vault".to_string(),
             version: "3.0.0".to_string(),
-            author: "Daypress Core".to_string(),
+            author: "Daypress".to_string(),
             description: "Multi-step wizard forms, multi-column layouts, conditional field visibility, calculated fields, visitor file uploads, honeypot/Turnstile anti-spam, and a fail-safe SQLite Submissions Vault with 1-click email retry.".to_string(),
             settings_url: Some("/d-admin/forms".to_string()),
             is_builtin: true,
@@ -35,32 +24,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             hooks: PluginHooksManifest::default(),
         },
         PluginManifest {
-            slug: "daypress-cookie-consent".to_string(),
-            name: "Privacy & Consent Banner".to_string(),
-            version: "1.0.0".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "Zero-bloat (<2 KB) GDPR/CCPA & ePrivacy consent banner with granular script category gating (Necessary, Analytics, Marketing) configured in Settings → Privacy.".to_string(),
-            settings_url: Some("/d-admin/options-privacy".to_string()),
-            is_builtin: true,
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
-        PluginManifest {
-            slug: "daypress-backups".to_string(),
-            name: "Hot Snapshots & Point-in-Time Backups".to_string(),
-            version: "1.8.0".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "Zero-downtime SQLite VACUUM INTO hot snapshots, 1-click point-in-time restore, and full JSON/WXR portable archive downloads.".to_string(),
-            settings_url: Some("/d-admin/backups".to_string()),
-            is_builtin: true,
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
-        PluginManifest {
             slug: "whatsapp-chat".to_string(),
             name: "Direct Chat & WhatsApp Launcher".to_string(),
             version: "1.5.0".to_string(),
-            author: "Daypress Core".to_string(),
+            author: "Daypress".to_string(),
             description: "Zero-JS floating click-to-chat launcher with customizable phone number, pre-filled greeting, CTA tooltip badge, and corner placement.".to_string(),
             settings_url: Some("/d-admin/plugin-settings?plugin=whatsapp-chat".to_string()),
             is_builtin: true,
@@ -112,7 +79,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             slug: "code-snippets".to_string(),
             name: "Header, Footer & Script Injector".to_string(),
             version: "1.4.0".to_string(),
-            author: "Daypress Core".to_string(),
+            author: "Daypress".to_string(),
             description: "Safely inject custom HTML, CSS, tracking pixels (GTM, Meta Pixel, Plausible), or verification tags into <head>, <body>, or <footer>.".to_string(),
             settings_url: Some("/d-admin/plugin-settings?plugin=code-snippets".to_string()),
             is_builtin: true,
@@ -145,43 +112,10 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             hooks: PluginHooksManifest::default(),
         },
         PluginManifest {
-            slug: "daypress-wal-optimizer".to_string(),
-            name: "SQLite WAL Checkpoint & Compaction".to_string(),
-            version: "1.0.0".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "Automated Write-Ahead-Log maintenance: runs PRAGMA wal_checkpoint(TRUNCATE) every 5 minutes to keep the -wal journal compact and reads sub-millisecond.".to_string(),
-            settings_url: Some("/d-admin/daypress-engine".to_string()),
-            is_builtin: true,
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
-        PluginManifest {
-            slug: "webp-image-engine".to_string(),
-            name: "Responsive WebP & Media Pipeline".to_string(),
-            version: "2.4.1".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "On-the-fly dynamic image dimension scaling, focal-point auto-crop matrix, and lossless/lossy WebP transcoding.".to_string(),
-            settings_url: Some("/d-admin/options-media".to_string()),
-            is_builtin: true,
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
-        PluginManifest {
-            slug: "wxr-streaming-xml-importer".to_string(),
-            name: "1-Click Migration & WXR Importer".to_string(),
-            version: "2.0.0".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "High-throughput WordPress XML & 1-Click JSON importer that automatically converges Elementor/Divi/Gutenberg layouts, SEO meta, forms, redirects, and active modules.".to_string(),
-            settings_url: Some("/d-admin/import".to_string()),
-            is_builtin: true,
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
-        PluginManifest {
             slug: "daypress-newsletters".to_string(),
             name: "Dispatches, Newsletters & Member Gate".to_string(),
             version: "1.0.0".to_string(),
-            author: "Daypress Core".to_string(),
+            author: "Daypress".to_string(),
             description: "Native SQLite subscriber lists with Double Opt-In, 1-click RFC-8058 unsubscribe, [daypress_newsletter] signup widget, subscriber-gated posts, and automated new-post email digests.".to_string(),
             settings_url: Some("/d-admin/newsletters".to_string()),
             is_builtin: true,
@@ -209,7 +143,7 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             slug: "daypress-webhooks".to_string(),
             name: "Branded Shortlinks (/go/*) & Signed Webhooks".to_string(),
             version: "1.0.0".to_string(),
-            author: "Daypress Core".to_string(),
+            author: "Daypress".to_string(),
             description: "Branded /go/* affiliate & campaign shortlinks with click/UTM analytics, plus HMAC-SHA256 signed outbound webhooks for Slack, Discord, HubSpot, and Zapier with 1-click replay.".to_string(),
             settings_url: Some("/d-admin/webhooks".to_string()),
             is_builtin: true,
@@ -220,20 +154,9 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
             slug: "daypress-ab-testing".to_string(),
             name: "Zero-Flicker A/B Experiments & Web Vitals".to_string(),
             version: "1.0.0".to_string(),
-            author: "Daypress Core".to_string(),
+            author: "Daypress".to_string(),
             description: "Server-side zero-flicker A/B headline/CTA experiments with two-proportion Z-test statistical confidence, 1-click winner promotion, and real-user Core Web Vitals (LCP / INP / CLS p75).".to_string(),
             settings_url: Some("/d-admin/ab-testing".to_string()),
-            is_builtin: true,
-            settings_schema: vec![],
-            hooks: PluginHooksManifest::default(),
-        },
-        PluginManifest {
-            slug: "daypress-wasm-runtime".to_string(),
-            name: "WebAssembly (.wasm) Extension Sandbox".to_string(),
-            version: "1.0.0".to_string(),
-            author: "Daypress Core".to_string(),
-            description: "Run third-party shortcodes, content filters, and custom logic in a memory-isolated, fuel-metered WebAssembly (.wasm) sandbox with explicit capability permissions.".to_string(),
-            settings_url: Some("/d-admin/wasm".to_string()),
             is_builtin: true,
             settings_schema: vec![],
             hooks: PluginHooksManifest::default(),
@@ -241,12 +164,22 @@ pub fn builtin_plugins_catalog() -> Vec<PluginManifest> {
     ]
 }
 
-/// All built-in modules can be activated or deactivated individually by the site owner
-/// (or automatically activated when importing a WordPress site).
-pub const CORE_ALWAYS_ON_PLUGINS: &[&str] = &[];
+/// Slugs of built-in Daypress Core capabilities that are never listed or toggled as plugins.
+pub const CORE_FEATURE_SLUGS: &[&str] = &[
+    "daypress-wal-optimizer",
+    "webp-image-engine",
+    "wxr-streaming-xml-importer",
+    "daypress-cookie-consent",
+    "daypress-wasm-runtime",
+    "daypress-seo",
+    "daypress-backups",
+];
 
-pub fn is_core_always_on(slug: &str) -> bool {
-    CORE_ALWAYS_ON_PLUGINS.contains(&slug)
+pub fn is_core_feature_slug(slug: &str) -> bool {
+    let s = slug.trim();
+    CORE_FEATURE_SLUGS
+        .iter()
+        .any(|core| core.eq_ignore_ascii_case(s))
 }
 
 /// Returns the compiled catalog manifest for a built-in slug (if any).
@@ -329,7 +262,13 @@ pub fn validate_community_manifest(manifest: &mut PluginManifest) -> Result<Vec<
     }
     if builtin_manifest(&manifest.slug).is_some() {
         return Err(format!(
-            "\"{}\" is a reserved built-in plugin slug; choose a different slug",
+            "\"{}\" is a reserved official plugin slug; choose a different slug",
+            manifest.slug
+        ));
+    }
+    if is_core_feature_slug(&manifest.slug) {
+        return Err(format!(
+            "\"{}\" is a built-in Daypress Core feature slug; choose a different slug",
             manifest.slug
         ));
     }
@@ -814,15 +753,11 @@ pub fn expand_shortcodes_in_content_for_post(
                 }
             }
         }
-        // 5. Sandboxed WebAssembly (`.wasm`) extension shortcodes (`v0.9`)
-        if settings
-            .active_plugins
-            .iter()
-            .any(|p| p == "daypress-wasm-runtime")
-            || (settings.title.is_empty() && db.is_plugin_active("daypress-wasm-runtime"))
-        {
-            out = db.expand_active_wasm_shortcodes(&out);
-        }
+    }
+
+    // 5. Sandboxed WebAssembly (`.wasm`) extension shortcodes (Core host runtime)
+    if out.contains('[') {
+        out = db.expand_active_wasm_shortcodes(&out);
     }
 
     out

@@ -180,7 +180,7 @@ fn validate_template_layout_args(args: &Value) -> Result<(), DomainError> {
         if root
             .get("type")
             .and_then(Value::as_str)
-            .map_or(true, str::is_empty)
+            .is_none_or(str::is_empty)
         {
             return Err(DomainError::Validation(format!(
                 "'{key}.root' must have a `type` (usually \"Root\")"

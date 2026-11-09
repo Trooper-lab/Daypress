@@ -275,7 +275,7 @@ fn as_top_level_bands(mut nodes: Vec<DaypressNode>) -> Vec<DaypressNode> {
                 .to_string()
         });
         let is_plain_box = matches!(node.kind, NodeKind::Container)
-            && node.styles.link_url.as_deref().map_or(true, str::is_empty);
+            && node.styles.link_url.as_deref().is_none_or(str::is_empty);
         let band_tag = matches!(
             node.styles.html_tag.as_deref(),
             None | Some("div" | "header" | "footer" | "nav" | "aside" | "article")
@@ -390,7 +390,7 @@ fn split_site_chrome(
         .rev()
         .copied()
         .find(|&i| matches!(&children[i], DomNode::Element(e) if e.tag == "footer"))
-        .filter(|&i| header_end.map_or(true, |h| i > h));
+        .filter(|&i| header_end.is_none_or(|h| i > h));
 
     for (i, node) in children.into_iter().enumerate() {
         let in_header = header_end.is_some_and(|h| i <= h);

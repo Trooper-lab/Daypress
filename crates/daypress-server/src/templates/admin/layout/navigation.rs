@@ -372,6 +372,7 @@ impl NavState {
 
         let is_seo = if current_tab == "seo" { "active" } else { "" };
         let is_marketing = if current_tab == "marketing"
+            || current_tab == "seo"
             || current_tab == "forms"
             || current_tab == "newsletters"
             || current_tab == "analytics"
@@ -451,7 +452,6 @@ impl NavState {
             || current_tab == "shortlinks"
             || current_tab == "ab-testing"
             || current_tab == "code-snippets"
-            || current_tab == "seo"
             || current_tab == "backups"
             || current_tab == "site-health"
             || current_tab == "export-personal-data"

@@ -493,6 +493,7 @@ pub async fn handle_admin_marketing(State(db): State<Database>) -> Html<String> 
     let vitals = db.get_core_web_vitals_summary().unwrap_or_default();
     let shortlinks = db.list_shortlinks().unwrap_or_default();
     let ab_tests = db.list_ab_tests(None).unwrap_or_default();
+    let redirects = db.list_redirects().unwrap_or_default();
 
     let mut form_rows = String::new();
     for (f, count) in forms.iter().take(5) {
@@ -531,6 +532,7 @@ pub async fn handle_admin_marketing(State(db): State<Database>) -> Html<String> 
     }
 
     let mut header_btns = String::new();
+    header_btns.push_str(r#"<a href="/d-admin/seo" class="btn">SEO &amp; Redirects</a>"#);
     if forms_active {
         header_btns.push_str(r#"<a href="/d-admin/forms" class="btn">FormStudio</a>"#);
     }
@@ -604,6 +606,16 @@ pub async fn handle_admin_marketing(State(db): State<Database>) -> Html<String> 
     };
 
     let mut bottom_cards = String::new();
+    bottom_cards.push_str(&format!(
+        r#"<div class="card" style="padding:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div>
+                <h4 style="margin:0 0 4px;font-size:15px;">Search, Schema &amp; Redirection Studio</h4>
+                <p style="margin:0;font-size:12.5px;color:var(--text-muted);">Core &middot; {redirect_count} active redirect rules &middot; JSON-LD, OpenGraph &amp; 404 Monitor</p>
+            </div>
+            <a href="/d-admin/seo" class="btn">Open SEO &rarr;</a>
+        </div>"#,
+        redirect_count = redirects.len(),
+    ));
     if wa_active {
         bottom_cards.push_str(
             r#"<div class="card" style="padding:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;">

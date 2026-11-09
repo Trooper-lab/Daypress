@@ -883,7 +883,7 @@ pub fn render_updates_view_with_status(
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
             <div class="day-card" style="padding: 20px;">
                 <h4 style="font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 8px;">Plugins</h4>
-                <p style="font-size: 13px; color: var(--ink-muted);">Built-in modules (forms, SEO, backups) update together with Daypress. WordPress plugins do not run in Daypress.</p>
+                <p style="font-size: 13px; color: var(--ink-muted);">Official extensions (FormStudio, Newsletters, Webhooks, A/B Testing) update together with Daypress. WordPress PHP plugins do not run in Daypress.</p>
                 <div style="margin-top: 14px;">
                     <a href="/d-admin/plugins" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">Go to Plugins</a>
                 </div>

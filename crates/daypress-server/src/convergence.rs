@@ -607,7 +607,6 @@ pub fn converge_plugin_options(
                 let _ = upsert_option_tx(tx, "daypress_seo_default_og_image", default_og.trim());
             }
         }
-        let _ = activate_builtin_plugin_tx(tx, "daypress-seo", None);
         converged_list.push("Yoast / RankMath SEO -> Daypress SEO Toolkit".to_string());
     }
 
@@ -767,7 +766,6 @@ pub fn converge_plugin_options(
         || plugin_options.contains_key("moove_gdpr_plugin_settings")
     {
         let _ = upsert_option_tx(tx, "daypress_cookie_banner_enabled", "1");
-        let _ = activate_builtin_plugin_tx(tx, "daypress-cookie-consent", None);
         converged_list.push("GDPR Cookie Consent -> Privacy & Consent Banner".to_string());
     }
 
@@ -792,7 +790,6 @@ pub fn converge_plugin_options(
     if plugin_options.contains_key("updraft_interval")
         || plugin_options.contains_key("ai1wm_backups")
     {
-        let _ = activate_builtin_plugin_tx(tx, "daypress-backups", None);
         converged_list.push(
             "UpdraftPlus / All-in-One Migration -> Hot Snapshots & Point-in-Time Backups"
                 .to_string(),

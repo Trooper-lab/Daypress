@@ -202,7 +202,6 @@ impl Database {
                 now,
             ],
         )?;
-        Self::activate_builtin_plugin_with_conn(&conn, "daypress-wasm-runtime");
 
         let rec = conn.query_row(
             r#"SELECT id, slug, name, version, description, shortcode, capabilities_json, fuel_limit, max_memory_pages, wasm_sha256, wasm_bytes, is_active, executions, last_error, created_at

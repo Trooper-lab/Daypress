@@ -1968,7 +1968,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     let db = Database::new_in_memory().unwrap();
     let app = create_app(db.clone());
 
-    // 1. Initial admin plugins page loads cleanly with all 8 built-in plugins seeded in SQLite
+    // 1. Initial admin plugins page loads cleanly with the 6 Official extensions seeded in SQLite
     let plugins_page_res = app
         .clone()
         .oneshot(
@@ -1991,51 +1991,47 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
 
     // Verify status tabs and filter controls
     assert!(plugins_html.contains("status-tab"));
+    assert!(plugins_html.contains("Official (6)"));
     assert!(plugins_html.contains("pluginSearchInput"));
     assert!(plugins_html.contains("bulkPluginAction"));
 
-    // Verify all built-in plugins are listed with editorial Daypress names
-    assert!(
-        plugins_html.contains("Search, Schema &amp; Redirection Studio")
-            || plugins_html.contains("Daypress SEO")
-    );
-    assert!(
-        plugins_html.contains("FormStudio &amp; Submissions Vault")
-            || plugins_html.contains("Daypress Forms")
-    );
-    assert!(
-        plugins_html.contains("Hot Snapshots &amp; Point-in-Time Backups")
-            || plugins_html.contains("Snapshot")
-    );
-    assert!(
-        plugins_html.contains("Direct Chat &amp; WhatsApp Launcher")
-            || plugins_html.contains("WhatsApp")
-    );
-    assert!(
-        plugins_html.contains("Header, Footer &amp; Script Injector")
-            || plugins_html.contains("WPCode")
-    );
-    assert!(
-        plugins_html.contains("SQLite WAL Checkpoint &amp; Compaction")
-            || plugins_html.contains("Daypress WAL Optimizer")
-    );
-    assert!(
-        plugins_html.contains("Responsive WebP &amp; Media Pipeline")
-            || plugins_html.contains("WebP Image Engine")
-    );
-    assert!(
-        plugins_html.contains("1-Click Migration &amp; WXR Importer")
-            || plugins_html.contains("WXR Streaming XML")
-    );
+    // Verify the 6 Official extensions are listed
+    assert!(plugins_html.contains("FormStudio &amp; Submissions Vault"));
+    assert!(plugins_html.contains("Dispatches, Newsletters &amp; Member Gate"));
+    assert!(plugins_html.contains("Branded Shortlinks (/go/*) &amp; Signed Webhooks"));
+    assert!(plugins_html.contains("Zero-Flicker A/B Experiments &amp; Web Vitals"));
+    assert!(plugins_html.contains("Direct Chat &amp; WhatsApp Launcher"));
+    assert!(plugins_html.contains("Header, Footer &amp; Script Injector"));
 
-    // Verify forms shortcode expansion works out of the box because daypress-forms is active
+    // Verify the 7 promoted Core features are NOT shown as plugins on /d-admin/plugins
+    for core_slug in [
+        "daypress-seo",
+        "daypress-backups",
+        "daypress-wal-optimizer",
+        "webp-image-engine",
+        "wxr-streaming-xml-importer",
+        "daypress-cookie-consent",
+        "daypress-wasm-runtime",
+    ] {
+        assert!(
+            !plugins_html.contains(&format!("plugin-row-{core_slug}")),
+            "Core feature {core_slug} must not appear as a plugin row on /d-admin/plugins"
+        );
+    }
+
+    // Verify Core admin screens (SEO under Marketing, Backups under Tools, Wasm under Plugins) are permanently in sidebar
+    assert!(plugins_html.contains(r#"href="/d-admin/seo""#));
+    assert!(plugins_html.contains(r#"href="/d-admin/backups""#));
+    assert!(plugins_html.contains(r#"href="/d-admin/wasm""#));
+
+    // Verify forms shortcode expansion works out of the box when a form exists or daypress-forms is active
     let sample_content = "Please reach out to us: [contact-form-7 id=\"1\" title=\"Contact\"]";
     let settings = db.get_settings().unwrap();
     let expanded =
         daypress_server::plugins::expand_shortcodes_in_content(sample_content, &db, &settings);
     assert!(expanded.contains("dp-native-form-card") || expanded.contains("dp-form-"));
 
-    // 2. Add Plugins page (/d-admin/plugin-install) loads cleanly with curated extensions
+    // 2. Add Plugins page (/d-admin/plugin-install) loads cleanly with curated extensions (no duplicate Cookie Consent card)
     let install_page_res = app
         .clone()
         .oneshot(
@@ -2057,11 +2053,12 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     .unwrap();
     assert!(install_html.contains("1-Click Community Extensions"));
     assert!(install_html.contains("Top Promo Announcement Bar"));
-    assert!(install_html.contains("Lightweight Cookie Consent"));
+    assert!(install_html.contains("Back-to-Top Floating Button"));
+    assert!(!install_html.contains("Lightweight Cookie Consent"));
     assert!(install_html.contains("Scroll Reading Progress Bar"));
     assert!(install_html.contains("quickInstallPlugin"));
 
-    // 3. Test toggle plugin status (deactivate toggleable plugin like whatsapp-chat)
+    // 3. Test toggle plugin status (deactivate & activate toggleable Official plugin like whatsapp-chat)
     let toggle_deactivate_res = app
         .clone()
         .oneshot(
@@ -2107,52 +2104,40 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
     assert_eq!(toggle_activate_res.status(), StatusCode::OK);
     assert!(db.is_plugin_active("whatsapp-chat"));
 
-    // 4. Test built-in plugin activation and deactivation (all built-in plugins are freely toggleable in v0.9)
-    let toggle_backups_on = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/d-admin/api/plugins")
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({
-                        "slug": "daypress-backups",
-                        "active": true
-                    })
-                    .to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(toggle_backups_on.status(), StatusCode::OK);
-    assert!(db.is_plugin_active("daypress-backups"));
+    // 4. Attempting to toggle a Core feature slug as a plugin is rejected with 400 Bad Request
+    for core_slug in [
+        "daypress-backups",
+        "daypress-seo",
+        "daypress-cookie-consent",
+    ] {
+        let reject_res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/d-admin/api/plugins")
+                    .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "slug": core_slug,
+                            "active": true
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            reject_res.status(),
+            StatusCode::BAD_REQUEST,
+            "Core slug {core_slug} must not be toggleable via /d-admin/api/plugins"
+        );
+        assert!(db.get_installed_plugin(core_slug).unwrap().is_none());
+    }
 
-    let toggle_backups_off = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/d-admin/api/plugins")
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({
-                        "slug": "daypress-backups",
-                        "active": false
-                    })
-                    .to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(toggle_backups_off.status(), StatusCode::OK);
-    assert!(!db.is_plugin_active("daypress-backups"));
-
-    // 5. Test 1-click install of a community extension (cookie-consent)
+    // 5. Test 1-click install of a community extension (back-to-top-button)
     let install_res = app
         .clone()
         .oneshot(
@@ -2164,13 +2149,12 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
                 .body(Body::from(
                     serde_json::json!({
                         "manifest": {
-                            "slug": "cookie-consent",
-                            "name": "Lightweight Cookie Consent",
+                            "slug": "back-to-top-button",
+                            "name": "Back-to-Top Floating Button",
                             "version": "1.0.0",
-                            "author": "Daypress Community",
-                            "description": "GDPR and privacy cookie compliance banner with opt-in storage",
-                            "script": "console.log('cookie-consent active');",
-                            "admin_settings_schema": []
+                            "author": "UX Studio",
+                            "description": "Smooth-scroll floating button",
+                            "settings_schema": []
                         }
                     })
                     .to_string(),
@@ -2180,7 +2164,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
         .await
         .unwrap();
     assert_eq!(install_res.status(), StatusCode::OK);
-    assert!(db.is_plugin_active("cookie-consent"));
+    assert!(db.is_plugin_active("back-to-top-button"));
 
     // Verify community plugin shows up in installed plugins view
     let plugins_page_res2 = app
@@ -2201,7 +2185,7 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
             .to_vec(),
     )
     .unwrap();
-    assert!(plugins_html2.contains("Lightweight Cookie Consent"));
+    assert!(plugins_html2.contains("Back-to-Top Floating Button"));
     assert!(plugins_html2.contains("Community"));
 }
 
@@ -2320,6 +2304,65 @@ async fn test_plugins_activation_behind_proxy_and_formstudio_auto_activation() {
             || cross_origin_attempt.status() == StatusCode::FORBIDDEN
     );
     assert!(db.is_plugin_active("daypress-forms"));
+
+    // 3. Upgraded on-disk database with legacy Core rows in `daypress_plugins` purges them and preserves cookie-banner state
+    let tmp_db_path = std::env::temp_dir().join(format!(
+        "daypress_core_plugin_split_upgrade_{}.sqlite",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&tmp_db_path);
+    {
+        let db_init = Database::new(&tmp_db_path).unwrap();
+        db_init
+            .toggle_plugin_status("daypress-forms", Some(true))
+            .unwrap();
+    }
+    {
+        let raw_conn = rusqlite::Connection::open(&tmp_db_path).unwrap();
+        raw_conn
+            .execute(
+                "DELETE FROM options WHERE option_name IN ('daypress_plugins_catalog_v100_core_split', 'daypress_cookie_banner_enabled')",
+                [],
+            )
+            .unwrap();
+        for slug in [
+            "daypress-seo",
+            "daypress-backups",
+            "daypress-cookie-consent",
+        ] {
+            raw_conn
+                .execute(
+                    "INSERT INTO daypress_plugins (slug, name, version, description, category, is_builtin, is_active, manifest_json, config_json, updated_at)
+                     VALUES (?1, ?1, '1.0.0', 'legacy', 'builtin', 1, 1, '{}', '{}', '2026-01-01 00:00:00')",
+                    rusqlite::params![slug],
+                )
+                .unwrap();
+        }
+    }
+    {
+        let upgraded_db = Database::new(&tmp_db_path).unwrap();
+        let all_after_upgrade = upgraded_db.get_all_installed_plugins().unwrap();
+        assert_eq!(all_after_upgrade.len(), 6);
+        for core_slug in daypress_server::plugins::CORE_FEATURE_SLUGS {
+            assert!(
+                all_after_upgrade
+                    .iter()
+                    .all(|p| p.manifest.slug != *core_slug),
+                "Legacy core slug {core_slug} should be purged on upgrade"
+            );
+        }
+        assert!(
+            upgraded_db
+                .get_privacy_settings()
+                .unwrap()
+                .cookie_banner_enabled,
+            "Active legacy daypress-cookie-consent row must migrate to daypress_cookie_banner_enabled = true"
+        );
+        assert!(upgraded_db.is_plugin_active("daypress-forms"));
+    }
+    let _ = std::fs::remove_file(&tmp_db_path);
+    let _ = std::fs::remove_file(format!("{}-wal", tmp_db_path.display()));
+    let _ = std::fs::remove_file(format!("{}-shm", tmp_db_path.display()));
 }
 
 #[tokio::test]

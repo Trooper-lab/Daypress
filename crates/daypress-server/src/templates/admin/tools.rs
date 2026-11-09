@@ -54,6 +54,13 @@ pub fn render_tools_view(settings: &DaypressSettingsResponse, stats: &DbStats) -
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+            <div class="day-card" style="padding: 24px;">
+                <h3 style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Hot Snapshots &amp; Point-in-Time Backups</h3>
+                <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px; line-height: 1.5;">
+                    Create zero-downtime SQLite <code>VACUUM INTO</code> snapshots, restore previous checkpoints in 1 click, or download portable archives.
+                </p>
+                <a href="/d-admin/backups" class="btn btn-secondary" style="font-size: 12.5px;">Open Backups &rarr;</a>
+            </div>
             {webhooks_card}
             {ab_card}
             {snippets_card}

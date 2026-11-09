@@ -18,7 +18,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
 | **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
 | **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Shipped** |
-| **`1.0`** | First Stable Release (100/100 Security Audit, Benchmarks, Stable Schema v100 & 100% WP Migration Sign-Off) | **Shipped in Beta (`v1.0.0-beta.1`)** |
+| **`1.0`** | First Stable Release (100/100 Security Audit, Benchmarks, Stable Schema v100 & 100% WP Migration Sign-Off) | **Shipped (`v1.0.1`)** |
 
 ---
 
@@ -119,7 +119,7 @@ This document is the canonical milestone tracker for Daypress (`https://daypress
 - [x] **Zero-Flicker Server-Side A/B Split Testing** on any Daystudio heading, CTA, or section with built-in conversion stats & Real-User Core Web Vitals (`LCP` / `INP` / `CLS`) telemetry
 - [x] Sandboxed **WebAssembly (`.wasm`) Extension Crates** with explicit capability permissions
 
-### `1.0` — First Stable Release (`In Beta — v1.0.0-beta.1`)
+### `1.0` — First Stable Release (`Shipped — v1.0.1`)
 - [x] Automated 10-point security & safety audit (`/wp-json/daypress/v1/security/audit`, `daypress doctor`, `/d-admin/site-health`) and HTTP/SSRF/shortlink hardening
 - [x] Published reproducible load, latency, and memory benchmark suite (Daypress vs. WordPress + PHP-FPM/Redis — `/wp-json/daypress/v1/benchmarks/run` & `BENCHMARKS.md`)
 - [x] Stable SQLite schema (`DAYPRESS_SCHEMA_VERSION = 100`, `daypress_schema_migrations`) & WebAssembly extension ABI (`WASM_ABI_VERSION = 1`) backward-compatibility guarantees

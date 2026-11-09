@@ -470,7 +470,7 @@ fn any_descendant(el: &DomElement, pred: &dyn Fn(&DomElement) -> bool) -> bool {
 }
 
 fn has_class_token(el: &DomElement, token: &str) -> bool {
-    el.classes().iter().any(|c| *c == token)
+    el.classes().contains(&token)
 }
 
 /// Converts an `accept` attribute (`image/*,.pdf`) into FormStudio's extension allowlist.

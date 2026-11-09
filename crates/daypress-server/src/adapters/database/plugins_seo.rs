@@ -468,7 +468,6 @@ impl Database {
                    is_active = 1"#,
             params![src, dst, code, now],
         )?;
-        Self::activate_builtin_plugin_with_conn(&conn, "daypress-seo");
 
         let rule = conn.query_row(
             "SELECT id, source_path, target_url, status_code, hits, is_active, created_at FROM daypress_redirects WHERE source_path = ?1",
@@ -579,6 +578,9 @@ impl Database {
     // =========================================================================
 
     pub(crate) fn activate_builtin_plugin_with_conn(conn: &Connection, slug: &str) {
+        if crate::plugins::is_core_feature_slug(slug) {
+            return;
+        }
         let _ = Self::ensure_builtin_plugins_seeded_with_conn(conn);
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let _ = conn.execute(
@@ -604,7 +606,7 @@ impl Database {
     pub fn ensure_builtin_plugins_seeded_with_conn(conn: &Connection) -> Result<()> {
         let catalog_ready: Option<String> = conn
             .query_row(
-                "SELECT option_value FROM options WHERE option_name = 'daypress_plugins_catalog_v090'",
+                "SELECT option_value FROM options WHERE option_name = 'daypress_plugins_catalog_v100_core_split'",
                 [],
                 |r| r.get(0),
             )
@@ -616,9 +618,51 @@ impl Database {
                 |r| r.get(0),
             )
             .unwrap_or(0);
-        if catalog_ready.as_deref() == Some("1") && preexisting_builtin_count >= 13 {
+        if catalog_ready.as_deref() == Some("1") && preexisting_builtin_count == 6 {
             return Ok(());
         }
+
+        // Preserve active cookie-consent state on upgraded DBs before purging core rows from `daypress_plugins`.
+        let cookie_plugin_was_active: bool = conn
+            .query_row(
+                "SELECT is_active FROM daypress_plugins WHERE slug = 'daypress-cookie-consent'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|v| v != 0)
+            .unwrap_or(false);
+        if cookie_plugin_was_active {
+            let existing_banner_opt: Option<String> = conn
+                .query_row(
+                    "SELECT option_value FROM options WHERE option_name = 'daypress_cookie_banner_enabled'",
+                    [],
+                    |r| r.get(0),
+                )
+                .ok();
+            if existing_banner_opt.is_none() {
+                let _ = conn.execute(
+                    "INSERT INTO options (option_name, option_value) VALUES ('daypress_cookie_banner_enabled', '1')
+                     ON CONFLICT(option_name) DO NOTHING",
+                    [],
+                );
+            }
+        }
+
+        // Purge built-in Core features that are no longer treated as plugins.
+        for core_slug in crate::plugins::CORE_FEATURE_SLUGS {
+            let _ = conn.execute(
+                "DELETE FROM daypress_plugins WHERE slug = ?1",
+                params![core_slug],
+            );
+        }
+
+        let remaining_preexisting_builtin: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM daypress_plugins WHERE is_builtin = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
 
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         for manifest in crate::plugins::builtin_plugins_catalog() {
@@ -655,8 +699,6 @@ impl Database {
         }
 
         // One-time migration: ensure pre-0.9 databases reset built-in plugins to deactivated by default.
-        // On a fresh database (`preexisting_builtin_count == 0`), rows were just inserted with `is_active = 0`,
-        // so we simply record the v0.9 flag without clobbering any newly converged plugins.
         let migrated: Option<String> = conn
             .query_row(
                 "SELECT option_value FROM options WHERE option_name = 'daypress_plugins_default_inactive_v09'",
@@ -665,14 +707,9 @@ impl Database {
             )
             .ok();
         if migrated.is_none() {
-            if preexisting_builtin_count > 0 {
+            if remaining_preexisting_builtin > 0 {
                 let _ = conn.execute(
                     "UPDATE daypress_plugins SET is_active = 0 WHERE is_builtin = 1",
-                    [],
-                );
-                let _ = conn.execute(
-                    "INSERT INTO options (option_name, option_value) VALUES ('active_plugins', '[]')
-                     ON CONFLICT(option_name) DO UPDATE SET option_value = '[]'",
                     [],
                 );
             }
@@ -682,8 +719,30 @@ impl Database {
                 [],
             );
         }
+
+        // Re-synchronize `active_plugins` and `daypress_active_plugins` so purged Core slugs are removed.
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT slug FROM daypress_plugins WHERE is_active = 1 ORDER BY is_builtin DESC, name ASC",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |r| r.get::<_, String>(0)) {
+                let active: Vec<String> = rows.flatten().collect();
+                if let Ok(json_str) = serde_json::to_string(&active) {
+                    let _ = conn.execute(
+                        "INSERT INTO options (option_name, option_value) VALUES ('active_plugins', ?1)
+                         ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value",
+                        params![json_str],
+                    );
+                    let _ = conn.execute(
+                        "INSERT INTO options (option_name, option_value) VALUES ('daypress_active_plugins', ?1)
+                         ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value",
+                        params![json_str],
+                    );
+                }
+            }
+        }
+
         let _ = conn.execute(
-            "INSERT INTO options (option_name, option_value) VALUES ('daypress_plugins_catalog_v090', '1')
+            "INSERT INTO options (option_name, option_value) VALUES ('daypress_plugins_catalog_v100_core_split', '1')
              ON CONFLICT(option_name) DO UPDATE SET option_value = '1'",
             [],
         );
@@ -781,8 +840,8 @@ impl Database {
     }
 
     pub fn is_plugin_active(&self, slug: &str) -> bool {
-        if crate::plugins::is_core_always_on(slug) {
-            return true;
+        if crate::plugins::is_core_feature_slug(slug) {
+            return false;
         }
         if let Ok(conn) = self.conn.lock() {
             let res: Result<i64> = conn.query_row(
@@ -797,14 +856,11 @@ impl Database {
     }
 
     pub fn toggle_plugin_status(&self, slug: &str, active: Option<bool>) -> Result<bool> {
-        if crate::plugins::is_core_always_on(slug) {
-            if active == Some(false) {
-                return Err(rusqlite::Error::InvalidParameterName(format!(
-                    "Core subsystem plugin '{}' is always active and cannot be deactivated.",
-                    slug
-                )));
-            }
-            return Ok(true);
+        if crate::plugins::is_core_feature_slug(slug) {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "'{}' is a built-in Daypress Core feature and is not managed as a plugin.",
+                slug
+            )));
         }
         let conn = self.conn.lock().unwrap();
         let _ = Self::ensure_builtin_plugins_seeded_with_conn(&conn);

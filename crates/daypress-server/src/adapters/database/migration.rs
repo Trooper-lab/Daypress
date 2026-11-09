@@ -1193,7 +1193,6 @@ impl Database {
             redirect_count += 1;
         }
         if redirect_count > 0 {
-            let _ = crate::convergence::activate_builtin_plugin_tx(&tx, "daypress-seo", None);
             converged_plugins.push(format!(
                 "Redirection / 301 Rules ({redirect_count} rules) -> Daypress Redirect Manager"
             ));
@@ -1217,7 +1216,6 @@ impl Database {
             converged_plugins.append(&mut from_opts);
         }
         if seo_meta_converged && !converged_plugins.iter().any(|c| c.contains("SEO Toolkit")) {
-            let _ = crate::convergence::activate_builtin_plugin_tx(&tx, "daypress-seo", None);
             converged_plugins.push("Post SEO Metadata -> Daypress SEO Toolkit".to_string());
         }
 

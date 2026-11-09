@@ -273,34 +273,21 @@ pub(crate) async fn get_themes_handler(
 pub(crate) async fn get_plugins_handler(
     State(db): State<Database>,
 ) -> Result<Json<Value>, AppError> {
-    let settings = db.get_settings()?;
-    let is_active = |slug: &str| {
-        settings.active_plugins.is_empty()
-            || settings
-                .active_plugins
-                .iter()
-                .any(|p| p.eq_ignore_ascii_case(slug))
-    };
-    Ok(Json(serde_json::json!([
-        {
-            "plugin": "daypress-wal-optimizer",
-            "name": "Daypress WAL Optimizer",
-            "version": "1.0.0",
-            "status": if is_active("daypress-wal-optimizer") { "active" } else { "inactive" }
-        },
-        {
-            "plugin": "webp-image-engine",
-            "name": "WebP Image Engine",
-            "version": "2.4.1",
-            "status": if is_active("webp-image-engine") { "active" } else { "inactive" }
-        },
-        {
-            "plugin": "wxr-streaming-xml-importer",
-            "name": "WXR Streaming XML Importer",
-            "version": "1.2.0",
-            "status": if is_active("wxr-streaming-xml-importer") { "active" } else { "inactive" }
-        }
-    ])))
+    let installed = db.get_all_installed_plugins()?;
+    let list: Vec<Value> = installed
+        .into_iter()
+        .map(|p| {
+            serde_json::json!({
+                "plugin": p.manifest.slug,
+                "name": p.manifest.name,
+                "version": p.manifest.version,
+                "author": p.manifest.author,
+                "description": { "raw": p.manifest.description, "rendered": p.manifest.description },
+                "status": if p.active { "active" } else { "inactive" }
+            })
+        })
+        .collect();
+    Ok(Json(Value::Array(list)))
 }
 
 pub(crate) async fn search_content_handler(

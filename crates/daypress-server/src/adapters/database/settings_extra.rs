@@ -256,11 +256,9 @@ impl Database {
     pub fn get_privacy_settings(&self) -> Result<PrivacySettings> {
         let defaults = PrivacySettings::default();
         let banner_opt = self.get_option("daypress_cookie_banner_enabled")?;
-        let plugin_active = self.is_plugin_active("daypress-cookie-consent");
-        let cookie_banner_enabled = match banner_opt {
-            Some(v) => v == "1" || v.eq_ignore_ascii_case("true"),
-            None => plugin_active,
-        };
+        let cookie_banner_enabled = banner_opt
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
         Ok(PrivacySettings {
             wp_page_for_privacy_policy: self
                 .get_option("wp_page_for_privacy_policy")?
@@ -313,7 +311,6 @@ impl Database {
             "daypress_cookie_banner_enabled",
             if s.cookie_banner_enabled { "1" } else { "0" },
         )?;
-        let _ = self.toggle_plugin_status("daypress-cookie-consent", Some(s.cookie_banner_enabled));
         self.set_option(
             "daypress_cookie_banner_position",
             s.cookie_banner_position.trim(),

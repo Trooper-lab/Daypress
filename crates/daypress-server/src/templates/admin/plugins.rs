@@ -11,10 +11,7 @@ pub fn render_plugins_view(
     installed: &[InstalledPluginRecord],
 ) -> String {
     let total_count = installed.len();
-    let active_count = installed
-        .iter()
-        .filter(|p| p.active || crate::plugins::is_core_always_on(&p.manifest.slug))
-        .count();
+    let active_count = installed.iter().filter(|p| p.active).count();
     let inactive_count = total_count.saturating_sub(active_count);
     let builtin_count = installed.iter().filter(|p| p.manifest.is_builtin).count();
     let custom_count = total_count.saturating_sub(builtin_count);
@@ -26,18 +23,15 @@ pub fn render_plugins_view(
         let desc = escape_html(&record.manifest.description);
         let version = escape_html(&record.manifest.version);
         let author = escape_html(&record.manifest.author);
-        let is_always_on = crate::plugins::is_core_always_on(&record.manifest.slug);
-        let is_active = record.active || is_always_on;
+        let is_active = record.active;
 
         let category_label = if record.manifest.is_builtin {
-            "First-Party Core"
+            "Official Extension"
         } else {
             "Community Extension"
         };
 
-        let badge_html = if is_always_on {
-            r#"<span class="badge" style="background:var(--press-wash); color:var(--press); border:1px solid var(--press); font-size:11px;">Core · Active</span>"#
-        } else if is_active {
+        let badge_html = if is_active {
             r#"<span class="badge badge-published" style="font-size:11px;">Active</span>"#
         } else {
             r#"<span class="badge badge-draft" style="font-size:11px;">Inactive</span>"#
@@ -49,9 +43,7 @@ pub fn render_plugins_view(
             r#"<span style="font-size:10.5px; background:var(--press-wash); color:var(--press); border:1px solid var(--press); padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600;">Community Extension</span>"#
         };
 
-        let toggle_action = if is_always_on {
-            r#"<span style="color:var(--ink-muted); font-size:12px; font-weight:500;">Core (Always Active)</span>"#.to_string()
-        } else if is_active {
+        let toggle_action = if is_active {
             format!(
                 r#"<a href="javascript:void(0)" onclick="togglePlugin(this, '{slug}', false)" style="color:var(--ink); font-weight:600;">Deactivate</a>"#,
                 slug = slug
@@ -64,13 +56,10 @@ pub fn render_plugins_view(
         };
 
         let (settings_url, settings_label) = match record.manifest.slug.as_str() {
-            "daypress-seo" => ("/d-admin/seo", "SEO Studio & Redirects"),
             "daypress-forms" => ("/d-admin/forms", "FormStudio & Vault"),
-            "daypress-cookie-consent" => ("/d-admin/options-privacy", "Privacy & Consent"),
-            "daypress-backups" => ("/d-admin/backups", "Snapshots & Backups"),
-            "daypress-wal-optimizer" => ("/d-admin/daypress-engine", "Engine Telemetry"),
-            "webp-image-engine" => ("/d-admin/options-media", "Media Settings"),
-            "wxr-streaming-xml-importer" => ("/d-admin/import", "Import Tool"),
+            "daypress-newsletters" => ("/d-admin/newsletters", "Newsletters"),
+            "daypress-webhooks" => ("/d-admin/webhooks", "Shortlinks & Webhooks"),
+            "daypress-ab-testing" => ("/d-admin/ab-testing", "A/B Testing & Vitals"),
             "whatsapp-chat" => (
                 "/d-admin/plugin-settings?plugin=whatsapp-chat",
                 "Configure Chat",
@@ -175,8 +164,8 @@ pub fn render_plugins_view(
         r##"
         <div class="page-header">
             <div>
-                <h1 class="page-title">Plugins &amp; Native Modules</h1>
-                <p class="page-subtitle">Manage built-in first-party Rust subsystems and declarative community plugins</p>
+                <h1 class="page-title">Plugins</h1>
+                <p class="page-subtitle">Manage official Daypress extensions and declarative community plugins</p>
             </div>
             <div style="display: flex; gap: 10px;">
                 <a href="/d-admin/api/plugin-sdk-template" class="btn btn-secondary">⬇ Download Starter SDK (.json)</a>
@@ -190,7 +179,7 @@ pub fn render_plugins_view(
                 <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="all" style="background: var(--ink); color: var(--paper-raised);" onclick="filterPluginsByTab('all', this)">All ({total_count})</button>
                 <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="active" onclick="filterPluginsByTab('active', this)">Active ({active_count})</button>
                 <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="inactive" onclick="filterPluginsByTab('inactive', this)">Inactive ({inactive_count})</button>
-                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="builtin" onclick="filterPluginsByTab('builtin', this)">Built-In Core ({builtin_count})</button>
+                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="builtin" onclick="filterPluginsByTab('builtin', this)">Official ({builtin_count})</button>
                 <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="community" onclick="filterPluginsByTab('community', this)">Community ({custom_count})</button>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -397,16 +386,16 @@ pub fn render_plugin_install_view(settings: &DaypressSettingsResponse) -> String
                 <div class="day-card" style="padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <h3 style="font-size: 15px; font-weight: 700; color: var(--ink);">Lightweight Cookie Consent</h3>
-                            <span style="font-size: 11px; background: var(--press-wash); color: var(--press); padding: 2px 6px; border-radius: 4px; font-weight: 600;">Privacy First</span>
+                            <h3 style="font-size: 15px; font-weight: 700; color: var(--ink);">Back-to-Top Floating Button</h3>
+                            <span style="font-size: 11px; background: var(--press-wash); color: var(--press); padding: 2px 6px; border-radius: 4px; font-weight: 600;">UX Utility</span>
                         </div>
                         <p style="font-size: 13px; color: var(--ink-muted); margin: 8px 0 14px 0; line-height: 1.5;">
-                            Zero-dependency GDPR &amp; ePrivacy compliant cookie notification bar with customizable disclosure notice and accept button.
+                            Smooth-scroll floating button that fades in after scrolling down long pages, with customizable accent color and label.
                         </p>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
                         <span style="font-size: 12px; color: var(--ink-muted);">Hooks: footer</span>
-                        <button class="btn btn-primary" style="font-size: 12px;" onclick="quickInstallPlugin('cookie-consent')">Install Now</button>
+                        <button class="btn btn-primary" style="font-size: 12px;" onclick="quickInstallPlugin('back-to-top-button')">Install Now</button>
                     </div>
                 </div>
 
@@ -469,20 +458,20 @@ pub fn render_plugin_install_view(settings: &DaypressSettingsResponse) -> String
                         "shortcode_html": "<div style=\"padding: 16px 20px; background: {{{{bg_color}}}}; color: {{{{text_color}}}}; border-radius: 8px; text-align: center; margin: 16px 0;\"><p style=\"margin: 0 0 10px 0; font-size: 15px; font-weight: 600;\">{{{{banner_text}}}}</p><a href=\"{{{{cta_link}}}}\" style=\"display: inline-block; padding: 6px 16px; background: #ffffff; color: #0f172a; border-radius: 4px; font-weight: 600; text-decoration: none;\">{{{{cta_label}}}}</a></div>"
                     }}
                 }},
-                "cookie-consent": {{
-                    "slug": "cookie-consent",
-                    "name": "Lightweight Cookie Consent Banner",
-                    "version": "1.1.0",
-                    "author": "Privacy First",
-                    "description": "Zero-dependency GDPR & ePrivacy compliant cookie notification bar with customizable notice and accept button.",
-                    "settings_url": "/d-admin/plugin-settings?plugin=cookie-consent",
+                "back-to-top-button": {{
+                    "slug": "back-to-top-button",
+                    "name": "Back-to-Top Floating Button",
+                    "version": "1.0.0",
+                    "author": "UX Studio",
+                    "description": "Smooth-scroll floating button that fades in after scrolling down long pages, with customizable accent color and label.",
+                    "settings_url": "/d-admin/plugin-settings?plugin=back-to-top-button",
                     "is_builtin": false,
                     "settings_schema": [
-                        {{ "key": "notice_text", "label": "Notice Text", "field_type": "text", "default_value": "We use essential cookies to ensure high-performance browsing.", "description": "Cookie disclosure text.", "options": [] }},
-                        {{ "key": "accept_button_text", "label": "Accept Button Text", "field_type": "text", "default_value": "Accept & Close", "description": "Button label.", "options": [] }}
+                        {{ "key": "button_label", "label": "Button Label", "field_type": "text", "default_value": "↑ Top", "description": "Button text.", "options": [] }},
+                        {{ "key": "accent_color", "label": "Accent Color", "field_type": "color", "default_value": "#2563eb", "description": "Floating button background color.", "options": [] }}
                     ],
                     "hooks": {{
-                        "footer_html": "<div id=\"dp-cookie-banner\" style=\"position: fixed; bottom: 20px; left: 20px; right: 20px; max-width: 520px; margin: 0 auto; background: #0f172a; color: #f8fafc; padding: 14px 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 99999; display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 12.5px;\"><span>{{{{notice_text}}}}</span><button onclick=\"this.parentElement.remove(); localStorage.setItem('dp_cookie_ack', '1')\" style=\"padding: 6px 14px; background: #2563eb; color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer;\">{{{{accept_button_text}}}}</button></div><script>if (localStorage.getItem('dp_cookie_ack')) {{ const b = document.getElementById('dp-cookie-banner'); if (b) b.remove(); }}</script>"
+                        "footer_html": "<button id=\"dp-back-to-top\" type=\"button\" onclick=\"window.scrollTo({{top:0,behavior:'smooth'}})\" style=\"position:fixed;bottom:24px;right:24px;padding:10px 14px;background:{{{{accent_color}}}};color:#fff;border:none;border-radius:999px;font-weight:600;font-size:13px;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,0.2);opacity:0;pointer-events:none;transition:opacity 0.2s ease;z-index:9997;\">{{{{button_label}}}}</button><script>window.addEventListener('scroll',()=>{{const b=document.getElementById('dp-back-to-top');if(!b)return;const show=window.scrollY>320;b.style.opacity=show?'1':'0';b.style.pointerEvents=show?'auto':'none';}});</script>"
                     }}
                 }},
                 "reading-progress-bar": {{
@@ -696,9 +685,7 @@ pub fn render_plugin_settings_view(
     } else {
         r#"<span class="badge badge-draft">Inactive</span>"#
     };
-    let toggle_btn = if crate::plugins::is_core_always_on(&record.manifest.slug) {
-        String::new()
-    } else if record.active {
+    let toggle_btn = if record.active {
         format!(
             r#"<button type="button" class="btn btn-secondary" onclick="togglePluginActiveState('{slug}', false)">Deactivate Module</button>"#,
             slug = slug
