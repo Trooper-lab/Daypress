@@ -10,63 +10,63 @@ pub const CSS_ELEMENTS: &str = r#"
 		   Canonical Daypress AST Element System (:where(.dp-*))
 		   Zero-specificity rules parameterized via --dp-* custom properties
 		   ========================================================================== */
-		:where(.dp-section) {
+		:where(.dp-section:not(.dp-design, .dp-design *)) {
 			width: 100%;
 			padding: var(--dp-section-padding, 64px 24px);
 			position: relative;
 			border-bottom: var(--dp-section-border, 1px solid var(--border-subtle, transparent));
 		}
 
-		:where(.dp-container) {
+		:where(.dp-container:not(.dp-design, .dp-design *)) {
 			max-width: var(--dp-container-max-width, 1200px);
 			margin: var(--dp-container-margin, 0 auto);
 			width: var(--dp-container-width, 100%);
 		}
 
-		:where(.dp-container .dp-container),
-		:where(.dp-grid > .dp-container),
-		:where(.dp-flex > .dp-container),
-		:where(.dp-column > .dp-container) {
+		:where(.dp-container .dp-container:not(.dp-design, .dp-design *)),
+		:where(.dp-grid > .dp-container:not(.dp-design, .dp-design *)),
+		:where(.dp-flex > .dp-container:not(.dp-design, .dp-design *)),
+		:where(.dp-column > .dp-container:not(.dp-design, .dp-design *)) {
 			max-width: var(--dp-nested-container-max-width, none);
 			margin: var(--dp-nested-container-margin, 0);
 			width: var(--dp-nested-container-width, auto);
 		}
 
-		:where(.dp-grid) {
+		:where(.dp-grid:not(.dp-design, .dp-design *)) {
 			display: grid;
 			gap: var(--dp-grid-gap, 24px);
 			width: 100%;
 		}
 
-		:where(.dp-flex) {
+		:where(.dp-flex:not(.dp-design, .dp-design *)) {
 			display: flex;
 			gap: var(--dp-flex-gap, 20px);
 		}
 
-		:where(.dp-section:has(> .dp-flex + .dp-flex)),
-		:where(.dp-container:has(> .dp-flex + .dp-flex)) {
+		:where(.dp-section:has(> .dp-flex + .dp-flex):not(.dp-design, .dp-design *)),
+		:where(.dp-container:has(> .dp-flex + .dp-flex):not(.dp-design, .dp-design *)) {
 			display: flex;
 			flex-direction: row;
 			gap: 28px;
 			align-items: flex-start;
 		}
 
-		:where(.dp-section > .dp-flex + .dp-flex),
-		:where(.dp-section > .dp-flex:has(+ .dp-flex)),
-		:where(.dp-container > .dp-flex + .dp-flex),
-		:where(.dp-container > .dp-flex:has(+ .dp-flex)) {
+		:where(.dp-section > .dp-flex + .dp-flex:not(.dp-design, .dp-design *)),
+		:where(.dp-section > .dp-flex:has(+ .dp-flex):not(.dp-design, .dp-design *)),
+		:where(.dp-container > .dp-flex + .dp-flex:not(.dp-design, .dp-design *)),
+		:where(.dp-container > .dp-flex:has(+ .dp-flex):not(.dp-design, .dp-design *)) {
 			flex: 1 1 0%;
 			min-width: 0;
 		}
 
-		:where(.dp-column) {
+		:where(.dp-column:not(.dp-design, .dp-design *)) {
 			display: flex;
 			flex-direction: column;
 			gap: var(--dp-column-gap, 16px);
 			min-width: 0;
 		}
 
-		:where(.dp-heading) {
+		:where(.dp-heading:not(.dp-design, .dp-design *)) {
 			color: var(--dp-color-heading, var(--e-global-color-secondary, var(--text-main, inherit)));
 			font-family: var(--dp-font-heading, var(--e-global-typography-primary-font-family, inherit));
 			font-weight: var(--dp-heading-weight, 800);
@@ -75,34 +75,34 @@ pub const CSS_ELEMENTS: &str = r#"
 			margin-bottom: var(--dp-heading-margin-bottom, 12px);
 		}
 
-		:where(h1.dp-heading) { font-size: var(--dp-h1-size, 44px); }
-		:where(h2.dp-heading) { font-size: var(--dp-h2-size, 32px); }
-		:where(h3.dp-heading) { font-size: var(--dp-h3-size, 22px); }
-		:where(h4.dp-heading) { font-size: var(--dp-h4-size, 18px); }
+		:where(h1.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h1-size, 44px); }
+		:where(h2.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h2-size, 32px); }
+		:where(h3.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h3-size, 22px); }
+		:where(h4.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h4-size, 18px); }
 
-		:where(.dp-text) {
+		:where(.dp-text:not(.dp-design, .dp-design *)) {
 			color: var(--dp-color-text, var(--e-global-color-text, var(--text-muted, inherit)));
 			font-family: var(--dp-font-body, var(--e-global-typography-text-font-family, inherit));
 			font-size: var(--dp-text-size, 16px);
 			line-height: var(--dp-text-line-height, 1.75);
 		}
 
-		:where(.dp-text p) {
+		:where(.dp-text:not(.dp-design, .dp-design *) p) {
 			margin-bottom: var(--dp-paragraph-gap, 16px);
 		}
 
-		:where(.dp-text p:last-child) {
+		:where(.dp-text:not(.dp-design, .dp-design *) p:last-child) {
 			margin-bottom: 0;
 		}
 
-		:where(.dp-image) {
+		:where(.dp-image:not(.dp-design, .dp-design *)) {
 			max-width: 100%;
 			height: auto;
 			border-radius: var(--dp-image-radius, 10px);
 			display: block;
 		}
 
-		a:where(.dp-button), :where(.dp-button), .btn-primary-neon {
+		a:where(.dp-button:not(.dp-design)), :where(.dp-button:not(.dp-design)), .btn-primary-neon {
 			display: inline-flex;
 			align-items: center;
 			justify-content: center;
@@ -121,7 +121,7 @@ pub const CSS_ELEMENTS: &str = r#"
 			text-decoration: none;
 		}
 
-		a:where(.dp-button:hover), :where(.dp-button:hover), .btn-primary-neon:hover {
+		a:where(.dp-button:not(.dp-design):hover), :where(.dp-button:not(.dp-design):hover), .btn-primary-neon:hover {
 			background: var(--dp-button-hover-bg, var(--ink, #16171a));
 			color: var(--dp-button-color, var(--on-oxide, #fff8f0));
 			transform: translateY(-1px);

@@ -563,6 +563,7 @@ impl Database {
             sample_html,
             &daypress_ast::HtmlDesignImportOptions {
                 extract_header_footer: false,
+                extract_forms: false,
             },
         );
         let mut ast_samples = Vec::with_capacity(iterations);

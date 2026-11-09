@@ -5,9 +5,9 @@
 //! across both DayStudio editor artboards and public SSR pages.
 
 pub const CSS_WIDGETS: &str = r#"
-/* Container & Layout Compatibility */
-.dp-section { width: 100%; position: relative; box-sizing: border-box; }
-.dp-container { width: 100%; max-width: 1200px; margin: 0 auto; position: relative; box-sizing: border-box; }
+/* Container & Layout Compatibility (imported designs, `.dp-design`, lay themselves out) */
+.dp-section:not(:where(.dp-design, .dp-design *)) { width: 100%; position: relative; box-sizing: border-box; }
+.dp-container:not(:where(.dp-design, .dp-design *)) { width: 100%; max-width: 1200px; margin: 0 auto; position: relative; box-sizing: border-box; }
 .daystudio-column { display: flex; flex-direction: column; box-sizing: border-box; }
 
 /* Commercial Pro Blocks: Price Card & Tables */

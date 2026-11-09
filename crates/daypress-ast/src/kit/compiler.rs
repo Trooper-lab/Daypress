@@ -27,6 +27,23 @@ fn is_generic_font(fam: &str) -> bool {
     )
 }
 
+/// Text in the prelude of an imported design's `custom_css` (`IMPORTED_DESIGN_PRELUDE_CSS`).
+pub(crate) const IMPORTED_DESIGN_MARKER: &str = "Daypress HTML design import";
+
+/// Splits `@import` statements at the start of a stylesheet from the rest of it.
+fn split_leading_imports(css: &str) -> (&str, &str) {
+    let mut end = 0usize;
+    for line in css.split_inclusive('\n') {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.to_ascii_lowercase().starts_with("@import") {
+            end += line.len();
+        } else {
+            break;
+        }
+    }
+    css.split_at(end)
+}
+
 impl DaystudioKit {
     /// Parses a `DaystudioKit` from either a JSON string or a serialized kit settings string.
     pub fn from_raw_settings(raw: &str) -> Option<Self> {
@@ -54,7 +71,12 @@ impl DaystudioKit {
     pub fn compile_to_css(&self) -> String {
         let mut css = String::new();
 
-        // 1. Google Fonts @import
+        // 1. Font `@import`s, which browsers ignore after any other rule. An imported design
+        // brings its own, so its font names are not looked up on Google Fonts.
+        let custom_css = self.custom_css.as_deref().unwrap_or("");
+        let (custom_imports, custom_rest) = split_leading_imports(custom_css);
+        css.push_str(custom_imports);
+        let design_owns_fonts = custom_css.contains(IMPORTED_DESIGN_MARKER);
         let mut google_fonts = std::collections::BTreeSet::new();
         for t in self
             .system_typography
@@ -63,7 +85,7 @@ impl DaystudioKit {
         {
             if let Some(first_fam) = t.font_family.split(',').next() {
                 let clean = first_fam.trim().trim_matches('\'').trim_matches('"').trim();
-                if !clean.is_empty() && !is_generic_font(clean) {
+                if !clean.is_empty() && !is_generic_font(clean) && !design_owns_fonts {
                     google_fonts.insert(clean.to_string());
                 }
             }
@@ -271,15 +293,13 @@ impl DaystudioKit {
 
         // 5. Zero-Specificity Base Element Styles (:where(...))
         css.push_str("\n:where(body.daystudio-theme-active, .daystudio-kit) {\n  font-family: var(--e-global-typography-text-font-family, inherit);\n  color: var(--e-global-color-text, inherit);\n}\n");
-        css.push_str(":where(h1, h2, h3, h4, h5, h6) {\n  font-family: var(--e-global-typography-primary-font-family, inherit);\n  color: var(--e-global-color-secondary, var(--e-global-color-primary, inherit));\n}\n");
-        css.push_str(":where(.daystudio-button, .dp-button) {\n  background-color: var(--e-button-bg, var(--e-global-color-accent, #3b82f6));\n  color: var(--e-button-color, #ffffff);\n  border-radius: var(--e-button-border-radius, 4px);\n}\n");
+        css.push_str(":where(h1, h2, h3, h4, h5, h6):where(:not(.dp-design, .dp-design *)) {\n  font-family: var(--e-global-typography-primary-font-family, inherit);\n  color: var(--e-global-color-secondary, var(--e-global-color-primary, inherit));\n}\n");
+        css.push_str(":where(.daystudio-button:not(.dp-design), .dp-button:not(.dp-design)) {\n  background-color: var(--e-button-bg, var(--e-global-color-accent, #3b82f6));\n  color: var(--e-button-color, #ffffff);\n  border-radius: var(--e-button-border-radius, 4px);\n}\n");
 
-        if let Some(ref custom_css) = self.custom_css {
-            if !custom_css.trim().is_empty() {
-                css.push_str("\n/* Daystudio Custom CSS */\n");
-                css.push_str(custom_css);
-                css.push('\n');
-            }
+        if !custom_rest.trim().is_empty() {
+            css.push_str("\n/* Daystudio Custom CSS */\n");
+            css.push_str(custom_rest);
+            css.push('\n');
         }
 
         css

@@ -3,7 +3,7 @@ use super::border::BorderConfig;
 use super::spacing::Spacing;
 use super::typography::TypographyConfig;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Comprehensive style specification supporting desktop, tablet, mobile, hover,
 /// CSS Grid, Flexbox, Box-Model, transforms, and third-party fallback settings.
@@ -38,6 +38,10 @@ pub struct StyleProperties {
     pub focus: Option<Box<StyleProperties>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active: Option<Box<StyleProperties>>,
+    /// Viewport width a `tablet` / `mobile` layer starts at when it is not the standard 1024px /
+    /// 767px: an imported design's own breakpoint (`"60rem"`, `"900px"`). Only read on layers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub breakpoint: Option<String>,
 
     // -------------------------------------------------------------
     // CSS Grid Layout Controls (R1 / R4)
@@ -223,6 +227,9 @@ pub struct StyleProperties {
     /// Legacy DayStudio class list key (pre-`css_classes`); merged into `css_classes` at render time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_classes: Option<String>,
+    /// `data-*` attributes rendered on the element (hooks for `attr(data-label)` and similar).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_attributes: Option<BTreeMap<String, String>>,
 
     // Lossless Raw Settings Fallback (R4)
     #[serde(default, skip_serializing_if = "Option::is_none")]

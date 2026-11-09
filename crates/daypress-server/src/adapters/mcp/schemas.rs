@@ -66,7 +66,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_get_post_layout",
-                "description": "Get the unified DaypressLayout AST JSON for a visual-builder page or post.",
+                "description": "Get the unified DaypressLayout AST for a visual-builder page or post. Returns {\"post_id\", \"layout_json\"} where `layout_json` is the layout as a JSON string (parse it; pass the parsed object as `layout` to daypress_save_template).",
                 "inputSchema": {
                     "type": "object",
                     "required": ["post_id"],
@@ -89,7 +89,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_import_html_design",
-                "description": "Import a complete HTML/CSS design document into 100% native DayStudio AST blocks (zero CustomHtml fallbacks), extract <header>/<footer> chrome, populate DaystudioKit global design tokens, and compile SSR HTML in one call.",
+                "description": "Import a complete HTML/CSS design document in one call: the page becomes 100% native DayStudio AST blocks (zero CustomHtml fallbacks) with the design's stylesheet in its DaystudioKit; the body-level <header> (everything before <main>) and <footer> (everything after it, e.g. a mobile call bar) become active, site-wide 'header'/'footer' theme templates titled '{site_name} header'/'{site_name} footer'; every <form> becomes a FormStudio form titled '{site_name}: {submit label}' (fields from labels, names, required, placeholders and options; checkbox groups -> checkbox_group, file inputs -> file) rendered with the design's own field markup, so submissions land in the Submissions Vault. Re-importing updates the same page, templates and forms instead of duplicating them. Scripts are not imported (tabs, carousels, script menus need native equivalents).",
                 "inputSchema": {
                     "type": "object",
                     "required": ["html"],
@@ -98,8 +98,10 @@ pub fn mcp_tools_manifest() -> Value {
                         "post_id": { "type": "integer", "description": "Existing post/page ID to update (if omitted, matches by slug or creates a new page)" },
                         "title": { "type": "string", "description": "Optional page title override" },
                         "slug": { "type": "string", "description": "Optional page slug (defaults to 'home' when set_as_front_page is true)" },
+                        "site_name": { "type": "string", "description": "Name used for the header/footer template and form titles (defaults to the last segment of the design's <title>, e.g. 'Acme')" },
                         "post_type": { "type": "string", "default": "page" },
-                        "extract_header_footer": { "type": "boolean", "default": true },
+                        "extract_header_footer": { "type": "boolean", "default": true, "description": "Save the design's header and footer as site-wide theme templates (false keeps them in the page)" },
+                        "extract_forms": { "type": "boolean", "default": true, "description": "Turn <form> elements into FormStudio forms + Form blocks" },
                         "set_as_front_page": { "type": "boolean", "default": false }
                     }
                 }
@@ -270,7 +272,7 @@ pub fn mcp_tools_manifest() -> Value {
                         "status": { "type": "string", "default": "publish" },
                         "priority": { "type": "integer", "default": 10 },
                         "is_active": { "type": "boolean", "default": true },
-                        "layout": { "type": "object", "description": "DaypressLayout AST JSON object" },
+                        "layout": { "type": "object", "description": "DaypressLayout AST JSON object with a `root` node ({\"version\": 1, \"root\": {\"id\": \"root\", \"type\": \"Root\", \"children\": [...]}}); a layout without `root` is rejected" },
                         "settings": { "type": "object", "description": "Optional TemplateSettings (e.g. popup_variant, trigger, dismiss_days)" },
                         "conditions": { "type": "array", "description": "Optional array of CreateConditionDto rules" }
                     }

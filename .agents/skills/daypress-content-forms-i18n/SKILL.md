@@ -118,7 +118,9 @@ Attach strongly-typed custom fields to any `post_type` (`post`, `page`, or custo
 Daypress includes **FormStudio** (`/d-admin/forms`) with a SQLite-first Submissions Vault, honeypot + time-lock + rate-limit anti-spam, conditional field visibility, calculated formulas, and SMTP notifications.
 
 ### Step 1: Create the Form (`daypress_create_form`)
-Supported `field_type` values: `text`, `email`, `tel`, `url`, `number`, `date`, `textarea`, `select`, `radio`, `checkbox`, `acceptance`, `file`, `rating`, `range`, `calculation`, `hidden`.
+Supported `field_type` values: `text`, `email`, `tel`, `url`, `number`, `date`, `textarea`, `select`, `radio`, `checkbox_group`, `checkbox`, `acceptance`, `file`, `rating`, `range`, `calculation`, `hidden`.
+- Multiple choice ("tick all that apply", with `options`) is **`checkbox_group`**. `checkbox` is a single yes/no box (its `label` is the text next to it); `radio` is one choice from `options`.
+- `file` takes `accept_extensions` (`"jpg,png,pdf"`) and `max_file_size_mb`.
 Supported `width` values: `"full"`, `"half"` (`1/2`), `"third"` (`1/3`), `"two_thirds"` (`2/3`).
 
 ```json
@@ -190,6 +192,7 @@ Supported `width` values: `"full"`, `"half"` (`1/2`), `"third"` (`1/3`), `"two_t
   }
   ```
 - **In Post/Page HTML (`daypress_create_post` / `daypress_update_post`)**: Include the shortcode `[daypress_form id="1"]`.
+- **From an HTML design (`daypress_import_html_design`)**: you do not need `daypress_create_form`. Every `<form>` in the design becomes a FormStudio form titled `"{site_name}: {submit label}"` (fields from `<label>`, `name`, `required`, `placeholder`, `<select>` options; checkbox groups become `checkbox_group`, file inputs `file`; the hidden success message becomes `success_message`) plus a `Form` node that keeps the design's own field markup and posts to FormStudio. Re-importing updates the same form (same id, submissions kept); recipient, webhook and other settings you set are kept. Set `settings.recipient_email` afterwards with `daypress_update_form` if the client wants e-mail notifications.
 
 ---
 

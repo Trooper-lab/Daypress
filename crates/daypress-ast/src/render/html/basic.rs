@@ -8,6 +8,7 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
     let RenderArgs {
         node,
         css,
+        data_attrs,
         extra_cls,
         style_attr,
         ..
@@ -78,10 +79,24 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             )
         }
         NodeKind::Button { text, url, target } => {
-            let cls = with_extra_classes("dp-button", extra_cls);
+            // `html_tag: "a"` marks a plain text link: no button class, so no theme button look.
+            let base_class = if node.styles.html_tag.as_deref() == Some("a") {
+                "dp-link"
+            } else {
+                "dp-button"
+            };
+            let cls = with_extra_classes(base_class, extra_cls);
             if node.styles.html_tag.as_deref() == Some("button") && url.is_empty() {
+                // A `<button>` has no link target, so `target` carries its type: "submit" and
+                // "reset" act on the enclosing form; anything else is a plain button.
+                let button_type = match target.as_str() {
+                    "submit" => "submit",
+                    "reset" => "reset",
+                    _ => "button",
+                };
                 Some(format!(
-                    "<button type=\"button\" class=\"{}\" id=\"{}\"{}>{}</button>",
+                    "<button type=\"{}\" class=\"{}\" id=\"{}\"{}>{}</button>",
+                    button_type,
                     escape_attr(&cls),
                     escape_attr(&node.id),
                     style_attr,
@@ -100,16 +115,18 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             }
         }
         NodeKind::Spacer { height } => Some(format!(
-            "<div id=\"{}\" class=\"{}\" style=\"height: {}px; {}\"></div>",
+            "<div id=\"{}\" class=\"{}\"{} style=\"height: {}px; {}\"></div>",
             escape_attr(&node.id),
             escape_attr(&with_extra_classes("dp-spacer", extra_cls)),
+            data_attrs,
             height,
             css
         )),
         NodeKind::Divider { style } => Some(format!(
-            "<hr id=\"{}\" class=\"{}\" style=\"border-top-style: {}; {}\" />",
+            "<hr id=\"{}\" class=\"{}\"{} style=\"border-top-style: {}; {}\" />",
             escape_attr(&node.id),
             escape_attr(&with_extra_classes("dp-divider", extra_cls)),
+            data_attrs,
             escape_attr(style),
             css
         )),
@@ -125,10 +142,11 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             let combined = format!("{}{}{}", size_style, color_style, css);
             let cls = with_extra_classes("dp-icon", extra_cls);
             let span_html = format!(
-                "<span id=\"{}\" class=\"{}\" data-icon=\"{}\" style=\"{}\"><i class=\"{}\" aria-hidden=\"true\"></i></span>",
+                "<span id=\"{}\" class=\"{}\" data-icon=\"{}\"{} style=\"{}\"><i class=\"{}\" aria-hidden=\"true\"></i></span>",
                 escape_attr(&node.id),
                 escape_attr(&cls),
                 escape_attr(name),
+                data_attrs,
                 combined.trim(),
                 escape_attr(name)
             );

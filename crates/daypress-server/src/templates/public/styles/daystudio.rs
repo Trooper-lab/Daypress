@@ -13,21 +13,21 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			color: var(--e-global-color-text, #1F1C17);
 		}
 
-		html.daystudio-theme-active .dp-section {
+		html.daystudio-theme-active .dp-section:not(:where(.dp-design, .dp-design *)) {
 			border-bottom: none;
 		}
 
-		html.daystudio-theme-active .dp-heading {
+		html.daystudio-theme-active .dp-heading:not(:where(.dp-design, .dp-design *)) {
 			color: var(--dp-color-heading, var(--e-global-color-secondary, #111827));
 			font-family: var(--dp-font-heading, var(--e-global-typography-primary-font-family, inherit));
 		}
 
-		html.daystudio-theme-active .dp-text {
+		html.daystudio-theme-active .dp-text:not(:where(.dp-design, .dp-design *)) {
 			color: var(--dp-color-text, var(--e-global-color-text, #334155));
 			font-family: var(--dp-font-body, var(--e-global-typography-text-font-family, inherit));
 		}
 
-		html.daystudio-theme-active .dp-button {
+		html.daystudio-theme-active .dp-button:not(.dp-design) {
 			background: var(--e-button-bg, var(--e-global-color-primary, #2563eb));
 			color: var(--e-button-color, #ffffff);
 			border-radius: var(--e-button-border-radius, 6px);
@@ -55,16 +55,16 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			position: relative;
 		}
 
-		.dp-daystudio-footer section.dp-section {
+		.dp-daystudio-footer section.dp-section:not(:where(.dp-design, .dp-design *)) {
 			padding-left: max(24px, calc((100% - 960px) / 2)) !important;
 			padding-right: max(24px, calc((100% - 960px) / 2)) !important;
 			border-bottom: none;
 		}
 
-		.dp-visual-canvas .dp-container,
-		.dp-daystudio-header .dp-container,
-		.dp-daystudio-footer .dp-container,
-		.dp-popup-modal .dp-container {
+		.dp-visual-canvas .dp-container:not(:where(.dp-design, .dp-design *)),
+		.dp-daystudio-header .dp-container:not(:where(.dp-design, .dp-design *)),
+		.dp-daystudio-footer .dp-container:not(:where(.dp-design, .dp-design *)),
+		.dp-popup-modal .dp-container:not(:where(.dp-design, .dp-design *)) {
 			max-width: 100%;
 			margin: 0;
 			position: relative;
@@ -92,8 +92,8 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			min-height: inherit;
 		}
 
-		.dp-container[style*="flex-direction: row"] > .dp-container:not([style*="width:"]),
-		.dp-container[style*="flex-direction: row"] > .dp-container-inner > .dp-container:not([style*="width:"]) {
+		.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container:not([style*="width:"]),
+		.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container-inner > .dp-container:not([style*="width:"]) {
 			flex: 1 1 0%;
 			min-width: 0;
 		}
@@ -347,19 +347,19 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			.dp-daystudio-form-grid .dp-field-w50 {
 				width: 100%;
 			}
-			.dp-container[style*="flex-direction: row"],
-			.dp-container[style*="flex-direction: row"] > .dp-container-inner {
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)),
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container-inner {
 				flex-wrap: wrap;
 			}
-			.dp-container[style*="flex-direction: row"] > .dp-container,
-			.dp-container[style*="flex-direction: row"] > .dp-container-inner > .dp-container {
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container,
+			.dp-container[style*="flex-direction: row"]:not(:where(.dp-design, .dp-design *)) > .dp-container-inner > .dp-container {
 				width: 100% !important;
 				flex: 1 1 100% !important;
 			}
 		}
 
 		@media (max-width: 900px) {
-			.footer-grid, .dp-grid {
+			.footer-grid, .dp-grid:not(:where(.dp-design, .dp-design *)) {
 				grid-template-columns: 1fr !important;
 			}
 			nav.day-nav {

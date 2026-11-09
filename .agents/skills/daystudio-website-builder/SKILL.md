@@ -24,7 +24,12 @@ Daypress gives AI agents two complementary ways to build pages that remain **100
 ### Workflow A: Full HTML5/CSS Import (`daypress_import_html_design`) — *Fastest for New Pages*
 Pass a complete, semantic HTML5 document (with a `<style>` block, `<header>`, `<main>` sections, and `<footer>`) to `daypress_import_html_design`.
 - Daypress's Rust HTML-to-AST transpiler converts `<section>`, `<div>`, CSS Grid/Flexbox layouts, `<h1>`–`<h6>`, `<p>`, `<a>`, `<img>`, `<form>`, `<details>`, and pricing/feature cards into **100% native `DaypressNode` blocks** (`custom_html_nodes: 0`).
-- When `extract_header_footer: true` (default), `<header>` and `<footer>` are automatically extracted into site-wide chrome.
+- When `extract_header_footer: true` (default), the site chrome becomes native theme templates, active on the entire site: everything in `<body>` before `<main>` (skip link + `<header>`) is saved as the `"{site_name} header"` template, everything after it (`<footer>` plus trailing bars such as a mobile call bar) as `"{site_name} footer"`. `site_name` defaults to the last segment of the design's `<title>` ("Studio | Acme" → "Acme"); pass `site_name` to override. The header template carries the design's stylesheet, so the chrome is styled on every page. Re-importing updates the same-titled templates (their display conditions are kept) instead of adding new ones. The response lists `header_template` / `footer_template` ids.
+- Every `<form>` becomes a FormStudio form plus a `Form` node (see the forms skill); the response lists them under `forms`.
+- The design's stylesheet becomes native styling: unconditional rules are written to the blocks, `:hover` / `:focus` / `:active` to their state layers, and `@media (max-width: ...)` rules to each block's `tablet` / `mobile` layer at the design's own breakpoint. `:root` colours and fonts fill the kit's Global Tokens, and the design's variables point at those tokens, so editing a token restyles the page.
+- Only what has no native equivalent stays in the kit's `custom_css`: state rules (`:target`, `.nav-open`, `:checked`), `min-width` and other conditions, breakpoints above 1024px, a third breakpoint on one block, pseudo-elements, and properties without a block field. A block property such a rule can change stays off the block, so the design's cascade decides it. Rules that can never match are dropped.
+- The theme's own element defaults (text colour, section padding, button look, boxed container width, browser-default resets) are switched off for imported blocks (`dp-design` class on top-level blocks and on imported buttons). A link without button styling stays a plain link (a `Button` node with `html_tag: "a"`), and `data-*` attributes are kept.
+- Scripts are not imported: tab panels, carousels' arrow buttons and script-driven menus need native equivalents (or CSS such as a `:target` menu) after the import.
 - When `set_as_front_page: true`, Daypress automatically sets `show_on_front = "page"` and `page_on_front = <post_id>`.
 
 ```json
@@ -41,6 +46,8 @@ Pass a complete, semantic HTML5 document (with a `<style>` block, `<header>`, `<
 ```
 
 ### Workflow B: Direct `DaypressLayout` AST Authoring (`daypress_update_post_layout`) — *Best for Precision Edits & Pro Widgets*
+`daypress_get_post_layout` returns `{"post_id": 4, "layout_json": "<string>"}`: `layout_json` is the layout serialized as a JSON **string**. Parse it before editing; send it back as a string to `daypress_update_post_layout`, or as the parsed object (with its `root`) in `layout` to `daypress_save_template`.
+
 Use `daypress_get_post_layout` and `daypress_update_post_layout` when:
 - Making targeted updates to an existing page without regenerating it from scratch.
 - Using interactive Pro widgets (`LoopGrid`, `TestimonialCarousel`, `Accordion`, `Tabs`, `Countdown`, `FlipBox`, `AnimatedHeadline`, `Form`, `LanguageSwitcher`, `SymbolInstance`).
@@ -222,9 +229,12 @@ Every node's `"styles"` object supports flat CSS-aligned properties plus respons
 - **Flexbox & Grid**: `display` (`"flex"`, `"grid"`, `"block"`), `flex_direction`, `justify_content`, `align_items`, `flex_wrap`, `gap`, `grid_template_columns`, `grid_gap`
 - **Borders & Effects**: `border_radius`, `border_width`, `border_style`, `border_color`, `border_top`, `border_bottom`, `box_shadow`, `opacity`, `backdrop_filter`, `transition`
 - **Semantic HTML & Custom CSS**: `html_tag` (`"header"`, `"nav"`, `"section"`, `"article"`, `"aside"`, `"footer"`), `css_classes`, `custom_css`
+  - `custom_css` as plain declarations (`"backdrop-filter: blur(8px); cursor: pointer;"`) is added to the node's inline style.
+  - `custom_css` with rule blocks is scoped to the node: `selector`, `&` and `:scope` mean the node itself, any other selector targets its descendants, and `@media` blocks are scoped too. Example: `"selector:hover { opacity: .9 } .title { color: var(--ink) } @media (max-width: 600px) { .title { font-size: 14px } }"`.
 - **Responsive & State Overrides**:
   - `"tablet": { ... }` (`<= 1024px`)
   - `"mobile": { ... }` (`<= 767px`)
+  - Inside `tablet` / `mobile`, `"breakpoint": "900px"` (px, em or rem) starts that layer at another width. Imported designs use it to keep their own breakpoints.
   - `"hover": { ... }`, `"focus": { ... }`, `"active": { ... }`
   - `"hide_desktop": false`, `"hide_tablet": false`, `"hide_mobile": false`
 
@@ -232,7 +242,7 @@ Every node's `"styles"` object supports flat CSS-aligned properties plus respons
 
 ## 5. Dynamic Theme Templates, Headers, Footers & Synced Symbols
 
-Use `daypress_list_templates` and `daypress_save_template` to manage site-wide chrome and dynamic layouts:
+Use `daypress_list_templates` and `daypress_save_template` to manage site-wide chrome and dynamic layouts. `layout` must be a full `DaypressLayout` with a `root` node (`{"version": 1, "root": {"id": "root", "type": "Root", "children": [...]}}`); a bare node or the whole `daypress_get_post_layout` response is rejected with an error. Headers and footers from `daypress_import_html_design` are already saved this way; edit them with `daypress_list_templates` → change the `layout` → `daypress_save_template` with the same `id`.
 - **`template_type` values**:
   - `"header"`: Global or conditional site header
   - `"footer"`: Global or conditional site footer

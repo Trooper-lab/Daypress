@@ -115,7 +115,9 @@ pub fn render_base_css(brand_color: &str) -> String {
 			--dp-heading-weight: 500;
 		}}
 
-		*, *::before, *::after {{
+		:not(:where(.dp-design, .dp-design *)),
+		:not(:where(.dp-design, .dp-design *))::before,
+		:not(:where(.dp-design, .dp-design *))::after {{
 			box-sizing: border-box;
 			margin: 0;
 			padding: 0;

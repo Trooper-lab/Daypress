@@ -8,7 +8,7 @@ pub const JS_CANVAS_RENDER: &str = r###"
         "p", "span", "cite", "code", "pre", "details", "summary", "address", "time",
         "mark", "small", "strong", "em", "b", "i", "kbd", "sub", "sup",
         "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "hgroup",
-        "label", "fieldset", "legend", "button"
+        "label", "fieldset", "legend", "button", "h1", "h2", "h3", "h4", "h5", "h6"
     ]);
 
     function resolveSemanticTag(node, defaultTag) {
@@ -313,7 +313,8 @@ pub const JS_CANVAS_RENDER: &str = r###"
             case "Button": {
                 const isBtnTag = resolveSemanticTag(node, "a") === "button" && !(node.data && node.data.url);
                 el = document.createElement(isBtnTag ? "button" : "a");
-                el.className = "dp-button";
+                // `html_tag: "a"` is a plain text link (mirrors render/html/basic.rs).
+                el.className = (node.styles && node.styles.html_tag === "a") ? "dp-link" : "dp-button";
                 if (!isBtnTag) el.href = (node.data && node.data.url) || "#";
                 const icon = node.data && node.data.icon ? `<i class="${node.data.icon}"></i> ` : "";
                 const labelHtml = sanitizeInlineHtml((node.data && node.data.text) || "Button Action");
