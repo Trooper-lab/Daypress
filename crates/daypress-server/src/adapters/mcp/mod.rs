@@ -139,7 +139,7 @@ pub fn mcp_tools_manifest() -> Value {
                         "post_id": { "type": "integer", "description": "Existing post/page ID to update (if omitted, matches by slug or creates a new page)" },
                         "title": { "type": "string", "description": "Optional page title override" },
                         "slug": { "type": "string", "description": "Optional page slug (defaults to 'home' when set_as_front_page is true)" },
-                        "site_name": { "type": "string", "description": "Name used for the header/footer template and form titles (defaults to the last segment of the design's <title>, e.g. 'Grezzo')" },
+                        "site_name": { "type": "string", "description": "Name used for the header/footer template and form titles (defaults to the last segment of the design's <title>, e.g. 'Acme')" },
                         "post_type": { "type": "string", "default": "page" },
                         "extract_header_footer": { "type": "boolean", "default": true, "description": "Save the design's header and footer as site-wide theme templates (false keeps them in the page)" },
                         "extract_forms": { "type": "boolean", "default": true, "description": "Turn <form> elements into FormStudio forms + Form blocks" },

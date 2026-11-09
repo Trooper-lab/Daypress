@@ -62,6 +62,12 @@ pub fn resolve_semantic_tag<'a>(requested: Option<&'a str>, default_tag: &'a str
         "fieldset" => "fieldset",
         "legend" => "legend",
         "button" => "button",
+        "h1" => "h1",
+        "h2" => "h2",
+        "h3" => "h3",
+        "h4" => "h4",
+        "h5" => "h5",
+        "h6" => "h6",
         _ => default_tag,
     }
 }

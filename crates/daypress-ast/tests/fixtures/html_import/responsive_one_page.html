@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fresh bread daily | Northwind Bakery</title>
+<meta name="description" content="A neighbourhood bakery.">
+<style>
+:root {
+  --sand: #f4efe6;
+  --espresso: #2b2118;
+  --espresso-soft: #5c4a3a;
+  --clay: #b5532a;
+  --moss: #4d6b3c;
+  --chalk: #ffffff;
+  --display: 'Playfair Display', Georgia, serif;
+  --copy: 'Inter', system-ui, sans-serif;
+  --gutter: 48px;
+  --radius: 4px;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--sand); color: var(--espresso-soft); font-family: var(--copy); font-size: 17px; line-height: 1.6; }
+
+h1, h2, h3 { color: var(--espresso); font-family: var(--display); font-weight: 500; line-height: 1.1; margin: 0 0 16px; }
+h1 { font-size: 64px; }
+h2 { font-size: 40px; }
+p { margin: 0 0 16px; }
+p:not([class]) { max-width: 60ch; }
+a { color: var(--clay); }
+
+/* A text link and a button */
+.link { color: var(--clay); font-weight: 600; text-decoration: underline; }
+.btn { display: inline-block; padding: 14px 28px; background: var(--clay); color: var(--chalk); border-radius: var(--radius); font-weight: 600; text-decoration: none; }
+.btn:hover { background: var(--moss); }
+
+/* Chrome */
+.site-header { display: flex; justify-content: space-between; align-items: center; padding: 24px var(--gutter); background: var(--chalk); border-bottom: 1px solid #ddd; }
+.brand { font-family: var(--display); font-size: 24px; color: var(--espresso); text-decoration: none; }
+.nav { display: flex; gap: 32px; }
+.nav a { color: var(--espresso); text-decoration: none; font-size: 15px; }
+.menu-toggle { display: none; background: transparent; border: 1px solid var(--espresso); padding: 8px 14px; }
+.site-footer { padding: 48px var(--gutter); background: var(--espresso); color: var(--sand); text-align: center; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: 7fr 5fr; gap: 64px; padding: 96px var(--gutter); background: var(--espresso); color: var(--sand); }
+.hero h1 { color: var(--chalk); }
+.hero .lede { font-size: 22px; margin-bottom: 32px; }
+.hero-img { width: 100%; height: 420px; object-fit: cover; display: block; }
+
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; padding: 72px var(--gutter); }
+.card { background: var(--chalk); padding: 24px; border-radius: var(--radius); }
+.card h3 { font-size: 22px; }
+.menu-list { list-style: none; margin: 0; padding: 0; }
+.menu-list li { font-size: 15px; color: var(--moss); padding: 6px 0; border-bottom: 1px solid #eee; }
+
+/* Dark band: its text inherits the band's colour */
+.band { padding: 64px var(--gutter); background: var(--moss); color: var(--chalk); }
+.band .fine-print { font-size: 13px; color: var(--sand); }
+
+/* A table with phone labels */
+.prices { padding: 64px var(--gutter); }
+.price-table { width: 100%; border-collapse: collapse; }
+.price-table th, .price-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ccc; }
+
+/* Inline `style` beats every rule, including breakpoints */
+.note { max-width: 300px; }
+
+/* An inline tag as a flex item, and a control that relies on browser defaults */
+.legal-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.legal-row small { flex: 1; font-size: 13px; }
+.plain-button { background: none; }
+
+/* Buttons nested in text, a table cell and a form row */
+.more { text-align: center; margin: 24px 0 0; }
+.order-title { font-size: 30px; }
+.signup { margin-top: 24px; }
+.signup-row { display: flex; gap: 8px; }
+.signup-row input { flex: 1; padding: 12px; }
+.mini { padding: 6px 12px; }
+
+/* Never used in the markup or by a script */
+.legacy-card h3 { color: red; letter-spacing: 3px; }
+
+@media (max-width: 1100px) {
+  .hero { gap: 40px; }
+}
+@media (max-width: 1024px) {
+  .band { padding: 48px var(--gutter); }
+}
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; padding: 64px var(--gutter); }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .menu-toggle { display: inline-block; }
+  .nav { display: none; }
+  .nav-open .nav { display: flex; flex-direction: column; }
+  h1 { font-size: 48px; }
+  .note { max-width: 100%; }
+}
+@media (max-width: 640px) {
+  :root { --gutter: 20px; }
+  h1 { font-size: 36px; }
+  /* Loses to `.card h3` on specificity, as it does in the browser */
+  h3 { font-size: 18px; }
+  .cards { grid-template-columns: 1fr; }
+  .hero-img { height: 240px; }
+  .menu-list li { font-size: 14px; }
+  .price-table thead { display: none; }
+  .price-table tr { display: block; margin-bottom: 16px; }
+  .price-table td { display: block; text-align: right; position: relative; padding-left: 40%; }
+  .price-table td::before { content: attr(data-label); position: absolute; left: 0; font-weight: 600; }
+}
+@media (min-width: 1600px) {
+  .cards { padding-left: 120px; padding-right: 120px; }
+}
+</style>
+</head>
+<body>
+<header class="site-header" data-check="site-header">
+  <a class="brand" href="/" data-check="brand">Northwind</a>
+  <nav class="nav" id="menu" data-check="nav" aria-label="Main">
+    <a href="#menu-section" data-check="nav-link">Menu</a>
+    <a href="#prices">Prices</a>
+  </nav>
+  <button class="menu-toggle" type="button" data-check="toggle">Menu</button>
+</header>
+<main>
+  <section class="hero" data-check="hero">
+    <div>
+      <h1 data-check="hero-title">Bread worth <em>waking up</em> for</h1>
+      <p class="lede" data-check="hero-lede">Baked before sunrise, every day.</p>
+      <a class="btn" href="#menu-section" data-check="hero-cta">See today's menu</a>
+    </div>
+    <img class="hero-img" src="/static/daypress-icon.svg" alt="Loaves" width="600" height="420" data-check="hero-img">
+  </section>
+  <section class="cards" id="menu-section" data-check="cards">
+    <article class="card" data-check="card">
+      <h3 data-check="card-title">Sourdough</h3>
+      <p data-check="card-copy">Slow risen for two days, with a crackling crust.</p>
+      <a class="link" href="#prices" data-check="card-link">See prices</a>
+    </article>
+    <article class="card">
+      <h3>Rye</h3>
+      <ul class="menu-list" data-check="menu-list">
+        <li data-check="menu-item">Dark rye</li>
+        <li>Seeded rye</li>
+      </ul>
+    </article>
+    <article class="card"><h3>Pastry</h3><p>Butter, and more butter.</p></article>
+    <article class="card"><h3>Coffee</h3><p>Roasted around the corner.</p>
+      <p class="more" data-check="more">Thirsty? <a class="btn" href="#prices" data-check="more-btn">Order</a> <a class="btn mini" href="#prices" data-check="more-btn-2">Later</a> today</p>
+    </article>
+  </section>
+  <section class="band" data-check="band">
+    <h2 data-check="band-title">Open from seven</h2>
+    <h3 class="order-title" data-check="order-title">Pre-order <a class="btn mini" href="#prices" data-check="heading-btn">now</a></h3>
+    <p data-check="band-copy">Come early for the warm ones.</p>
+    <p class="fine-print" data-check="band-fine">Closed on Mondays.</p>
+  </section>
+  <section class="prices" id="prices" data-check="prices">
+    <table class="price-table" data-check="table">
+      <thead data-check="thead"><tr><th>Loaf</th><th>Price</th></tr></thead>
+      <tbody>
+        <tr data-check="row"><td data-label="Loaf" data-check="cell">Sourdough</td><td data-label="Price">€ 5,50</td></tr>
+        <tr><td data-label="Loaf">Rye</td><td data-label="Price"><a class="btn mini" href="#order" data-check="cell-btn">Buy</a></td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="max-width: 300px; list-style: square;" data-check="note">Prices include VAT.</div>
+    <form class="signup" action="https://example.com/signup" method="post" data-check="signup">
+      <div class="signup-row" data-check="signup-row">
+        <label for="signup-email" data-check="signup-label">E-mail</label>
+        <input type="email" id="signup-email" name="email" required data-check="signup-input">
+        <button class="btn" type="submit" data-check="signup-btn">Join</button>
+        <input type="reset" class="btn mini" value="Clear" data-check="signup-reset">
+      </div>
+    </form>
+  </section>
+</main>
+<footer class="site-footer" data-check="site-footer">
+  <p class="colophon" data-check="colophon">Northwind Bakery, Harbour Street 12</p>
+  <div class="legal-row" data-check="legal-row">
+    <small data-check="legal-small">All bread baked on site.</small>
+    <button class="plain-button" type="button" data-check="plain-button">Top</button>
+  </div>
+</footer>
+<script>document.querySelector('.menu-toggle').addEventListener('click', () => document.body.classList.toggle('nav-open'));</script>
+</body>
+</html>

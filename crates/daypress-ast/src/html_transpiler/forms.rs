@@ -105,6 +105,15 @@ pub fn is_submit_control(el: &DomElement) -> bool {
     }
 }
 
+/// `<input>` elements drawn as buttons (an `image` input is a picture, not a label).
+pub fn is_input_button(el: &DomElement) -> bool {
+    el.tag == "input"
+        && matches!(
+            el.attr("type").map(str::to_ascii_lowercase).as_deref(),
+            Some("submit" | "button" | "reset")
+        )
+}
+
 /// FormStudio field name for a control: `name` without a trailing `[]`, else the `id`.
 pub fn field_name(el: &DomElement) -> Option<String> {
     el.attr("name")

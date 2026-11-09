@@ -222,7 +222,9 @@ async fn test_builder_canvas_matches_public_header_and_grid_columns() {
     );
     // Desktop artboard keeps window breakpoints (3 columns on a desktop screen, like public SSR)
     assert!(
-        css.contains(":where(:scope.artboard-desktop) .dp-grid:not(:where(.dp-design, .dp-design *)) {"),
+        css.contains(
+            ":where(:scope.artboard-desktop) .dp-grid:not(:where(.dp-design, .dp-design *)) {"
+        ),
         "the 1-column grid breakpoint must only follow the window on the desktop artboard"
     );
     // Tablet/mobile artboards answer the same breakpoints by their own width
@@ -345,7 +347,7 @@ fn test_builder_site_css_follows_the_public_html_theme_class() {
     let html = templates::render_builder_view(&elementor, post, Some(&layout));
     let css = site_css(&html);
     assert!(
-        css.contains(":scope .dp-heading {"),
+        css.contains(":scope .dp-heading:not(:where(.dp-design, .dp-design *)) {"),
         "Elementor heading colors apply on canvas"
     );
     assert!(

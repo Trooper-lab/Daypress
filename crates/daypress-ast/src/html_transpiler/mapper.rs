@@ -4,16 +4,14 @@
 //! blocks (`Section`, `Container`, `Grid`, `Flex`, `Column`, `Heading`, `Text`,
 //! `Button`, `Image`, `Icon`, `Divider`, `Spacer`) with zero `CustomHtml` fallbacks.
 
-use super::css_parser::{
-    resolve_element_styles, resolve_element_styles_with_mask, ParsedStylesheet,
-};
+use super::css_parser::{resolve_element, resolve_element_styles, ParsedStylesheet};
 use super::dom_parser::{is_inline_tag, DomElement, DomNode};
 use super::forms::{
-    control_markup, extract_form, field_markup, is_form_control_tag, is_service_hidden_input,
-    is_status_element, is_submit_control, ImportedForm,
+    control_markup, extract_form, field_markup, is_form_control_tag, is_input_button,
+    is_service_hidden_input, is_status_element, is_submit_control, ImportedForm,
 };
 use crate::schema::{DaypressNode, NodeKind, StyleProperties};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub struct MapperContext<'a> {
     pub sheet: &'a ParsedStylesheet,
@@ -25,6 +23,11 @@ pub struct MapperContext<'a> {
     pub forms: Vec<ImportedForm>,
     /// Depth of `<form>` elements currently being mapped.
     pub form_depth: usize,
+    /// Elements whose styles were written onto a node, with the fields left to the design CSS.
+    pub node_coverage: HashMap<*const DomElement, HashSet<String>>,
+    /// Set while mapping the children of a text element that was split up because it holds a
+    /// button: its text runs sit in inline flow next to the button, so edge spaces matter.
+    pub keep_run_spaces: bool,
 }
 
 impl<'a> MapperContext<'a> {
@@ -39,7 +42,18 @@ impl<'a> MapperContext<'a> {
             extract_forms: false,
             forms: Vec::new(),
             form_depth: 0,
+            node_coverage: HashMap::new(),
+            keep_run_spaces: false,
         }
+    }
+
+    /// Records that `el`'s styles now live on a node (except the fields in `mask`).
+    fn cover(&mut self, el: &DomElement, mask: &StyleProperties) {
+        let masked = match serde_json::to_value(mask) {
+            Ok(serde_json::Value::Object(map)) => map.keys().cloned().collect(),
+            _ => HashSet::new(),
+        };
+        self.node_coverage.insert(el as *const DomElement, masked);
     }
 
     pub fn next_id(&mut self, preferred: Option<&str>, prefix: &str) -> String {
@@ -72,7 +86,8 @@ pub fn map_dom_children(
     let flush_inline_buf =
         |buf: &mut String, out: &mut Vec<DaypressNode>, ctx: &mut MapperContext<'_>| {
             let trimmed = buf.trim();
-            if !trimmed.is_empty() {
+            let lone_space = ctx.keep_run_spaces && !buf.is_empty() && !out.is_empty();
+            if !trimmed.is_empty() || lone_space {
                 let id = ctx.next_id(None, "txt");
                 ctx.node_count += 1;
                 let styles = StyleProperties {
@@ -82,7 +97,7 @@ pub fn map_dom_children(
                 out.push(DaypressNode {
                     id,
                     kind: NodeKind::Text {
-                        content_html: trimmed.to_string(),
+                        content_html: run_html(buf, ctx.keep_run_spaces),
                     },
                     styles,
                     children: Vec::new(),
@@ -96,7 +111,7 @@ pub fn map_dom_children(
             DomNode::Text(t) => {
                 if !t.trim().is_empty() {
                     inline_buf.push_str(t);
-                } else if !inline_buf.is_empty() {
+                } else if !inline_buf.is_empty() || ctx.keep_run_spaces {
                     inline_buf.push(' ');
                 }
             }
@@ -106,6 +121,9 @@ pub fn map_dom_children(
                 }
                 if is_pure_inline_formatting_tag(&el.tag)
                     && !has_layout_display(ctx.sheet, el, ancestors)
+                    && (matches!(el.tag.as_str(), "br" | "wbr")
+                        || !parent_lays_out_children(ctx.sheet, ancestors))
+                    && !contains_button(ctx.sheet, el, ancestors)
                 {
                     inline_buf.push_str(&el.outer_html());
                     continue;
@@ -147,6 +165,59 @@ fn has_layout_display(
     ) || st.grid_template_columns.is_some()
 }
 
+/// A text run's HTML: trimmed, or with its edges collapsed to one space in inline flow.
+fn run_html(buf: &str, keep_spaces: bool) -> String {
+    let trimmed = buf.trim();
+    if !keep_spaces {
+        return trimmed.to_string();
+    }
+    if trimmed.is_empty() {
+        return " ".to_string();
+    }
+    let edge = |has_space: bool| if has_space { " " } else { "" };
+    format!(
+        "{}{}{}",
+        edge(buf.starts_with(char::is_whitespace)),
+        trimmed,
+        edge(buf.ends_with(char::is_whitespace))
+    )
+}
+
+/// True for an element the page draws as a button.
+fn is_button_element(sheet: &ParsedStylesheet, el: &DomElement, ancestors: &[&DomElement]) -> bool {
+    match el.tag.as_str() {
+        "button" => true,
+        "a" => has_button_look(el, &resolve_element(sheet, el, ancestors).unmasked),
+        _ => is_input_button(el) || is_submit_control(el),
+    }
+}
+
+/// True when a button sits somewhere inside `el`. Such an element is never kept as one block of
+/// markup: its children are mapped, so that every button becomes a native `Button` node.
+fn contains_button(sheet: &ParsedStylesheet, el: &DomElement, ancestors: &[&DomElement]) -> bool {
+    let mut below = ancestors.to_vec();
+    below.push(el);
+    el.children.iter().any(|child| match child {
+        DomNode::Element(c) => {
+            is_button_element(sheet, c, &below) || contains_button(sheet, c, &below)
+        }
+        DomNode::Text(_) => false,
+    })
+}
+
+/// True when the parent is a flex or grid container: its element children are layout items, so
+/// an inline tag such as `<small>` must stay its own node instead of joining an inline text run.
+fn parent_lays_out_children(sheet: &ParsedStylesheet, ancestors: &[&DomElement]) -> bool {
+    let Some((parent, above)) = ancestors.split_last() else {
+        return false;
+    };
+    let display = resolve_element(sheet, parent, above).unmasked.display;
+    matches!(
+        display.as_deref(),
+        Some("flex" | "inline-flex" | "grid" | "inline-grid")
+    )
+}
+
 pub fn map_element(
     ctx: &mut MapperContext<'_>,
     el: &DomElement,
@@ -156,11 +227,14 @@ pub fn map_element(
         return None;
     }
 
-    let (mut styles, mask) = resolve_element_styles_with_mask(ctx.sheet, el, ancestors);
+    let resolved = resolve_element(ctx.sheet, el, ancestors);
+    let (mut styles, mask, unmasked) = (resolved.styles, resolved.mask, resolved.unmasked);
+    styles.data_attributes = data_attributes_of(el);
     let tag = el.tag.as_str();
 
     // 0a. `<form>` -> native `Form` node posting to FormStudio (fields keep the design's markup).
     if tag == "form" && ctx.extract_forms {
+        ctx.cover(el, &mask);
         return Some(map_form(ctx, el, ancestors, styles));
     }
 
@@ -175,10 +249,12 @@ pub fn map_element(
     }
 
     // 0c. Submit buttons submit (`target: "submit"` renders `<button type="submit">`).
-    if is_submit_control(el) && ctx.form_depth > 0 {
+    if (is_submit_control(el) && ctx.form_depth > 0) || is_input_button(el) {
         let id = ctx.next_id(el.id(), "btn");
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         styles.html_tag = Some("button".to_string());
+        add_class(&mut styles, super::DESIGN_MARKER_CLASS);
         let text = if tag == "input" {
             el.attr("value").unwrap_or("Submit").to_string()
         } else {
@@ -189,7 +265,11 @@ pub fn map_element(
             kind: NodeKind::Button {
                 text,
                 url: String::new(),
-                target: "submit".to_string(),
+                target: match el.attr("type").map(str::to_ascii_lowercase).as_deref() {
+                    Some("button") if tag == "input" => "button".to_string(),
+                    Some("reset") if tag == "input" => "reset".to_string(),
+                    _ => "submit".to_string(),
+                },
             },
             styles,
             children: Vec::new(),
@@ -198,12 +278,17 @@ pub fn map_element(
 
     // 0d. Form controls keep every attribute (name, type, required, placeholder, options, `for`
     // on labels): the element that directly holds a control (a field wrapper, or a `<label>`
-    // around a checkbox) becomes a Text block with the raw markup; a lone control gets one too.
-    if is_form_control_tag(tag) {
+    // around a checkbox) becomes a Text block with the raw markup; a lone control or `for` label
+    // gets one too, which `display: contents` keeps out of the parent's layout. A wrapper that
+    // also holds a button is mapped child by child instead, so the button is a `Button` node.
+    if is_form_control_tag(tag)
+        || (tag == "label" && el.attr("for").is_some() && ctx.form_depth > 0)
+    {
         let id = ctx.next_id(None, "field");
         ctx.node_count += 1;
         let mut wrapper = StyleProperties {
             html_tag: Some("div".to_string()),
+            display: Some("contents".to_string()),
             ..Default::default()
         };
         if el.attr("type").map(str::to_ascii_lowercase).as_deref() == Some("hidden") {
@@ -218,9 +303,10 @@ pub fn map_element(
             children: Vec::new(),
         });
     }
-    if holds_form_control(el) {
+    if holds_form_control(el) && !contains_button(ctx.sheet, el, ancestors) {
         let id = ctx.next_id(el.id(), "field");
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         styles.html_tag = Some(tag.to_string());
         return Some(DaypressNode {
             id,
@@ -233,13 +319,16 @@ pub fn map_element(
     }
 
     // 1. Heading (`h1`..`h6`)
-    if matches!(tag, "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
+    if matches!(tag, "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+        && !contains_button(ctx.sheet, el, ancestors)
+    {
         let level = tag
             .strip_prefix('h')
             .and_then(|n| n.parse::<u8>().ok())
             .unwrap_or(2);
         let id = ctx.next_id(el.id(), tag);
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         return Some(DaypressNode {
             id,
             kind: NodeKind::Heading {
@@ -255,6 +344,7 @@ pub fn map_element(
     if tag == "img" {
         let id = ctx.next_id(el.id(), "img");
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         let width = el.attr("width").and_then(|w| w.parse::<u32>().ok());
         let height = el.attr("height").and_then(|h| h.parse::<u32>().ok());
         return Some(DaypressNode {
@@ -275,6 +365,7 @@ pub fn map_element(
     if tag == "hr" {
         let id = ctx.next_id(el.id(), "div");
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         return Some(DaypressNode {
             id,
             kind: NodeKind::Divider {
@@ -290,6 +381,7 @@ pub fn map_element(
         let id = ctx.next_id(el.id(), "svg");
         ctx.node_count += 1;
         styles.html_tag = Some("div".to_string());
+        styles.data_attributes = None;
         return Some(DaypressNode {
             id,
             kind: NodeKind::Text {
@@ -324,6 +416,7 @@ pub fn map_element(
             // Card/container link wrapping block elements
             let id = ctx.next_id(el.id(), "link-box");
             ctx.node_count += 1;
+            ctx.cover(el, &mask);
             styles.link_url = el.attr("href").map(String::from);
             let mut next_anc = ancestors.to_vec();
             next_anc.push(el);
@@ -338,8 +431,15 @@ pub fn map_element(
 
         let id = ctx.next_id(el.id(), "btn");
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         if tag == "button" {
             styles.html_tag = Some("button".to_string());
+        }
+        if tag == "a" && !has_button_look(el, &unmasked) {
+            // A text link stays a plain `<a>`: no button class, so no theme button look.
+            styles.html_tag = Some("a".to_string());
+        } else {
+            add_class(&mut styles, super::DESIGN_MARKER_CLASS);
         }
         return Some(DaypressNode {
             id,
@@ -366,6 +466,7 @@ pub fn map_element(
             if let Some(px) = parse_leading_u32(h_str) {
                 let id = ctx.next_id(el.id(), "spacer");
                 ctx.node_count += 1;
+                ctx.cover(el, &mask);
                 return Some(DaypressNode {
                     id,
                     kind: NodeKind::Spacer { height: px },
@@ -377,9 +478,12 @@ pub fn map_element(
     }
 
     // 8. Leaf Text / Rich-Text Elements (`p`, `figcaption`, `cite`, `code`, `pre`, `dt`, `dd`, `th`, `td`, `li`, `span`, etc.)
-    if is_leaf_text_element(el, &styles) {
+    let text_like = is_leaf_text_element(el, &styles);
+    let holds_button = text_like && contains_button(ctx.sheet, el, ancestors);
+    if text_like && !holds_button {
         let id = ctx.next_id(el.id(), "txt");
         ctx.node_count += 1;
+        ctx.cover(el, &mask);
         styles.html_tag = Some(tag.to_string());
         return Some(DaypressNode {
             id,
@@ -394,7 +498,9 @@ pub fn map_element(
     // 9. Structural Container (`Section`, `Grid`, `Flex`, `Column`, `Container`)
     let mut next_anc = ancestors.to_vec();
     next_anc.push(el);
+    let outer_run_spaces = std::mem::replace(&mut ctx.keep_run_spaces, holds_button);
     let children = map_dom_children(ctx, &el.children, &next_anc);
+    ctx.keep_run_spaces = outer_run_spaces;
 
     // `Grid` / `Flex` render their layout inline (display, gap, direction, alignment). Use them
     // only when the design sets those unconditionally; otherwise a breakpoint or state rule of
@@ -465,6 +571,7 @@ pub fn map_element(
 
     let id = ctx.next_id(el.id(), prefix);
     ctx.node_count += 1;
+    ctx.cover(el, &mask);
 
     Some(DaypressNode {
         id,
@@ -472,6 +579,55 @@ pub fn map_element(
         styles,
         children,
     })
+}
+
+/// The element's own `data-*` attributes, minus the ones page builders leave behind.
+fn data_attributes_of(el: &DomElement) -> Option<BTreeMap<String, String>> {
+    let is_editor_attr = |name: &str| {
+        name.starts_with("data-elementor")
+            || name.starts_with("data-daystudio")
+            || matches!(name, "data-drag-handle" | "data-model-cid")
+    };
+    let attrs: BTreeMap<String, String> = el
+        .attrs
+        .iter()
+        .filter(|(k, _)| k.starts_with("data-") && !is_editor_attr(k))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    (!attrs.is_empty()).then_some(attrs)
+}
+
+fn add_class(styles: &mut StyleProperties, class: &str) {
+    let classes = styles.css_classes.take().unwrap_or_default();
+    let has_class = classes.split_whitespace().any(|c| c == class);
+    styles.css_classes = Some(if has_class {
+        classes
+    } else {
+        format!("{classes} {class}").trim().to_string()
+    });
+}
+
+/// Whether an `<a>` is drawn as a button by the design: it says so in a class name, or it has a
+/// background or an outline all around (a bottom border alone is an underline).
+fn has_button_look(el: &DomElement, styles: &StyleProperties) -> bool {
+    let named_button = el.classes().iter().any(|c| {
+        let lower = c.to_ascii_lowercase();
+        lower.contains("btn")
+            || lower.contains("button")
+            || lower.split(['-', '_']).any(|part| part == "cta")
+    });
+    let visible =
+        |v: Option<&str>| v.is_some_and(|v| !matches!(v.trim(), "" | "none" | "transparent" | "0"));
+    let has_background = visible(styles.background_color.as_deref())
+        || visible(styles.background_gradient.as_deref())
+        || visible(styles.background_image.as_deref());
+    let has_outline = (visible(styles.border_width.as_deref())
+        && styles.border_style.as_deref() != Some("none"))
+        || (visible(styles.border_top.as_deref())
+            && visible(styles.border_right.as_deref())
+            && visible(styles.border_bottom.as_deref())
+            && visible(styles.border_left.as_deref()));
+    named_button || has_background || has_outline
 }
 
 /// Maps a `<form>` to a `Form` node whose children are the design's own field markup, and records

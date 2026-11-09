@@ -12,7 +12,9 @@ pub mod mapper;
 
 use crate::kit::DaystudioKit;
 use crate::schema::{DaypressLayout, DaypressNode, NodeKind, StyleProperties};
-use css_parser::{build_daystudio_kit, extract_and_parse_styles, resolve_element_styles};
+use css_parser::{
+    build_daystudio_kit, extract_and_parse_styles, resolve_element_styles, DesignCoverage,
+};
 use dom_parser::{parse_html_dom, DomElement, DomNode};
 pub use forms::{ImportedForm, ImportedFormField};
 use mapper::{map_dom_children, MapperContext};
@@ -86,6 +88,25 @@ pub fn transpile_html_document(
     html: &str,
     options: &HtmlDesignImportOptions,
 ) -> HtmlDesignImportResult {
+    // Mapping recurses once per DOM level with large frames, and a Windows main thread only has
+    // 1 MiB of stack. Where threads are unavailable the work simply runs on the caller's stack.
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(TRANSPILE_STACK_BYTES)
+            .spawn_scoped(scope, || transpile_on_current_stack(html, options))
+            .ok()
+            .and_then(|worker| worker.join().ok())
+    })
+    .unwrap_or_else(|| transpile_on_current_stack(html, options))
+}
+
+/// Stack for the transpiler thread. Reserved, not committed, so unused pages cost nothing.
+const TRANSPILE_STACK_BYTES: usize = 64 * 1024 * 1024;
+
+fn transpile_on_current_stack(
+    html: &str,
+    options: &HtmlDesignImportOptions,
+) -> HtmlDesignImportResult {
     let doc = parse_html_dom(html);
     let sheet = extract_and_parse_styles(&doc);
 
@@ -114,7 +135,9 @@ pub fn transpile_html_document(
     let mut ctx = MapperContext::new(&sheet);
     ctx.extract_forms = options.extract_forms;
 
+    let html_el = find_tag(&doc, "html");
     let mut chrome_ancestors = Vec::new();
+    chrome_ancestors.extend(html_el);
     if body_el.tag == "body" {
         chrome_ancestors.push(body_el);
     }
@@ -150,12 +173,29 @@ pub fn transpile_html_document(
         });
     }
 
+    // Every element the design's selectors can match, including the ones that never become nodes.
+    let mut coverage = DesignCoverage {
+        nodes: std::mem::take(&mut ctx.node_coverage),
+        ..Default::default()
+    };
+    let mut outer_chain: Vec<&DomElement> = Vec::new();
+    for outer in [html_el, Some(body_el).filter(|b| b.tag == "body"), main_el]
+        .into_iter()
+        .flatten()
+    {
+        coverage.elements.push((outer, outer_chain.clone()));
+        outer_chain.push(outer);
+    }
+    coverage.add_elements(&parts.header, &chrome_ancestors);
+    coverage.add_elements(&parts.content, &ancestors);
+    coverage.add_elements(&parts.footer, &chrome_ancestors);
+
     let has_tokens = !sheet.root_vars.is_empty()
         || !sheet.raw_css.trim().is_empty()
         || !sheet.google_font_urls.is_empty();
 
     let (kit, global_styles, token_count) = if has_tokens {
-        let k = build_daystudio_kit(&sheet, title.clone(), description.clone());
+        let k = build_daystudio_kit(&sheet, &coverage, title.clone(), description.clone());
         let count = k.system_colors.len()
             + k.custom_colors.len()
             + k.system_typography.len()
@@ -430,6 +470,9 @@ fn find_meta_description(el: &DomElement) -> Option<String> {
 }
 
 #[cfg(test)]
+mod import_fidelity_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -527,10 +570,10 @@ mod tests {
         assert!(ssr.contains("<dd"));
     }
 
-    /// A trimmed-down agency one-pager (structure of the Grezzo VeroMetal design).
+    /// A trimmed-down agency one-pager with a site header, tablet rules, a state class and a form.
     const AGENCY_PAGE: &str = r###"<!doctype html>
 <html lang="nl"><head>
-<title>VeroMetal verwerker | Echt metaal | Grezzo</title>
+<title>Metaalwerk op maat | Echt metaal | Acme</title>
 <style>
 :root { --color-paper: oklch(0% 0 0); --color-ink: oklch(100% 0 0); --color-ink-2: oklch(78.9% 0 0); --font-body: "Avenir Next", sans-serif; --font-display: "Times New Roman", serif; --container: 1440px; }
 body { background: var(--color-paper); color: var(--color-ink-2); }
@@ -564,7 +607,7 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
   <div class="container">
     <div class="masthead">
       <p class="masthead__fact">Gecertificeerd verwerker</p>
-      <a class="brand" href="/">Grezzo</a>
+      <a class="brand" href="/">Acme</a>
       <button class="menu-toggle" type="button" aria-controls="menu">Menu</button>
     </div>
     <nav class="main-nav" id="menu"><ul><li><a href="/">Home</a></li><li><a href="/contact/">Contact</a></li></ul></nav>
@@ -602,9 +645,9 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
     </div>
   </section>
 </main>
-<footer class="site-footer"><div class="container"><p class="colophon">Grezzo maakt metalen afwerkingen.</p></div></footer>
+<footer class="site-footer"><div class="container"><p class="colophon">Acme maakt metalen afwerkingen.</p></div></footer>
 <nav class="mobile-cta" aria-label="Snel contact"><a class="btn" href="#aanvragen">Stalenset</a></nav>
-<script>document.body.classList.add('x');</script>
+<script>document.querySelector('.menu-toggle').onclick = () => document.body.classList.toggle('nav-open');</script>
 </body></html>"###;
 
     fn find_node<'a>(
@@ -751,7 +794,7 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
         assert!(html.contains(r#"accept="image/*,.pdf""#));
         assert!(html.contains(r#"<input name="aanvraag" type="hidden" value="Stalenset">"#));
         assert!(!html.contains("_gotcha") && !html.contains("_subject"));
-        assert!(html.contains(r#"<button type="submit" class="dp-button btn""#));
+        assert!(html.contains(r#"<button type="submit" class="dp-button btn dp-design""#));
         // The design's hidden success message is the status line the submit handler reveals.
         assert!(html.contains("dp-text form-success dp-form-status"));
 
@@ -772,20 +815,14 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
     }
 
     #[test]
-    fn imported_kit_neutralizes_theme_text_colour_and_section_padding() {
+    fn imported_kit_restores_the_root_font_size_and_recognises_design_tokens() {
         let res = transpile_html_document(AGENCY_PAGE, &HtmlDesignImportOptions::default());
         let kit = res.kit.expect("kit");
         let custom = kit.custom_css.clone().unwrap_or_default();
         let prelude_at = custom
-            .find("--dp-color-text: currentColor;")
-            .expect("text colour reset");
-        assert!(custom.contains("--dp-section-padding: 0;"));
-        assert!(prelude_at < custom.find(".masthead").expect("design css"));
-
-        // Compiled, the reset comes after the kit's own `:root` tokens, so it wins.
-        let css = kit.compile_to_css();
-        let token = css.find("--dp-color-text: ").expect("kit token");
-        assert!(css.rfind("--dp-color-text: currentColor").unwrap() > token);
+            .find("html { font-size: 100%; }")
+            .expect("root font size reset");
+        assert!(prelude_at < custom.find(".nav-open").expect("design css"));
 
         // oklch tokens and `--color-*` / `--font-*` names are recognised.
         assert!(kit
@@ -799,18 +836,23 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
     }
 
     #[test]
-    fn breakpoint_and_state_values_stay_with_the_design_css() {
+    fn breakpoint_values_become_layers_and_state_values_stay_with_the_design_css() {
         let res = transpile_html_document(AGENCY_PAGE, &HtmlDesignImportOptions::default());
         let header = res.header_layout.as_ref().expect("header");
 
-        // `.main-nav` is hidden by a breakpoint and opened by `.nav-open`: neither `display` nor
-        // `border-top` is baked, and nothing becomes a per-node `!important` rule.
+        // `.main-nav` `display` is opened by `.nav-open`: it stays out of the node altogether, so
+        // no per-node `!important` rule can beat the state class.
         let nav = find_node(&header.root, &|n| n.id == "menu").expect("menu");
         assert!(nav.styles.display.is_none());
-        assert!(nav.styles.border_top.is_none());
-        assert!(nav.styles.tablet.is_none() && nav.styles.mobile.is_none());
+        let tablet = nav.styles.tablet.as_ref().expect("tablet layer");
+        assert!(tablet.display.is_none());
+        // `border-top` only changes at the breakpoint: base value plus a tablet override, at the
+        // design's own width.
+        assert_eq!(nav.styles.border_top.as_deref(), Some("1px solid #333"));
+        assert_eq!(tablet.border_top.as_deref(), Some("0"));
+        assert_eq!(tablet.breakpoint.as_deref(), Some("60rem"));
         let css = crate::compile_layout_css(header);
-        assert!(!css.contains("[id=\"menu\"]"), "{css}");
+        assert!(css.contains("@media (max-width: 60rem)"), "{css}");
         assert!(!css.contains("display: none !important"), "{css}");
 
         // The nav list's direction changes under `.nav-open`, so it is not a Flex block that
@@ -819,15 +861,20 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
         assert!(matches!(list.kind, NodeKind::Container));
         assert_eq!(list.styles.justify_content.as_deref(), Some("center"));
 
-        // Values the design sets unconditionally are still baked.
+        // A toggle hidden on desktop and shown at the breakpoint.
         let toggle = find_node(&header.root, &|n| has_class(n, "menu-toggle")).expect("toggle");
         assert_eq!(
             toggle.styles.background_color.as_deref(),
             Some("transparent")
         );
-        assert!(
-            toggle.styles.display.is_none(),
-            "display varies by breakpoint"
+        assert_eq!(toggle.styles.display.as_deref(), Some("none"));
+        assert_eq!(
+            toggle
+                .styles
+                .tablet
+                .as_ref()
+                .and_then(|t| t.display.as_deref()),
+            Some("inline-flex")
         );
 
         // `:first-child` overrides keep working: the shared padding/border is not baked.
@@ -839,9 +886,14 @@ body { background: var(--color-paper); color: var(--color-ink-2); }
         .expect("fact");
         assert!(fact.styles.padding_left.is_none() && fact.styles.border_left.is_none());
 
-        // A grid whose gap changes at a breakpoint stays a Container (no inline `gap: 0px`).
+        // A grid's columns follow the breakpoint through its tablet layer.
         let facts = find_node(&res.layout.root, &|n| has_class(n, "facts")).expect("facts");
-        assert!(matches!(facts.kind, NodeKind::Container));
+        assert!(matches!(facts.kind, NodeKind::Grid { .. }));
+        let tablet = facts.styles.tablet.as_ref().expect("tablet layer");
+        assert_eq!(
+            tablet.grid_template_columns.as_deref(),
+            Some("repeat(2, minmax(0, 1fr))")
+        );
 
         // `column-gap` alone keeps the row gap at `normal`.
         let split = find_node(&res.layout.root, &|n| has_class(n, "split")).expect("split");

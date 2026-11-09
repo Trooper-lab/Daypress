@@ -66,14 +66,28 @@ pub fn compile_layout_css(layout: &DaypressLayout) -> String {
         css_out.push('\n');
     }
 
-    push_media(&mut css_out, "(min-width: 1025px)", &buckets.desktop_only);
-    push_media(&mut css_out, "(max-width: 1024px)", &buckets.tablet);
-    push_media(
-        &mut css_out,
-        "(min-width: 768px) and (max-width: 1024px)",
-        &buckets.tablet_only,
-    );
-    push_media(&mut css_out, "(max-width: 767px)", &buckets.mobile);
+    // Widest query first, so a narrower layer overrides a wider one on the same element.
+    let mut media: Vec<(f32, String, &Vec<String>)> = vec![
+        (
+            f32::MAX,
+            "(min-width: 1025px)".to_string(),
+            &buckets.desktop_only,
+        ),
+        (1024.0, "(max-width: 1024px)".to_string(), &buckets.tablet),
+        (
+            1024.0,
+            "(min-width: 768px) and (max-width: 1024px)".to_string(),
+            &buckets.tablet_only,
+        ),
+        (767.0, "(max-width: 767px)".to_string(), &buckets.mobile),
+    ];
+    for (width, (px, rules)) in &buckets.design_breakpoints {
+        media.push((*px, format!("(max-width: {width})"), rules));
+    }
+    media.sort_by(|a, b| b.0.total_cmp(&a.0));
+    for (_, query, rules) in media {
+        push_media(&mut css_out, &query, rules);
+    }
 
     css_out
 }
@@ -87,6 +101,55 @@ struct CssBuckets {
     tablet: Vec<String>,
     tablet_only: Vec<String>,
     mobile: Vec<String>,
+    /// Layers carrying an imported design's own breakpoint: `width -> (px, rules)`.
+    design_breakpoints: std::collections::BTreeMap<String, (f32, Vec<String>)>,
+}
+
+impl CssBuckets {
+    /// Files a `tablet` / `mobile` layer's rule under its own breakpoint, or `standard` without one.
+    fn push_layer(&mut self, layer: &StyleProperties, sel: &str, standard: Bucket) {
+        let decls = layer.to_css_style_important();
+        if decls.is_empty() {
+            return;
+        }
+        let rule = format!("{} {{ {} }}", sel, decls);
+        let custom = layer
+            .breakpoint
+            .as_deref()
+            .and_then(|w| breakpoint_px(w).map(|px| (w.trim().to_string(), px)));
+        match (custom, standard) {
+            (Some((width, px)), _) => {
+                self.design_breakpoints
+                    .entry(width)
+                    .or_insert_with(|| (px, Vec::new()))
+                    .1
+                    .push(rule);
+            }
+            (None, Bucket::Tablet) => self.tablet.push(rule),
+            (None, Bucket::Mobile) => self.mobile.push(rule),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Bucket {
+    Tablet,
+    Mobile,
+}
+
+/// Parses a media-query length (`900px`, `60rem`, `56.25em`) into CSS pixels. Anything else is
+/// rejected, so a layout's `breakpoint` value can never inject CSS.
+pub(crate) fn breakpoint_px(width: &str) -> Option<f32> {
+    let w = width.trim().to_ascii_lowercase();
+    let (number, factor) = if let Some(n) = w.strip_suffix("rem") {
+        (n, 16.0)
+    } else if let Some(n) = w.strip_suffix("em") {
+        (n, 16.0)
+    } else {
+        (w.strip_suffix("px")?, 1.0)
+    };
+    let n: f32 = number.trim().parse().ok()?;
+    (n.is_finite() && n > 0.0).then_some(n * factor)
 }
 
 fn push_media(out: &mut String, query: &str, rules: &[String]) {
@@ -157,16 +220,10 @@ fn collect_node_css(node: &DaypressNode, b: &mut CssBuckets, fonts: &mut Vec<&'s
 
     // Responsive overrides (cascade: tablet applies to tablet + mobile, mobile only to mobile)
     if let Some(ref t) = styles.tablet {
-        let decls = t.to_css_style_important();
-        if !decls.is_empty() {
-            b.tablet.push(format!("{} {{ {} }}", sel, decls));
-        }
+        b.push_layer(t, &sel, Bucket::Tablet);
     }
     if let Some(ref m) = styles.mobile {
-        let decls = m.to_css_style_important();
-        if !decls.is_empty() {
-            b.mobile.push(format!("{} {{ {} }}", sel, decls));
-        }
+        b.push_layer(m, &sel, Bucket::Mobile);
     }
 
     // Breakpoint-scoped visibility (each toggle only affects its own device range)

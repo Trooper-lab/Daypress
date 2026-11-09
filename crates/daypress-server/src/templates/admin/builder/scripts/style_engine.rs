@@ -151,6 +151,7 @@ pub const JS_STYLE_ENGINE: &str = r###"
     function fontStack(v) {
         const t = String(v).trim();
         if (t.includes(",") || t.startsWith("var(") || t.startsWith("'") || t.startsWith('"')) return t;
+        if (/^(inherit|initial|unset|revert|serif|sans-serif|monospace|cursive|fantasy|system-ui|math|ui-[a-z-]+)$/i.test(t)) return t;
         return `'${t}', sans-serif`;
     }
 

@@ -7,6 +7,7 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
         node,
         inner_html,
         css,
+        data_attrs,
         extra_cls,
         effective_style_attr,
         is_synthetic_root,
@@ -88,9 +89,10 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 format!("flex: 1; {}", css)
             };
             Some(format!(
-                "<{tag} id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</{tag}>",
+                "<{tag} id=\"{}\" class=\"{}\"{} style=\"{}\">\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&with_extra_classes("dp-column", extra_cls)),
+                data_attrs,
                 col_style.trim(),
                 inner_html
             ))
@@ -112,9 +114,10 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
             };
             let grid_style = format!("display: grid; {}{}{}", cols_decl, gap_decl, css);
             Some(format!(
-                "<{tag} id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</{tag}>",
+                "<{tag} id=\"{}\" class=\"{}\"{} style=\"{}\">\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&with_extra_classes("dp-grid", extra_cls)),
+                data_attrs,
                 grid_style.trim(),
                 inner_html
             ))
@@ -142,9 +145,10 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                 css
             );
             Some(format!(
-                "<{tag} id=\"{}\" class=\"{}\" style=\"{}\">\n{}\n</{tag}>",
+                "<{tag} id=\"{}\" class=\"{}\"{} style=\"{}\">\n{}\n</{tag}>",
                 escape_attr(&node.id),
                 escape_attr(&with_extra_classes("dp-flex", extra_cls)),
+                data_attrs,
                 flex_style.trim(),
                 inner_html
             ))

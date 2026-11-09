@@ -13,21 +13,21 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			color: var(--e-global-color-text, #1F1C17);
 		}
 
-		html.daystudio-theme-active .dp-section {
+		html.daystudio-theme-active .dp-section:not(:where(.dp-design, .dp-design *)) {
 			border-bottom: none;
 		}
 
-		html.daystudio-theme-active .dp-heading {
+		html.daystudio-theme-active .dp-heading:not(:where(.dp-design, .dp-design *)) {
 			color: var(--dp-color-heading, var(--e-global-color-secondary, #111827));
 			font-family: var(--dp-font-heading, var(--e-global-typography-primary-font-family, inherit));
 		}
 
-		html.daystudio-theme-active .dp-text {
+		html.daystudio-theme-active .dp-text:not(:where(.dp-design, .dp-design *)) {
 			color: var(--dp-color-text, var(--e-global-color-text, #334155));
 			font-family: var(--dp-font-body, var(--e-global-typography-text-font-family, inherit));
 		}
 
-		html.daystudio-theme-active .dp-button {
+		html.daystudio-theme-active .dp-button:not(.dp-design) {
 			background: var(--e-button-bg, var(--e-global-color-primary, #2563eb));
 			color: var(--e-button-color, #ffffff);
 			border-radius: var(--e-button-border-radius, 6px);
@@ -55,7 +55,7 @@ pub const CSS_DAYSTUDIO: &str = r#"
 			position: relative;
 		}
 
-		.dp-daystudio-footer section.dp-section {
+		.dp-daystudio-footer section.dp-section:not(:where(.dp-design, .dp-design *)) {
 			padding-left: max(24px, calc((100% - 960px) / 2)) !important;
 			padding-right: max(24px, calc((100% - 960px) / 2)) !important;
 			border-bottom: none;

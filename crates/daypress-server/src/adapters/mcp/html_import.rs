@@ -148,7 +148,7 @@ pub(super) fn import_html_design(service: &CmsService, args: &Value) -> Result<V
     }))
 }
 
-/// "VeroMetal verwerker | Echt metaal | Grezzo" → "Grezzo": the last segment of a page title.
+/// "Metaalwerk op maat | Echt metaal | Acme" → "Acme": the last segment of a page title.
 pub(super) fn brand_from_title(title: &str) -> String {
     let mut segment = title.trim();
     for sep in [" | ", " – ", " — ", " - ", " · ", " :: ", " • "] {
@@ -281,8 +281,8 @@ mod tests {
     #[test]
     fn brand_is_the_last_title_segment() {
         assert_eq!(
-            brand_from_title("VeroMetal verwerker | Echt metaal, met de hand gemaakt | Grezzo"),
-            "Grezzo"
+            brand_from_title("Metaalwerk op maat | Echt metaal, met de hand gemaakt | Acme"),
+            "Acme"
         );
         assert_eq!(brand_from_title("Contact – Acme"), "Acme");
         assert_eq!(brand_from_title("Studio Noord"), "Studio Noord");

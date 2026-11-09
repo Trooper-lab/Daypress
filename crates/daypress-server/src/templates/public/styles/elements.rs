@@ -66,7 +66,7 @@ pub const CSS_ELEMENTS: &str = r#"
 			min-width: 0;
 		}
 
-		:where(.dp-heading) {
+		:where(.dp-heading:not(.dp-design, .dp-design *)) {
 			color: var(--dp-color-heading, var(--e-global-color-secondary, var(--text-main, inherit)));
 			font-family: var(--dp-font-heading, var(--e-global-typography-primary-font-family, inherit));
 			font-weight: var(--dp-heading-weight, 800);
@@ -75,34 +75,34 @@ pub const CSS_ELEMENTS: &str = r#"
 			margin-bottom: var(--dp-heading-margin-bottom, 12px);
 		}
 
-		:where(h1.dp-heading) { font-size: var(--dp-h1-size, 44px); }
-		:where(h2.dp-heading) { font-size: var(--dp-h2-size, 32px); }
-		:where(h3.dp-heading) { font-size: var(--dp-h3-size, 22px); }
-		:where(h4.dp-heading) { font-size: var(--dp-h4-size, 18px); }
+		:where(h1.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h1-size, 44px); }
+		:where(h2.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h2-size, 32px); }
+		:where(h3.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h3-size, 22px); }
+		:where(h4.dp-heading:not(.dp-design, .dp-design *)) { font-size: var(--dp-h4-size, 18px); }
 
-		:where(.dp-text) {
+		:where(.dp-text:not(.dp-design, .dp-design *)) {
 			color: var(--dp-color-text, var(--e-global-color-text, var(--text-muted, inherit)));
 			font-family: var(--dp-font-body, var(--e-global-typography-text-font-family, inherit));
 			font-size: var(--dp-text-size, 16px);
 			line-height: var(--dp-text-line-height, 1.75);
 		}
 
-		:where(.dp-text p) {
+		:where(.dp-text:not(.dp-design, .dp-design *) p) {
 			margin-bottom: var(--dp-paragraph-gap, 16px);
 		}
 
-		:where(.dp-text p:last-child) {
+		:where(.dp-text:not(.dp-design, .dp-design *) p:last-child) {
 			margin-bottom: 0;
 		}
 
-		:where(.dp-image) {
+		:where(.dp-image:not(.dp-design, .dp-design *)) {
 			max-width: 100%;
 			height: auto;
 			border-radius: var(--dp-image-radius, 10px);
 			display: block;
 		}
 
-		a:where(.dp-button), :where(.dp-button), .btn-primary-neon {
+		a:where(.dp-button:not(.dp-design)), :where(.dp-button:not(.dp-design)), .btn-primary-neon {
 			display: inline-flex;
 			align-items: center;
 			justify-content: center;
@@ -121,7 +121,7 @@ pub const CSS_ELEMENTS: &str = r#"
 			text-decoration: none;
 		}
 
-		a:where(.dp-button:hover), :where(.dp-button:hover), .btn-primary-neon:hover {
+		a:where(.dp-button:not(.dp-design):hover), :where(.dp-button:not(.dp-design):hover), .btn-primary-neon:hover {
 			background: var(--dp-button-hover-bg, var(--ink, #16171a));
 			color: var(--dp-button-color, var(--on-oxide, #fff8f0));
 			transform: translateY(-1px);
