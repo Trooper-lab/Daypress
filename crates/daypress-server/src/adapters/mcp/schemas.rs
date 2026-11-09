@@ -89,7 +89,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_import_html_design",
-                "description": "Import a complete HTML/CSS design document in one call: the page becomes 100% native DayStudio AST blocks (zero CustomHtml fallbacks) with the design's stylesheet in its DaystudioKit; the body-level <header> (everything before <main>) and <footer> (everything after it, e.g. a mobile call bar) become active, site-wide 'header'/'footer' theme templates titled '{site_name} header'/'{site_name} footer'; every <form> becomes a FormStudio form titled '{site_name}: {submit label}' (fields from labels, names, required, placeholders and options; checkbox groups -> checkbox_group, file inputs -> file) rendered with the design's own field markup, so submissions land in the Submissions Vault. Re-importing updates the same page, templates and forms instead of duplicating them. Scripts are not imported (tabs, carousels, script menus need native equivalents).",
+                "description": "Import a complete HTML/CSS design document in one call: the page becomes 100% native DayStudio AST blocks (zero CustomHtml fallbacks) with the design's stylesheet in its DaystudioKit; the body-level <header> (everything before <main>) and <footer> (everything after it, e.g. a mobile call bar) become active, site-wide 'header'/'footer' theme templates titled '{site_name} header'/'{site_name} footer'; every <form> becomes a FormStudio form titled '{site_name}: {submit label}' (fields from labels, names, required, placeholders and options; checkbox groups -> checkbox_group, file inputs -> file) rendered with the design's own field markup, so submissions land in the Submissions Vault. Re-importing updates the same page, templates and forms instead of duplicating them. Scripts are not imported (tabs, carousels, script menus need native equivalents). IMPORTANT: External <img src=\"https://...\"> URLs and inline data:image/... URIs are kept verbatim in the AST and NOT auto-uploaded; after importing, always upload all page and header/footer images into the Media Library (/uploads/...) via daypress_import_wp_bundle (bundle.media), rewrite the page and template AST URLs to /uploads/<file_name>, and verify with daypress_audit_post.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["html"],
@@ -150,7 +150,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_import_wp_bundle",
-                "description": "Execute a 1-Click WordPress migration bundle import with relational ID remapping and Elementor/Divi/Gutenberg AST transpilation.",
+                "description": "Execute a 1-Click WordPress migration bundle import with relational ID remapping and Elementor/Divi/Gutenberg AST transpilation, OR incrementally upload media files into the Media Library (/uploads/...) with automatic WebP/AVIF & dimension metadata by passing bundle: {\"media\": [{\"file_name\", \"mime_type\", \"title\", \"alt_text\", \"base64_data\"}]} with site_settings omitted.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["bundle"],
@@ -391,7 +391,7 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_audit_post",
-                "description": "Run the real-time WCAG 2.1 AA/AAA Contrast, Broken-Link (SQLite-verified), Heading Hierarchy, and SEO Linter on a post/page by post_id or draft payload.",
+                "description": "Run the real-time WCAG 2.1 AA/AAA Contrast, Media Library Image Check (flags external hotlinks, inline data:image/ URIs, and unregistered /uploads/ assets), Broken-Link (SQLite-verified), Heading Hierarchy, and SEO Linter on a post/page by post_id or draft payload.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

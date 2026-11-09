@@ -384,6 +384,7 @@ impl Database {
         }
 
         // 4. Media
+        let media_base_url = Self::get_base_url_with_conn(&tx);
         let mut media_count = 0;
         let mut media_rewrites: Vec<(String, String)> = Vec::new();
         for m in &req.media {
@@ -391,6 +392,8 @@ impl Database {
                 .or_else(|| crate::media::sanitize_filename(&m.source_url))
                 .unwrap_or_else(|| format!("media_{}.png", media_count + 1));
             let local_upload_url = format!("/uploads/{}", safe_file_name);
+            let mut decoded_size: Option<u64> = None;
+            let mut decoded_meta_json: Option<String> = None;
 
             let final_url = if let Some(b64) = &m.base64_data {
                 if !b64.is_empty() {
@@ -399,6 +402,14 @@ impl Database {
                         let _ = fs::create_dir_all("uploads");
                         let file_path = Path::new("uploads").join(&safe_file_name);
                         let _ = fs::write(&file_path, &bytes);
+                        decoded_size = Some(bytes.len() as u64);
+                        if let Ok(details) = crate::media::process_image_metadata(
+                            &file_path,
+                            &safe_file_name,
+                            &media_base_url,
+                        ) {
+                            decoded_meta_json = serde_json::to_string(&details).ok();
+                        }
                         crate::media::spawn_background_image_processing(file_path);
                         local_upload_url.clone()
                     } else {
@@ -457,19 +468,41 @@ impl Database {
             }
 
             let _ = tx.execute(
-                "INSERT OR REPLACE INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_attached_file', ?2)",
+                "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = '_wp_attached_file'",
+                params![media_id],
+            );
+            let _ = tx.execute(
+                "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_attached_file', ?2)",
                 params![media_id, safe_file_name],
             );
             if let Some(ref alt) = m.alt_text {
                 let _ = tx.execute(
-                    "INSERT OR REPLACE INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_attachment_image_alt', ?2)",
+                    "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = '_wp_attachment_image_alt'",
+                    params![media_id],
+                );
+                let _ = tx.execute(
+                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_attachment_image_alt', ?2)",
                     params![media_id, alt],
                 );
             }
-            if let Some(size) = m.file_size {
+            if let Some(size) = m.file_size.or(decoded_size) {
                 let _ = tx.execute(
-                    "INSERT OR REPLACE INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_filesize', ?2)",
+                    "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = '_filesize'",
+                    params![media_id],
+                );
+                let _ = tx.execute(
+                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_filesize', ?2)",
                     params![media_id, size.to_string()],
+                );
+            }
+            if let Some(ref meta_json) = decoded_meta_json {
+                let _ = tx.execute(
+                    "DELETE FROM postmeta WHERE post_id = ?1 AND meta_key = '_wp_attachment_metadata'",
+                    params![media_id],
+                );
+                let _ = tx.execute(
+                    "INSERT INTO postmeta (post_id, meta_key, meta_value) VALUES (?1, '_wp_attachment_metadata', ?2)",
+                    params![media_id, meta_json],
                 );
             }
             media_count += 1;

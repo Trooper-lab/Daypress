@@ -21,9 +21,10 @@ Daypress supports two production deployment architectures:
 ## 1. Pre-Launch Checklist (Run Before Deploying)
 
 Before publishing any site to production:
-1. **Audit Key Pages (`daypress_audit_post`)**: Verify WCAG 2.1 AA/AAA contrast, heading hierarchy, SEO meta descriptions, and zero broken internal links.
-2. **Verify Front Page & Permalinks (`daypress_get_settings`)**: Confirm `show_on_front` and `page_on_front` point to the intended homepage, and `blogname` / `blogdescription` are set.
-3. **Check Unused Media (`daypress_scan_unused_media`)**: Optionally clean up unreferenced test uploads.
+1. **Verify All Images Are Imported into the Media Library**: Confirm zero external hotlinks (`http(s)://...`) or inline `data:image/...` URIs remain in any page layout or active `header`/`footer` template — upload any external/inline assets via `daypress_import_wp_bundle` (`bundle.media`) and rewrite URLs to `/uploads/...` (see `daystudio-website-builder` Section 6).
+2. **Audit Key Pages (`daypress_audit_post`)**: Verify WCAG 2.1 AA/AAA contrast, heading hierarchy, Media Library attachment registration, SEO meta descriptions, and zero broken internal links.
+3. **Verify Front Page & Permalinks (`daypress_get_settings`)**: Confirm `show_on_front` and `page_on_front` point to the intended homepage, and `blogname` / `blogdescription` are set.
+4. **Check Unused Media (`daypress_scan_unused_media`)**: Optionally clean up unreferenced test uploads.
 
 ---
 

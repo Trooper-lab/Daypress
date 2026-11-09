@@ -5,7 +5,7 @@ description: >-
   reusable components in Daypress using DayStudio. Use this skill whenever
   creating or updating page layouts via daypress_import_html_design,
   daypress_update_post_layout, daypress_save_template, or daypress_update_global_styles,
-  and when auditing pages with daypress_audit_post.
+  importing page images into the Media Library, and auditing pages with daypress_audit_post.
 ---
 
 # DayStudio Website Builder & AST Layout Skill
@@ -31,6 +31,9 @@ Pass a complete, semantic HTML5 document (with a `<style>` block, `<header>`, `<
 - The theme's own element defaults (text colour, section padding, button look, boxed container width, browser-default resets) are switched off for imported blocks (`dp-design` class on top-level blocks and on imported buttons). A link without button styling stays a plain link (a `Button` node with `html_tag: "a"`), and `data-*` attributes are kept.
 - Scripts are not imported: tab panels, carousels' arrow buttons and script-driven menus need native equivalents (or CSS such as a `:target` menu) after the import.
 - When `set_as_front_page: true`, Daypress automatically sets `show_on_front = "page"` and `page_on_front = <post_id>`.
+
+> **CRITICAL — Images Are NOT Auto-Imported into the Media Library:**
+> `daypress_import_html_design`, `daypress_update_post_layout`, and `daypress_save_template` preserve `<img src="...">`, inline `data:image/...` URIs, and CSS `background-image: url(...)` strings verbatim in the AST without downloading files or creating Media Library (`attachment`) records. After creating or updating **any** page or template, you **MUST** execute **[Section 6: Mandatory Media Library Image Import & Verification Check](#6-mandatory-check-import-all-page--template-images-into-the-media-library)** before finishing.
 
 ```json
 {
@@ -294,9 +297,70 @@ Use `daypress_list_templates` and `daypress_save_template` to manage site-wide c
 
 ---
 
-## 6. Always Run the WCAG 2.1 Contrast, Link & SEO Linter (`daypress_audit_post`)
+## 6. Mandatory Check: Import All Page & Template Images into the Media Library
 
-After creating or updating any page layout, run `daypress_audit_post` to verify accessibility and SEO health:
+Never leave a created or updated page, header, or footer pointing at external hotlinks (`https://...`), inline `data:image/...;base64,...` URIs, or `/uploads/...` paths missing from the Media Library (`attachment` table). Every image used on the page **must** live in the site's Media Library (`/d-admin/upload` & `/wp-json/wp/v2/media`) so Daypress generates responsive WebP/AVIF variants, tracks dimensions, backs up assets in Litestream/snapshots, and exposes images in the DayStudio Media Picker.
+
+### Step 1: Audit All Image References Across the Page & Active Chrome
+Fetch `daypress_get_post_layout` for the page and `daypress_list_templates` (`template_type: "all"`) for active `header`, `footer`, `symbol`, and `popup` templates. Inspect every node recursively for:
+- `Image.data.src`
+- `ImageBox.data.image_url`
+- `Testimonial.data.image_url` and `TestimonialCarousel.data.slides[].avatar_url`
+- `CallToAction.data.image_url` and `FlipBox.data.front_image`
+- `Text.data.content_html` (`<img src="...">`)
+- `styles.background_image`, `styles.background.image_url`, and responsive/state overrides (`tablet`, `mobile`, `hover`) containing `url(...)`
+
+Flag every URL that is:
+1. An external hotlink (`http://...`, `https://...`, `//...` not already pointing to this site's `/uploads/`).
+2. An inline data URI (`data:image/png;base64,...`, `data:image/svg+xml;...`, etc.) — common for header/footer logos in imported HTML designs.
+3. A local `/uploads/<file>` path that does not have a matching `attachment` entry in `/wp-json/wp/v2/media` (or SQLite `posts` where `post_type = 'attachment'`).
+
+### Step 2: Upload Missing Images into the Media Library (`daypress_import_wp_bundle`)
+Download each external image (or decode each `data:image/...` URI), assign a clean descriptive kebab-case filename (e.g. `hero-atelier.jpg`, `brand-logo.png`), optionally create virtual DAM folders via `daypress_list_media_folders` (`create_name`), and upload via `daypress_import_wp_bundle` with **only** `bundle.media` (leave `site_settings` omitted so existing pages and settings are untouched):
+
+```json
+{
+  "name": "daypress_import_wp_bundle",
+  "arguments": {
+    "bundle": {
+      "media": [
+        {
+          "file_name": "hero-atelier.jpg",
+          "source_url": "https://cdn.example.com/photos/hero-atelier.jpg",
+          "mime_type": "image/jpeg",
+          "title": "Hero Atelier",
+          "alt_text": "Craftsman applying liquid bronze finish in workshop",
+          "file_size": 184320,
+          "base64_data": "<standard-base64-bytes>"
+        }
+      ]
+    }
+  }
+}
+```
+> **Fleet Helper Shortcut (`daypress pro`):** When working in a workspace with `tools/site-builds/`, run:
+> ```bash
+> python -I tools/site-builds/import_page_media.py <post_id> out/ --check   # exits non-zero if any image is unimported
+> python -I tools/site-builds/import_page_media.py <post_id> out/           # downloads/decodes, imports to Media Library & rewrites ASTs
+> ```
+
+### Step 3: Rewrite Page, Template & Logo References to `/uploads/<file_name>`
+1. Replace every external or `data:image/...` URL in the page's `DaypressLayout` AST with `/uploads/<file_name>` (and fill in `Image.data.width` / `Image.data.height` when missing to prevent CLS), then save via `daypress_update_post_layout`.
+2. Replace any logo/chrome image URLs in active `header` / `footer` templates and save via `daypress_save_template` (passing the same `id` and full `layout` with `root`). If the site has a brand logo, also set `daypress_update_option` (`name: "daypress_site_logo"`, `value: "/uploads/<logo-file>"`).
+3. If connected via the Daypress Pro Fleet MCP, call `agency_purge_site_cache` so edge pods serve the updated HTML immediately.
+
+### Step 4: Pass the Media Verification Gate
+Before marking any page build complete, verify **all four** checks pass:
+- [ ] **Zero external/data-URI sources**: Every image in the page AST, active header/footer templates, and live rendered HTML uses `/uploads/...`.
+- [ ] **100% HTTP 200 & Media Library coverage**: Every `/uploads/...` URL returns `200 OK` and appears in `/wp-json/wp/v2/media?per_page=100` with dimensions and alt text.
+- [ ] **Clean DAM hygiene**: `daypress_scan_unused_media` reports zero unintended orphaned uploads.
+- [ ] **Zero media warnings in `daypress_audit_post`**: Run Section 7 below to confirm zero hotlinked, inline `data:image/`, or unregistered `/uploads/` issues.
+
+---
+
+## 7. Always Run the WCAG 2.1 Contrast, Media, Link & SEO Linter (`daypress_audit_post`)
+
+After creating or updating any page layout (and importing its images in Section 6), run `daypress_audit_post` to verify accessibility, Media Library registration, link integrity, and SEO health:
 
 ```json
 {
@@ -310,5 +374,5 @@ After creating or updating any page layout, run `daypress_audit_post` to verify 
 Fix any reported issues before finishing:
 - Ensure every page has exactly one `Heading` with `level: 1` (`H1`) and no skipped heading levels (`H1` → `H2` → `H3`).
 - Ensure text/background color pairs pass WCAG 2.1 AA (`>= 4.5:1` for body text, `>= 3.0:1` for large headings).
-- Ensure every `Image` node has a descriptive `alt` attribute and every internal link resolves.
+- Ensure every `Image` node has a descriptive `alt` attribute, points to a registered `/uploads/...` Media Library attachment (zero external hotlinks or `data:image/` URIs), and every internal link resolves.
 - Set `seo_title` and `seo_description` via `daypress_update_post`.

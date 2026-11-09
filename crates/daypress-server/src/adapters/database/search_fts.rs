@@ -999,6 +999,7 @@ impl Database {
         let mut issues: Vec<AuditIssue> = Vec::new();
         let mut verified_links: Vec<LinkVerificationResult> = Vec::new();
         let mut seen_links: HashSet<String> = HashSet::new();
+        let mut seen_media: HashSet<String> = HashSet::new();
         let mut headings_seq: Vec<(u8, String, Option<String>)> = Vec::new();
 
         // 1. Walk DaypressLayout AST if available
@@ -1015,6 +1016,7 @@ impl Database {
                     &mut issues,
                     &mut verified_links,
                     &mut seen_links,
+                    &mut seen_media,
                     &mut headings_seq,
                 );
             }
@@ -1022,6 +1024,24 @@ impl Database {
 
         // 2. Scan HTML for links (`<a href="...">`), images (`<img ...>`), and headings (`<h1..h6>`)
         if !loaded_html.trim().is_empty() {
+            if loaded_layout_json.trim().is_empty() {
+                if let Ok(img_re) =
+                    regex::Regex::new(r#"(?i)<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']"#)
+                {
+                    for caps in img_re.captures_iter(&loaded_html) {
+                        if let Some(src_m) = caps.get(1) {
+                            audit_media_url(
+                                self,
+                                src_m.as_str(),
+                                None,
+                                "HTML <img>",
+                                &mut issues,
+                                &mut seen_media,
+                            );
+                        }
+                    }
+                }
+            }
             if let Ok(a_re) = regex::Regex::new(r#"(?i)<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']"#) {
                 for caps in a_re.captures_iter(&loaded_html) {
                     if let Some(href_m) = caps.get(1) {
@@ -1450,6 +1470,220 @@ pub fn wcag_contrast_ratio(fg: (u8, u8, u8), bg: (u8, u8, u8)) -> f64 {
     ((bright + 0.05) / (dark + 0.05) * 100.0).round() / 100.0
 }
 
+fn audit_media_url(
+    db: &Database,
+    raw_url: &str,
+    node_id: Option<&str>,
+    label: &str,
+    issues: &mut Vec<AuditIssue>,
+    seen_media: &mut HashSet<String>,
+) {
+    let trimmed = raw_url
+        .trim()
+        .trim_matches(|c| c == '"' || c == '\'')
+        .trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with('#')
+        || trimmed.contains("{{")
+        || trimmed.eq_ignore_ascii_case("none")
+        || trimmed.eq_ignore_ascii_case("about:blank")
+    {
+        return;
+    }
+
+    let dedup_key = format!("{}|{}", node_id.unwrap_or(""), trimmed);
+    if !seen_media.insert(dedup_key) {
+        return;
+    }
+    let issue_suffix = format!("{}-{}", node_id.unwrap_or("html"), seen_media.len());
+
+    if trimmed
+        .get(..11)
+        .is_some_and(|p| p.eq_ignore_ascii_case("data:image/"))
+    {
+        issues.push(AuditIssue {
+            id: format!("media-inline-data-{}", issue_suffix),
+            category: "links".to_string(),
+            severity: "warning".to_string(),
+            node_id: node_id.map(str::to_string),
+            title: "Inline data:image/ URI (Not in Media Library)".to_string(),
+            detail: format!(
+                "{} embeds an inline data:image/ URI instead of a Media Library asset. Upload it via daypress_import_wp_bundle (bundle.media) and reference /uploads/<file_name>.",
+                label
+            ),
+            auto_fix_kind: None,
+            auto_fix_value: None,
+        });
+        return;
+    }
+
+    let conn = db.conn.lock().unwrap();
+    let siteurl: String = conn
+        .query_row(
+            "SELECT option_value FROM options WHERE option_name = 'siteurl'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or_else(|_| "http://localhost:8090".to_string());
+    let site_base = siteurl.trim_end_matches('/');
+
+    let path_part = if let Some(rest) = trimmed.strip_prefix(site_base) {
+        rest
+    } else if let Some(after_scheme) = trimmed
+        .strip_prefix("http://localhost:")
+        .or_else(|| trimmed.strip_prefix("http://127.0.0.1:"))
+    {
+        if let Some(idx) = after_scheme.find('/') {
+            &after_scheme[idx..]
+        } else {
+            "/"
+        }
+    } else if trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("//")
+    {
+        let preview: String = trimmed.chars().take(72).collect();
+        issues.push(AuditIssue {
+            id: format!("media-external-hotlink-{}", issue_suffix),
+            category: "links".to_string(),
+            severity: "warning".to_string(),
+            node_id: node_id.map(str::to_string),
+            title: "External Hotlinked Image (Not in Media Library)".to_string(),
+            detail: format!(
+                "{} hotlinks '{}'. Import all page and template images into the Media Library (/uploads/...) via daypress_import_wp_bundle so Daypress serves local WebP/AVIF variants and backs them up.",
+                label, preview
+            ),
+            auto_fix_kind: None,
+            auto_fix_value: None,
+        });
+        return;
+    } else {
+        trimmed
+    };
+
+    let without_hash = path_part.split('#').next().unwrap_or("");
+    let without_query = without_hash.split('?').next().unwrap_or("");
+    let clean = without_query.trim_matches('/');
+    if clean.starts_with("uploads/") || clean.starts_with("wp-content/uploads/") {
+        let rel = clean
+            .strip_prefix("wp-content/uploads/")
+            .or_else(|| clean.strip_prefix("uploads/"))
+            .unwrap_or(clean);
+        if rel.is_empty() {
+            return;
+        }
+        let like_pat = format!("%/{}", rel);
+        let in_media_library: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM posts p
+                    WHERE p.post_type = 'attachment'
+                      AND (
+                          p.post_name = ?1
+                          OR p.guid = ?2
+                          OR p.guid LIKE ?3
+                          OR EXISTS(
+                              SELECT 1 FROM postmeta pm
+                              WHERE pm.post_id = p.ID
+                                AND pm.meta_key = '_wp_attached_file'
+                                AND pm.meta_value = ?1
+                          )
+                      )
+                )",
+                params![rel, format!("/uploads/{}", rel), like_pat],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if !in_media_library {
+            let preview: String = rel.chars().take(56).collect();
+            issues.push(AuditIssue {
+                id: format!("media-unregistered-upload-{}", issue_suffix),
+                category: "links".to_string(),
+                severity: "warning".to_string(),
+                node_id: node_id.map(str::to_string),
+                title: format!("Unregistered Media Asset: /uploads/{}", preview),
+                detail: format!(
+                    "{} references '/uploads/{}', which has no attachment record in the Media Library. Import it via daypress_import_wp_bundle (bundle.media) so it appears in /d-admin/upload and /wp-json/wp/v2/media.",
+                    label, preview
+                ),
+                auto_fix_kind: None,
+                auto_fix_value: None,
+            });
+        }
+    }
+}
+
+fn audit_style_media(
+    db: &Database,
+    styles: &daypress_ast::StyleProperties,
+    node_id: &str,
+    issues: &mut Vec<AuditIssue>,
+    seen_media: &mut HashSet<String>,
+) {
+    if let Some(bg_url) = styles
+        .background
+        .as_ref()
+        .and_then(|b| b.image_url.as_deref())
+    {
+        audit_media_url(
+            db,
+            bg_url,
+            Some(node_id),
+            "Background image",
+            issues,
+            seen_media,
+        );
+    }
+    if let Some(bg_img) = styles.background_image.as_deref() {
+        let trimmed = bg_img.trim();
+        if let Ok(url_re) = regex::Regex::new(r#"(?i)url\(\s*["']?([^)"']+)["']?\s*\)"#) {
+            let mut matched_any = false;
+            for caps in url_re.captures_iter(trimmed) {
+                if let Some(m) = caps.get(1) {
+                    matched_any = true;
+                    audit_media_url(
+                        db,
+                        m.as_str(),
+                        Some(node_id),
+                        "CSS background_image",
+                        issues,
+                        seen_media,
+                    );
+                }
+            }
+            let low = trimmed.to_ascii_lowercase();
+            if !matched_any
+                && !low.is_empty()
+                && !low.starts_with("none")
+                && !low.starts_with("linear-")
+                && !low.starts_with("radial-")
+                && !low.starts_with("conic-")
+            {
+                audit_media_url(
+                    db,
+                    trimmed,
+                    Some(node_id),
+                    "CSS background_image",
+                    issues,
+                    seen_media,
+                );
+            }
+        }
+    }
+    for layer in [
+        styles.tablet.as_deref(),
+        styles.mobile.as_deref(),
+        styles.hover.as_deref(),
+        styles.focus.as_deref(),
+        styles.active.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        audit_style_media(db, layer, node_id, issues, seen_media);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn audit_ast_node_recursive(
     db: &Database,
@@ -1460,8 +1694,10 @@ fn audit_ast_node_recursive(
     issues: &mut Vec<AuditIssue>,
     verified_links: &mut Vec<LinkVerificationResult>,
     seen_links: &mut HashSet<String>,
+    seen_media: &mut HashSet<String>,
     headings_seq: &mut Vec<(u8, String, Option<String>)>,
 ) {
+    audit_style_media(db, &node.styles, &node.id, issues, seen_media);
     let node_bg = node
         .styles
         .background
@@ -1532,6 +1768,21 @@ fn audit_ast_node_recursive(
             }
         }
         daypress_ast::NodeKind::Text { content_html } => {
+            if let Ok(img_re) = regex::Regex::new(r#"(?i)<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']"#)
+            {
+                for caps in img_re.captures_iter(content_html) {
+                    if let Some(src_m) = caps.get(1) {
+                        audit_media_url(
+                            db,
+                            src_m.as_str(),
+                            Some(&node.id),
+                            "Text <img>",
+                            issues,
+                            seen_media,
+                        );
+                    }
+                }
+            }
             let plain = strip_html_for_fts(content_html);
             if !plain.is_empty() && (explicit_fg.is_some() || node_bg != inherited_bg) {
                 let ratio = wcag_contrast_ratio(node_fg, node_bg);
@@ -1609,6 +1860,7 @@ fn audit_ast_node_recursive(
             }
         }
         daypress_ast::NodeKind::Image { src, alt, link, .. } => {
+            audit_media_url(db, src, Some(&node.id), "Image", issues, seen_media);
             if alt.trim().is_empty() {
                 let inferred_alt = src
                     .rsplit('/')
@@ -1661,6 +1913,69 @@ fn audit_ast_node_recursive(
                 }
             }
         }
+        daypress_ast::NodeKind::ImageBox { image_url, .. } => {
+            audit_media_url(
+                db,
+                image_url,
+                Some(&node.id),
+                "ImageBox",
+                issues,
+                seen_media,
+            );
+        }
+        daypress_ast::NodeKind::Testimonial {
+            image_url: Some(image_url),
+            ..
+        } => {
+            audit_media_url(
+                db,
+                image_url,
+                Some(&node.id),
+                "Testimonial avatar",
+                issues,
+                seen_media,
+            );
+        }
+        daypress_ast::NodeKind::TestimonialCarousel { slides, .. } => {
+            for slide in slides {
+                if let Some(ref avatar) = slide.avatar_url {
+                    audit_media_url(
+                        db,
+                        avatar,
+                        Some(&node.id),
+                        "TestimonialCarousel slide",
+                        issues,
+                        seen_media,
+                    );
+                }
+            }
+        }
+        daypress_ast::NodeKind::CallToAction {
+            image_url: Some(image_url),
+            ..
+        } => {
+            audit_media_url(
+                db,
+                image_url,
+                Some(&node.id),
+                "CallToAction image",
+                issues,
+                seen_media,
+            );
+        }
+        daypress_ast::NodeKind::FlipBox {
+            front_image: Some(front_image),
+            ..
+        } => {
+            audit_media_url(
+                db,
+                front_image,
+                Some(&node.id),
+                "FlipBox image",
+                issues,
+                seen_media,
+            );
+        }
         _ => {}
     }
 
@@ -1674,7 +1989,178 @@ fn audit_ast_node_recursive(
             issues,
             verified_links,
             seen_links,
+            seen_media,
             headings_seq,
+        );
+    }
+}
+
+#[cfg(test)]
+mod media_audit_tests {
+    use super::*;
+
+    // Minimal valid 1x1 transparent PNG
+    const TINY_PNG_B64: &str =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+    #[test]
+    fn audit_flags_hotlinks_data_uris_and_unregistered_uploads_until_imported() {
+        let db = Database::new_in_memory().expect("in-memory DB");
+        let unimported_layout = serde_json::json!({
+            "version": 1,
+            "root": {
+                "id": "root",
+                "type": "Root",
+                "children": [
+                    {
+                        "id": "h1",
+                        "type": "Heading",
+                        "data": { "text": "Artisanal Metal Finishes for Architecture", "level": 1 }
+                    },
+                    {
+                        "id": "img_ext",
+                        "type": "Image",
+                        "data": { "src": "https://cdn.example.com/atelier.jpg", "alt": "Atelier hero" }
+                    },
+                    {
+                        "id": "img_data",
+                        "type": "Image",
+                        "data": { "src": format!("data:image/png;base64,{}", TINY_PNG_B64), "alt": "Brand logo" }
+                    },
+                    {
+                        "id": "img_ghost",
+                        "type": "Image",
+                        "data": { "src": "/uploads/not-in-library.png", "alt": "Ghost local image" }
+                    }
+                ]
+            }
+        })
+        .to_string();
+
+        let report = db.audit_post_wcag_links_seo(&AuditRequestPayload {
+            title: Some("Artisanal Metal Finishes for Architecture".to_string()),
+            seo_description: Some(
+                "Bespoke liquid metal finishes crafted by hand in our workshop for interior architects and luxury residences."
+                    .to_string(),
+            ),
+            layout_json: Some(unimported_layout),
+            theme: Some("light".to_string()),
+            ..Default::default()
+        });
+
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.node_id.as_deref() == Some("img_ext")
+                    && i.id.starts_with("media-external-hotlink-")),
+            "expected hotlink warning on img_ext, got: {:?}",
+            report.issues
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.node_id.as_deref() == Some("img_data")
+                    && i.id.starts_with("media-inline-data-")),
+            "expected inline data:image/ warning on img_data, got: {:?}",
+            report.issues
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.node_id.as_deref() == Some("img_ghost")
+                    && i.id.starts_with("media-unregistered-upload-")),
+            "expected unregistered /uploads/ warning on img_ghost, got: {:?}",
+            report.issues
+        );
+
+        // Now import the PNG into the Media Library via `import_bundle` (`bundle.media` only)
+        let unique_name = format!(
+            "unit-test-audit-{}.png",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(1)
+        );
+        let bundle_req = crate::models::ImportBundleRequest {
+            media: vec![crate::models::ImportMedia {
+                id: Some(101),
+                title: "Imported Brand Logo".to_string(),
+                file_name: unique_name.clone(),
+                mime_type: "image/png".to_string(),
+                source_url: "https://cdn.example.com/logo.png".to_string(),
+                original_url: None,
+                alt_text: Some("Brand logo".to_string()),
+                file_size: None,
+                base64_data: Some(TINY_PNG_B64.to_string()),
+            }],
+            ..Default::default()
+        };
+        let imported = db.import_bundle(&bundle_req).expect("import media bundle");
+        assert_eq!(imported.migrated_media, 1);
+
+        // Verify `_wp_attachment_metadata` and `_filesize` were written automatically
+        {
+            let conn = db.conn.lock().unwrap();
+            let meta_val: String = conn
+                .query_row(
+                    "SELECT pm.meta_value FROM postmeta pm
+                     JOIN posts p ON p.ID = pm.post_id
+                     WHERE p.post_type = 'attachment' AND p.post_name = ?1
+                       AND pm.meta_key = '_wp_attachment_metadata'",
+                    params![unique_name],
+                    |r| r.get(0),
+                )
+                .expect("_wp_attachment_metadata should be persisted by import_bundle");
+            assert!(meta_val.contains("\"width\":1"), "meta_val was: {meta_val}");
+            assert!(
+                meta_val.contains("\"height\":1"),
+                "meta_val was: {meta_val}"
+            );
+        }
+        let _ = std::fs::remove_file(std::path::Path::new("uploads").join(&unique_name));
+
+        // Re-audit with the registered `/uploads/<unique_name>` asset
+        let clean_layout = serde_json::json!({
+            "version": 1,
+            "root": {
+                "id": "root",
+                "type": "Root",
+                "children": [
+                    {
+                        "id": "h1",
+                        "type": "Heading",
+                        "data": { "text": "Artisanal Metal Finishes for Architecture", "level": 1 }
+                    },
+                    {
+                        "id": "img_imported",
+                        "type": "Image",
+                        "data": { "src": format!("/uploads/{}", unique_name), "alt": "Brand logo" }
+                    }
+                ]
+            }
+        })
+        .to_string();
+
+        let clean_report = db.audit_post_wcag_links_seo(&AuditRequestPayload {
+            title: Some("Artisanal Metal Finishes for Architecture".to_string()),
+            seo_description: Some(
+                "Bespoke liquid metal finishes crafted by hand in our workshop for interior architects and luxury residences."
+                    .to_string(),
+            ),
+            layout_json: Some(clean_layout),
+            theme: Some("light".to_string()),
+            ..Default::default()
+        });
+        assert!(
+            clean_report
+                .issues
+                .iter()
+                .all(|i| !i.id.starts_with("media-")),
+            "expected zero media issues after Media Library import, got: {:?}",
+            clean_report.issues
         );
     }
 }
