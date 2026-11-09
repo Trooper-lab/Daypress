@@ -2206,6 +2206,123 @@ async fn test_plugins_ecosystem_seed_status_tabs_and_actions() {
 }
 
 #[tokio::test]
+async fn test_plugins_activation_behind_proxy_and_formstudio_auto_activation() {
+    // 1. Fresh DB: creating a form before /d-admin/plugins has ever been visited must seed & activate daypress-forms
+    // and keep it active after /d-admin/plugins renders.
+    let db = Database::new_in_memory().unwrap();
+    let form_id = db
+        .create_form("Stalenset aanvragen", "[]", "{}")
+        .expect("create_form should succeed");
+    assert!(form_id > 0);
+    assert!(
+        db.is_plugin_active("daypress-forms"),
+        "daypress-forms must be active immediately after create_form on a fresh DB"
+    );
+
+    let app = create_app(db.clone());
+    let plugins_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/d-admin/plugins")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(plugins_res.status(), StatusCode::OK);
+    assert!(
+        db.is_plugin_active("daypress-forms"),
+        "Visiting /d-admin/plugins must not reset auto-activated daypress-forms back to inactive"
+    );
+
+    // 2. Cookie-authenticated POST /d-admin/api/plugins behind Daypress Pro proxy
+    // (`Origin: https://grezzo.onlyforward.daypress.dev`, `Host: 127.0.0.1:19001`, `X-Forwarded-Host: grezzo.onlyforward.daypress.dev`)
+    let login_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/login")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(Body::from("log=admin&pwd=admin&redirect_to=/d-admin/"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(login_res.status(), StatusCode::SEE_OTHER);
+    let session_cookies: String = login_res
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|s| s.split(';').next())
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(!session_cookies.is_empty());
+
+    // Deactivate first so we can verify cookie-based activation behind proxy
+    db.toggle_plugin_status("daypress-forms", Some(false))
+        .unwrap();
+    assert!(!db.is_plugin_active("daypress-forms"));
+
+    let activate_behind_proxy = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/d-admin/api/plugins")
+                .header("Cookie", &session_cookies)
+                .header("Origin", "https://grezzo.onlyforward.daypress.dev")
+                .header("Host", "127.0.0.1:19001")
+                .header("X-Forwarded-Host", "grezzo.onlyforward.daypress.dev")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "plugin": "daypress-forms",
+                        "active": true
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(activate_behind_proxy.status(), StatusCode::OK);
+    assert!(db.is_plugin_active("daypress-forms"));
+
+    // Cross-origin attacker must still be rejected
+    let cross_origin_attempt = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/d-admin/api/plugins")
+                .header("Cookie", &session_cookies)
+                .header("Origin", "https://evil.example")
+                .header("Host", "127.0.0.1:19001")
+                .header("X-Forwarded-Host", "grezzo.onlyforward.daypress.dev")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "plugin": "daypress-forms",
+                        "active": false
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        cross_origin_attempt.status() == StatusCode::UNAUTHORIZED
+            || cross_origin_attempt.status() == StatusCode::FORBIDDEN
+    );
+    assert!(db.is_plugin_active("daypress-forms"));
+}
+
+#[tokio::test]
 async fn test_v030_two_factor_authentication_lifecycle() {
     let db = Database::new_in_memory().expect("Failed in-memory DB");
     let app = create_app(db.clone());

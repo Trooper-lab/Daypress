@@ -579,10 +579,26 @@ impl Database {
     // =========================================================================
 
     pub(crate) fn activate_builtin_plugin_with_conn(conn: &Connection, slug: &str) {
+        let _ = Self::ensure_builtin_plugins_seeded_with_conn(conn);
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let _ = conn.execute(
-            "UPDATE daypress_plugins SET is_active = 1 WHERE slug = ?1",
-            params![slug],
+            "UPDATE daypress_plugins SET is_active = 1, updated_at = ?2 WHERE slug = ?1",
+            params![slug, now],
         );
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT slug FROM daypress_plugins WHERE is_active = 1 ORDER BY is_builtin DESC, name ASC",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |r| r.get::<_, String>(0)) {
+                let active: Vec<String> = rows.flatten().collect();
+                if let Ok(json_str) = serde_json::to_string(&active) {
+                    let _ = conn.execute(
+                        "INSERT INTO options (option_name, option_value) VALUES ('daypress_active_plugins', ?1)
+                         ON CONFLICT(option_name) DO UPDATE SET option_value = excluded.option_value",
+                        params![json_str],
+                    );
+                }
+            }
+        }
     }
 
     pub fn ensure_builtin_plugins_seeded_with_conn(conn: &Connection) -> Result<()> {
@@ -593,17 +609,15 @@ impl Database {
                 |r| r.get(0),
             )
             .ok();
-        if catalog_ready.as_deref() == Some("1") {
-            let builtin_count: i64 = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM daypress_plugins WHERE is_builtin = 1",
-                    [],
-                    |r| r.get(0),
-                )
-                .unwrap_or(0);
-            if builtin_count >= 13 {
-                return Ok(());
-            }
+        let preexisting_builtin_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM daypress_plugins WHERE is_builtin = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if catalog_ready.as_deref() == Some("1") && preexisting_builtin_count >= 13 {
+            return Ok(());
         }
 
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -640,7 +654,9 @@ impl Database {
             );
         }
 
-        // One-time migration: ensure pre-0.9 databases reset built-in plugins to deactivated by default
+        // One-time migration: ensure pre-0.9 databases reset built-in plugins to deactivated by default.
+        // On a fresh database (`preexisting_builtin_count == 0`), rows were just inserted with `is_active = 0`,
+        // so we simply record the v0.9 flag without clobbering any newly converged plugins.
         let migrated: Option<String> = conn
             .query_row(
                 "SELECT option_value FROM options WHERE option_name = 'daypress_plugins_default_inactive_v09'",
@@ -649,18 +665,20 @@ impl Database {
             )
             .ok();
         if migrated.is_none() {
-            let _ = conn.execute(
-                "UPDATE daypress_plugins SET is_active = 0 WHERE is_builtin = 1",
-                [],
-            );
+            if preexisting_builtin_count > 0 {
+                let _ = conn.execute(
+                    "UPDATE daypress_plugins SET is_active = 0 WHERE is_builtin = 1",
+                    [],
+                );
+                let _ = conn.execute(
+                    "INSERT INTO options (option_name, option_value) VALUES ('active_plugins', '[]')
+                     ON CONFLICT(option_name) DO UPDATE SET option_value = '[]'",
+                    [],
+                );
+            }
             let _ = conn.execute(
                 "INSERT INTO options (option_name, option_value) VALUES ('daypress_plugins_default_inactive_v09', '1')
                  ON CONFLICT(option_name) DO UPDATE SET option_value = '1'",
-                [],
-            );
-            let _ = conn.execute(
-                "INSERT INTO options (option_name, option_value) VALUES ('active_plugins', '[]')
-                 ON CONFLICT(option_name) DO UPDATE SET option_value = '[]'",
                 [],
             );
         }

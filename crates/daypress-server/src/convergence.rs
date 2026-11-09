@@ -835,6 +835,12 @@ pub fn activate_builtin_plugin_tx(
     let config_json = serde_json::to_string(&default_cfg).unwrap_or_else(|_| "{}".to_string());
 
     tx.execute(
+        "INSERT INTO options (option_name, option_value) VALUES ('daypress_plugins_default_inactive_v09', '1')
+         ON CONFLICT(option_name) DO UPDATE SET option_value = '1'",
+        [],
+    )?;
+
+    tx.execute(
         "INSERT INTO daypress_plugins (slug, name, version, description, category, is_builtin, is_active, manifest_json, config_json, updated_at)
          VALUES (?1, ?2, ?3, ?4, 'builtin', 1, 1, ?5, ?6, datetime('now'))
          ON CONFLICT(slug) DO UPDATE SET

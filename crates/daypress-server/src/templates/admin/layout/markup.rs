@@ -273,6 +273,23 @@ pub fn render_admin_shell(
 			nonce: '{rest_nonce}',
 			versionString: 'wp/v2/'
 		}};
+		if (window.fetch && !window.__daypressNonceFetchInstalled) {{
+			window.__daypressNonceFetchInstalled = true;
+			const _origFetch = window.fetch.bind(window);
+			window.fetch = function(input, init) {{
+				if (typeof input === 'string' && (input.startsWith('/d-admin/') || input.startsWith('/wp-json/')) && init && init.method) {{
+					const m = String(init.method).toUpperCase();
+					if (m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && window.wpApiSettings && window.wpApiSettings.nonce) {{
+						const hdrs = new Headers(init.headers || undefined);
+						if (!hdrs.has('X-WP-Nonce')) {{
+							hdrs.set('X-WP-Nonce', window.wpApiSettings.nonce);
+						}}
+						init = Object.assign({{}}, init, {{ headers: hdrs }});
+					}}
+				}}
+				return _origFetch(input, init);
+			}};
+		}}
 	</script>
 </head>
 <body data-admin-color="{admin_color}">

@@ -273,10 +273,11 @@ pub fn render_plugins_view(
             }}
 
             async function togglePlugin(btn, plugin, activate) {{
+                const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                 try {{
                     const res = await fetch('/d-admin/api/plugins', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': nonce }},
                         body: JSON.stringify({{ plugin, active: activate }})
                     }});
                     if (res.ok) {{
@@ -302,13 +303,14 @@ pub fn render_plugins_view(
                     return;
                 }}
                 const activate = (action === 'activate');
+                const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                 showToast('Updating ' + checked.length + ' plugin(s)...');
                 for (const cb of checked) {{
                     const plugin = cb.value;
                     try {{
                         await fetch('/d-admin/api/plugins', {{
                             method: 'POST',
-                            headers: {{ 'Content-Type': 'application/json' }},
+                            headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': nonce }},
                             body: JSON.stringify({{ plugin, active: activate }})
                         }});
                     }} catch (e) {{}}
@@ -319,10 +321,11 @@ pub fn render_plugins_view(
 
             async function uninstallCustomPlugin(slug) {{
                 if (!confirm('Uninstall custom plugin "' + slug + '" from SQLite?')) return;
+                const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                 try {{
                     const res = await fetch('/d-admin/api/plugin-install', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': nonce }},
                         body: JSON.stringify({{ action: 'uninstall', slug }})
                     }});
                     if (res.ok) {{
@@ -812,10 +815,11 @@ pub fn render_plugin_settings_view(
 
         <script>
             async function togglePluginActiveState(plugin, activate) {{
+                const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                 try {{
                     const res = await fetch('/d-admin/api/plugins', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': nonce }},
                         body: JSON.stringify({{ plugin, active: activate }})
                     }});
                     if (res.ok) {{
@@ -830,6 +834,7 @@ pub fn render_plugin_settings_view(
             }}
 
             async function savePluginSettings(slug) {{
+                const nonce = (window.wpApiSettings && window.wpApiSettings.nonce) || '';
                 const config = {{}};
                 document.querySelectorAll('.plugin-cfg-field').forEach(el => {{
                     const key = el.getAttribute('data-key');
@@ -843,7 +848,7 @@ pub fn render_plugin_settings_view(
                 try {{
                     const res = await fetch('/d-admin/api/plugin-settings', {{
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
+                        headers: {{ 'Content-Type': 'application/json', 'X-WP-Nonce': nonce }},
                         body: JSON.stringify({{ slug, config }})
                     }});
                     if (res.ok) {{

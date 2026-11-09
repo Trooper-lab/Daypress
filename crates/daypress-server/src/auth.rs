@@ -863,27 +863,20 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
                                 ));
                             }
                         }
-                        if let (Some(origin), Some(host)) = (
-                            parts
-                                .headers
-                                .get(header::ORIGIN)
-                                .and_then(|v| v.to_str().ok()),
-                            parts
+                        if let Some(origin) = parts
+                            .headers
+                            .get(header::ORIGIN)
+                            .and_then(|v| v.to_str().ok())
+                        {
+                            let host = parts
                                 .headers
                                 .get(header::HOST)
-                                .and_then(|v| v.to_str().ok()),
-                        ) {
-                            let origin_host = origin
-                                .trim()
-                                .trim_start_matches("https://")
-                                .trim_start_matches("http://")
-                                .split('/')
-                                .next()
-                                .unwrap_or("");
-                            if !origin_host.is_empty()
-                                && origin_host != "null"
-                                && !origin_host.eq_ignore_ascii_case(host.trim())
-                            {
+                                .and_then(|v| v.to_str().ok());
+                            let forwarded_host = parts
+                                .headers
+                                .get("x-forwarded-host")
+                                .and_then(|v| v.to_str().ok());
+                            if !origin_matches_request_host(origin, host, forwarded_host) {
                                 return Err(AppError::Forbidden(
                                     "Cross-origin cookie mutation blocked (CSRF protection)."
                                         .to_string(),
@@ -900,6 +893,56 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
     Err(AppError::Unauthorized(
         "Sorry, you are not allowed to create posts as this user.".to_string(),
     ))
+}
+
+fn strip_default_port(authority: &str, is_https: Option<bool>) -> &str {
+    let trimmed = authority.trim();
+    match is_https {
+        Some(true) => trimmed.strip_suffix(":443").unwrap_or(trimmed),
+        Some(false) => trimmed.strip_suffix(":80").unwrap_or(trimmed),
+        None => trimmed
+            .strip_suffix(":443")
+            .or_else(|| trimmed.strip_suffix(":80"))
+            .unwrap_or(trimmed),
+    }
+}
+
+fn origin_matches_request_host(
+    origin: &str,
+    host: Option<&str>,
+    forwarded_host: Option<&str>,
+) -> bool {
+    let trimmed_origin = origin.trim();
+    let (is_https, rest) = if let Some(r) = trimmed_origin.strip_prefix("https://") {
+        (Some(true), r)
+    } else if let Some(r) = trimmed_origin.strip_prefix("http://") {
+        (Some(false), r)
+    } else {
+        (None, trimmed_origin)
+    };
+    let origin_authority = strip_default_port(rest.split('/').next().unwrap_or(""), is_https);
+    if origin_authority.is_empty() || origin_authority.eq_ignore_ascii_case("null") {
+        return true;
+    }
+
+    let primary_forwarded = forwarded_host
+        .and_then(|raw| raw.split(',').next())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let direct_host = host.map(str::trim).filter(|s| !s.is_empty());
+
+    if primary_forwarded.is_none() && direct_host.is_none() {
+        return true;
+    }
+
+    [primary_forwarded, direct_host]
+        .into_iter()
+        .flatten()
+        .any(|candidate| {
+            let norm_candidate = strip_default_port(candidate, is_https);
+            origin_authority.eq_ignore_ascii_case(candidate)
+                || origin_authority.eq_ignore_ascii_case(norm_candidate)
+        })
 }
 
 // =========================================================================
@@ -1299,5 +1342,33 @@ mod tests {
 
         // Fails with wrong secret
         assert!(verify_jwt_token(&token, "wrong-secret").is_err());
+    }
+
+    #[test]
+    fn test_origin_matches_request_host_behind_reverse_proxy() {
+        // Daypress Pro Edge -> Supervisor -> child process (`Host: 127.0.0.1:19001` + `X-Forwarded-Host: grezzo.onlyforward.daypress.dev`)
+        assert!(origin_matches_request_host(
+            "https://grezzo.onlyforward.daypress.dev",
+            Some("127.0.0.1:19001"),
+            Some("grezzo.onlyforward.daypress.dev"),
+        ));
+        // Chained X-Forwarded-Host header
+        assert!(origin_matches_request_host(
+            "https://grezzo.onlyforward.daypress.dev",
+            Some("127.0.0.1:19001"),
+            Some("grezzo.onlyforward.daypress.dev:443, 10.0.0.4"),
+        ));
+        // Local dev port preservation
+        assert!(origin_matches_request_host(
+            "http://grezzo.localhost:8080",
+            Some("127.0.0.1:19001"),
+            Some("grezzo.localhost:8080"),
+        ));
+        // Cross-origin attacker is rejected even behind reverse proxy
+        assert!(!origin_matches_request_host(
+            "https://attacker.example",
+            Some("127.0.0.1:19001"),
+            Some("grezzo.onlyforward.daypress.dev"),
+        ));
     }
 }
