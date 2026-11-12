@@ -487,14 +487,9 @@ fn is_dangerous_svg_attribute(attr_name: &str, attr_val: &str) -> bool {
         .collect::<String>()
         .to_ascii_lowercase();
 
-    if normalized_val.contains("javascript:")
+    normalized_val.contains("javascript:")
         || normalized_val.contains("vbscript:")
         || normalized_val.contains("data:text/html")
-    {
-        return true;
-    }
-
-    false
 }
 
 fn sanitize_svg_element<'a>(
