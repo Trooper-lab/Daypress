@@ -586,7 +586,7 @@ pub fn render_onboarding_view(
 			margin-bottom: 10px;
 		}}
 		.setup-header h1 {{
-			font: 460 34px/1.15 var(--font-serif);
+			font: 600 28px/1.2 var(--font-sans);
 			letter-spacing: -0.02em;
 			color: var(--ink);
 			margin-top: 6px;

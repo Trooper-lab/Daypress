@@ -25,6 +25,7 @@ pub fn render_admin_shell(
             .map(|a| a.display_name)
             .unwrap_or_else(|| "admin".to_string()),
     );
+    let pending_comments_num = settings.pending_comments_count;
     let comments_badge = if settings.pending_comments_count > 0 {
         format!(
             r#"<span class="nav-badge">{}</span>"#,
@@ -182,70 +183,70 @@ pub fn render_admin_shell(
 {styles_shell}
 {styles_comp}
 {styles_forms}
-/* Daypress Soft Editorial Backend Themes (plus legacy alias selectors for backward compatibility) */
+/* Daypress Admin Color Schemes (matching Daylight & Ink architecture: distinct desk, clean paper canvas, --oxide buttons/active, --press links) */
 :root[data-admin-color="linen"], body[data-admin-color="linen"],
 :root[data-admin-color="light"], body[data-admin-color="light"] {{
-	--desk: #e8e1d3; --desk-raised: #ded5c4; --desk-ink: #2b2621; --desk-muted: #6e655c; --desk-rule: #2b262124; --desk-oxide: #b05a3c;
-	--paper: #f8f5ee; --paper-raised: #fdfbf7; --paper-sunk: #ede7da; --ink: #221f1c; --ink-muted: #686159;
-	--oxide: #b05a3c; --press: #4a6b9c; --moss: #4d6b53; --focus: #4a6b9c;
-	--press-wash: rgba(74,107,156,0.10); --oxide-wash: rgba(176,90,60,0.10);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #e5e0d5; --desk-raised: #d8d1c3; --desk-ink: #2b2621; --desk-muted: #5c544b; --desk-rule: rgba(43,38,33,0.12); --desk-oxide: #b04a25;
+	--paper: #f5f2eb; --paper-raised: #ffffff; --paper-sunk: #ece7dc; --ink: #221f1c; --ink-muted: #5e574f; --rule: #dcd5c7; --rule-strong: #c4bba9;
+	--oxide: #b04a25; --on-oxide: #ffffff; --primary: #b04a25; --primary-hover: #8c3718; --oxide-wash: #fbf0ec;
+	--press: #226096; --press-hover: #164670; --press-wash: #eef5fb; --focus: #226096; --moss: #3d7047;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="studio"], body[data-admin-color="studio"],
 :root[data-admin-color="modern"], body[data-admin-color="modern"] {{
-	--desk: #252830; --desk-raised: #313540; --desk-ink: #eef0f6; --desk-muted: #9da3b4; --desk-rule: #eef0f624; --desk-oxide: #6c8ebf;
-	--paper: #f4f5f8; --paper-raised: #fbfcfe; --paper-sunk: #e8eaf0; --ink: #1b1e26; --ink-muted: #5d6373;
-	--oxide: #4f5bd5; --press: #4f5bd5; --moss: #3d8b6e; --focus: #4f5bd5;
-	--press-wash: rgba(79,91,213,0.10); --oxide-wash: rgba(79,91,213,0.10);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #1e1f26; --desk-raised: #2b2d38; --desk-ink: #f0f1f5; --desk-muted: #b4b7c5; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #7b86ff;
+	--paper: #f1f2f6; --paper-raised: #ffffff; --paper-sunk: #e6e8f0; --ink: #1b1e26; --ink-muted: #555b6e; --rule: #d8dbe6; --rule-strong: #c0c4d4;
+	--oxide: #3858e9; --on-oxide: #ffffff; --primary: #3858e9; --primary-hover: #2145e6; --oxide-wash: #eef1fe;
+	--press: #3858e9; --press-hover: #1d39b8; --press-wash: #eef1fe; --focus: #3858e9; --moss: #2d7d5e;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="nordic"], body[data-admin-color="nordic"],
 :root[data-admin-color="blue"], body[data-admin-color="blue"] {{
-	--desk: #283642; --desk-raised: #334554; --desk-ink: #edf2f6; --desk-muted: #9cb0c0; --desk-rule: #edf2f624; --desk-oxide: #7ba6bc;
-	--paper: #f1f5f7; --paper-raised: #f9fbfc; --paper-sunk: #e3ebf0; --ink: #1c262e; --ink-muted: #586975;
-	--oxide: #3b6e8c; --press: #2f6690; --moss: #467362; --focus: #2f6690;
-	--press-wash: rgba(47,102,144,0.10); --oxide-wash: rgba(59,110,140,0.10);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #1e2d3b; --desk-raised: #293d50; --desk-ink: #eef3f7; --desk-muted: #b0c2d1; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #66b3e6;
+	--paper: #f0f4f7; --paper-raised: #ffffff; --paper-sunk: #e4ebf0; --ink: #1c262e; --ink-muted: #526370; --rule: #d5e0e8; --rule-strong: #bccad6;
+	--oxide: #2b6cb0; --on-oxide: #ffffff; --primary: #2b6cb0; --primary-hover: #1e4e8c; --oxide-wash: #ebf4fc;
+	--press: #1d5f96; --press-hover: #12436b; --press-wash: #ebf4fc; --focus: #1d5f96; --moss: #36705a;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="espresso"], body[data-admin-color="espresso"],
 :root[data-admin-color="coffee"], body[data-admin-color="coffee"] {{
-	--desk: #362e29; --desk-raised: #473d36; --desk-ink: #f3ece4; --desk-muted: #b5a698; --desk-rule: #f3ece424; --desk-oxide: #d49b72;
-	--paper: #f5efe8; --paper-raised: #fcf9f5; --paper-sunk: #e9dfd3; --ink: #26201c; --ink-muted: #695d54;
-	--oxide: #9e5f3b; --press: #7c5840; --moss: #5e7153; --focus: #9e5f3b;
-	--press-wash: rgba(158,95,59,0.11); --oxide-wash: rgba(158,95,59,0.11);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #362f2b; --desk-raised: #463d38; --desk-ink: #f4eee9; --desk-muted: #c2b6ad; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #dda175;
+	--paper: #f3efe9; --paper-raised: #ffffff; --paper-sunk: #e8e1d7; --ink: #26201c; --ink-muted: #61554d; --rule: #dcd3c8; --rule-strong: #c5b9ab;
+	--oxide: #9e5a34; --on-oxide: #ffffff; --primary: #9e5a34; --primary-hover: #7d4525; --oxide-wash: #fbf1eb;
+	--press: #286090; --press-hover: #1b4569; --press-wash: #eef5fb; --focus: #286090; --moss: #4d6e46;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="sage"], body[data-admin-color="sage"],
 :root[data-admin-color="ectoplasm"], body[data-admin-color="ectoplasm"] {{
-	--desk: #26332c; --desk-raised: #33443b; --desk-ink: #ebf1ed; --desk-muted: #9eb0a5; --desk-rule: #ebf1ed24; --desk-oxide: #8fb399;
-	--paper: #f1f4ef; --paper-raised: #f9fbf8; --paper-sunk: #e3e9e0; --ink: #1c2520; --ink-muted: #56665c;
-	--oxide: #48755b; --press: #3b6952; --moss: #48755b; --focus: #3b6952;
-	--press-wash: rgba(72,117,91,0.11); --oxide-wash: rgba(72,117,91,0.11);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #233029; --desk-raised: #2f4037; --desk-ink: #edf3ef; --desk-muted: #b0c2b8; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #82c49b;
+	--paper: #f1f4f1; --paper-raised: #ffffff; --paper-sunk: #e4ebe5; --ink: #1c2520; --ink-muted: #526358; --rule: #d5dfd7; --rule-strong: #bccac0;
+	--oxide: #3b7052; --on-oxide: #ffffff; --primary: #3b7052; --primary-hover: #2b563e; --oxide-wash: #ecf6f0;
+	--press: #25637c; --press-hover: #18475b; --press-wash: #ecf5f9; --focus: #25637c; --moss: #3b7052;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="dusk"], body[data-admin-color="dusk"],
 :root[data-admin-color="midnight"], body[data-admin-color="midnight"] {{
-	--desk: #2e2938; --desk-raised: #3d364a; --desk-ink: #f1eef6; --desk-muted: #aca3bd; --desk-rule: #f1eef624; --desk-oxide: #c98a78;
-	--paper: #f5f2f7; --paper-raised: #fcfafe; --paper-sunk: #e8e3ed; --ink: #221e2b; --ink-muted: #645c73;
-	--oxide: #7b5285; --press: #684675; --moss: #4e6e5d; --focus: #7b5285;
-	--press-wash: rgba(123,82,133,0.11); --oxide-wash: rgba(123,82,133,0.11);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #282433; --desk-raised: #363045; --desk-ink: #f1eef6; --desk-muted: #b8b0c8; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #e0826d;
+	--paper: #f3f1f6; --paper-raised: #ffffff; --paper-sunk: #e7e3ed; --ink: #221e2b; --ink-muted: #5d556b; --rule: #dad5e3; --rule-strong: #c2bbd0;
+	--oxide: #7b4685; --on-oxide: #ffffff; --primary: #7b4685; --primary-hover: #5e3366; --oxide-wash: #f6eff8;
+	--press: #3558a8; --press-hover: #233e7d; --press-wash: #eef2fb; --focus: #3558a8; --moss: #3f6e55;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="harbor"], body[data-admin-color="harbor"],
 :root[data-admin-color="ocean"], body[data-admin-color="ocean"] {{
-	--desk: #2f3e44; --desk-raised: #3d5057; --desk-ink: #eef3f2; --desk-muted: #a3b5b3; --desk-rule: #eef3f224; --desk-oxide: #8ab0ab;
-	--paper: #f2f5f4; --paper-raised: #fafcfb; --paper-sunk: #e4eae8; --ink: #1f282b; --ink-muted: #5b6b6e;
-	--oxide: #457371; --press: #3b696c; --moss: #527564; --focus: #457371;
-	--press-wash: rgba(69,115,113,0.11); --oxide-wash: rgba(69,115,113,0.11);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #26353a; --desk-raised: #33474d; --desk-ink: #eef4f4; --desk-muted: #b0c4c2; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #7fc4bd;
+	--paper: #f0f4f4; --paper-raised: #ffffff; --paper-sunk: #e3eceb; --ink: #1f282b; --ink-muted: #536467; --rule: #d5e0df; --rule-strong: #bccbca;
+	--oxide: #356e6b; --on-oxide: #ffffff; --primary: #356e6b; --primary-hover: #265250; --oxide-wash: #ebf5f4;
+	--press: #226382; --press-hover: #16465e; --press-wash: #ecf4f8; --focus: #226382; --moss: #3c6e56;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 :root[data-admin-color="terracotta"], body[data-admin-color="terracotta"],
 :root[data-admin-color="sunrise"], body[data-admin-color="sunrise"] {{
-	--desk: #422b27; --desk-raised: #563833; --desk-ink: #f7ede8; --desk-muted: #c4a99e; --desk-rule: #f7ede824; --desk-oxide: #e08b63;
-	--paper: #f7f0e8; --paper-raised: #fdfaf6; --paper-sunk: #ece1d4; --ink: #291d1a; --ink-muted: #6e5853;
-	--oxide: #b8563d; --press: #9e4731; --moss: #597051; --focus: #b8563d;
-	--press-wash: rgba(184,86,61,0.11); --oxide-wash: rgba(184,86,61,0.11);
-	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk); --primary: var(--press);
+	--desk: #3b2521; --desk-raised: #4d312c; --desk-ink: #f7edea; --desk-muted: #ccb2aa; --desk-rule: rgba(255,255,255,0.08); --desk-oxide: #ea9066;
+	--paper: #f6f0ea; --paper-raised: #ffffff; --paper-sunk: #ebe1d7; --ink: #291d1a; --ink-muted: #66524d; --rule: #dfd3c8; --rule-strong: #c8b8aa;
+	--oxide: #b84a32; --on-oxide: #ffffff; --primary: #b84a32; --primary-hover: #913723; --oxide-wash: #fcf0ed;
+	--press: #245e9c; --press-hover: #174270; --press-wash: #eef4fb; --focus: #245e9c; --moss: #486e48;
+	--bg-app: var(--paper); --bg-surface: var(--paper-raised); --bg-surface-alt: var(--paper-sunk);
 }}
 	</style>
 	<script>
@@ -276,13 +277,106 @@ pub fn render_admin_shell(
 </head>
 <body data-admin-color="{admin_color}">
 <div id="day-app">
-	<!-- The desk: wordmark, search, navigation, account -->
-	<aside id="day-sidebar">
-		<div class="desk-brand">
-			<a href="/d-admin/" class="desk-wordmark" aria-label="Daypress desk"><span class="day-dot" aria-hidden="true"></span>daypress</a>
-			<a href="/" target="_blank" rel="noopener" class="desk-site" title="View the site">{site_name} &nearr;</a>
-		</div>
-		<button type="button" class="desk-search" onclick="dayOpenQuickSearch()"><span>Search</span> <kbd>Ctrl K</kbd></button>
+	<!-- Full-Width Top Admin Bar (WordPress #wpadminbar) -->
+	<header id="day-adminbar" role="region" aria-label="Toolbar">
+		<ul class="ab-top-menu">
+			<li>
+				<button type="button" class="adminbar-menu-btn" onclick="dayToggleMobileNav()" aria-label="Toggle navigation menu">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+					<span>Menu</span>
+				</button>
+			</li>
+			<li id="wp-admin-bar-wp-logo" class="menupop">
+				<a href="/d-admin/" class="ab-item" aria-haspopup="true" aria-label="About Daypress" title="About Daypress">
+					<svg class="ab-brand-icon" viewBox="0 0 1000 1000" width="20" height="20" aria-hidden="true">
+						<path fill="currentColor" fill-rule="evenodd" d="M425 182 V156 L575 125 H592 V712 Q592 742 616 748 L660 756 V780 L508 802 L494 720 Q432 798 334 798 C212 798 136 700 136 568 C136 430 222 332 350 332 C418 332 466 360 492 396 V218 Q492 188 458 182 Z M492 466 C470 410 422 376 360 376 C268 376 220 450 220 562 C220 674 276 740 364 740 C422 740 470 704 492 652 Z"/>
+						<circle cx="785" cy="734" r="78" fill="var(--desk-oxide)"/>
+					</svg>
+					<span class="sr-only">Daypress</span>
+				</a>
+				<div class="ab-sub-wrapper">
+					<ul class="ab-submenu">
+						<li><a href="/d-admin/getting-started">About Daypress &amp; AI Key</a></li>
+						<li><a href="/d-admin/update-core">Updates</a></li>
+						<li><a href="/d-admin/site-health">Site Health</a></li>
+						<li><a href="/d-admin/daypress-engine">Engine Telemetry</a></li>
+					</ul>
+				</div>
+			</li>
+			<li id="wp-admin-bar-site-name" class="menupop">
+				<a href="/" target="_blank" rel="noopener" class="ab-item" aria-haspopup="true" title="Visit site">
+					<svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+					<span>{site_name}</span>
+				</a>
+				<div class="ab-sub-wrapper">
+					<ul class="ab-submenu">
+						<li><a href="/" target="_blank" rel="noopener">Visit Site</a></li>
+						<li><a href="/d-admin/customize">Customize</a></li>
+						<li><a href="/d-admin/headers-footers">Header &amp; Footer</a></li>
+						<li><a href="/d-admin/theme-layouts">Theme Layouts</a></li>
+						<li><a href="/d-admin/nav-menus">Menus</a></li>
+					</ul>
+				</div>
+			</li>
+			<li id="wp-admin-bar-comments" class="adminbar-hide-mobile">
+				<a href="/d-admin/edit-comments" class="ab-item" title="{pending_comments_num} Comments in moderation">
+					<svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+					<span class="ab-label">{pending_comments_num}</span>
+				</a>
+			</li>
+			<li id="wp-admin-bar-new-content" class="menupop">
+				<a href="/d-admin/post-new" class="ab-item" aria-haspopup="true" title="Add New">
+					<svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+					<span class="ab-label">New</span>
+				</a>
+				<div class="ab-sub-wrapper">
+					<ul class="ab-submenu">
+						<li><a href="/d-admin/post-new">Post</a></li>
+						<li><a href="/d-admin/media-new">Media</a></li>
+						<li><a href="/d-admin/post-new?post_type=page">Page</a></li>
+						<li><a href="/d-admin/forms">Form</a></li>
+						<li><a href="/d-admin/user-new">User</a></li>
+					</ul>
+				</div>
+			</li>
+			<li id="wp-admin-bar-search-btn" class="adminbar-hide-mobile">
+				<button type="button" class="ab-item" onclick="dayOpenQuickSearch()" title="Quick search (Ctrl+K)">
+					<svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+					<span class="ab-label">Search</span>
+					<kbd class="ab-kbd">Ctrl+K</kbd>
+				</button>
+			</li>
+		</ul>
+		<ul id="wp-admin-bar-top-secondary" class="ab-top-secondary">
+			<li id="wp-admin-bar-my-account" class="menupop with-avatar">
+				<a href="/d-admin/profile" class="ab-item" aria-haspopup="true" title="My Account">
+					<span>Howdy, <span class="display-name">{account_name}</span></span>
+					<span class="ab-avatar" aria-hidden="true">
+						<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+					</span>
+				</a>
+				<div class="ab-sub-wrapper">
+					<div class="ab-user-card">
+						<div class="ab-user-avatar-lg" aria-hidden="true">
+							<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+						</div>
+						<div class="ab-user-meta">
+							<strong>{account_name}</strong>
+							<span>Administrator</span>
+						</div>
+					</div>
+					<ul id="wp-admin-bar-user-actions" class="ab-submenu">
+						<li id="wp-admin-bar-user-info"><a href="/d-admin/profile">{account_name}</a></li>
+						<li id="wp-admin-bar-edit-profile"><a href="/d-admin/profile">Edit Profile</a></li>
+						<li id="wp-admin-bar-logout"><a href="/login?action=logout">{nav_logout}</a></li>
+					</ul>
+				</div>
+			</li>
+		</ul>
+	</header>
+
+	<!-- Left Admin Menu Sidebar (WordPress #adminmenuwrap — no duplicate account/footer) -->
+	<aside id="day-sidebar" aria-label="Main menu">
 		<nav class="sidebar-nav">
 			<!-- 1. DASHBOARD -->
 			<div class="nav-group {is_dash_open}">
@@ -475,26 +569,50 @@ pub fn render_admin_shell(
 					<span>{nav_engine}</span>
 				</a>
 			</div>
-		</nav>
 
-		<div class="desk-footer">
-			<div class="desk-account">
-				<a href="/d-admin/profile" title="Edit your profile">{account_name}</a>
-				<a href="/login?action=logout" class="desk-logout">{nav_logout}</a>
-			</div>
-			<div class="desk-version">v{version} &middot; single binary</div>
 			<button type="button" id="btnCollapseSidebar" class="desk-collapse-btn" onclick="dayToggleSidebarCollapse()" title="Collapse / Expand Admin Menu">
-				<span id="deskCollapseIcon">◂</span>
+				<span class="desk-collapse-icon-circle" id="deskCollapseIcon">&#9666;</span>
 				<span class="desk-collapse-label">Collapse menu</span>
 			</button>
-		</div>
+		</nav>
 	</aside>
 
-	<!-- Main Workspace -->
+	<div id="day-mobile-backdrop" onclick="dayToggleMobileNav(false)"></div>
+
+	<!-- Main Workspace (WordPress #wpbody-content) -->
 	<main id="day-main">
+		<div id="screen-meta" role="region" aria-label="Screen Options and Help">
+			<div id="screen-meta-options-panel" style="display:none;">
+				<div style="font-weight:600; font-size:13.5px; color:var(--ink); margin-bottom:10px;">Screen Options</div>
+				<div style="display:flex; flex-wrap:wrap; gap:18px; align-items:center; font-size:13px; color:var(--ink-muted);">
+					<label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+						<input type="checkbox" checked onchange="document.body.classList.toggle('dp-compact-density', !this.checked)" />
+						Comfortable row spacing
+					</label>
+					<label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+						<input type="checkbox" id="chkGlobalFoldMenu" onchange="dayToggleSidebarCollapse()" />
+						Fold navigation menu
+					</label>
+				</div>
+			</div>
+			<div id="screen-meta-help-panel" style="display:none;">
+				<div style="font-weight:600; font-size:13.5px; color:var(--ink); margin-bottom:6px;">Contextual Help &mdash; {page_title}</div>
+				<p style="font-size:13px; color:var(--ink-muted); max-width:72ch; margin:0;">
+					Use the left navigation menu to switch between content types, visual templates, and site configuration. Press <kbd style="padding:1px 5px; background:var(--paper-sunk); border:1px solid var(--rule-strong); border-radius:3px;">Ctrl+K</kbd> at any time to jump to any post, page, or admin screen. For REST API &amp; MCP automation docs, open <a href="/d-admin/getting-started">Get Started</a>.
+				</p>
+			</div>
+		</div>
+		<div id="screen-meta-links">
+			<button type="button" id="show-settings-link" class="screen-meta-toggle" aria-expanded="false" onclick="dayToggleScreenMeta('options')">Screen Options</button>
+			<button type="button" id="contextual-help-link" class="screen-meta-toggle" aria-expanded="false" onclick="dayToggleScreenMeta('help')">Help</button>
+		</div>
 		<div id="day-canvas">
 			{body_content}
 		</div>
+		<footer id="wpfooter" role="contentinfo">
+			<span id="footer-thankyou">Thank you for creating with <a href="/d-admin/getting-started">Daypress</a>.</span>
+			<span id="footer-upgrade">Version {version}</span>
+		</footer>
 	</main>
 </div>
 
@@ -504,9 +622,9 @@ pub fn render_admin_shell(
 <!-- Quick Search (Ctrl+K) -->
 <div id="day-qs-backdrop" onclick="if (event.target === this) dayCloseQuickSearch();">
 	<div class="day-qs-dialog" role="dialog" aria-modal="true" aria-label="Quick search">
-		<input id="day-qs-input" type="search" autocomplete="off" placeholder="Search posts, pages and desk screens…" />
+		<input id="day-qs-input" type="search" autocomplete="off" placeholder="Search posts, pages and desk screens..." />
 		<div id="day-qs-results"></div>
-		<div class="day-qs-hint">↑ ↓ to move · Enter to open · Esc to close</div>
+		<div class="day-qs-hint">&uarr; &darr; to move &middot; Enter to open &middot; Esc to close</div>
 	</div>
 </div>
 
@@ -661,10 +779,52 @@ pub fn render_admin_shell(
 		}});
 	}});
 
+	function dayToggleMobileNav(force) {{
+		const open = typeof force === 'boolean' ? force : !document.body.classList.contains('dp-mobile-nav-open');
+		document.body.classList.toggle('dp-mobile-nav-open', open);
+	}}
+
+	function dayToggleScreenMeta(kind) {{
+		const customOptions = document.getElementById('dashScreenOptionsPanel') || document.getElementById('editorScreenOptionsPanel') || document.getElementById('listScreenOptionsPanel') || document.getElementById('screenOptionsDrawer');
+		const metaWrap = document.getElementById('screen-meta');
+		const optPanel = document.getElementById('screen-meta-options-panel');
+		const helpPanel = document.getElementById('screen-meta-help-panel');
+		const btnOpt = document.getElementById('show-settings-link');
+		const btnHelp = document.getElementById('contextual-help-link');
+		if (kind === 'options') {{
+			if (customOptions) {{
+				const isOpen = customOptions.style.display === 'block';
+				customOptions.style.display = isOpen ? 'none' : 'block';
+				if (btnOpt) btnOpt.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+				if (metaWrap) metaWrap.classList.remove('is-open');
+				if (btnHelp) btnHelp.setAttribute('aria-expanded', 'false');
+				return;
+			}}
+			if (!metaWrap || !optPanel || !helpPanel) return;
+			const wasOpen = metaWrap.classList.contains('is-open') && optPanel.style.display === 'block';
+			helpPanel.style.display = 'none';
+			if (btnHelp) btnHelp.setAttribute('aria-expanded', 'false');
+			optPanel.style.display = wasOpen ? 'none' : 'block';
+			metaWrap.classList.toggle('is-open', !wasOpen);
+			if (btnOpt) btnOpt.setAttribute('aria-expanded', wasOpen ? 'false' : 'true');
+		}} else {{
+			if (customOptions) customOptions.style.display = 'none';
+			if (btnOpt) btnOpt.setAttribute('aria-expanded', 'false');
+			if (!metaWrap || !optPanel || !helpPanel) return;
+			const wasOpen = metaWrap.classList.contains('is-open') && helpPanel.style.display === 'block';
+			optPanel.style.display = 'none';
+			helpPanel.style.display = wasOpen ? 'none' : 'block';
+			metaWrap.classList.toggle('is-open', !wasOpen);
+			if (btnHelp) btnHelp.setAttribute('aria-expanded', wasOpen ? 'false' : 'true');
+		}}
+	}}
+
 	function dayApplySidebarCollapsed(collapsed) {{
 		document.body.classList.toggle('dp-sidebar-collapsed', !!collapsed);
 		const icon = document.getElementById('deskCollapseIcon');
-		if (icon) icon.textContent = collapsed ? '▸' : '◂';
+		if (icon) icon.textContent = collapsed ? '\u25b8' : '\u25c2';
+		const chk = document.getElementById('chkGlobalFoldMenu');
+		if (chk) chk.checked = !!collapsed;
 	}}
 
 	function dayToggleSidebarCollapse() {{
@@ -703,6 +863,7 @@ pub fn render_admin_shell(
         rest_nonce = rest_nonce,
         account_name = account_name,
         comments_badge = comments_badge,
+        pending_comments_num = pending_comments_num,
         version = env!("CARGO_PKG_VERSION"),
         styles_shell = styles_shell,
         styles_comp = styles_comp,

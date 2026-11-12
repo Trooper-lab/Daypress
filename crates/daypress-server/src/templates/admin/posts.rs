@@ -66,7 +66,7 @@ pub fn render_posts_view_with_matrix(
     // Like WordPress, the "Scheduled" view only appears while something is scheduled.
     let scheduled_tab = if scheduled_count > 0 {
         format!(
-            r#"<button type="button" class="btn btn-secondary status-tab" data-filter="future" onclick="filterByStatus('future', this)">Scheduled ({scheduled_count})</button>"#
+            r#"<span class="subsubsub-sep">|</span> <button type="button" class="status-tab" data-filter="future" onclick="filterByStatus('future', this)">Scheduled <span class="count">({scheduled_count})</span></button>"#
         )
     } else {
         String::new()
@@ -168,41 +168,39 @@ pub fn render_posts_view_with_matrix(
 
         let mut chips = String::new();
         if !p.lang_code.is_empty() {
-            let (_, _, flag, _) = crate::i18n::preset_language_info(&p.lang_code);
             chips.push_str(&format!(
-                r#"<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;background:var(--paper-sunk);color:var(--ink);border:1px solid var(--rule);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;text-transform:uppercase;" title="Language: {}">{} {}</span>"#,
+                r#"<span style="display:inline-flex;align-items:center;gap:3px;font-size:12px;background:var(--paper-sunk);color:var(--ink);border:1px solid var(--rule);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;" title="Language: {}">{}</span>"#,
                 escape_html(&p.lang_code),
-                escape_html(flag),
-                escape_html(&p.lang_code),
+                escape_html(&p.lang_code.to_uppercase()),
             ));
         }
         if let Some(srev_id) = p.scheduled_revision_id {
             let sched_dt = p.scheduled_revision_date.as_deref().unwrap_or("");
             chips.push_str(&format!(
-                r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--ochre-wash);color:var(--ink);border:1px solid var(--ochre);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;" title="Scheduled Revision #{} goes live {} UTC">&#9201; Scheduled Update</span>"#,
+                r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--ochre-wash);color:var(--ochre);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;" title="Scheduled Revision #{} goes live {} UTC">Scheduled Update</span>"#,
                 srev_id,
                 escape_html(sched_dt),
             ));
         }
         if p.id == settings.page_on_front {
-            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--moss-wash);color:var(--moss);border:1px solid var(--moss);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">Front Page</span>"#);
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--moss-wash);color:var(--moss);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:600;">Front Page</span>"#);
         }
         if p.sticky {
-            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--ochre-wash);color:var(--ink);border:1px solid var(--ochre);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">📌 Sticky</span>"#);
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--ochre-wash);color:var(--ochre);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:600;">Sticky</span>"#);
         }
         if !p.password.is_empty() {
-            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--paper-sunk);color:var(--ink-muted);border:1px solid var(--rule-strong);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700;">🔒 Password</span>"#);
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--paper-sunk);color:var(--ink-muted);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:600;">Password</span>"#);
         }
         if nav_slugs.contains(&p.slug.to_lowercase()) && p.status == "publish" {
-            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--press-wash);color:var(--press);border:1px solid var(--press);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">Main Menu</span>"#);
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--press-wash);color:var(--press);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">Main Menu</span>"#);
         }
         if !p.seo_keyword.is_empty() {
             chips.push_str(&format!(
-                r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;background:var(--moss-wash);color:var(--moss);border:1px solid var(--moss);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;" title="Focus Keyphrase">{}</span>"#,
+                r#"<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--moss-wash);color:var(--moss);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;" title="Focus Keyphrase">{}</span>"#,
                 escape_html(&p.seo_keyword)
             ));
         } else if p.seo_noindex {
-            chips.push_str(r#"<span style="display:inline-flex;align-items:center;font-size:10.5px;background:var(--oxide-wash);color:var(--oxide);border:1px solid var(--oxide);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">noindex</span>"#);
+            chips.push_str(r#"<span style="display:inline-flex;align-items:center;font-size:12px;background:var(--oxide-wash);color:var(--oxide);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;">noindex</span>"#);
         }
 
         let display_title = if p.title.rendered.trim().is_empty() {
@@ -218,19 +216,12 @@ pub fn render_posts_view_with_matrix(
 
         let row_actions = if p.status == "trash" {
             format!(
-                r##"<a href="#" onclick="restorePostRow({id}); return false;" style="color: var(--moss); font-weight: 600;">Restore</a>
-                <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete Permanently</a>"##,
+                r##"<a href="#" onclick="restorePostRow({id}); return false;" style="color: var(--moss);">Restore</a> | <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete Permanently</a>"##,
                 id = p.id
             )
         } else {
             format!(
-                r##"<a href="{edit_link}" style="font-weight: 600;">Edit Blocks &amp; ACF</a>
-                <a href="#" onclick="openQuickEditRow({id}); return false;" style="color: var(--press); font-weight: 600;">Quick Edit</a>
-                <a href="/d-admin/builder?post={id}" style="color: var(--press); font-weight: 600;">Edit with DayStudio</a>
-                <a href="#" onclick="duplicatePostRow({id}); return false;" style="color: var(--press); font-weight: 600;">Duplicate</a>
-                <a href="{view_link}" target="_blank">View &nearr;</a>
-                <a href="#" onclick="trashPostRow({id}); return false;" style="color: var(--ink);">Trash</a>
-                <a href="#" onclick="deletePost({id}); return false;" class="trash-action">Delete</a>"##,
+                r##"<a href="{edit_link}">Edit</a> | <a href="#" onclick="openQuickEditRow({id}); return false;">Quick Edit</a> | <a href="#" onclick="trashPostRow({id}); return false;" class="trash-action">Trash</a> | <a href="{view_link}" target="_blank">View</a> | <a href="/d-admin/builder?post={id}" style="font-weight: 500;">Edit with DayStudio</a> | <a href="#" onclick="duplicatePostRow({id}); return false;">Duplicate</a>"##,
                 id = p.id,
                 edit_link = edit_link,
                 view_link = view_link
@@ -245,13 +236,12 @@ pub fn render_posts_view_with_matrix(
             <tr id="post-{id}" data-id="{id}" data-status="{status}" data-lang="{lang}" data-title="{title_attr}" data-slug="{slug_attr}" data-date="{date_attr}" data-month="{month_attr}" data-author="{author}" data-categories="{cats_csv}" data-parent="{parent}" data-menu-order="{menu_order}" data-template="{template_attr}" data-sticky="{sticky_attr}" data-password="{password_attr}" data-comment-status="{comment_status_attr}" data-ping-status="{ping_status_attr}" style="{initial_row_style}">
                 <td style="width: 32px;"><input type="checkbox" name="post[]" value="{id}"></td>
                 <td class="table-title-cell">
-                    <strong><a href="{edit_link}" style="color: var(--ink); text-decoration: none;">{title}</a></strong>{seo_chip}
-                    <div class="table-row-slug">Permalink: {view_link}</div>
+                    <strong><a href="{edit_link}">{title}</a></strong>{seo_chip}
                     <div class="table-actions">
                         {actions}
                     </div>
                 </td>
-                <td class="col-author" style="width: 130px;"><span style="color: var(--ink-muted);">{author}</span></td>
+                <td class="col-author" style="width: 130px;"><span style="color: var(--oxide);">{author}</span></td>
                 <td class="col-category" style="width: 160px;">{categories}</td>
                 <td class="col-status" style="width: 110px;">{status_badge}</td>
                 <td class="col-date" style="width: 130px; color: var(--ink-muted); font-size: 12.5px;">{date}</td>
@@ -274,7 +264,6 @@ pub fn render_posts_view_with_matrix(
             ping_status_attr = escape_html(if p.ping_status.is_empty() { "open" } else { &p.ping_status }),
             initial_row_style = initial_row_style,
             edit_link = edit_link,
-            view_link = view_link,
             title = display_title,
             seo_chip = chips,
             actions = row_actions,
@@ -295,40 +284,28 @@ pub fn render_posts_view_with_matrix(
     let fourth_col_header = if is_page {
         "Header &amp; Footer"
     } else {
-        "Category"
+        "Categories"
     };
     let header_footer_btn = if is_page {
-        r#"<a href="/d-admin/headers-footers" class="btn btn-secondary" style="margin-right: 8px;">Header &amp; Footer Manager</a>"#
+        r#"<a href="/d-admin/headers-footers" class="page-title-action">Header &amp; Footer Manager</a>"#
     } else {
         ""
     };
 
     let body = format!(
         r##"
-        <div class="page-header">
-            <div>
-                <h1 class="page-title">{post_type_label}</h1>
-                <p class="page-subtitle">Manage, create, and organize your publication articles</p>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button type="button" class="btn btn-secondary" onclick="toggleListScreenOptions()" title="Show/hide columns &amp; items per page">⚙ Screen Options ▾</button>
-                {header_footer_btn}
-                <a href="{add_new_url}" class="btn btn-primary">+ Add New {singular}</a>
-            </div>
-        </div>
-
-        <div id="listScreenOptionsPanel" class="day-card" style="display: none; padding: 14px 18px; margin-bottom: 16px; border: 1px solid var(--press); background: var(--paper-raised);">
+        <div id="listScreenOptionsPanel" class="day-card" style="display: none; padding: 14px 18px; margin-bottom: 14px; border: 1px solid var(--rule-strong); border-top: 0; background: var(--paper-raised);">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px;">
-                    <strong style="font-size: 12px; text-transform: uppercase; color: var(--ink-muted);">Columns:</strong>
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 13px;">
+                    <strong style="font-size: 12.5px; color: var(--ink-muted);">Columns:</strong>
                     <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-author" checked onchange="togglePostsListColumn('col-author', this.checked)" /> Author</label>
                     <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-category" checked onchange="togglePostsListColumn('col-category', this.checked)" /> {fourth_col_header}</label>
                     <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-status" checked onchange="togglePostsListColumn('col-status', this.checked)" /> Status</label>
                     <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-list-col-cb" data-col="col-date" checked onchange="togglePostsListColumn('col-date', this.checked)" /> Date</label>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px;">
-                    <strong style="font-size: 12px; text-transform: uppercase; color: var(--ink-muted);">Number of items per page:</strong>
-                    <select id="listPerPageSelect" class="form-select" style="width: 90px; padding: 4px 8px; font-size: 12.5px;" onchange="onListPerPageChange(this.value)">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+                    <strong style="font-size: 12.5px; color: var(--ink-muted);">Number of items per page:</strong>
+                    <select id="listPerPageSelect" class="form-select" style="width: 90px; padding: 4px 8px; font-size: 13px;" onchange="onListPerPageChange(this.value)">
                         <option value="20">20</option>
                         <option value="50" selected>50</option>
                         <option value="100">100</option>
@@ -338,58 +315,76 @@ pub fn render_posts_view_with_matrix(
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="statusFilterTabs">
-                <button type="button" class="btn btn-secondary status-tab" data-filter="all" style="background: var(--ink); color: var(--paper-raised);" onclick="filterByStatus('all', this)">All ({count})</button>
-                <button type="button" class="btn btn-secondary status-tab" data-filter="publish" onclick="filterByStatus('publish', this)">Published ({pub_count})</button>
-                <button type="button" class="btn btn-secondary status-tab" data-filter="draft" onclick="filterByStatus('draft', this)">Draft ({draft_count})</button>
-                {scheduled_tab}
-                <button type="button" class="btn btn-secondary status-tab" data-filter="trash" onclick="filterByStatus('trash', this)">Trash ({trash_count})</button>
-                <button type="button" id="btnEmptyTrash" class="btn btn-secondary" style="display: none; color: var(--oxide); border-color: var(--oxide); font-weight: 600;" onclick="emptyTrashForPostType()">🗑 Empty Trash</button>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <div style="display: flex; gap: 6px; align-items: center;">
-                    <select id="bulkActionSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;">
-                        <option value="">Bulk actions</option>
-                        <option value="edit">Edit (Bulk Edit)</option>
-                        <option value="trash">Move to Trash</option>
-                        <option value="restore">Restore</option>
-                        <option value="delete">Delete Permanently</option>
-                    </select>
-                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkActions()">Apply</button>
-                </div>
-                <select id="monthFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
-                    <option value="all">📅 All Dates</option>
-                </select>
-                <select id="catFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
-                    <option value="all">🏷 All Categories</option>
-                </select>
-                <select id="authorFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
-                    <option value="all">👤 All Authors</option>
-                </select>
-                <select id="langFilterSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
-                    <option value="all">🌐 All Languages</option>
-                    <option value="en">🇺🇸 EN</option>
-                    <option value="de">🇩🇪 DE</option>
-                    <option value="nl">🇳🇱 NL</option>
-                    <option value="fr">🇫🇷 FR</option>
-                    <option value="es">🇪🇸 ES</option>
-                </select>
-                <input type="text" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 200px; padding: 6px 12px; font-size: 13px;" oninput="filterRows(this.value)" />
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">{post_type_label}</h1>
+                <a href="{add_new_url}" class="page-title-action">Add New {singular}</a>
+                {header_footer_btn}
             </div>
         </div>
 
-        <div id="bulkEditDrawer" class="day-card" style="display: none; padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--press); background: var(--paper-raised);">
+        <div class="wp-subsubsub-row">
+            <div class="subsubsub" id="statusFilterTabs">
+                <button type="button" class="status-tab active" data-filter="all" onclick="filterByStatus('all', this)">All <span class="count">({count})</span></button>
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="status-tab" data-filter="publish" onclick="filterByStatus('publish', this)">Published <span class="count">({pub_count})</span></button>
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="status-tab" data-filter="draft" onclick="filterByStatus('draft', this)">Draft <span class="count">({draft_count})</span></button>
+                {scheduled_tab}
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="status-tab" data-filter="trash" onclick="filterByStatus('trash', this)">Trash <span class="count">({trash_count})</span></button>
+                <button type="button" id="btnEmptyTrash" class="btn btn-secondary" style="display: none; margin-left: 8px; min-height: 28px; padding: 2px 10px; font-size: 12px; color: var(--danger); border-color: var(--danger);" onclick="emptyTrashForPostType()">Empty Trash</button>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="search" id="postSearchInput" placeholder="Search {plural_lower}..." class="form-input" style="width: 190px; max-width: 100%; padding: 4px 10px; min-height: 30px; font-size: 13px;" oninput="filterRows(this.value)" />
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 13px;" onclick="filterRows(document.getElementById('postSearchInput').value)">Search {post_type_label}</button>
+            </div>
+        </div>
+
+        <div class="tablenav top">
+            <div class="tablenav-actions">
+                <select id="bulkActionSelect" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;">
+                    <option value="">Bulk actions</option>
+                    <option value="edit">Edit</option>
+                    <option value="trash">Move to Trash</option>
+                    <option value="restore">Restore</option>
+                    <option value="delete">Delete Permanently</option>
+                </select>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 13px;" onclick="applyBulkActions()">Apply</button>
+                <select id="monthFilterSelect" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">All dates</option>
+                </select>
+                <select id="catFilterSelect" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">All categories</option>
+                </select>
+                <select id="authorFilterSelect" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">All authors</option>
+                </select>
+                <select id="langFilterSelect" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;" onchange="filterRows(document.getElementById('postSearchInput').value)">
+                    <option value="all">All languages</option>
+                    <option value="en">EN</option>
+                    <option value="de">DE</option>
+                    <option value="nl">NL</option>
+                    <option value="fr">FR</option>
+                    <option value="es">ES</option>
+                </select>
+            </div>
+            <div class="tablenav-pages">
+                <span>{count} items</span>
+            </div>
+        </div>
+
+        <div id="bulkEditDrawer" class="day-card" style="display: none; padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--rule); background: var(--paper-raised);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule);">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <strong style="font-size: 14px; color: var(--ink);">Bulk Edit Selected {post_type_label}</strong>
                     <span id="bulkEditCountBadge" class="badge badge-published">0 selected</span>
                 </div>
-                <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 12px;" onclick="closeBulkEditDrawer()">Cancel</button>
+                <button type="button" class="btn btn-secondary" style="min-height: 28px; padding: 2px 10px; font-size: 12px;" onclick="closeBulkEditDrawer()">Cancel</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 18px; align-items: start;">
                 <div>
-                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px;">Items in Batch</div>
+                    <div style="font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-bottom: 6px;">Items in Batch</div>
                     <div id="bulkEditSelectedPills" style="display: flex; flex-direction: column; gap: 5px; max-height: 150px; overflow-y: auto; padding: 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-sunk); font-size: 12px;"></div>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
@@ -455,16 +450,26 @@ pub fn render_posts_view_with_matrix(
                 <thead>
                     <tr>
                         <th style="width: 32px;"><input type="checkbox" id="selectAllPosts" onchange="toggleSelectAll(this)"></th>
-                        <th style="cursor: pointer; user-select: none;" onclick="sortPostsTable('title')">Title <span id="sortInd-title" style="font-size: 11px; color: var(--ink-muted);">↕</span></th>
-                        <th class="col-author" style="cursor: pointer; user-select: none;" onclick="sortPostsTable('author')">Author <span id="sortInd-author" style="font-size: 11px; color: var(--ink-muted);">↕</span></th>
+                        <th style="cursor: pointer; user-select: none;" onclick="sortPostsTable('title')">Title <span id="sortInd-title" style="font-size: 11.5px; color: var(--ink-muted);">&#8597;</span></th>
+                        <th class="col-author" style="cursor: pointer; user-select: none;" onclick="sortPostsTable('author')">Author <span id="sortInd-author" style="font-size: 11.5px; color: var(--ink-muted);">&#8597;</span></th>
                         <th class="col-category">{fourth_col_header}</th>
                         <th class="col-status">Status</th>
-                        <th class="col-date" style="cursor: pointer; user-select: none;" onclick="sortPostsTable('date')">Date <span id="sortInd-date" style="font-size: 11px; color: var(--ink-muted);">↓</span></th>
+                        <th class="col-date" style="cursor: pointer; user-select: none;" onclick="sortPostsTable('date')">Date <span id="sortInd-date" style="font-size: 11.5px; color: var(--ink-muted);">&darr;</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     {rows_html}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <th style="width: 32px;"><input type="checkbox" onchange="toggleSelectAll(this)"></th>
+                        <th>Title</th>
+                        <th class="col-author">Author</th>
+                        <th class="col-category">{fourth_col_header}</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-date">Date</th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
@@ -487,12 +492,10 @@ pub fn render_posts_view_with_matrix(
             function filterByStatus(status, btn) {{
                 activeStatusFilter = status;
                 document.querySelectorAll('#statusFilterTabs .status-tab').forEach(b => {{
-                    b.style.background = '';
-                    b.style.color = '';
+                    b.classList.remove('active');
                 }});
                 if (btn) {{
-                    btn.style.background = 'var(--ink)';
-                    btn.style.color = 'var(--paper-raised)';
+                    btn.classList.add('active');
                 }}
                 const emptyBtn = document.getElementById('btnEmptyTrash');
                 if (emptyBtn) {{
@@ -533,8 +536,8 @@ pub fn render_posts_view_with_matrix(
                 qeTr.innerHTML = `
                     <td colspan="6" style="padding: 16px 20px; border-top: 2px solid var(--press); border-bottom: 2px solid var(--press);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <strong style="font-size: 13px; color: var(--press); text-transform: uppercase; letter-spacing: 0.04em;">⚡ Quick Edit — #${{id}}</strong>
-                            <span style="font-size: 11.5px; color: var(--ink-muted);">Saves directly via <code>PUT /wp-json/wp/v2/posts/${{id}}</code></span>
+                            <strong style="font-size: 13.5px; color: var(--press);">Quick Edit — #${{id}}</strong>
+                            <span style="font-size: 12px; color: var(--ink-muted);">Saves directly via <code>PUT /wp-json/wp/v2/posts/${{id}}</code></span>
                         </div>
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                             <div>
@@ -645,7 +648,7 @@ pub fn render_posts_view_with_matrix(
                         body: JSON.stringify(payload)
                     }});
                     if (res.ok) {{
-                        showToast('✓ Quick Edit saved for #' + id);
+                        showToast('Quick Edit saved for #' + id);
                         setTimeout(() => window.location.reload(), 400);
                     }} else {{
                         showToast('Failed to save Quick Edit', true);
@@ -664,7 +667,7 @@ pub fn render_posts_view_with_matrix(
                     }});
                     if (res.ok) {{
                         const cloned = await res.json();
-                        showToast('✓ Cloned as Draft #' + cloned.id + ': ' + (cloned.title && cloned.title.rendered ? cloned.title.rendered : 'Copy'));
+                        showToast('Cloned as Draft #' + cloned.id + ': ' + (cloned.title && cloned.title.rendered ? cloned.title.rendered : 'Copy'));
                         setTimeout(() => window.location.reload(), 550);
                     }} else {{
                         showToast('Error duplicating item', true);
@@ -682,7 +685,7 @@ pub fn render_posts_view_with_matrix(
                         body: JSON.stringify({{ status: 'draft' }})
                     }});
                     if (res.ok) {{
-                        showToast('✓ Restored #' + id + ' as Draft');
+                        showToast('Restored #' + id + ' as Draft');
                         setTimeout(() => window.location.reload(), 500);
                     }} else {{
                         showToast('Error restoring item', true);
@@ -699,7 +702,7 @@ pub fn render_posts_view_with_matrix(
                     body: JSON.stringify({{ status: 'trash' }})
                 }});
                 if (res.ok) {{
-                    showToast('✓ Moved #' + id + ' to Trash');
+                    showToast('Moved #' + id + ' to Trash');
                     setTimeout(() => window.location.reload(), 500);
                 }} else {{
                     showToast('Error trashing item', true);
@@ -710,7 +713,7 @@ pub fn render_posts_view_with_matrix(
                 if (!confirm('Permanently delete #' + id + '?')) return;
                 const res = await fetch('/wp-json/wp/v2/posts/' + id + '?force=true', {{ method: 'DELETE' }});
                 if (res.ok) {{
-                    showToast('✓ Permanently deleted');
+                    showToast('Permanently deleted');
                     const row = document.getElementById('post-' + id);
                     if (row) row.remove();
                 }} else {{
@@ -728,7 +731,7 @@ pub fn render_posts_view_with_matrix(
                     }});
                     if (res.ok) {{
                         const data = await res.json();
-                        showToast('✓ Emptied Trash (' + (data.deleted_count || 0) + ' deleted)');
+                        showToast('Emptied Trash (' + (data.deleted_count || 0) + ' deleted)');
                         setTimeout(() => window.location.reload(), 450);
                     }} else {{
                         showToast('Failed to empty trash', true);
@@ -749,7 +752,7 @@ pub fn render_posts_view_with_matrix(
                     const title = (row && row.getAttribute('data-title')) || ('#' + cb.value);
                     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;background:var(--paper-raised);padding:4px 8px;border-radius:4px;border:1px solid var(--rule);">
                         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">#${{cb.value}} — ${{title}}</span>
-                        <button type="button" onclick="uncheckBulkEditItem(${{cb.value}})" style="border:none;background:none;color:var(--oxide);cursor:pointer;font-size:12px;">✕</button>
+                        <button type="button" onclick="uncheckBulkEditItem(${{cb.value}})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:12px;">Remove</button>
                     </div>`;
                 }}).join('');
                 drawer.style.display = 'block';
@@ -799,7 +802,7 @@ pub fn render_posts_view_with_matrix(
                     }});
                     if (res.ok) {{
                         const data = await res.json();
-                        showToast('✓ Bulk updated ' + (data.updated_count || post_ids.length) + ' item(s)');
+                        showToast('Bulk updated ' + (data.updated_count || post_ids.length) + ' item(s)');
                         setTimeout(() => window.location.reload(), 450);
                     }} else {{
                         showToast('Bulk Edit failed', true);
@@ -857,7 +860,7 @@ pub fn render_posts_view_with_matrix(
                         console.error(e);
                     }}
                 }}
-                showToast('✓ Updated ' + count + ' item(s)');
+                showToast('Updated ' + count + ' item(s)');
                 setTimeout(() => window.location.reload(), 600);
             }}
 
@@ -870,7 +873,7 @@ pub fn render_posts_view_with_matrix(
                 }}
                 ['title', 'author', 'date'].forEach(c => {{
                     const ind = document.getElementById('sortInd-' + c);
-                    if (ind) ind.textContent = c === currentSortCol ? (currentSortAsc ? '↑' : '↓') : '↕';
+                    if (ind) ind.textContent = c === currentSortCol ? (currentSortAsc ? '\u2191' : '\u2193') : '\u2195';
                 }});
                 const tbody = document.querySelector('#postsTable tbody');
                 if (!tbody) return;
@@ -967,7 +970,7 @@ pub fn render_posts_view_with_matrix(
                 if (monthSel && months.size > 0) {{
                     Array.from(months).sort().reverse().forEach(m => {{
                         const opt = document.createElement('option');
-                        opt.value = m; opt.textContent = '📅 ' + m;
+                        opt.value = m; opt.textContent = m;
                         monthSel.appendChild(opt);
                     }});
                 }}
@@ -975,7 +978,7 @@ pub fn render_posts_view_with_matrix(
                 if (catSel && cats.size > 0) {{
                     Array.from(cats).sort().forEach(c => {{
                         const opt = document.createElement('option');
-                        opt.value = c.toLowerCase(); opt.textContent = '🏷 ' + c;
+                        opt.value = c.toLowerCase(); opt.textContent = c;
                         catSel.appendChild(opt);
                     }});
                 }}
@@ -983,7 +986,7 @@ pub fn render_posts_view_with_matrix(
                 if (authorSel && authors.size > 0) {{
                     Array.from(authors).sort().forEach(a => {{
                         const opt = document.createElement('option');
-                        opt.value = a.toLowerCase(); opt.textContent = '👤 ' + a;
+                        opt.value = a.toLowerCase(); opt.textContent = a;
                         authorSel.appendChild(opt);
                     }});
                 }}
@@ -1018,10 +1021,10 @@ pub fn render_posts_view_with_matrix(
                         const data = await res.json();
                         const langs = data.languages || [];
                         if (langs.length > 0) {{
-                            langSel.innerHTML = '<option value="all">🌐 All Languages</option>' +
+                            langSel.innerHTML = '<option value="all">All languages</option>' +
                                 langs.map(l =>
                                     '<option value="' + l.code + '"' + (l.code === initLang ? ' selected' : '') + '>' +
-                                    (l.flag_emoji || '🌐') + ' ' + l.code.toUpperCase() + ' (' + l.native_name + ')</option>'
+                                    l.code.toUpperCase() + ' (' + l.native_name + ')</option>'
                                 ).join('');
                         }}
                     }}

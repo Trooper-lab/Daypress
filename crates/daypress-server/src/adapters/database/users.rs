@@ -143,7 +143,7 @@ impl Database {
                 .map(|s| !s.trim().is_empty())
                 .unwrap_or(false);
 
-        crate::auth::sync_user_ui_prefs(id, show_admin_bar_front, &avatar_url);
+        crate::auth::sync_user_ui_prefs(id, show_admin_bar_front, &avatar_url, &admin_color);
 
         Ok(Some(DaypressUserDetail {
             id,

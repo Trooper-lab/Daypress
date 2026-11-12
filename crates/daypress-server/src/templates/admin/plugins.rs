@@ -83,8 +83,7 @@ pub fn render_plugins_view(
 
         let custom_actions = if !record.manifest.is_builtin {
             format!(
-                r#"<span>&bull;</span><a href="/d-admin/plugin-editor?plugin={slug}" style="color:var(--press); font-weight:500;">Edit Code</a>
-                   <span>&bull;</span><a href="javascript:void(0)" onclick="uninstallCustomPlugin('{slug}')" class="trash-action">Uninstall</a>"#,
+                r#"| <a href="/d-admin/plugin-editor?plugin={slug}">Edit Code</a> | <a href="javascript:void(0)" onclick="uninstallCustomPlugin('{slug}')" class="trash-action">Delete</a>"#,
                 slug = slug
             )
         } else {
@@ -106,32 +105,34 @@ pub fn render_plugins_view(
         } else {
             "community"
         };
-        let row_bg = if !is_active {
-            "background: var(--paper-raised);"
+        let row_bg = if is_active {
+            "background: var(--oxide-wash);"
         } else {
             ""
+        };
+        let active_left_border = if is_active {
+            "border-left: 4px solid var(--oxide);"
+        } else {
+            "border-left: 4px solid transparent;"
         };
 
         rows_html.push_str(&format!(
             r##"
             <tr id="plugin-row-{slug}" data-status="{row_status}" data-kind="{row_kind}" style="{row_bg}">
-                <td style="width: 32px;"><input type="checkbox" name="checked_plugins[]" value="{slug}" onchange="updateBulkSelection()"></td>
-                <td style="width: 320px;">
+                <td style="width: 32px; {active_left_border}"><input type="checkbox" name="checked_plugins[]" value="{slug}" onchange="updateBulkSelection()"></td>
+                <td style="width: 300px;">
                     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;">
                         <strong style="color: var(--ink); font-size: 14px;">{name}</strong>
                         {origin_badge}
                     </div>
-                    <div class="table-actions" style="margin-top:8px;">
-                        {toggle_action}
-                        <span>&bull;</span>
-                        <a href="{settings_url}">{settings_label}</a>
-                        {custom_actions}
+                    <div class="table-actions" style="margin-top:6px;">
+                        {toggle_action} | <a href="{settings_url}">{settings_label}</a> {custom_actions}
                     </div>
                 </td>
                 <td>
-                    <div style="color:var(--ink-muted);line-height:1.5;">{desc}{shortcode_hint}</div>
-                    <div style="font-size: 11.5px; color: var(--ink-muted); margin-top: 6px;">
-                        Version {version} &bull; By {author} &bull; Category: <strong style="color:var(--ink-muted);">{category_label}</strong>
+                    <div style="color:var(--ink);line-height:1.5;">{desc}{shortcode_hint}</div>
+                    <div style="font-size: 12px; color: var(--ink-muted); margin-top: 6px;">
+                        Version {version} | By {author} | {category_label}
                     </div>
                 </td>
                 <td style="width: 120px;">{badge_html}</td>
@@ -153,6 +154,7 @@ pub fn render_plugins_view(
             row_status = row_status,
             row_kind = row_kind,
             row_bg = row_bg,
+            active_left_border = active_left_border,
         ));
     }
 
@@ -165,33 +167,39 @@ pub fn render_plugins_view(
         <div class="page-header">
             <div>
                 <h1 class="page-title">Plugins</h1>
-                <p class="page-subtitle">Manage official Daypress extensions and declarative community plugins</p>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <a href="/d-admin/api/plugin-sdk-template" class="btn btn-secondary">⬇ Download Starter SDK (.json)</a>
-                <a href="/d-admin/plugin-install" class="btn btn-primary">+ Add New / Install Extension</a>
+                <a href="/d-admin/plugin-install" class="page-title-action">+ Add New / Install Extension</a>
+                <a href="/d-admin/api/plugin-sdk-template" class="page-title-action">Download Starter SDK (.json)</a>
             </div>
         </div>
 
-        <!-- Filter Tabs & Real-time Search -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; gap: 8px;" id="pluginFilterTabs">
-                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="all" style="background: var(--ink); color: var(--paper-raised);" onclick="filterPluginsByTab('all', this)">All ({total_count})</button>
-                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="active" onclick="filterPluginsByTab('active', this)">Active ({active_count})</button>
-                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="inactive" onclick="filterPluginsByTab('inactive', this)">Inactive ({inactive_count})</button>
-                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="builtin" onclick="filterPluginsByTab('builtin', this)">Official ({builtin_count})</button>
-                <button type="button" class="btn btn-secondary plug-tab status-tab" data-filter="community" onclick="filterPluginsByTab('community', this)">Community ({custom_count})</button>
+        <div class="wp-subsubsub-row">
+            <div class="subsubsub" id="pluginFilterTabs">
+                <button type="button" class="plug-tab status-tab active" data-filter="all" onclick="filterPluginsByTab('all', this)">All ({total_count})</button>
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="plug-tab status-tab" data-filter="active" onclick="filterPluginsByTab('active', this)">Active ({active_count})</button>
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="plug-tab status-tab" data-filter="inactive" onclick="filterPluginsByTab('inactive', this)">Inactive ({inactive_count})</button>
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="plug-tab status-tab" data-filter="builtin" onclick="filterPluginsByTab('builtin', this)">Official ({builtin_count})</button>
+                <span class="subsubsub-sep">|</span>
+                <button type="button" class="plug-tab status-tab" data-filter="community" onclick="filterPluginsByTab('community', this)">Community ({custom_count})</button>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <div style="display: flex; gap: 6px; align-items: center;">
-                    <select id="bulkPluginAction" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;">
-                        <option value="">Bulk actions</option>
-                        <option value="activate">Activate</option>
-                        <option value="deactivate">Deactivate</option>
-                    </select>
-                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkPluginAction()">Apply</button>
-                </div>
-                <input type="text" id="pluginSearchInput" placeholder="Search installed plugins..." class="form-input" style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterPluginsList(this.value)" />
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="search" id="pluginSearchInput" placeholder="Search installed plugins..." class="form-input" style="width: 220px; padding: 4px 10px; min-height: 30px; font-size: 13px;" oninput="filterPluginsList(this.value)" />
+            </div>
+        </div>
+
+        <div class="tablenav top">
+            <div class="tablenav-actions">
+                <select id="bulkPluginAction" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;">
+                    <option value="">Bulk actions</option>
+                    <option value="activate">Activate</option>
+                    <option value="deactivate">Deactivate</option>
+                </select>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 13px;" onclick="applyBulkPluginAction()">Apply</button>
+            </div>
+            <div class="tablenav-pages">
+                <span>{total_count} items</span>
             </div>
         </div>
 
@@ -200,14 +208,22 @@ pub fn render_plugins_view(
                 <thead>
                     <tr>
                         <th style="width: 32px;"><input type="checkbox" id="selectAllPlugins" onchange="toggleSelectAllPlugins(this)"></th>
-                        <th style="width: 320px;">Plugin / Module</th>
-                        <th>Description &amp; Capabilities</th>
+                        <th style="width: 300px;">Plugin</th>
+                        <th>Description</th>
                         <th style="width: 120px;">Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {rows_html}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <th style="width: 32px;"><input type="checkbox" onchange="toggleSelectAllPlugins(this)"></th>
+                        <th style="width: 300px;">Plugin</th>
+                        <th>Description</th>
+                        <th style="width: 120px;">Status</th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
@@ -230,12 +246,10 @@ pub fn render_plugins_view(
             function filterPluginsByTab(filter, btn) {{
                 activePluginFilter = filter;
                 document.querySelectorAll('#pluginFilterTabs .plug-tab').forEach(b => {{
-                    b.style.background = '';
-                    b.style.color = '';
+                    b.classList.remove('active');
                 }});
                 if (btn) {{
-                    btn.style.background = 'var(--ink)';
-                    btn.style.color = 'var(--paper-raised)';
+                    btn.classList.add('active');
                 }}
                 const master = document.getElementById('selectAllPlugins');
                 if (master) master.checked = false;

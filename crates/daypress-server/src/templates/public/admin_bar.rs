@@ -125,179 +125,201 @@ pub fn render_admin_bar(
             ""
         };
 
+        let admin_color = escape_html(&crate::auth::cached_user_admin_color(user.user_id));
+
         let bar = format!(
             r##"
             <style>
                 #wpadminbar {{
-                    --ab-bg: #1a1c1f;
-                    --ab-raised: #26282c;
-                    --ab-ink: #efe9de;
-                    --ab-muted: #a7a297;
-                    --ab-rule: rgba(239, 233, 222, 0.16);
+                    --ab-bg: #1d2327;
+                    --ab-raised: #2c3338;
+                    --ab-ink: #f0f0f1;
+                    --ab-muted: #c3c4c7;
+                    --ab-rule: #2c3338;
                     --ab-oxide: #e8744a;
-                    --ab-oxide-solid: #a8401b;
-                    --ab-on-oxide: #fff8f0;
-                    --ab-press: #93a1ff;
-                    --ab-moss: #93b98a;
+                    --ab-oxide-solid: #b8431b;
+                    --ab-on-oxide: #ffffff;
+                    --ab-press: #2271b1;
+                    --ab-moss: #1e7e34;
                     --ab-ochre: #e6b84a;
-                    --ab-font-sans: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
-                    --ab-font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
-                    --ab-font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+                    --ab-font-sans: "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                    --ab-font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
 
                     position: fixed !important;
                     top: 0 !important;
                     left: 0 !important;
                     right: 0 !important;
                     width: 100% !important;
-                    height: 36px !important;
+                    height: 32px !important;
+                    min-height: 32px !important;
                     background: var(--ab-bg) !important;
                     color: var(--ab-ink) !important;
-                    border-bottom: 1px solid var(--ab-rule) !important;
+                    border-bottom: 0 !important;
                     z-index: 999999 !important;
                     font-family: var(--ab-font-sans) !important;
                     font-size: 13px !important;
-                    line-height: 36px !important;
+                    line-height: 32px !important;
                     user-select: none !important;
                     box-shadow: none !important;
                     -webkit-font-smoothing: antialiased !important;
                 }}
+                #wpadminbar[data-admin-color="linen"], #wpadminbar[data-admin-color="light"] {{
+                    --ab-bg: #e5e0d5; --ab-raised: #d8d1c3; --ab-ink: #2b2621; --ab-muted: #5c544b; --ab-rule: rgba(43,38,33,0.12); --ab-oxide: #b04a25; --ab-oxide-solid: #b04a25;
+                }}
+                #wpadminbar[data-admin-color="studio"], #wpadminbar[data-admin-color="modern"] {{
+                    --ab-bg: #1e1f26; --ab-raised: #2b2d38; --ab-ink: #f0f1f5; --ab-muted: #b4b7c5; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #7b86ff; --ab-oxide-solid: #3858e9;
+                }}
+                #wpadminbar[data-admin-color="nordic"], #wpadminbar[data-admin-color="blue"] {{
+                    --ab-bg: #1e2d3b; --ab-raised: #293d50; --ab-ink: #eef3f7; --ab-muted: #b0c2d1; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #66b3e6; --ab-oxide-solid: #2b6cb0;
+                }}
+                #wpadminbar[data-admin-color="espresso"], #wpadminbar[data-admin-color="coffee"] {{
+                    --ab-bg: #362f2b; --ab-raised: #463d38; --ab-ink: #f4eee9; --ab-muted: #c2b6ad; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #dda175; --ab-oxide-solid: #9e5a34;
+                }}
+                #wpadminbar[data-admin-color="sage"], #wpadminbar[data-admin-color="ectoplasm"] {{
+                    --ab-bg: #233029; --ab-raised: #2f4037; --ab-ink: #edf3ef; --ab-muted: #b0c2b8; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #82c49b; --ab-oxide-solid: #3b7052;
+                }}
+                #wpadminbar[data-admin-color="dusk"], #wpadminbar[data-admin-color="midnight"] {{
+                    --ab-bg: #282433; --ab-raised: #363045; --ab-ink: #f1eef6; --ab-muted: #b8b0c8; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #e0826d; --ab-oxide-solid: #7b4685;
+                }}
+                #wpadminbar[data-admin-color="harbor"], #wpadminbar[data-admin-color="ocean"] {{
+                    --ab-bg: #26353a; --ab-raised: #33474d; --ab-ink: #eef4f4; --ab-muted: #b0c4c2; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #7fc4bd; --ab-oxide-solid: #356e6b;
+                }}
+                #wpadminbar[data-admin-color="terracotta"], #wpadminbar[data-admin-color="sunrise"] {{
+                    --ab-bg: #3b2521; --ab-raised: #4d312c; --ab-ink: #f7edea; --ab-muted: #ccb2aa; --ab-rule: rgba(255,255,255,0.08); --ab-oxide: #ea9066; --ab-oxide-solid: #b84a32;
+                }}
                 body.admin-bar {{
-                    margin-top: 36px !important;
+                    margin-top: 32px !important;
                 }}
                 body.admin-bar header.day-header,
                 body.admin-bar header.dp-theme-header.dp-sticky {{
-                    top: 36px !important;
+                    top: 32px !important;
                 }}
                 #wpadminbar .ab-top-menu-wrap {{
                     display: flex !important;
-                    align-items: center !important;
+                    align-items: stretch !important;
                     justify-content: space-between !important;
-                    height: 35px !important;
-                    padding: 0 8px !important;
+                    height: 32px !important;
+                    padding: 0 !important;
                 }}
                 #wpadminbar .ab-top-menu {{
                     display: flex !important;
-                    align-items: center !important;
+                    align-items: stretch !important;
                     list-style: none !important;
-                    height: 35px !important;
+                    height: 32px !important;
                     margin: 0 !important;
                     padding: 0 !important;
-                    gap: 2px !important;
+                    gap: 0 !important;
                 }}
                 #wpadminbar .ab-top-menu > li {{
                     position: relative !important;
-                    height: 35px !important;
+                    height: 32px !important;
                     display: flex !important;
-                    align-items: center !important;
+                    align-items: stretch !important;
                 }}
                 #wpadminbar .ab-divider {{
-                    width: 1px !important;
-                    height: 16px !important;
-                    background: var(--ab-rule) !important;
-                    margin: 0 4px !important;
-                    pointer-events: none !important;
+                    display: none !important;
                 }}
                 #wpadminbar .ab-item {{
                     display: inline-flex !important;
                     align-items: center !important;
                     gap: 6px !important;
-                    height: 28px !important;
-                    padding: 0 9px !important;
-                    border-radius: 3px !important;
+                    height: 32px !important;
+                    padding: 0 10px !important;
+                    border-radius: 0 !important;
                     color: var(--ab-ink) !important;
                     text-decoration: none !important;
                     font-family: var(--ab-font-sans) !important;
-                    font-size: 12.5px !important;
-                    font-weight: 500 !important;
-                    line-height: 28px !important;
-                    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease !important;
+                    font-size: 13px !important;
+                    font-weight: 400 !important;
+                    line-height: 32px !important;
+                    transition: background-color 0.1s ease, color 0.1s ease !important;
                     white-space: nowrap !important;
                 }}
                 #wpadminbar .ab-icon {{
-                    width: 14px !important;
-                    height: 14px !important;
+                    width: 15px !important;
+                    height: 15px !important;
                     flex-shrink: 0 !important;
                     color: var(--ab-muted) !important;
-                    transition: color 0.12s ease !important;
+                    transition: color 0.1s ease !important;
                 }}
                 #wpadminbar .ab-top-menu > li:hover > .ab-item,
                 #wpadminbar .ab-top-menu > li > .ab-item:focus-visible {{
                     background: var(--ab-raised) !important;
-                    color: var(--ab-ink) !important;
+                    color: var(--ab-oxide) !important;
                 }}
                 #wpadminbar .ab-top-menu > li:hover > .ab-item .ab-icon {{
                     color: var(--ab-oxide) !important;
                 }}
                 #wpadminbar .ab-brand-item {{
                     padding: 0 10px !important;
-                    gap: 8px !important;
                 }}
-                #wpadminbar .ab-day-dot {{
-                    width: 8px !important;
-                    height: 8px !important;
-                    border-radius: 999px !important;
-                    background: var(--ab-oxide) !important;
+                #wpadminbar .ab-brand-icon {{
+                    width: 20px !important;
+                    height: 20px !important;
+                    display: block !important;
                     flex-shrink: 0 !important;
-                }}
-                #wpadminbar .ab-wordmark {{
-                    font-family: var(--ab-font-serif) !important;
-                    font-size: 16.5px !important;
-                    font-weight: 450 !important;
-                    letter-spacing: -0.02em !important;
                     color: var(--ab-ink) !important;
-                    line-height: 1 !important;
+                    transition: color 0.1s ease !important;
+                }}
+                #wpadminbar .ab-top-menu > li:hover > .ab-brand-item .ab-brand-icon {{
+                    color: var(--ab-ink) !important;
                 }}
                 #wpadminbar .ab-item-studio {{
-                    background: rgba(232, 116, 74, 0.12) !important;
-                    border: 1px solid rgba(232, 116, 74, 0.35) !important;
                     color: var(--ab-ink) !important;
-                    font-weight: 600 !important;
-                    height: 26px !important;
-                    line-height: 24px !important;
-                    margin-left: 2px !important;
+                    font-weight: 500 !important;
                 }}
                 #wpadminbar .ab-item-studio .ab-icon {{
                     color: var(--ab-oxide) !important;
                 }}
                 #wpadminbar .ab-top-menu > li:hover > .ab-item-studio {{
-                    background: var(--ab-oxide-solid) !important;
-                    border-color: var(--ab-oxide) !important;
-                    color: var(--ab-on-oxide) !important;
+                    background: var(--ab-raised) !important;
+                    color: var(--ab-oxide) !important;
                 }}
                 #wpadminbar .ab-top-menu > li:hover > .ab-item-studio .ab-icon {{
-                    color: var(--ab-on-oxide) !important;
+                    color: var(--ab-oxide) !important;
                 }}
                 #wpadminbar .ab-count {{
-                    font-family: var(--ab-font-mono) !important;
-                    font-size: 11px !important;
-                    font-weight: 500 !important;
+                    font-family: var(--ab-font-sans) !important;
+                    font-size: 13px !important;
+                    font-weight: 400 !important;
                     font-variant-numeric: tabular-nums !important;
-                    color: var(--ab-muted) !important;
+                    color: var(--ab-ink) !important;
                     line-height: 1 !important;
                 }}
                 #wpadminbar .ab-count.is-alert {{
-                    background: rgba(230, 184, 74, 0.18) !important;
-                    color: var(--ab-ochre) !important;
-                    padding: 2px 5px !important;
-                    border-radius: 3px !important;
+                    background: var(--ab-oxide-solid) !important;
+                    color: var(--ab-on-oxide) !important;
+                    padding: 0 5px !important;
+                    min-width: 17px !important;
+                    height: 17px !important;
+                    line-height: 17px !important;
+                    border-radius: 999px !important;
+                    font-size: 11px !important;
+                    font-weight: 600 !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
                 }}
                 #wpadminbar .ab-kbd {{
                     font-family: var(--ab-font-mono) !important;
-                    font-size: 10.5px !important;
+                    font-size: 11px !important;
                     font-weight: 500 !important;
-                    color: var(--ab-muted) !important;
-                    border: 1px solid var(--ab-rule) !important;
+                    color: #a7aaad !important;
+                    background: rgba(255, 255, 255, 0.07) !important;
+                    border: 0 !important;
                     border-radius: 2px !important;
-                    padding: 1px 5px !important;
-                    line-height: 1.2 !important;
+                    padding: 1px 4px !important;
+                    line-height: 14px !important;
+                    margin-left: 2px !important;
                 }}
                 #wpadminbar .ab-avatar {{
-                    width: 20px !important;
-                    height: 20px !important;
-                    border-radius: 3px !important;
-                    background: var(--ab-oxide-solid) !important;
-                    color: var(--ab-on-oxide) !important;
-                    font-family: var(--ab-font-mono) !important;
+                    width: 18px !important;
+                    height: 18px !important;
+                    border-radius: 2px !important;
+                    background: #3c434a !important;
+                    border: 1px solid #646970 !important;
+                    color: var(--ab-ink) !important;
+                    font-family: var(--ab-font-sans) !important;
                     font-size: 11px !important;
                     font-weight: 600 !important;
                     display: inline-flex !important;
@@ -305,6 +327,7 @@ pub fn render_admin_bar(
                     justify-content: center !important;
                     overflow: hidden !important;
                     flex-shrink: 0 !important;
+                    margin-left: 2px !important;
                 }}
                 #wpadminbar .ab-avatar-img {{
                     width: 100% !important;
@@ -315,15 +338,14 @@ pub fn render_admin_bar(
                 #wpadminbar .ab-sub-wrapper {{
                     display: none !important;
                     position: absolute !important;
-                    top: 35px !important;
+                    top: 32px !important;
                     left: 0 !important;
-                    min-width: 196px !important;
-                    background: var(--ab-bg) !important;
-                    border: 1px solid var(--ab-rule) !important;
-                    border-top: 2px solid var(--ab-oxide) !important;
-                    border-radius: 0 0 4px 4px !important;
-                    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42) !important;
-                    padding: 5px 0 !important;
+                    min-width: 176px !important;
+                    background: var(--ab-raised) !important;
+                    border: 0 !important;
+                    border-radius: 0 !important;
+                    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2) !important;
+                    padding: 4px 0 !important;
                     z-index: 1000000 !important;
                 }}
                 #wpadminbar .ab-sub-wrapper.ab-sub-right {{
@@ -345,55 +367,55 @@ pub fn render_admin_bar(
                     display: flex !important;
                     justify-content: space-between !important;
                     height: auto !important;
-                    line-height: 1.4 !important;
-                    padding: 6px 14px !important;
+                    line-height: 26px !important;
+                    padding: 0 12px !important;
                     border-radius: 0 !important;
                     color: var(--ab-muted) !important;
-                    font-size: 12.5px !important;
+                    font-size: 13px !important;
                     font-weight: 400 !important;
                 }}
                 #wpadminbar .ab-submenu .ab-item:hover {{
-                    background: var(--ab-raised) !important;
-                    color: var(--ab-ink) !important;
+                    background: transparent !important;
+                    color: var(--ab-oxide) !important;
                 }}
                 #wpadminbar .ab-submenu .ab-item-logout {{
-                    color: var(--ab-oxide) !important;
-                    border-top: 1px solid var(--ab-rule) !important;
-                    margin-top: 4px !important;
-                    padding-top: 8px !important;
+                    color: var(--ab-muted) !important;
+                    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    margin-top: 2px !important;
+                    padding-top: 2px !important;
                 }}
                 #wpadminbar .ab-submenu .ab-item-logout:hover {{
-                    background: var(--ab-raised) !important;
-                    color: var(--ab-on-oxide) !important;
+                    background: transparent !important;
+                    color: var(--ab-oxide) !important;
                 }}
                 #day-ab-qs-backdrop {{
                     display: none;
                     position: fixed;
                     inset: 0;
-                    background: rgba(22, 23, 26, 0.55);
+                    background: rgba(29, 35, 39, 0.55);
                     z-index: 1000001;
                     align-items: flex-start;
                     justify-content: center;
                     padding-top: 12vh;
-                    font-family: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+                    font-family: var(--ab-font-sans);
                 }}
                 .day-ab-qs-dialog {{
-                    width: min(620px, 92vw);
-                    background: #fbf8f2;
-                    color: #16171a;
-                    border: 1px solid #16171a;
-                    border-radius: 6px;
+                    width: min(600px, 92vw);
+                    background: #ffffff;
+                    color: #1d2327;
+                    border: 1px solid #c3c4c7;
+                    border-radius: 4px;
                     overflow: hidden;
                     box-shadow: 0 20px 48px rgba(0, 0, 0, 0.32);
                 }}
                 #day-ab-qs-input {{
                     width: 100%;
                     border: 0;
-                    border-bottom: 1px solid #16171a;
-                    padding: 15px 18px;
-                    font: 400 18px/1.4 "Newsreader", "Iowan Old Style", Georgia, serif;
+                    border-bottom: 1px solid #dcdcde;
+                    padding: 14px 16px;
+                    font: 400 15px/1.4 var(--ab-font-sans);
                     background: transparent;
-                    color: #16171a;
+                    color: #1d2327;
                     outline: none;
                 }}
                 #day-ab-qs-results {{
@@ -406,28 +428,28 @@ pub fn render_admin_bar(
                     justify-content: space-between;
                     align-items: center;
                     gap: 12px;
-                    padding: 9px 18px;
+                    padding: 8px 16px;
                     text-decoration: none;
-                    color: #16171a;
-                    font-size: 14px;
+                    color: #1d2327;
+                    font-size: 13.5px;
                 }}
                 .day-ab-qs-item.is-active,
                 .day-ab-qs-item:hover {{
-                    background: rgba(42, 59, 208, 0.12);
+                    background: #fdf2ee;
                 }}
                 .day-ab-qs-kind,
                 .day-ab-qs-hint,
                 .day-ab-qs-empty {{
-                    font: 500 11.5px/16px "IBM Plex Mono", ui-monospace, Menlo, monospace;
-                    color: #5a5852;
+                    font: 500 12px/16px var(--ab-font-sans);
+                    color: #50575e;
                 }}
                 .day-ab-qs-empty {{
-                    padding: 14px 18px;
+                    padding: 14px 16px;
                 }}
                 .day-ab-qs-hint {{
-                    padding: 8px 18px;
-                    border-top: 1px solid rgba(22, 23, 26, 0.18);
-                    background: #f3eee4;
+                    padding: 8px 16px;
+                    border-top: 1px solid #dcdcde;
+                    background: #f6f7f7;
                 }}
                 #daypress-welcome-dock {{
                     position: fixed;
@@ -435,22 +457,22 @@ pub fn render_admin_bar(
                     right: 24px;
                     z-index: 999998;
                     max-width: 410px;
-                    background: #1a1c1f;
-                    color: #efe9de;
-                    border: 1px solid rgba(239, 233, 222, 0.18);
+                    background: #1d2327;
+                    color: #f0f0f1;
+                    border: 1px solid #2c3338;
                     border-top: 2px solid #e8744a;
-                    border-radius: 6px;
+                    border-radius: 4px;
                     padding: 18px 20px;
                     box-shadow: 0 20px 48px rgba(0,0,0,0.32);
-                    font-family: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+                    font-family: var(--ab-font-sans);
                     display: none;
                 }}
                 #daypress-welcome-dock .dock-btn-primary {{
                     display: inline-flex;
                     align-items: center;
                     gap: 6px;
-                    background: #a8401b;
-                    color: #fff8f0 !important;
+                    background: #b8431b;
+                    color: #ffffff !important;
                     text-decoration: none !important;
                     padding: 8px 14px;
                     border-radius: 4px;
@@ -460,9 +482,9 @@ pub fn render_admin_bar(
                 #daypress-welcome-dock .dock-btn-secondary {{
                     display: inline-flex;
                     align-items: center;
-                    background: #26282c;
-                    color: #efe9de !important;
-                    border: 1px solid rgba(239, 233, 222, 0.16);
+                    background: #2c3338;
+                    color: #f0f0f1 !important;
+                    border: 1px solid rgba(255, 255, 255, 0.14);
                     text-decoration: none !important;
                     padding: 8px 12px;
                     border-radius: 4px;
@@ -475,87 +497,84 @@ pub fn render_admin_bar(
                     }}
                 }}
             </style>
-            <div id="wpadminbar" class="nojq">
-                <div class="ab-top-menu-wrap" id="wp-toolbar" role="navigation" aria-label="Daypress Admin Toolbar">
+            <div id="wpadminbar" class="nojq" data-admin-color="{admin_color}">
+                <div class="ab-top-menu-wrap" id="wp-toolbar" role="navigation" aria-label="Toolbar">
                     <ul id="wp-admin-bar-root-default" class="ab-top-menu">
                         <li id="wp-admin-bar-wp-logo" class="menupop">
-                            <a class="ab-item ab-brand-item" aria-haspopup="true" href="/d-admin/" title="Daypress Desk">
-                                <span class="ab-day-dot" aria-hidden="true"></span>
-                                <span class="ab-wordmark">daypress</span>
+                            <a class="ab-item ab-brand-item" aria-haspopup="true" aria-label="About Daypress" href="/d-admin/" title="About Daypress">
+                                <svg class="ab-brand-icon" viewBox="0 0 1000 1000" width="20" height="20" aria-hidden="true">
+                                    <path fill="currentColor" fill-rule="evenodd" d="M425 182 V156 L575 125 H592 V712 Q592 742 616 748 L660 756 V780 L508 802 L494 720 Q432 798 334 798 C212 798 136 700 136 568 C136 430 222 332 350 332 C418 332 466 360 492 396 V218 Q492 188 458 182 Z M492 466 C470 410 422 376 360 376 C268 376 220 450 220 562 C220 674 276 740 364 740 C422 740 470 704 492 652 Z"/>
+                                    <circle cx="785" cy="734" r="78" fill="var(--ab-oxide)"/>
+                                </svg>
                             </a>
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
-                                    <li><a class="ab-item" href="/d-admin/">Admin Desk</a></li>
-                                    <li><a class="ab-item" href="/d-admin/analytics">Analytics</a></li>
+                                    <li><a class="ab-item" href="/d-admin/getting-started">About Daypress &amp; AI Key</a></li>
+                                    <li><a class="ab-item" href="/d-admin/update-core">Updates</a></li>
                                     <li><a class="ab-item" href="/d-admin/site-health">Site Health</a></li>
                                     <li><a class="ab-item" href="/d-admin/daypress-engine">Engine Telemetry</a></li>
                                 </ul>
                             </div>
                         </li>
-                        <li class="ab-divider" role="separator" aria-hidden="true"></li>
                         <li id="wp-admin-bar-site-name" class="menupop">
                             <a class="ab-item" aria-haspopup="true" href="/d-admin/">
-                                <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 12L16.5 7.5"></path><path d="M7.5 15.5h9"></path></svg>
                                 <span>{site_name}</span>
                             </a>
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
                                     <li><a class="ab-item" href="/d-admin/">Dashboard</a></li>
-                                    <li><a class="ab-item" href="/d-admin/edit?post_type=page">Pages</a></li>
-                                    <li><a class="ab-item" href="/d-admin/edit">Posts</a></li>
-                                    <li><a class="ab-item" href="/d-admin/upload">Media Library</a></li>
-                                    <li><a class="ab-item" href="/d-admin/headers-footers">Headers &amp; Footers</a></li>
+                                    <li><a class="ab-item" href="/d-admin/customize">Themes</a></li>
+                                    <li><a class="ab-item" href="/d-admin/headers-footers">Header &amp; Footer</a></li>
                                     <li><a class="ab-item" href="/d-admin/theme-layouts">Theme Layouts</a></li>
                                     <li><a class="ab-item" href="/d-admin/nav-menus">Menus</a></li>
-                                    <li><a class="ab-item" href="/d-admin/customize">Customize</a></li>
                                 </ul>
                             </div>
                         </li>
+                        <li id="wp-admin-bar-comments">
+                            <a class="ab-item" href="/d-admin/edit-comments" title="{pending_comments} Comments in moderation">
+                                <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                                <span class="{comments_badge_class}">{pending_comments}</span>
+                            </a>
+                        </li>
                         <li id="wp-admin-bar-new-content" class="menupop">
-                            <a class="ab-item" aria-haspopup="true" href="/d-admin/post-new" title="Create New Content">
+                            <a class="ab-item" aria-haspopup="true" href="/d-admin/post-new" title="Add New">
                                 <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                 <span class="ab-hide-mobile">New</span>
                             </a>
                             <div class="ab-sub-wrapper">
                                 <ul class="ab-submenu">
                                     <li><a class="ab-item" href="/d-admin/post-new">Post</a></li>
+                                    <li><a class="ab-item" href="/d-admin/media-new">Media</a></li>
                                     <li><a class="ab-item" href="/d-admin/post-new?post_type=page">Page</a></li>
                                     {cpt_new_items}
-                                    <li><a class="ab-item" href="/d-admin/media-new">Media</a></li>
                                     <li><a class="ab-item" href="/d-admin/forms">Form</a></li>
                                     <li><a class="ab-item" href="/d-admin/user-new">User</a></li>
                                 </ul>
                             </div>
                         </li>
                         {post_actions}
-                    </ul>
-                    <ul id="wp-admin-bar-top-secondary" class="ab-top-secondary ab-top-menu">
-                        <li id="wp-admin-bar-search">
-                            <a class="ab-item" href="/d-admin/edit" onclick="event.preventDefault();window.dayAbOpenQuickSearch();" title="Quick Search Posts, Pages &amp; Desk Screens (Ctrl+K)">
+                        <li id="wp-admin-bar-search" class="ab-hide-mobile">
+                            <a class="ab-item" href="/d-admin/edit" onclick="event.preventDefault();window.dayAbOpenQuickSearch();" title="Quick Search (Ctrl+K)">
                                 <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                <span class="ab-hide-mobile">Search</span>
-                                <kbd class="ab-kbd ab-hide-mobile">Ctrl K</kbd>
+                                <span>Search</span>
+                                <kbd class="ab-kbd">Ctrl+K</kbd>
                             </a>
                         </li>
-                        <li id="wp-admin-bar-purge-cache">
+                        <li id="wp-admin-bar-purge-cache" class="ab-hide-mobile">
                             <a class="ab-item" href="#purge-cache" onclick="event.preventDefault();window.dayAbPurgeCache(this);" title="Purge In-Memory SSR Hot Cache &amp; Edge CDN">
                                 <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
-                                <span class="ab-hide-mobile">Purge Cache</span>
+                                <span>Purge Cache</span>
                             </a>
                         </li>
-                        <li id="wp-admin-bar-comments">
-                            <a class="ab-item" href="/d-admin/edit-comments" title="{pending_comments} pending comments">
-                                <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                                <span class="{comments_badge_class}">{pending_comments}</span>
-                            </a>
-                        </li>
-                        <li id="wp-admin-bar-updates">
+                        <li id="wp-admin-bar-updates" class="ab-hide-mobile">
                             <a class="ab-item" href="/d-admin/update-core" title="{updates_title}">
                                 <svg class="ab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                                 <span class="{updates_badge_class}">{updates_count}</span>
                             </a>
                         </li>
-                        <li class="ab-divider" role="separator" aria-hidden="true"></li>
+                    </ul>
+                    <ul id="wp-admin-bar-top-secondary" class="ab-top-secondary ab-top-menu">
                         <li id="wp-admin-bar-my-account" class="menupop with-avatar">
                             <a class="ab-item" aria-haspopup="true" href="/d-admin/profile">
                                 <span>Howdy, <span class="display-name">{username}</span></span>
@@ -759,7 +778,8 @@ pub fn render_admin_bar(
             updates_title = updates_title,
             username = username,
             avatar_html = avatar_html,
-            users_submenu_item = users_submenu_item
+            users_submenu_item = users_submenu_item,
+            admin_color = admin_color
         );
         (bar, " admin-bar")
     } else {

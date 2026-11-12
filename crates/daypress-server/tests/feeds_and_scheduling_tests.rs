@@ -444,7 +444,9 @@ async fn post_scheduled_via_rest_stays_hidden_until_its_date() {
     assert_eq!(admin_list.status, StatusCode::OK);
     assert!(admin_list.body.contains(title));
     assert!(admin_list.body.contains(">Scheduled</span>"));
-    assert!(admin_list.body.contains("Scheduled (2)"));
+    assert!(admin_list
+        .body
+        .contains("Scheduled <span class=\"count\">(2)</span>"));
     let editor = get_auth(&app, &format!("/d-admin/post?post={id}&action=edit")).await;
     assert_eq!(editor.status, StatusCode::OK);
     assert!(editor

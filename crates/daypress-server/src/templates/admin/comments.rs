@@ -42,35 +42,25 @@ pub fn render_comments_view(
 
             let action_buttons = match c.status.as_str() {
                 "0" => format!(
-                    r#"<button type="button" onclick="setCommentStatus({id}, '1')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--moss);">Approve</button>
-                       <button type="button" onclick="openCommentReply({id}, {post_id})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--press);">Reply</button>
-                       <button type="button" onclick="openCommentQuickEdit({id})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;">Quick Edit</button>
-                       <button type="button" onclick="setCommentStatus({id}, 'spam')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--ink);">Spam</button>
-                       <button type="button" onclick="setCommentStatus({id}, 'trash')" class="btn btn-danger" style="padding: 2px 8px; font-size: 11px;">Trash</button>"#,
+                    r#"<button type="button" onclick="setCommentStatus({id}, '1')" class="row-action-btn" style="color: var(--moss);">Approve</button> | <button type="button" onclick="openCommentReply({id}, {post_id})" class="row-action-btn">Reply</button> | <button type="button" onclick="openCommentQuickEdit({id})" class="row-action-btn">Quick Edit</button> | <button type="button" onclick="setCommentStatus({id}, 'spam')" class="row-action-btn" style="color: var(--ochre);">Spam</button> | <button type="button" onclick="setCommentStatus({id}, 'trash')" class="row-action-btn trash-action">Trash</button>"#,
                     id = c.id,
                     post_id = c.post_id
                 ),
                 "1" => format!(
-                    r#"<button type="button" onclick="setCommentStatus({id}, '0')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--ink);">Unapprove</button>
-                       <button type="button" onclick="openCommentReply({id}, {post_id})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--press);">Reply</button>
-                       <button type="button" onclick="openCommentQuickEdit({id})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;">Quick Edit</button>
-                       <button type="button" onclick="setCommentStatus({id}, 'spam')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--ink);">Spam</button>
-                       <button type="button" onclick="setCommentStatus({id}, 'trash')" class="btn btn-danger" style="padding: 2px 8px; font-size: 11px;">Trash</button>"#,
+                    r#"<button type="button" onclick="setCommentStatus({id}, '0')" class="row-action-btn" style="color: var(--ochre);">Unapprove</button> | <button type="button" onclick="openCommentReply({id}, {post_id})" class="row-action-btn">Reply</button> | <button type="button" onclick="openCommentQuickEdit({id})" class="row-action-btn">Quick Edit</button> | <button type="button" onclick="setCommentStatus({id}, 'spam')" class="row-action-btn" style="color: var(--ochre);">Spam</button> | <button type="button" onclick="setCommentStatus({id}, 'trash')" class="row-action-btn trash-action">Trash</button>"#,
                     id = c.id,
                     post_id = c.post_id
                 ),
                 "spam" => format!(
-                    r#"<button type="button" onclick="setCommentStatus({id}, '1')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--moss);">Not Spam</button>
-                       <button type="button" onclick="deleteCommentPermanent({id})" class="btn btn-danger" style="padding: 2px 8px; font-size: 11px;">Delete</button>"#,
+                    r#"<button type="button" onclick="setCommentStatus({id}, '1')" class="row-action-btn" style="color: var(--moss);">Not Spam</button> | <button type="button" onclick="deleteCommentPermanent({id})" class="row-action-btn trash-action">Delete Permanently</button>"#,
                     id = c.id
                 ),
                 "trash" => format!(
-                    r#"<button type="button" onclick="setCommentStatus({id}, '1')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--moss);">Restore</button>
-                       <button type="button" onclick="deleteCommentPermanent({id})" class="btn btn-danger" style="padding: 2px 8px; font-size: 11px;">Delete Permanently</button>"#,
+                    r#"<button type="button" onclick="setCommentStatus({id}, '1')" class="row-action-btn" style="color: var(--moss);">Restore</button> | <button type="button" onclick="deleteCommentPermanent({id})" class="row-action-btn trash-action">Delete Permanently</button>"#,
                     id = c.id
                 ),
                 _ => format!(
-                    r#"<button type="button" onclick="setCommentStatus({id}, '0')" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;">Unapprove</button>"#,
+                    r#"<button type="button" onclick="setCommentStatus({id}, '0')" class="row-action-btn">Unapprove</button>"#,
                     id = c.id
                 ),
             };
@@ -80,23 +70,23 @@ pub fn render_comments_view(
                     <td style="width: 32px; vertical-align: top;"><input type="checkbox" class="comment-select-cb" value="{id}" /></td>
                     <td style="width: 220px; vertical-align: top;">
                         <div style="font-weight: 600; color: var(--ink);">{author}</div>
-                        <div style="font-size: 12px; color: var(--press); margin-top: 2px;">{email}</div>
+                        <div style="font-size: 12px; color: var(--oxide); margin-top: 2px;">{email}</div>
                         <div style="font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono); margin-top: 2px;">{ip}</div>
                         <div style="margin-top: 6px;">{status_badge}</div>
                     </td>
                     <td style="vertical-align: top;">
-                        <div style="font-size: 13.5px; line-height: 1.6; color: var(--ink-muted); white-space: pre-line;">{content}</div>
-                        <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                        <div style="font-size: 13.5px; line-height: 1.6; color: var(--ink); white-space: pre-line;">{content}</div>
+                        <div class="table-actions">
                             {action_buttons}
                         </div>
                     </td>
                     <td style="width: 200px; vertical-align: top;">
-                        <a href="/d-admin/post?post={post_id}&action=edit" style="font-weight: 500; text-decoration: none; color: var(--press); font-size: 13px;">{post_title}</a>
+                        <a href="/d-admin/post?post={post_id}&action=edit" style="font-weight: 600; text-decoration: none; color: var(--oxide); font-size: 13px;">{post_title}</a>
                         <div style="margin-top: 4px;">
-                            <a href="/?p={post_id}" target="_blank" style="font-size: 11.5px; color: var(--ink-muted); text-decoration: none;">View Post &nearr;</a>
+                            <a href="/?p={post_id}" target="_blank" style="font-size: 12px; color: var(--ink-muted); text-decoration: none;">View Post</a>
                         </div>
                     </td>
-                    <td style="width: 140px; font-size: 12px; color: var(--ink-muted); vertical-align: top;">
+                    <td style="width: 140px; font-size: 12.5px; color: var(--ink-muted); vertical-align: top;">
                         <div>{date}</div>
                     </td>
                 </tr>"##,
@@ -117,9 +107,9 @@ pub fn render_comments_view(
 
     let filter_active = |f: &str| {
         if active_filter == f {
-            "btn-primary"
+            "current"
         } else {
-            "btn-secondary"
+            ""
         }
     };
 
@@ -128,20 +118,30 @@ pub fn render_comments_view(
         <div class="page-header">
             <div>
                 <h1 class="page-title">Comments</h1>
-                <p class="page-subtitle">Moderate, approve, reply inline, and manage reader conversations</p>
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <a href="/d-admin/edit-comments" class="btn {all_cls}" style="padding: 6px 12px; font-size: 12px;">All ({all_count})</a>
-                <a href="/d-admin/edit-comments?comment_status=pending" class="btn {pend_cls}" style="padding: 6px 12px; font-size: 12px;">Pending ({pend_count})</a>
-                <a href="/d-admin/edit-comments?comment_status=approved" class="btn {app_cls}" style="padding: 6px 12px; font-size: 12px;">Approved ({app_count})</a>
-                <a href="/d-admin/edit-comments?comment_status=spam" class="btn {spam_cls}" style="padding: 6px 12px; font-size: 12px;">Spam ({spam_count})</a>
-                <a href="/d-admin/edit-comments?comment_status=trash" class="btn {trash_cls}" style="padding: 6px 12px; font-size: 12px;">Trash ({trash_count})</a>
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <select id="bulkCommentActionSelect" class="form-input" style="width: auto; padding: 6px 10px; font-size: 13px;">
+        <div class="wp-subsubsub-row">
+            <div class="subsubsub">
+                <a href="/d-admin/edit-comments" class="{all_cls}">All <span class="count">({all_count})</span></a>
+                <span class="subsubsub-sep">|</span>
+                <a href="/d-admin/edit-comments?comment_status=pending" class="{pend_cls}">Pending <span class="count">({pend_count})</span></a>
+                <span class="subsubsub-sep">|</span>
+                <a href="/d-admin/edit-comments?comment_status=approved" class="{app_cls}">Approved <span class="count">({app_count})</span></a>
+                <span class="subsubsub-sep">|</span>
+                <a href="/d-admin/edit-comments?comment_status=spam" class="{spam_cls}">Spam <span class="count">({spam_count})</span></a>
+                <span class="subsubsub-sep">|</span>
+                <a href="/d-admin/edit-comments?comment_status=trash" class="{trash_cls}">Trash <span class="count">({trash_count})</span></a>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="search" id="commentSearchInput" class="form-input" placeholder="Search comments..." style="width: 200px; padding: 4px 10px; min-height: 30px; font-size: 13px;" oninput="filterCommentRows(this.value)" />
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 13px;" onclick="filterCommentRows(document.getElementById('commentSearchInput').value)">Search Comments</button>
+            </div>
+        </div>
+
+        <div class="tablenav top">
+            <div class="tablenav-actions">
+                <select id="bulkCommentActionSelect" class="form-input" style="width: auto; padding: 4px 28px 4px 8px; min-height: 30px; font-size: 13px;">
                     <option value="">Bulk actions</option>
                     <option value="approve">Approve</option>
                     <option value="unapprove">Unapprove</option>
@@ -149,11 +149,13 @@ pub fn render_comments_view(
                     <option value="trash">Move to Trash</option>
                     <option value="delete">Delete Permanently</option>
                 </select>
-                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;" onclick="applyBulkCommentActions()">Apply</button>
-                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; color: var(--oxide);" onclick="purgeCommentsByStatus('empty_spam')">Empty Spam</button>
-                <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; color: var(--oxide);" onclick="purgeCommentsByStatus('empty_trash')">Empty Trash</button>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 13px;" onclick="applyBulkCommentActions()">Apply</button>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 12.5px;" onclick="purgeCommentsByStatus('empty_spam')">Empty Spam</button>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 12.5px;" onclick="purgeCommentsByStatus('empty_trash')">Empty Trash</button>
             </div>
-            <input type="text" id="commentSearchInput" class="form-input" placeholder="Search comments..." style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterCommentRows(this.value)" />
+            <div class="tablenav-pages">
+                <span>{all_count} items</span>
+            </div>
         </div>
 
         <div class="day-table-wrapper">
@@ -170,6 +172,15 @@ pub fn render_comments_view(
                 <tbody>
                     {rows_html}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <th style="width: 32px;"><input type="checkbox" onchange="toggleSelectAllComments(this)" /></th>
+                        <th style="width: 220px;">Author</th>
+                        <th>Comment</th>
+                        <th style="width: 200px;">In Response To</th>
+                        <th style="width: 140px;">Submitted On</th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 

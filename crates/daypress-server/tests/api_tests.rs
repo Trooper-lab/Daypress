@@ -243,7 +243,7 @@ async fn test_public_ssr_rendering() {
     assert!(home_html.contains("Howdy, <span class=\"display-name\">admin</span>"));
     assert!(home_html.contains("Customize"));
     assert!(home_html.contains("Dashboard"));
-    assert!(home_html.contains("--ab-bg: #1a1c1f"));
+    assert!(home_html.contains("--ab-bg: #1d2327"));
     assert!(home_html.contains("--ab-oxide: #e8744a"));
     assert!(home_html.contains("dayAbOpenQuickSearch"));
     assert!(home_html.contains("dayAbPurgeCache"));

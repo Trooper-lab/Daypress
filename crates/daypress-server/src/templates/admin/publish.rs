@@ -316,7 +316,7 @@ pub fn render_publish_view(
                     </span>
                     {live_url_badge}
                 </div>
-                <h1 style="font:460 30px/1.15 var(--font-serif);color:var(--ink);margin:0 0 8px;">Publish from Local Daypress to the Global Edge</h1>
+                <h1 style="font:600 24px/1.25 var(--font-sans);color:var(--ink);margin:0 0 8px;">Publish from Local Daypress to the Global Edge</h1>
                 <p style="font-size:14px;color:var(--ink-muted);margin:0;line-height:1.5;">
                     Pre-renders every page, post, archive, XML sitemap, RSS feed, <code>_redirects</code>, and client-side search index from your local SQLite database into a zero-server Static Edge bundle—pushed directly to <strong>Cloudflare Pages</strong>, <strong>Netlify</strong>, or a portable <strong>.ZIP</strong> archive.
                 </p>

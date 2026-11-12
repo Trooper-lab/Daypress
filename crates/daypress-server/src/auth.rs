@@ -955,12 +955,24 @@ fn origin_matches_request_host(
 #[allow(dead_code)]
 struct _UnusedDeriveTarget;
 static USER_UI_PREFS: std::sync::LazyLock<
-    std::sync::Mutex<std::collections::HashMap<i64, (bool, String)>>,
+    std::sync::Mutex<std::collections::HashMap<i64, (bool, String, String)>>,
 > = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
 
-pub fn sync_user_ui_prefs(user_id: i64, show_admin_bar_front: bool, avatar_url: &str) {
+pub fn sync_user_ui_prefs(
+    user_id: i64,
+    show_admin_bar_front: bool,
+    avatar_url: &str,
+    admin_color: &str,
+) {
     if let Ok(mut map) = USER_UI_PREFS.lock() {
-        map.insert(user_id, (show_admin_bar_front, avatar_url.to_string()));
+        map.insert(
+            user_id,
+            (
+                show_admin_bar_front,
+                avatar_url.to_string(),
+                admin_color.to_string(),
+            ),
+        );
     }
 }
 
@@ -968,7 +980,7 @@ pub fn should_show_admin_bar_front(user_id: i64) -> bool {
     USER_UI_PREFS
         .lock()
         .ok()
-        .and_then(|m| m.get(&user_id).map(|(show, _)| *show))
+        .and_then(|m| m.get(&user_id).map(|(show, _, _)| *show))
         .unwrap_or(true)
 }
 
@@ -976,8 +988,17 @@ pub fn cached_user_avatar_url(user_id: i64) -> Option<String> {
     USER_UI_PREFS
         .lock()
         .ok()
-        .and_then(|m| m.get(&user_id).map(|(_, av)| av.clone()))
+        .and_then(|m| m.get(&user_id).map(|(_, av, _)| av.clone()))
         .filter(|s| !s.trim().is_empty())
+}
+
+pub fn cached_user_admin_color(user_id: i64) -> String {
+    USER_UI_PREFS
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&user_id).map(|(_, _, col)| col.clone()))
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "default".to_string())
 }
 
 #[derive(Debug, Clone)]

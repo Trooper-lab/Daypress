@@ -33,8 +33,8 @@ pub const CSS_TOPBAR: &str = r#"
     gap: 8px;
     color: var(--day-ink);
     text-decoration: none;
-    font: 450 18.5px/1 var(--day-font-serif, "Newsreader", Georgia, serif);
-    letter-spacing: -0.02em;
+    font: 600 15px/1 var(--day-font-ui, sans-serif);
+    letter-spacing: -0.01em;
     padding: 2px 4px;
 }
 

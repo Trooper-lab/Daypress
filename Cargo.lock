@@ -630,7 +630,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "daypress-ast"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "regex",
  "serde",
@@ -640,7 +640,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-server"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "ab_glyph",
  "argon2",
@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-transpiler"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "clap",
  "regex",
@@ -687,7 +687,7 @@ dependencies = [
 
 [[package]]
 name = "daypress-wasm"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "hex",
  "serde",
@@ -973,7 +973,7 @@ dependencies = [
 
 [[package]]
 name = "generated_slugify"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "regex",
  "serde",

@@ -95,8 +95,7 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                     header.style.paddingBottom = collapsed ? '0' : '';
                 }
                 if (toggleBtn) {
-                    toggleBtn.textContent = collapsed ? '▸' : '▾';
-                    toggleBtn.title = collapsed ? 'Expand Meta Box' : 'Collapse Meta Box';
+                    toggleBtn.title = collapsed ? 'Toggle panel: Expand' : 'Toggle panel: Collapse';
                     toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
                 }
                 card.classList.toggle('dp-metabox-collapsed', !!collapsed);
@@ -114,7 +113,24 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                 const idx = cards.indexOf(card);
                 if (idx === -1) return;
                 const targetIdx = idx + dir;
-                if (targetIdx < 0 || targetIdx >= cards.length) return;
+                if (targetIdx < 0) {
+                    const mainCol = document.getElementById('editorMainColumn');
+                    const sideCol = document.getElementById('editorSideColumn');
+                    if (parent === sideCol && mainCol) {
+                        mainCol.appendChild(card);
+                        saveEditorScreenState();
+                    }
+                    return;
+                }
+                if (targetIdx >= cards.length) {
+                    const mainCol = document.getElementById('editorMainColumn');
+                    const sideCol = document.getElementById('editorSideColumn');
+                    if (parent === mainCol && sideCol) {
+                        sideCol.insertBefore(card, sideCol.firstElementChild);
+                        saveEditorScreenState();
+                    }
+                    return;
+                }
                 const targetCard = cards[targetIdx];
                 if (dir < 0) parent.insertBefore(card, targetCard);
                 else parent.insertBefore(targetCard, card);
@@ -137,6 +153,22 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
             }
 
             function initEditorMetaBoxesAndScreenOptions() {
+                ['editorMainColumn', 'editorSideColumn'].forEach(colId => {
+                    const col = document.getElementById(colId);
+                    if (!col) return;
+                    col.addEventListener('dragover', (ev) => {
+                        if (!draggedMetaBoxEl) return;
+                        ev.preventDefault();
+                    });
+                    col.addEventListener('drop', (ev) => {
+                        if (!draggedMetaBoxEl) return;
+                        if (ev.target.closest('.day-card[data-metabox-id]')) return;
+                        ev.preventDefault();
+                        col.appendChild(draggedMetaBoxEl);
+                        saveEditorScreenState();
+                    });
+                });
+
                 document.querySelectorAll('.day-card[data-metabox-id]').forEach((card, idx) => {
                     if (!card.id) card.id = 'dp-metabox-' + card.getAttribute('data-metabox-id') + '-' + idx;
                     const header = card.querySelector('.day-card-header');
@@ -144,9 +176,9 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                     header.style.display = 'flex';
                     header.style.justifyContent = 'space-between';
                     header.style.alignItems = 'center';
-                    header.style.cursor = 'grab';
-                    header.addEventListener('dblclick', (ev) => {
-                        if (ev.target.closest('button, a, input, select')) return;
+                    header.style.cursor = 'move';
+                    header.addEventListener('click', (ev) => {
+                        if (ev.target.closest('button, a, input, select, label')) return;
                         const isCol = card.classList.contains('dp-metabox-collapsed');
                         setMetaBoxCardCollapsed(card, !isCol, true);
                     });
@@ -179,17 +211,20 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                     });
 
                     const controls = document.createElement('div');
-                    controls.className = 'dp-metabox-controls';
-                    controls.style.cssText = 'display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding-left: 8px;';
+                    controls.className = 'handle-actions dp-metabox-controls';
                     controls.innerHTML = `
-                        <button type="button" class="btn btn-secondary dp-metabox-up-btn" style="padding: 1px 5px; font-size: 11px; height: 22px; min-width: 22px;" title="Move Meta Box Up">↑</button>
-                        <button type="button" class="btn btn-secondary dp-metabox-down-btn" style="padding: 1px 5px; font-size: 11px; height: 22px; min-width: 22px;" title="Move Meta Box Down">↓</button>
-                        <button type="button" class="btn btn-secondary dp-metabox-col-btn" style="padding: 1px 5px; font-size: 11px; height: 22px; min-width: 22px;" title="Move Between Main &amp; Sidebar Column">⇄</button>
-                        <button type="button" class="btn btn-secondary dp-metabox-collapse-btn" aria-expanded="true" style="padding: 1px 6px; font-size: 11px; height: 22px; min-width: 22px;" title="Collapse / Expand Meta Box">▾</button>
+                        <button type="button" class="handle-order-higher dp-metabox-up-btn" aria-label="Move up" title="Move up">
+                            <span class="order-higher-indicator" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6.5 14.4L12 8.9l5.5 5.5-1.1 1.1L12 11.1l-4.4 4.4z"/></svg></span>
+                        </button>
+                        <button type="button" class="handle-order-lower dp-metabox-down-btn" aria-label="Move down" title="Move down">
+                            <span class="order-lower-indicator" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17.5 9.6L12 15.1 6.5 9.6l1.1-1.1L12 12.9l4.4-4.4z"/></svg></span>
+                        </button>
+                        <button type="button" class="handlediv dp-metabox-collapse-btn" aria-expanded="true" aria-label="Toggle panel" title="Toggle panel">
+                            <span class="toggle-indicator" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M5 13l5-5 5 5H5z"/></svg></span>
+                        </button>
                     `;
                     controls.querySelector('.dp-metabox-up-btn').addEventListener('click', (e) => { e.stopPropagation(); moveEditorMetaBox(card, -1); });
                     controls.querySelector('.dp-metabox-down-btn').addEventListener('click', (e) => { e.stopPropagation(); moveEditorMetaBox(card, 1); });
-                    controls.querySelector('.dp-metabox-col-btn').addEventListener('click', (e) => { e.stopPropagation(); moveEditorMetaBoxColumn(card); });
                     controls.querySelector('.dp-metabox-collapse-btn').addEventListener('click', (e) => {
                         e.stopPropagation();
                         const isCol = card.classList.contains('dp-metabox-collapsed');

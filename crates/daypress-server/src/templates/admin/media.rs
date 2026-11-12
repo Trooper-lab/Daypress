@@ -185,24 +185,28 @@ pub fn render_media_view(
         <div class="page-header">
             <div>
                 <h1 class="page-title">Media Library &amp; DAM</h1>
-                <p class="page-subtitle">Organize virtual folders, focal-point crops, sanitized SVGs, and dual WebP/AVIF variants</p>
+                <button type="button" class="page-title-action" onclick="document.getElementById('mediaUploadInput').click()">+ Upload Files</button>
+                <input type="file" id="mediaUploadInput" multiple accept="image/*,video/*,application/pdf,.svg" style="display: none;" onchange="uploadFiles(this.files)" />
             </div>
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span class="badge badge-published" style="padding: 6px 12px; font-size: 12px;">{media_count} Assets</span>
+        </div>
+
+        <div class="wp-filter">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <div style="display: inline-flex; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden;">
-                    <button type="button" id="btnMediaViewGrid" class="btn btn-primary" style="border-radius: 0; border: none; padding: 6px 11px; font-size: 12px;" onclick="setMediaViewMode('grid')" title="Grid View">&#8862; Grid</button>
-                    <button type="button" id="btnMediaViewList" class="btn btn-secondary" style="border-radius: 0; border: none; padding: 6px 11px; font-size: 12px;" onclick="setMediaViewMode('list')" title="List View">&#9776; List</button>
+                    <button type="button" id="btnMediaViewGrid" class="btn btn-primary" style="border-radius: 0; border: none; padding: 5px 10px; min-height: 28px; font-size: 12px;" onclick="setMediaViewMode('grid')" title="Grid View">&#8862; Grid</button>
+                    <button type="button" id="btnMediaViewList" class="btn btn-secondary" style="border-radius: 0; border: none; padding: 5px 10px; min-height: 28px; font-size: 12px;" onclick="setMediaViewMode('list')" title="List View">&#9776; List</button>
                 </div>
-                <button type="button" class="btn btn-secondary" id="btnMediaBulkSelect" onclick="toggleMediaBulkSelectMode()">&#9745; Bulk Select</button>
-                <button type="button" class="btn btn-secondary" id="scanUnusedBtn" onclick="scanUnusedMedia()" style="display: inline-flex; align-items: center; gap: 6px;">
+                <button type="button" class="btn btn-secondary" id="btnMediaBulkSelect" style="padding: 5px 10px; min-height: 28px; font-size: 12.5px;" onclick="toggleMediaBulkSelectMode()">&#9745; Bulk Select</button>
+                <button type="button" class="btn btn-secondary" id="scanUnusedBtn" onclick="scanUnusedMedia()" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; min-height: 28px; font-size: 12.5px;">
                     <span>Scan Unused Assets</span>
                     <span id="unusedAssetsBadge" style="display: none; background: var(--oxide); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px;">0</span>
                 </button>
-                <button type="button" class="btn btn-secondary" id="bulkDeleteUnusedBtn" onclick="bulkDeleteUnusedMedia()" style="display: none; color: var(--oxide); border-color: var(--oxide);">
+                <button type="button" class="btn btn-secondary" id="bulkDeleteUnusedBtn" onclick="bulkDeleteUnusedMedia()" style="display: none; color: var(--oxide); border-color: var(--oxide); padding: 5px 10px; min-height: 28px; font-size: 12.5px;">
                     Bulk Delete Unused
                 </button>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaUploadInput').click()">+ Upload Files</button>
-                <input type="file" id="mediaUploadInput" multiple accept="image/*,video/*,application/pdf,.svg" style="display: none;" onchange="uploadFiles(this.files)" />
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="badge badge-published" style="padding: 4px 10px; font-size: 12px;">{media_count} Assets</span>
             </div>
         </div>
 

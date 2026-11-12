@@ -6,6 +6,7 @@ use crate::templates::utils::escape_html;
 
 // 8. Users View (/d-admin/users)
 pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListItem]) -> String {
+    let user_count = users.len();
     let mut rows_html = String::new();
     for u in users {
         let initial = u
@@ -16,9 +17,9 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
             .to_uppercase()
             .to_string();
         let is_admin = u.id == 1;
-        let delete_btn = if !is_admin {
+        let delete_action = if !is_admin {
             format!(
-                r#"<button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px; color: var(--oxide); border-color: var(--oxide);" onclick="deleteUser({}, '{}')">Delete</button>"#,
+                r#" | <button type="button" class="row-action-btn trash-action" onclick="deleteUser({}, '{}')">Delete</button>"#,
                 u.id,
                 escape_html(&u.username)
             )
@@ -28,26 +29,24 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
 
         rows_html.push_str(&format!(
             r##"
-            <tr id="user-row-{id}">
-                <td>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <img src="{avatar_url}" alt="{username}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--rule);" />
-                        <div class="user-avatar" style="display: none; width: 32px; height: 32px; font-size: 12px; font-weight: 700;">{initial}</div>
+            <tr id="user-row-{id}" data-user-row>
+                <td style="width: 32px;"><input type="checkbox" name="users[]" value="{id}" /></td>
+                <td class="table-title-cell">
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <img src="{avatar_url}" alt="{username}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" style="width: 32px; height: 32px; border-radius: 3px; object-fit: cover; border: 1px solid var(--rule);" />
+                        <div class="user-avatar" style="display: none; width: 32px; height: 32px; font-size: 12px; font-weight: 700; align-items: center; justify-content: center; background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: 3px;">{initial}</div>
                         <div>
-                            <strong style="color: var(--ink);">{username}</strong>
-                            <div style="font-size: 12px; color: var(--ink-muted);">{display_name}</div>
+                            <strong><a href="/d-admin/user-edit?user_id={id}">{username}</a></strong>
+                            <div class="table-actions">
+                                <a href="/d-admin/user-edit?user_id={id}">Edit</a>{delete_action}
+                            </div>
                         </div>
                     </div>
                 </td>
-                <td>{email}</td>
+                <td>{display_name}</td>
+                <td><a href="mailto:{email}" style="color: var(--oxide); text-decoration: none;">{email}</a></td>
                 <td><span class="badge badge-published">{role}</span></td>
                 <td><strong>{post_count}</strong></td>
-                <td>
-                    <div style="display: flex; gap: 6px;">
-                        <a href="/d-admin/user-edit?user_id={id}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit User</a>
-                        {delete_btn}
-                    </div>
-                </td>
             </tr>
             "##,
             id = u.id,
@@ -58,7 +57,7 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
             email = escape_html(&u.email),
             role = escape_html(&u.role),
             post_count = u.post_count,
-            delete_btn = delete_btn,
+            delete_action = delete_action,
         ));
     }
 
@@ -67,32 +66,66 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
         <div class="page-header">
             <div>
                 <h1 class="page-title">Users</h1>
-                <p class="page-subtitle">Manage user accounts and author permissions</p>
+                <a href="/d-admin/user-new" class="page-title-action">+ Add New User</a>
+                <a href="/d-admin/profile" class="page-title-action">Edit My Profile</a>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <a href="/d-admin/user-new" class="btn btn-primary">+ Add New User</a>
-                <a href="/d-admin/profile" class="btn btn-secondary">Edit My Profile</a>
+        </div>
+
+        <div class="wp-subsubsub-row">
+            <div class="subsubsub">
+                <a href="/d-admin/users" class="current">All <span class="count">({user_count})</span></a>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="search" id="userSearchInput" placeholder="Search users..." class="form-input" style="width: 190px; padding: 4px 10px; min-height: 30px; font-size: 13px;" oninput="filterUserRows(this.value)" />
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; min-height: 30px; font-size: 13px;" onclick="filterUserRows(document.getElementById('userSearchInput').value)">Search Users</button>
+            </div>
+        </div>
+
+        <div class="tablenav top">
+            <div class="tablenav-actions">
+                <span style="font-size: 13px; color: var(--ink-muted);">Manage accounts, roles, and author permissions</span>
+            </div>
+            <div class="tablenav-pages">
+                <span>{user_count} items</span>
             </div>
         </div>
 
         <div class="day-table-wrapper">
-            <table class="day-table">
+            <table class="day-table" id="usersTable">
                 <thead>
                     <tr>
-                        <th>User</th>
+                        <th style="width: 32px;"><input type="checkbox" onchange="document.querySelectorAll('#usersTable input[name=&quot;users[]&quot;]').forEach(cb => cb.checked = this.checked)" /></th>
+                        <th>Username</th>
+                        <th>Name</th>
                         <th>Email</th>
                         <th>Role</th>
                         <th>Posts</th>
-                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {rows_html}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <th style="width: 32px;"><input type="checkbox" onchange="document.querySelectorAll('#usersTable input[name=&quot;users[]&quot;]').forEach(cb => cb.checked = this.checked)" /></th>
+                        <th>Username</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Posts</th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
         <script>
+            function filterUserRows(q) {{
+                const filter = (q || '').toLowerCase();
+                document.querySelectorAll('#usersTable tbody tr[data-user-row]').forEach(r => {{
+                    r.style.display = (!filter || r.textContent.toLowerCase().includes(filter)) ? '' : 'none';
+                }});
+            }}
+
             async function deleteUser(id, username) {{
                 if (!confirm('Are you sure you want to delete user ' + username + '? Any authored posts will be reassigned to the administrator.')) {{
                     return;
@@ -117,7 +150,8 @@ pub fn render_users_view(settings: &DaypressSettingsResponse, users: &[UserListI
             }}
         </script>
         "##,
-        rows_html = rows_html
+        rows_html = rows_html,
+        user_count = user_count
     );
 
     render_admin_shell("users", "Users", &body, settings)
@@ -129,73 +163,62 @@ pub fn render_user_new_view(settings: &DaypressSettingsResponse) -> String {
         <div class="page-header">
             <div>
                 <h1 class="page-title">Add New User</h1>
-                <p class="page-subtitle">Create a brand new user and assign permissions</p>
-            </div>
-            <div>
-                <a href="/d-admin/users" class="btn btn-secondary">&larr; Back to Users</a>
+                <a href="/d-admin/users" class="page-title-action">&larr; All Users</a>
+                <p class="page-subtitle">Create a brand new user and add them to this site.</p>
             </div>
         </div>
 
-        <div class="day-card" style="max-width: 720px;">
-            <div class="day-card-body">
-                <form id="newUserForm" method="post" action="/d-admin/user-new" onsubmit="handleCreateUser(event)" style="display: flex; flex-direction: column; gap: 16px;">
-                    <div>
-                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">
-                            Username <span style="color: var(--oxide);">*</span>
-                        </label>
-                        <input type="text" id="newUsername" name="username" required class="input" style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
-                    </div>
+        <form id="newUserForm" method="post" action="/d-admin/user-new" onsubmit="handleCreateUser(event)">
+            <table class="form-table" role="presentation">
+                <tbody>
+                    <tr>
+                        <th scope="row"><label for="newUsername">Username <span class="description">(required)</span></label></th>
+                        <td><input type="text" id="newUsername" name="username" required class="form-input regular-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="newEmail">Email <span class="description">(required)</span></label></th>
+                        <td><input type="email" id="newEmail" name="email" required class="form-input regular-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="newFirstName">First Name</label></th>
+                        <td><input type="text" id="newFirstName" name="first_name" class="form-input regular-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="newLastName">Last Name</label></th>
+                        <td><input type="text" id="newLastName" name="last_name" class="form-input regular-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="newUrl">Website</label></th>
+                        <td><input type="text" id="newUrl" name="url" placeholder="https://" class="form-input regular-text" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="newPassword">Password <span class="description">(required)</span></label></th>
+                        <td>
+                            <div style="display: flex; gap: 8px; max-width: 380px;">
+                                <input type="text" id="newPassword" name="password" required minlength="8" value="" class="form-input" style="flex: 1; font-family: var(--font-mono);" />
+                                <button type="button" class="btn btn-secondary" onclick="generateRandomPass()">Generate password</button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="newRole">Role</label></th>
+                        <td>
+                            <select id="newRole" name="role" class="form-select regular-text">
+                                <option value="Administrator">Administrator</option>
+                                <option value="Editor">Editor</option>
+                                <option value="Author">Author</option>
+                                <option value="Contributor">Contributor</option>
+                                <option value="Subscriber" selected>Subscriber</option>
+                            </select>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
-                    <div>
-                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">
-                            Email Address <span style="color: var(--oxide);">*</span>
-                        </label>
-                        <input type="email" id="newEmail" name="email" required class="input" style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 400px;">
-                        <div>
-                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">First Name</label>
-                            <input type="text" id="newFirstName" name="first_name" class="input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
-                        </div>
-                        <div>
-                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Last Name</label>
-                            <input type="text" id="newLastName" name="last_name" class="input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Website</label>
-                        <input type="text" id="newUrl" name="url" placeholder="https://" class="input" style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px;" />
-                    </div>
-
-                    <div>
-                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">
-                            Password <span style="color: var(--oxide);">*</span>
-                        </label>
-                        <div style="display: flex; gap: 8px; max-width: 400px;">
-                            <input type="text" id="newPassword" name="password" required minlength="8" value="" class="input" style="flex: 1; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px; font-family: monospace;" />
-                            <button type="button" class="btn btn-secondary" onclick="generateRandomPass()">Generate</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Role</label>
-                        <select id="newRole" name="role" style="padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px; width: 100%; max-width: 400px; background: white;">
-                            <option value="Administrator">Administrator</option>
-                            <option value="Editor">Editor</option>
-                            <option value="Author">Author</option>
-                            <option value="Contributor">Contributor</option>
-                            <option value="Subscriber" selected>Subscriber</option>
-                        </select>
-                    </div>
-
-                    <div style="margin-top: 12px;">
-                        <button type="submit" class="btn btn-primary" id="btnCreateUser">Add New User</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+            <p class="submit" style="margin-top: 12px;">
+                <button type="submit" class="btn btn-primary" id="btnCreateUser">Add New User</button>
+            </p>
+        </form>
 
         <script>
             function generateRandomPass() {
@@ -319,47 +342,47 @@ pub fn render_profile_view(
         (
             "default",
             "Daylight & Ink",
-            ["#1a1c1f", "#f3eee4", "#a8401b", "#2a3bd0"],
+            ["#1d2327", "#f0f0f1", "#b8431b", "#2271b1"],
         ),
         (
             "linen",
             "Warm Linen",
-            ["#e8e1d3", "#f8f5ee", "#b05a3c", "#4a6b9c"],
+            ["#e5e0d5", "#f5f2eb", "#b04a25", "#226096"],
         ),
         (
             "studio",
             "Studio Slate",
-            ["#252830", "#4f5bd5", "#6c8ebf", "#f4f5f8"],
+            ["#1e1f26", "#f1f2f6", "#3858e9", "#7b86ff"],
         ),
         (
             "nordic",
             "Nordic Mist",
-            ["#283642", "#3b6e8c", "#7ba6bc", "#f1f5f7"],
+            ["#1e2d3b", "#f0f4f7", "#2b6cb0", "#66b3e6"],
         ),
         (
             "espresso",
             "Roast & Oat",
-            ["#362e29", "#473d36", "#9e5f3b", "#d49b72"],
+            ["#362f2b", "#f3efe9", "#9e5a34", "#286090"],
         ),
         (
             "sage",
             "Botanical Sage",
-            ["#26332c", "#33443b", "#48755b", "#8fb399"],
+            ["#233029", "#f1f4f1", "#3b7052", "#25637c"],
         ),
         (
             "dusk",
             "Velvet Dusk",
-            ["#2e2938", "#3d364a", "#7b5285", "#c98a78"],
+            ["#282433", "#f3f1f6", "#7b4685", "#3558a8"],
         ),
         (
             "harbor",
             "Harbor Fog",
-            ["#2f3e44", "#457371", "#8ab0ab", "#f2f5f4"],
+            ["#26353a", "#f0f4f4", "#356e6b", "#226382"],
         ),
         (
             "terracotta",
             "Sunlit Clay",
-            ["#422b27", "#563833", "#b8563d", "#e08b63"],
+            ["#3b2521", "#f6f0ea", "#b84a32", "#245e9c"],
         ),
     ];
     let active_color =
@@ -794,7 +817,7 @@ pub fn render_profile_view(
             <div style="background: var(--paper-raised); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: 8px; width: 100%; max-width: 760px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.28);">
                 <div style="padding: 16px 20px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
                     <div>
-                        <h3 style="margin: 0; font-size: 18px; font-family: var(--font-serif);">Select Profile Picture</h3>
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 600; font-family: var(--font-sans);">Select Profile Picture</h3>
                         <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--ink-muted);">Choose an existing image from the Media Library or upload a new photo</p>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">

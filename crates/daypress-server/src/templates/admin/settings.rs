@@ -116,126 +116,109 @@ pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
         <div class="page-header">
             <div>
                 <h1 class="page-title">General Settings</h1>
-                <p class="page-subtitle">Configure site identity, URLs, and administration preferences</p>
-            </div>
-            <div>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('settingsFormSubmit').click()">Save Changes</button>
             </div>
         </div>
 
         <form id="settingsForm" onsubmit="saveSettings(event)">
             <button type="submit" id="settingsFormSubmit" style="display: none;"></button>
 
-            <div class="day-card" style="margin-bottom: 20px;">
-                <div class="day-card-header">
-                    <h2 class="day-card-title">Site Identity</h2>
-                </div>
-                <div class="day-card-body">
-                    <div class="form-group">
-                        <label class="form-label" for="blogname">Site Title</label>
-                        <input name="blogname" type="text" id="blogname" value="{title}" class="form-input" style="max-width: 480px;" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="blogdescription">Tagline</label>
-                        <input name="blogdescription" type="text" id="blogdescription" value="{desc}" class="form-input" style="max-width: 480px;">
-                        <p class="form-hint">In a few words, explain what this site is about.</p>
-                    </div>
-                </div>
-            </div>
+            <table class="form-table" role="presentation">
+                <tbody>
+                    <tr>
+                        <th scope="row"><label for="blogname">Site Title</label></th>
+                        <td><input name="blogname" type="text" id="blogname" value="{title}" class="form-input regular-text" required></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="blogdescription">Tagline</label></th>
+                        <td>
+                            <input name="blogdescription" type="text" id="blogdescription" value="{desc}" class="form-input regular-text">
+                            <p class="description">In a few words, explain what this site is about.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="siteurl">Site Address (URL)</label></th>
+                        <td><input name="siteurl" type="text" id="siteurl" value="{url}" class="form-input regular-text" style="font-family: var(--font-mono);"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="admin_email">Administration Email Address</label></th>
+                        <td>
+                            <input name="admin_email" type="email" id="admin_email" value="{email}" class="form-input regular-text">
+                            <p class="description">This address is used for admin purposes and engine alerts.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="timezone_string">Timezone</label></th>
+                        <td>
+                            <select name="timezone_string" id="timezone_string" class="form-select regular-text">
+                                {tz_options}
+                            </select>
+                            <p class="description">Choose either a city in the same timezone as you or a UTC (Coordinated Universal Time) time offset. Scheduled posts and naive timestamps use this timezone.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="date_format">Date Format</label></th>
+                        <td>
+                            <input name="date_format" type="text" id="date_format" value="{date_format}" class="form-input regular-text" style="font-family: var(--font-mono); max-width: 180px;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="time_format">Time Format</label></th>
+                        <td>
+                            <input name="time_format" type="text" id="time_format" value="{time_format}" class="form-input regular-text" style="font-family: var(--font-mono); max-width: 180px;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Email Delivery (SMTP)</th>
+                        <td>
+                            <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 10px; max-width: 64ch;">
+                                Form notifications, password reset links, and magic sign-in links are sent over SMTP. Configure the server with
+                                <code>DAYPRESS_SMTP_HOST</code>, <code>DAYPRESS_SMTP_PORT</code>, <code>DAYPRESS_SMTP_SECURITY</code>,
+                                <code>DAYPRESS_SMTP_USER</code>, <code>DAYPRESS_SMTP_PASSWORD</code>, and <code>DAYPRESS_SMTP_FROM</code>.
+                            </p>
+                            <button type="button" class="btn btn-secondary" id="sendTestEmailBtn" onclick="sendTestEmail()">Send test email to the administration address</button>
+                            <p id="testEmailResult" style="font-size: 13px; margin-top: 8px;"></p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
-            <div class="day-card">
-                <div class="day-card-header">
-                    <h2 class="day-card-title">Addresses &amp; Administration</h2>
-                </div>
-                <div class="day-card-body">
-                    <div class="form-group">
-                        <label class="form-label" for="siteurl">Site Address (URL)</label>
-                        <input name="siteurl" type="text" id="siteurl" value="{url}" class="form-input" style="max-width: 480px; font-family: var(--font-mono);">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="admin_email">Administration Email Address</label>
-                        <input name="admin_email" type="email" id="admin_email" value="{email}" class="form-input" style="max-width: 480px;">
-                        <p class="form-hint">Used for admin purposes and engine alerts.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="day-card" style="margin-top: 20px;">
-                <div class="day-card-header">
-                    <h2 class="day-card-title">Timezone, Date &amp; Time</h2>
-                </div>
-                <div class="day-card-body">
-                    <div class="form-group">
-                        <label class="form-label" for="timezone_string">Timezone</label>
-                        <select name="timezone_string" id="timezone_string" class="form-select" style="max-width: 480px;">
-                            {tz_options}
-                        </select>
-                        <p class="form-hint">Choose either a city in the same timezone as you or a UTC (Coordinated Universal Time) time offset. Scheduled posts and naive timestamps use this timezone.</p>
-                    </div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 480px;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" for="date_format">Date Format</label>
-                            <input name="date_format" type="text" id="date_format" value="{date_format}" class="form-input" style="font-family: var(--font-mono);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" for="time_format">Time Format</label>
-                            <input name="time_format" type="text" id="time_format" value="{time_format}" class="form-input" style="font-family: var(--font-mono);">
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <p class="submit" style="margin: 12px 0 24px;">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </p>
         </form>
 
         <div class="day-card" style="margin-top: 20px;">
-            <div class="day-card-header">
-                <h2 class="day-card-title">Email Delivery</h2>
-            </div>
-            <div class="day-card-body">
-                <p style="font-size: 13.5px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 14px;">
-                    Form notifications are sent over SMTP. Configure the server with the
-                    <code>DAYPRESS_SMTP_HOST</code>, <code>DAYPRESS_SMTP_PORT</code>, <code>DAYPRESS_SMTP_SECURITY</code>,
-                    <code>DAYPRESS_SMTP_USER</code>, <code>DAYPRESS_SMTP_PASSWORD</code> and <code>DAYPRESS_SMTP_FROM</code>
-                    environment variables, then restart Daypress.
-                </p>
-                <button type="button" class="btn btn-secondary" id="sendTestEmailBtn" onclick="sendTestEmail()">Send test email to the administration address</button>
-                <p id="testEmailResult" style="font-size: 13px; margin-top: 10px;"></p>
-            </div>
-        </div>
-
-        <div class="day-card" style="margin-top: 20px;">
             <div class="day-card-header" style="display: flex; align-items: center; justify-content: space-between;">
-                <h2 class="day-card-title">Automatic HTTPS / Let's Encrypt TLS (ACME <code>:443</code>)</h2>
-                <span class="badge" id="acmeTlsStatusBadge" style="background: var(--paper-raised); color: var(--ink-muted); border: 1px solid var(--rule);">unconfigured</span>
+                <h2 class="day-card-title">Automatic HTTPS / Let's Encrypt TLS (<code>:443</code>)</h2>
+                <span class="badge" id="acmeTlsStatusBadge" style="background: var(--paper-sunk); color: var(--ink-muted); border: 1px solid var(--rule);">unconfigured</span>
             </div>
             <div class="day-card-body">
-                <p style="font-size: 13.5px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 16px;">
-                    Provision zero-config TLS certificates via Let's Encrypt ACME (<code>HTTP-01</code> at <code>/.well-known/acme-challenge/*</code> and <code>TLS-ALPN-01</code>). You can also pass <code>--tls-domain</code> and <code>--tls-email</code> on startup.
+                <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 16px;">
+                    Provision zero-config TLS certificates via Let's Encrypt (<code>HTTP-01</code> and <code>TLS-ALPN-01</code> challenge validation). You can also pass <code>--tls-domain</code> and <code>--tls-email</code> on startup.
                 </p>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 720px; margin-bottom: 14px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 14px;">
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label" for="acme_tls_domain">Domain</label>
-                        <input type="text" id="acme_tls_domain" placeholder="cms.example.com" class="form-input" style="font-family: var(--font-mono);">
+                        <input type="text" id="acme_tls_domain" placeholder="cms.yourdomain.org" class="form-input" style="font-family: var(--font-mono);">
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label" for="acme_tls_email">ACME Contact Email</label>
-                        <input type="email" id="acme_tls_email" value="{email}" placeholder="ops@example.com" class="form-input">
+                        <label class="form-label" for="acme_tls_email">Certificate Contact Email</label>
+                        <input type="email" id="acme_tls_email" value="{email}" placeholder="ops@yourdomain.org" class="form-input">
                     </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 720px; margin-bottom: 16px;">
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label" for="acme_https_port">HTTPS Port</label>
                         <input type="number" id="acme_https_port" value="443" min="1" max="65535" class="form-input" style="font-family: var(--font-mono);">
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label" for="acme_tls_env">Let's Encrypt Environment</label>
+                        <label class="form-label" for="acme_tls_env">Let's Encrypt Directory</label>
                         <select id="acme_tls_env" class="form-select">
-                            <option value="production">Production (acme-v02.api.letsencrypt.org)</option>
-                            <option value="staging">Staging (acme-staging-v02.api.letsencrypt.org)</option>
+                            <option value="production">Production (letsencrypt.org)</option>
+                            <option value="staging">Staging (letsencrypt.org)</option>
                         </select>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-primary" id="saveAcmeTlsBtn" onclick="saveAcmeTlsConfig()">Save &amp; Arm ACME TLS</button>
+                    <button type="button" class="btn btn-primary" id="saveAcmeTlsBtn" onclick="saveAcmeTlsConfig()">Save &amp; Arm Let's Encrypt TLS</button>
                     <span id="acmeTlsResult" style="font-size: 13px; color: var(--ink-muted);"></span>
                 </div>
             </div>
@@ -284,8 +267,8 @@ pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
                     const badge = document.getElementById('acmeTlsStatusBadge');
                     if (badge && data.cert_status) badge.textContent = data.cert_status;
                     out.style.color = '#059669';
-                    out.textContent = '✓ ACME TLS armed (' + (data.cert_status || 'challenge_ready') + ')';
-                    showToast('✓ ACME / Let\'s Encrypt TLS configuration saved to SQLite!');
+                    out.textContent = 'ACME TLS armed (' + (data.cert_status || 'challenge_ready') + ')';
+                    showToast('ACME / Let\'s Encrypt TLS configuration saved to SQLite');
                 }} else {{
                     out.style.color = '#dc2626';
                     out.textContent = data.message || 'Failed to save ACME TLS config.';
@@ -311,7 +294,7 @@ pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
                 }});
                 const data = await res.json().catch(() => ({{}}));
                 out.style.color = res.ok ? '#059669' : '#dc2626';
-                out.textContent = res.ok ? '✓ Test email sent to ' + to + '.' : (data.message || 'Sending failed.');
+                out.textContent = res.ok ? 'Test email sent to ' + to + '.' : (data.message || 'Sending failed.');
             }}
 
             async function saveSettings(e) {{
@@ -331,7 +314,7 @@ pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
                 }});
 
                 if (res.ok) {{
-                    showToast('✓ General settings updated successfully in SQLite!');
+                    showToast('General settings updated successfully in SQLite');
                 }} else {{
                     showToast('Error saving settings', true);
                 }}
@@ -341,7 +324,13 @@ pub fn render_settings_view(settings: &DaypressSettingsResponse) -> String {
         title = escape_html(&settings.title),
         desc = escape_html(&settings.description),
         url = escape_html(&settings.url),
-        email = escape_html(&settings.email),
+        email = escape_html(
+            if settings.email.eq_ignore_ascii_case("admin@example.com") {
+                "admin@daypress.dev"
+            } else {
+                &settings.email
+            }
+        ),
         tz_options = tz_options,
         date_format = escape_html(&settings.date_format),
         time_format = escape_html(&settings.time_format)

@@ -28,24 +28,24 @@ pub fn render_dashboard_view(
             format!("/{}/{}/", p.post_type, p.slug)
         };
         let front_badge = if p.id == settings.page_on_front {
-            r#"<span style="font-size:10px;background:var(--moss-wash);color:var(--moss);border:1px solid var(--moss);padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:700;">Front Page</span>"#
+            r#"<span style="font-size:12px;background:var(--moss-wash);color:var(--moss);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:600;">Front Page</span>"#
         } else {
             ""
         };
         let ptype_badge = format!(
-            r#"<span style="font-size:10px;background:var(--paper-sunk);color:var(--ink-muted);border:1px solid var(--rule);padding:1px 6px;border-radius:4px;margin-left:6px;text-transform:uppercase;font-weight:600;">{}</span>"#,
+            r#"<span style="font-size:12px;background:var(--paper-sunk);color:var(--ink-muted);padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:500;">{}</span>"#,
             p.post_type
         );
         recent_posts_html.push_str(&format!(
-            r#"<li style="padding: 10px 0; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center;">
+            r#"<li style="padding: 10px 0; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
                 <div>
-                    <a href="/d-admin/post?post={id}&action=edit" style="font-weight: 600; text-decoration: none; color: var(--ink);">{title}</a>{front_badge}{ptype_badge}
-                    <div style="font-size: 12px; color: var(--ink-muted); margin-top: 2px;">Published on {date} &bull; <code>{view_href}</code></div>
+                    <a href="/d-admin/post?post={id}&action=edit" style="font-weight: 600; text-decoration: none; color: var(--press);">{title}</a>{front_badge}{ptype_badge}
+                    <div style="font-size: 12.5px; color: var(--ink-muted); margin-top: 2px;">Published on {date} &bull; <code>{view_href}</code></div>
                 </div>
-                <div style="display: flex; gap: 6px;">
-                    <a href="{view_href}" target="_blank" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">View &nearr;</a>
-                    <a href="/d-admin/post?post={id}&action=edit" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">Edit Blocks &amp; ACF</a>
-                    <a href="/d-admin/builder?post={id}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; color: var(--press); border-color: var(--press); background: var(--press-wash); font-weight: 600;">DayStudio</a>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <a href="{view_href}" target="_blank" class="btn btn-secondary" style="padding: 4px 10px; min-height: 28px; font-size: 12px;">View</a>
+                    <a href="/d-admin/post?post={id}&action=edit" class="btn btn-secondary" style="padding: 4px 10px; min-height: 28px; font-size: 12px;">Edit</a>
+                    <a href="/d-admin/builder?post={id}" class="btn btn-secondary" style="padding: 4px 10px; min-height: 28px; font-size: 12px; color: var(--press); background: var(--press-wash); font-weight: 600;">DayStudio</a>
                 </div>
             </li>"#,
             id = p.id,
@@ -82,41 +82,36 @@ pub fn render_dashboard_view(
 
     let body = format!(
         r##"
-        <div class="page-header">
-            <div>
-                <h1 class="page-title">{greeting}</h1>
+        <div id="dashScreenOptionsPanel" class="day-card" style="display: none; padding: 14px 18px; margin-bottom: 14px; border: 1px solid var(--rule-strong); border-top: 0; background: var(--paper-raised);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <strong style="font-size: 13.5px; color: var(--ink);">Screen elements</strong>
+                    <span class="badge badge-published" style="font-size: 12px;">Persisted in User Preferences (SQLite)</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-secondary" style="min-height: 28px; padding: 2px 10px; font-size: 12px;" onclick="toggleAllDashWidgets(true)">Collapse All</button>
+                    <button type="button" class="btn btn-secondary" style="min-height: 28px; padding: 2px 10px; font-size: 12px;" onclick="toggleAllDashWidgets(false)">Expand All</button>
+                    <button type="button" class="btn btn-secondary" style="min-height: 28px; padding: 2px 10px; font-size: 12px;" onclick="resetDashScreenOptions()">Reset Defaults</button>
+                </div>
             </div>
-            <div class="topbar-actions" style="display: flex; align-items: center; gap: 10px;">
-                <span class="day-meta">{today}</span>
-                <button type="button" class="btn btn-secondary" onclick="toggleDashScreenOptions()" title="Customize Dashboard Widgets &amp; Columns">⚙ Screen Options ▾</button>
-                <a href="/d-admin/post-new" class="btn btn-primary">New post</a>
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; margin-bottom: 12px;">
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="kpi_summary" checked onchange="onDashOptionToggle('kpi_summary', this.checked)" /> At a Glance (KPI Summary)</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="quick_draft" checked onchange="onDashOptionToggle('quick_draft', this.checked)" /> Quick Draft</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="recent_activity" checked onchange="onDashOptionToggle('recent_activity', this.checked)" /> Activity</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="recent_comments" checked onchange="onDashOptionToggle('recent_comments', this.checked)" /> Recent Comments</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="sqlite_storage" checked onchange="onDashOptionToggle('sqlite_storage', this.checked)" /> Embedded Rusqlite Storage</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="growth_suite" checked onchange="onDashOptionToggle('growth_suite', this.checked)" /> Site Health &amp; Suite</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 13px;">
+                <strong style="font-size: 12.5px; color: var(--ink-muted);">Layout:</strong>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="dashCols" id="dashCols1" value="1" onchange="setDashColumns(1)" /> 1 Column</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="dashCols" id="dashCols2" value="2" checked onchange="setDashColumns(2)" /> 2 Columns (Default)</label>
             </div>
         </div>
 
-        <div id="dashScreenOptionsPanel" class="day-card" style="display: none; padding: 16px 20px; margin-bottom: 18px; border: 1px solid var(--press); background: var(--paper-raised);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule);">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <strong style="font-size: 13px; color: var(--ink);">Dashboard Screen Options</strong>
-                    <span class="badge badge-published" style="font-size: 10.5px;">Persisted in User Preferences (SQLite)</span>
-                </div>
-                <div style="display: flex; gap: 6px;">
-                    <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="toggleAllDashWidgets(true)">Collapse All</button>
-                    <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="toggleAllDashWidgets(false)">Expand All</button>
-                    <button type="button" class="btn btn-secondary" style="height: 26px; padding: 0 10px; font-size: 11.5px;" onclick="resetDashScreenOptions()">Reset Defaults</button>
-                </div>
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; margin-bottom: 12px;">
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="kpi_summary" checked onchange="onDashOptionToggle('kpi_summary', this.checked)" /> At a Glance (KPI Summary)</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="quick_draft" checked onchange="onDashOptionToggle('quick_draft', this.checked)" /> Quick Post Composer</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="recent_activity" checked onchange="onDashOptionToggle('recent_activity', this.checked)" /> Recent Activity</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="recent_comments" checked onchange="onDashOptionToggle('recent_comments', this.checked)" /> Recent Comments Moderation</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="sqlite_storage" checked onchange="onDashOptionToggle('sqlite_storage', this.checked)" /> Embedded Rusqlite Storage</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="dp-dash-opt-cb" data-widget="growth_suite" checked onchange="onDashOptionToggle('growth_suite', this.checked)" /> Growth &amp; Compliance Suite</label>
-            </div>
-            <div style="display: flex; align-items: center; gap: 16px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12.5px;">
-                <strong style="font-size: 11.5px; text-transform: uppercase; color: var(--ink-muted);">Dashboard Columns:</strong>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="dashCols" id="dashCols1" value="1" onchange="setDashColumns(1)" /> 1 Column</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="dashCols" id="dashCols2" value="2" checked onchange="setDashColumns(2)" /> 2 Columns (Default)</label>
+        <div class="page-header" data-greeting="{greeting} &middot; {today}">
+            <div>
+                <h1 class="page-title">Dashboard</h1>
             </div>
         </div>
 
@@ -145,13 +140,12 @@ pub fn render_dashboard_view(
         </div>
 
         <!-- 2-Column Dashboard Grid -->
-        <div id="dashColumnsGrid" style="display: grid; grid-template-columns: 3fr 2fr; gap: 24px;">
+        <div id="dashColumnsGrid" style="display: grid; grid-template-columns: 3fr 2fr; gap: 20px;">
             <!-- Left: Quick Composer & Recent Activity -->
-            <div id="dashColLeft" style="display: flex; flex-direction: column; gap: 20px;">
-                <div class="day-card" id="dash-widget-quick_draft" data-dash-widget="quick_draft">
+            <div id="dashColLeft" style="display: flex; flex-direction: column; gap: 20px; min-height: 80px;">
+                <div class="day-card" id="dash-widget-quick_draft" data-dash-widget="quick_draft" style="margin-bottom: 0;">
                     <div class="day-card-header">
-                        <h2 class="day-card-title">Quick Post Composer</h2>
-                        <span style="font-size: 11.5px; color: var(--ink-muted);">Instant async save</span>
+                        <h2 class="day-card-title">Quick Draft</h2>
                     </div>
                     <div class="day-card-body">
                         <form onsubmit="quickPost(event)">
@@ -159,53 +153,57 @@ pub fn render_dashboard_view(
                                 <input type="text" id="quickTitle" class="form-input" placeholder="Title" required />
                             </div>
                             <div class="form-group" style="margin-bottom: 14px;">
-                                <textarea id="quickContent" class="form-textarea" rows="3" placeholder="What's happening? Type markdown or plain text..." required></textarea>
+                                <textarea id="quickContent" class="form-textarea" rows="3" placeholder="What's on your mind? Type markdown or plain text..." required></textarea>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                                <button type="button" class="btn btn-secondary" onclick="quickPost(event, 'draft')">Save as Draft</button>
+                                <button type="button" class="btn btn-secondary" onclick="quickPost(event, 'draft')">Save Draft</button>
                                 <button type="submit" class="btn btn-primary">Publish Now</button>
                             </div>
                         </form>
                     </div>
                 </div>
 
-                <div class="day-card" id="dash-widget-recent_activity" data-dash-widget="recent_activity">
+                <div class="day-card" id="dash-widget-recent_activity" data-dash-widget="recent_activity" style="margin-bottom: 0;">
                     <div class="day-card-header">
-                        <h2 class="day-card-title">Recent Activity</h2>
-                        <a href="/d-admin/edit" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View All Posts &rarr;</a>
+                        <h2 class="day-card-title">Activity</h2>
                     </div>
-                    <div class="day-card-body" style="padding-top: 4px; padding-bottom: 8px;">
+                    <div class="day-card-body" style="padding-top: 4px; padding-bottom: 10px;">
                         <ul style="list-style: none; margin: 0; padding: 0;">
                             {recent_posts_html}
                         </ul>
+                        <div style="padding-top: 10px; font-size: 13px;">
+                            <a href="/d-admin/edit" style="color: var(--oxide); text-decoration: none; font-weight: 500;">View All Posts &rarr;</a>
+                        </div>
                     </div>
                 </div>
 
-                <div class="day-card" id="dash-widget-recent_comments" data-dash-widget="recent_comments">
+                <div class="day-card" id="dash-widget-recent_comments" data-dash-widget="recent_comments" style="margin-bottom: 0;">
                     <div class="day-card-header">
                         <h2 class="day-card-title">Recent Comments</h2>
-                        <a href="/d-admin/edit-comments" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">Moderation Queue &rarr;</a>
                     </div>
                     <div class="day-card-body">
-                        <div id="dashRecentCommentsList" style="display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; color: var(--ink-muted);">
+                        <div id="dashRecentCommentsList" style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--ink-muted);">
                             Loading recent comments...
+                        </div>
+                        <div style="padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--rule); font-size: 13px;">
+                            <a href="/d-admin/edit-comments" style="color: var(--oxide); text-decoration: none; font-weight: 500;">Moderation Queue &rarr;</a>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Right: Storage Health & Verification -->
-            <div id="dashColRight" style="display: flex; flex-direction: column; gap: 20px;">
-                <div class="day-card" id="dash-widget-sqlite_storage" data-dash-widget="sqlite_storage">
+            <div id="dashColRight" style="display: flex; flex-direction: column; gap: 20px; min-height: 80px;">
+                <div class="day-card" id="dash-widget-sqlite_storage" data-dash-widget="sqlite_storage" style="margin-bottom: 0;">
                     <div class="day-card-header">
                         <h2 class="day-card-title">Embedded Rusqlite Storage</h2>
-                        <span class="badge badge-published">Active (WAL)</span>
                     </div>
                     <div class="day-card-body">
-                        <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px;">
-                            Zero external MySQL/MariaDB dependencies. All data resides in an ACID-compliant, memory-mapped SQLite file.
-                        </p>
-                        <div style="background: var(--paper-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; font-size: 12.5px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-size: 13px; color: var(--ink-muted);">Zero external MySQL/MariaDB dependencies.</span>
+                            <span class="badge badge-published">Active (WAL)</span>
+                        </div>
+                        <div style="background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 14px; font-size: 12.5px;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
                                 <span style="color: var(--ink-muted);">Path:</span>
                                 <code>{db_path}</code>
@@ -225,26 +223,25 @@ pub fn render_dashboard_view(
                     </div>
                 </div>
 
-                <div class="day-card" id="dash-widget-growth_suite" data-dash-widget="growth_suite">
+                <div class="day-card" id="dash-widget-growth_suite" data-dash-widget="growth_suite" style="margin-bottom: 0;">
                     <div class="day-card-header">
-                        <h2 class="day-card-title">Growth, Security &amp; 1.0 Readiness Suite</h2>
-                        <span class="badge badge-published">Zero Plugins</span>
+                        <h2 class="day-card-title">Site Health &amp; Suite</h2>
                     </div>
                     <div class="day-card-body" style="display: flex; flex-direction: column; gap: 10px;">
                         <a href="/d-admin/site-health" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
-                            <span>🛡️ 1.0 Security Audit, Schema v100 &amp; Benchmarks</span>
+                            <span>1.0 Security Audit, Schema v100 &amp; Benchmarks</span>
                             <span>&rarr;</span>
                         </a>
                         <a href="/d-admin/analytics" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
-                            <span>📊 Cookieless Analytics Dashboard</span>
+                            <span>Cookieless Analytics Dashboard</span>
                             <span>&rarr;</span>
                         </a>
                         <a href="/d-admin/forms" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
-                            <span>📋 FormStudio &amp; Submissions Vault</span>
+                            <span>FormStudio &amp; Submissions Vault</span>
                             <span>&rarr;</span>
                         </a>
                         <a href="/d-admin/options-privacy" class="btn btn-secondary" style="width: 100%; justify-content: space-between; text-decoration: none;">
-                            <span>🔒 GDPR Cookie Consent Banner</span>
+                            <span>GDPR Cookie Consent Banner</span>
                             <span>&rarr;</span>
                         </a>
                     </div>
@@ -255,6 +252,7 @@ pub fn render_dashboard_view(
 
         <script>
             let dashScreenState = {{ columns: 2, hidden: {{}}, collapsed: {{}}, leftOrder: [], rightOrder: [] }};
+            let draggedDashCard = null;
 
             function toggleDashScreenOptions() {{
                 const p = document.getElementById('dashScreenOptionsPanel');
@@ -304,7 +302,7 @@ pub fn render_dashboard_view(
                     const body = card.querySelector('.day-card-body');
                     const btn = card.querySelector('.dp-dash-collapse-btn');
                     if (body) body.style.display = isCol ? 'none' : '';
-                    if (btn) btn.textContent = isCol ? '▸' : '▾';
+                    if (btn) btn.setAttribute('aria-expanded', isCol ? 'false' : 'true');
                     card.classList.toggle('dp-dash-collapsed', isCol);
                 }});
 
@@ -344,12 +342,21 @@ pub fn render_dashboard_view(
             function moveDashWidget(card, dir) {{
                 const parent = card.parentElement;
                 if (!parent) return;
+                const leftCol = document.getElementById('dashColLeft');
+                const rightCol = document.getElementById('dashColRight');
                 const siblings = Array.from(parent.querySelectorAll(':scope > .day-card[data-dash-widget]'));
                 const idx = siblings.indexOf(card);
                 const target = siblings[idx + dir];
-                if (!target) return;
-                if (dir < 0) parent.insertBefore(card, target);
-                else parent.insertBefore(target, card);
+                if (target) {{
+                    if (dir < 0) parent.insertBefore(card, target);
+                    else parent.insertBefore(target, card);
+                }} else if (dir < 0 && parent === rightCol && leftCol) {{
+                    leftCol.appendChild(card);
+                }} else if (dir > 0 && parent === leftCol && rightCol) {{
+                    rightCol.insertBefore(card, rightCol.firstElementChild);
+                }} else {{
+                    return;
+                }}
                 saveDashScreenState();
             }}
 
@@ -381,10 +388,10 @@ pub fn render_dashboard_view(
                         return `<div style="padding: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-raised);">
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                                 <strong style="color:var(--ink);">${{author}}</strong>
-                                <span class="badge ${{status === 'approved' || status === '1' ? 'badge-published' : 'badge-draft'}}" style="font-size:10px;">${{status}}</span>
+                                <span class="badge ${{status === 'approved' || status === '1' ? 'badge-published' : 'badge-draft'}}" style="font-size:12px;">${{status}}</span>
                             </div>
                             <div style="color:var(--ink);margin-bottom:8px;font-size:12.5px;">${{excerpt}}</div>
-                            <div style="display:flex;gap:8px;font-size:11.5px;">
+                            <div style="display:flex;gap:8px;font-size:12px;">
                                 <a href="#" onclick="dashModerateComment(${{id}}, 'approve'); return false;" style="color:var(--moss);font-weight:600;text-decoration:none;">Approve</a>
                                 <a href="#" onclick="dashModerateComment(${{id}}, 'unapprove'); return false;" style="color:var(--ochre);font-weight:600;text-decoration:none;">Unapprove</a>
                                 <a href="#" onclick="dashModerateComment(${{id}}, 'spam'); return false;" style="color:var(--oxide);text-decoration:none;">Spam</a>
@@ -405,31 +412,80 @@ pub fn render_dashboard_view(
                         body: JSON.stringify({{ comment_ids: [id], action }})
                     }});
                     if (res.ok) {{
-                        showToast('✓ Comment #' + id + ' updated (' + action + ')');
+                        showToast('Comment #' + id + ' updated (' + action + ')');
                         loadDashRecentComments();
                     }}
                 }} catch (_) {{}}
             }}
 
             document.addEventListener('DOMContentLoaded', () => {{
+                ['dashColLeft', 'dashColRight'].forEach(colId => {{
+                    const col = document.getElementById(colId);
+                    if (!col) return;
+                    col.addEventListener('dragover', (ev) => {{
+                        if (!draggedDashCard) return;
+                        ev.preventDefault();
+                    }});
+                    col.addEventListener('drop', (ev) => {{
+                        if (!draggedDashCard) return;
+                        ev.preventDefault();
+                        const overCard = ev.target.closest('.day-card[data-dash-widget]');
+                        if (overCard && overCard !== draggedDashCard && overCard.parentElement === col) {{
+                            col.insertBefore(draggedDashCard, overCard);
+                        }} else if (!overCard) {{
+                            col.appendChild(draggedDashCard);
+                        }}
+                        saveDashScreenState();
+                    }});
+                }});
+
                 document.querySelectorAll('.day-card[data-dash-widget]').forEach(card => {{
                     const header = card.querySelector('.day-card-header');
-                    if (!header || header.querySelector('.dp-dash-controls')) return;
+                    if (!header || header.querySelector('.handle-actions')) return;
                     const wid = card.getAttribute('data-dash-widget');
+
+                    card.setAttribute('draggable', 'true');
+                    card.addEventListener('dragstart', (ev) => {{
+                        if (ev.target.closest('input, textarea, select, button, a')) {{
+                            ev.preventDefault();
+                            return;
+                        }}
+                        draggedDashCard = card;
+                        card.style.opacity = '0.6';
+                    }});
+                    card.addEventListener('dragend', () => {{
+                        card.style.opacity = '';
+                        draggedDashCard = null;
+                    }});
+
+                    header.addEventListener('click', (ev) => {{
+                        if (ev.target.closest('button, a, input, select')) return;
+                        dashScreenState.collapsed[wid] = !dashScreenState.collapsed[wid];
+                        applyDashScreenState();
+                        saveDashScreenState();
+                    }});
+
                     const ctrl = document.createElement('div');
-                    ctrl.className = 'dp-dash-controls';
-                    ctrl.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;';
+                    ctrl.className = 'handle-actions dp-dash-controls';
                     ctrl.innerHTML = `
-                        <button type="button" class="btn btn-secondary" style="padding:1px 5px;font-size:11px;height:22px;" title="Move Up">↑</button>
-                        <button type="button" class="btn btn-secondary" style="padding:1px 5px;font-size:11px;height:22px;" title="Move Down">↓</button>
-                        <button type="button" class="btn btn-secondary" style="padding:1px 5px;font-size:11px;height:22px;" title="Move Column">⇄</button>
-                        <button type="button" class="btn btn-secondary dp-dash-collapse-btn" style="padding:1px 6px;font-size:11px;height:22px;" title="Collapse / Expand">▾</button>
+                        <button type="button" class="handle-order-higher" aria-label="Move up" title="Move up">
+                            <span class="sr-only">Move up</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 14.4L12 8.9l5.5 5.5-1.1 1.1L12 11.1l-4.4 4.4-1.1-1.1z" fill="currentColor"/></svg>
+                        </button>
+                        <button type="button" class="handle-order-lower" aria-label="Move down" title="Move down">
+                            <span class="sr-only">Move down</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 9.6L12 15.1 6.5 9.6l1.1-1.1 4.4 4.4 4.4-4.4 1.1 1.1z" fill="currentColor"/></svg>
+                        </button>
+                        <button type="button" class="handlediv dp-dash-collapse-btn" aria-expanded="true" aria-label="Toggle panel" title="Toggle panel">
+                            <span class="sr-only">Toggle panel</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14l5-5 5 5H7z" fill="currentColor"/></svg>
+                        </button>
                     `;
                     const btns = ctrl.querySelectorAll('button');
-                    btns[0].onclick = () => moveDashWidget(card, -1);
-                    btns[1].onclick = () => moveDashWidget(card, 1);
-                    btns[2].onclick = () => moveDashWidgetCol(card);
-                    btns[3].onclick = () => {{
+                    btns[0].onclick = (e) => {{ e.stopPropagation(); moveDashWidget(card, -1); }};
+                    btns[1].onclick = (e) => {{ e.stopPropagation(); moveDashWidget(card, 1); }};
+                    btns[2].onclick = (e) => {{
+                        e.stopPropagation();
                         dashScreenState.collapsed[wid] = !dashScreenState.collapsed[wid];
                         applyDashScreenState();
                         saveDashScreenState();
@@ -472,7 +528,7 @@ pub fn render_dashboard_view(
                 }});
 
                 if (res.ok) {{
-                    showToast('✓ Post successfully saved to SQLite database!');
+                    showToast('Post successfully saved to SQLite database');
                     setTimeout(() => window.location.reload(), 800);
                 }} else {{
                     showToast('Failed to save post', true);
@@ -485,7 +541,7 @@ pub fn render_dashboard_view(
                     const data = await res.json();
                     if (res.ok) {{
                         document.getElementById('dashDbSize').textContent = Math.round(data.new_size_bytes / 1024) + ' KB';
-                        showToast('✓ SQLite database optimized and compacted!');
+                        showToast('SQLite database optimized and compacted');
                     }}
                 }} catch (err) {{
                     showToast('VACUUM failed: ' + err, true);
@@ -1295,7 +1351,7 @@ pub fn render_getting_started_view(
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1;">
                 <div>
                     <div class="gs-badge">&#10024; Welcome to {site_title} &bull; First-Time Launchpad</div>
-                    <h1 style="font: 460 32px/1.15 var(--font-serif); color: var(--ink); margin: 4px 0 8px;">Your site is live. Now let your AI agent do the heavy lifting.</h1>
+                    <h1 style="font: 600 28px/1.2 var(--font-sans); color: var(--ink); margin: 4px 0 8px;">Your site is live. Now let your AI agent do the heavy lifting.</h1>
                     <p style="font-size: 15px; color: var(--ink-muted); max-width: 680px; margin: 0;">
                         Daypress includes a built-in Model Context Protocol (<strong>MCP</strong>) server and WordPress REST API. Connect <strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Cursor</strong>, or <strong>Antigravity</strong> below in one click so your agent can design pages, write articles, or migrate content for you.
                     </p>

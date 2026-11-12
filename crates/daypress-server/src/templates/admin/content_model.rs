@@ -90,7 +90,7 @@ pub fn render_content_model_page(
         };
         presets_html.push_str(&format!(
             r#"<div class="cm-preset-card">
-                <div style="font-family:var(--font-serif);font-weight:500;font-size:16px;color:var(--ink);margin-bottom:4px;">{plabel}</div>
+                <div style="font-family:var(--font-sans);font-weight:600;font-size:15px;color:var(--ink);margin-bottom:4px;">{plabel}</div>
                 <div style="font-size:12.5px;color:var(--ink-muted);line-height:1.45;margin-bottom:12px;">{pdesc}</div>
                 {action_btn}
             </div>"#

@@ -195,4 +195,4 @@ Daypress is a drop-in WordPress CMS replacement written in native Rust (`Axum` +
      - **`0.8.0`** (`Shipped`): Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs
      - **`0.8.5`** (`Shipped`): WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit)
      - **`0.9.0`** (`Shipped`): Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates
-     - **`1.0`** (`Shipped — v1.0.1`): First Stable Release (Automated Security & Readiness Audit, Reproducible Benchmarks, Stable Schema v100 / Wasm ABI v1 & 70%+ WP Migration Sign-off)
+     - **`1.0`** (`Shipped — v1.0.2`): First Stable Release (Automated Security & Readiness Audit, Reproducible Benchmarks, Stable Schema v100 / Wasm ABI v1 & 70%+ WP Migration Sign-off)
