@@ -218,10 +218,9 @@ pub(crate) async fn deliver_form_submission_notifications(
     if !wh_url.is_empty() {
         webhook_status = "failed".to_string();
         if Database::validate_webhook_target_url_ssrf(wh_url).is_ok() {
-            if let Ok(client) = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(6))
-                .build()
-            {
+            if let Ok(client) = crate::adapters::database::webhooks_shortlinks::build_ssrf_safe_http_client(
+                std::time::Duration::from_secs(6),
+            ) {
                 let wh_payload = serde_json::json!({
                     "event": "form.submitted",
                     "form_id": form_rec.id,
@@ -295,13 +294,8 @@ pub(crate) async fn submit_form_handler(
         .unwrap_or("")
         .to_string();
 
-    let ip = parts
-        .headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(str::trim)
-        .unwrap_or("127.0.0.1");
+    let peer_ip = crate::auth::client_ip(&parts);
+    let ip = crate::auth::resolve_client_ip(&parts.headers, peer_ip.as_deref());
 
     let ua = parts
         .headers
@@ -435,7 +429,7 @@ pub(crate) async fn submit_form_handler(
                     }
                 }
 
-                let dir = Path::new("uploads")
+                let dir = Path::new("data")
                     .join("form-submissions")
                     .join(id.to_string());
                 let _ = fs::create_dir_all(&dir);
@@ -513,6 +507,7 @@ pub(crate) async fn submit_form_handler(
             };
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5))
+                .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             let resp = client
@@ -673,7 +668,7 @@ pub(crate) async fn submit_form_handler(
     );
 
     if let Some(form_rec) = form_rec_opt {
-        let (email_status, email_error, webhook_status) = deliver_form_submission_notifications(
+        let (email_status, _email_error, webhook_status) = deliver_form_submission_notifications(
             &db,
             &form_rec,
             entry_id,
@@ -688,11 +683,9 @@ pub(crate) async fn submit_form_handler(
             "entry_id": entry_id,
             "status": "unread",
             "email_status": email_status,
-            "email_error": email_error,
             "webhook_status": webhook_status,
             "message": form_settings.success_message,
-            "redirect_url": form_settings.redirect_url,
-            "webhook_url": form_settings.webhook_url
+            "redirect_url": form_settings.redirect_url
         })));
     }
 

@@ -28,18 +28,7 @@ pub struct SubscribersQueryParams {
 }
 
 fn resolve_safe_client_ip(client_ip: Option<&str>, headers: &HeaderMap) -> String {
-    if let Some(ip) = client_ip.filter(|s| !s.is_empty() && *s != "127.0.0.1" && *s != "::1") {
-        return ip.to_string();
-    }
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .or(client_ip)
-        .unwrap_or("127.0.0.1")
-        .to_string()
+    crate::auth::resolve_client_ip(headers, client_ip)
 }
 
 pub(crate) async fn subscribe_newsletter_v1_handler(

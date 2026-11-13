@@ -319,6 +319,50 @@ pub fn is_trusted_proxy_request(
     }
 }
 
+/// Resolves the client IP safely from the socket address and trusted proxy headers.
+/// `X-Forwarded-For` is only consulted when the TCP peer is a trusted proxy (loopback or listed
+/// in `DAYPRESS_TRUSTED_PROXY_IPS`), or in local `oneshot` test harnesses without `ConnectInfo`
+/// when `Host` is absent or loopback (`localhost` / `127.0.0.1` / `[::1]`).
+pub fn resolve_client_ip(headers: &header::HeaderMap, peer_ip: Option<&str>) -> String {
+    let parsed_peer = peer_ip
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .and_then(|s| s.parse::<std::net::IpAddr>().ok());
+
+    let trust_forwarded = match parsed_peer {
+        Some(ip) => ip_is_trusted_proxy(ip),
+        None => match headers.get(header::HOST).and_then(|v| v.to_str().ok()) {
+            None => true,
+            Some(h) => {
+                let h_trim = h.trim();
+                is_loopback_host_header(h_trim)
+                    || h_trim.eq_ignore_ascii_case("localhost")
+                    || h_trim
+                        .strip_prefix("localhost:")
+                        .is_some_and(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+            }
+        },
+    };
+
+    if trust_forwarded {
+        if let Some(xff) = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return xff.to_string();
+        }
+    }
+
+    peer_ip
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("127.0.0.1")
+        .to_string()
+}
+
 /// Extractor indicating whether the request arrived from a trusted reverse proxy; never rejects.
 #[derive(Debug, Clone, Copy)]
 pub struct TrustedProxy(pub bool);

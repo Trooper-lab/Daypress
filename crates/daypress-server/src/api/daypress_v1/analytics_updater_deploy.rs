@@ -37,13 +37,8 @@ pub(crate) async fn record_analytics_event_handler(
     let payload: AnalyticsEventRequest = serde_json::from_slice(&bytes)
         .map_err(|e| AppError::BadRequest(format!("Invalid analytics payload: {}", e)))?;
 
-    let client_ip = parts
-        .headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(str::trim)
-        .unwrap_or("127.0.0.1");
+    let peer_ip = crate::auth::client_ip(&parts);
+    let client_ip = crate::auth::resolve_client_ip(&parts.headers, peer_ip.as_deref());
 
     let ua = parts
         .headers

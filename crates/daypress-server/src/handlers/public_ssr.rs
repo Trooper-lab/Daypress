@@ -1092,12 +1092,11 @@ pub(crate) fn hydrate_post_terms(
 /// Computes the daily-salted cookieless `visitor_hash` (`SHA-256(ip + user_agent + YYYY-MM-DD)`)
 /// matching `record_analytics_event_handler` so A/B test exposures and conversions correlate 1:1.
 pub fn compute_visitor_hash_from_headers(headers: &HeaderMap) -> String {
-    let client_ip = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(str::trim)
-        .unwrap_or("127.0.0.1");
+    compute_visitor_hash_with_peer(headers, None)
+}
+
+pub fn compute_visitor_hash_with_peer(headers: &HeaderMap, peer_ip: Option<&str>) -> String {
+    let client_ip = crate::auth::resolve_client_ip(headers, peer_ip);
     let ua = headers
         .get(header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
@@ -1343,15 +1342,11 @@ pub async fn handle_newsletter_unsubscribe(
 /// `X-Robots-Tag: nofollow, sponsored` header.
 pub async fn handle_shortlink_redirect(
     State(db): State<Database>,
+    crate::auth::ClientIp(peer_ip): crate::auth::ClientIp,
     AxPath(slug): AxPath<String>,
     headers: HeaderMap,
 ) -> Response {
-    let client_ip = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(str::trim)
-        .unwrap_or("127.0.0.1");
+    let client_ip = crate::auth::resolve_client_ip(&headers, peer_ip.as_deref());
     let ua = headers
         .get(header::USER_AGENT)
         .and_then(|v| v.to_str().ok())

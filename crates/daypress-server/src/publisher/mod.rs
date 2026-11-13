@@ -1271,12 +1271,25 @@ fn collect_dir_files(
     };
     for entry in entries.flatten() {
         let path = entry.path();
+        if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case("form-submissions"))
+        {
+            continue;
+        }
         if path.is_dir() {
             collect_dir_files(root, &path, prefix, out, count);
         } else if path.is_file() {
             if let Ok(rel) = path.strip_prefix(root) {
+                let rel_str = rel.to_string_lossy().replace('\\', "/");
+                if rel_str
+                    .split('/')
+                    .any(|seg| seg.eq_ignore_ascii_case("form-submissions"))
+                {
+                    continue;
+                }
                 if let Ok(bytes) = std::fs::read(&path) {
-                    let rel_str = rel.to_string_lossy().replace('\\', "/");
                     out.insert(format!("{prefix}/{rel_str}"), bytes);
                     *count += 1;
                 }

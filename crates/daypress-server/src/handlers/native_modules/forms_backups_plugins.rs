@@ -293,12 +293,26 @@ pub async fn handle_admin_form_attachment_download(
         return (StatusCode::NOT_FOUND, "Attachment not found on entry").into_response();
     };
     let path = std::path::Path::new(&att.stored_path);
-    if !path.starts_with("uploads/form-submissions") || !path.exists() {
+    let has_traversal = path.components().any(|c| {
+        matches!(
+            c,
+            std::path::Component::ParentDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_)
+        )
+    });
+    let in_allowed_dir = path.starts_with("data/form-submissions")
+        || path.starts_with("uploads/form-submissions");
+    if has_traversal || !in_allowed_dir || !path.exists() {
         return (StatusCode::NOT_FOUND, "Attachment file missing from disk").into_response();
     }
     match std::fs::read(path) {
         Ok(bytes) => {
             let mut headers = HeaderMap::new();
+            headers.insert(
+                header::X_CONTENT_TYPE_OPTIONS,
+                header::HeaderValue::from_static("nosniff"),
+            );
             if let Ok(ct) = att.mime_type.parse() {
                 headers.insert(header::CONTENT_TYPE, ct);
             } else {

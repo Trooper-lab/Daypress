@@ -1667,3 +1667,280 @@ async fn step4_csrf_origin_null_untrusted_proxy_secure_cookies_and_hot_cache() {
         "HTTPS subscriber cookie must include Secure: {sub_cookie}"
     );
 }
+
+#[tokio::test]
+async fn step5_private_form_uploads_isolated_from_public_media_and_static_export() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+
+    let form_id = db
+        .save_form_record(&daypress_server::models::CreateFormRequest {
+            id: None,
+            title: "KYC Verification Form".to_string(),
+            fields: Vec::new(),
+            settings: daypress_server::models::FormSettings {
+                recipient_email: "security@example.com".to_string(),
+                webhook_url: "https://hooks.example.com/secret-token-xyz".to_string(),
+                ..Default::default()
+            },
+        })
+        .unwrap();
+
+    // 1. Submit multipart form upload with private PDF attachment
+    let boundary = "----DAYPRESS_BOUNDARY_STEP5";
+    let multipart_body = format!(
+        "--{b}\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nAlice\r\n\
+         --{b}\r\nContent-Disposition: form-data; name=\"passport\"; filename=\"passport-scan.pdf\"\r\n\
+         Content-Type: application/pdf\r\n\r\n%PDF-1.4\nCONFIDENTIAL_PASSPORT_BYTES\r\n\
+         --{b}--\r\n",
+        b = boundary
+    );
+    let submit_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/wp-json/daypress/v1/forms/{}/submit", form_id))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(multipart_body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(submit_res.status(), StatusCode::OK);
+    let submit_json = body_to_json(submit_res).await;
+
+    // Public response must NEVER expose secret webhook_url or raw email_error!
+    assert!(submit_json.get("webhook_url").is_none());
+    assert!(submit_json.get("email_error").is_none());
+
+    let entry_id = submit_json["entry_id"].as_i64().unwrap();
+    let entry = db.get_form_entry_by_id(entry_id).unwrap().unwrap();
+    assert_eq!(entry.attachments.len(), 1);
+    let att = &entry.attachments[0];
+    assert!(
+        att.stored_path.starts_with("data/form-submissions/"),
+        "Attachments must reside outside public uploads/: {}",
+        att.stored_path
+    );
+    assert!(std::path::Path::new(&att.stored_path).is_file());
+
+    // 2. Public media server blocks form-submissions case-insensitively (even uppercase on Windows/macOS)
+    for blocked_uri in [
+        format!("/uploads/form-submissions/{}/{}", form_id, att.filename),
+        format!("/uploads/Form-Submissions/{}/{}", form_id, att.filename),
+        "/uploads/FORM-SUBMISSIONS/1/secret.pdf".to_string(),
+    ] {
+        let pub_res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&blocked_uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            pub_res.status(),
+            StatusCode::FORBIDDEN,
+            "Public media must block {blocked_uri}"
+        );
+    }
+
+    // 3. Static Edge Publisher never includes form-submissions even if a legacy file sits in uploads/
+    let legacy_dir = std::path::Path::new("uploads").join("form-submissions").join("99999");
+    let _ = std::fs::create_dir_all(&legacy_dir);
+    let legacy_file = legacy_dir.join("legacy-kyc.txt");
+    std::fs::write(&legacy_file, b"LEGACY_SECRET_KYC").unwrap();
+    let built = daypress_server::publisher::build_static_site(
+        &db,
+        &daypress_server::publisher::PublishSettings::default(),
+    )
+    .await
+    .unwrap();
+    let _ = std::fs::remove_dir_all(std::path::Path::new("uploads").join("form-submissions"));
+    assert!(
+        !built
+            .files
+            .keys()
+            .any(|k| k.to_ascii_lowercase().contains("form-submissions")),
+        "Static Edge export must exclude form-submissions"
+    );
+
+    // 4. Unauthenticated user cannot download private attachment; authenticated admin can with nosniff header
+    let unauth_dl = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/d-admin/forms/attachment/{}/{}",
+                    entry_id, att.filename
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        unauth_dl.status() == StatusCode::UNAUTHORIZED
+            || unauth_dl.status() == StatusCode::FOUND
+            || unauth_dl.status() == StatusCode::SEE_OTHER
+            || unauth_dl.status() == StatusCode::FORBIDDEN,
+        "Unauthenticated form attachment download must be blocked, got {}",
+        unauth_dl.status()
+    );
+
+    let admin_cookie = daypress_server::auth::session_cookie_for(1, &db);
+    let dl_res = app
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/d-admin/forms/attachment/{}/{}",
+                    entry_id, att.filename
+                ))
+                .header("Cookie", &admin_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(dl_res.status(), StatusCode::OK);
+    assert_eq!(
+        dl_res
+            .headers()
+            .get(axum::http::header::X_CONTENT_TYPE_OPTIONS)
+            .unwrap(),
+        "nosniff"
+    );
+
+    // Cleanup disk files created by this test
+    let _ = db.delete_form(form_id);
+}
+
+#[tokio::test]
+async fn step5_client_ip_spoofing_blocked_and_ssrf_dns_redirect_no_default_secret() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+
+    let form_id = db
+        .save_form_record(&daypress_server::models::CreateFormRequest {
+            id: None,
+            title: "Rate Limited Form".to_string(),
+            fields: Vec::new(),
+            settings: daypress_server::models::FormSettings {
+                rate_limit_per_minute: 2,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+
+    // 1. Remote client with ConnectInfo cannot bypass form rate limiter by rotating X-Forwarded-For!
+    for spoofed in ["10.0.0.1", "10.0.0.2"] {
+        let mut req = Request::builder()
+            .method("POST")
+            .uri(format!("/wp-json/daypress/v1/forms/{}/submit", form_id))
+            .header("Content-Type", "application/json")
+            .header("X-Forwarded-For", spoofed)
+            .body(Body::from(r#"{"data":{"name":"Spam"}}"#))
+            .unwrap();
+        req.extensions_mut()
+            .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                [198, 51, 100, 77],
+                41234,
+            ))));
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+    let mut req3 = Request::builder()
+        .method("POST")
+        .uri(format!("/wp-json/daypress/v1/forms/{}/submit", form_id))
+        .header("Content-Type", "application/json")
+        .header("X-Forwarded-For", "10.0.0.3")
+        .body(Body::from(r#"{"data":{"name":"Spam3"}}"#))
+        .unwrap();
+    req3.extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [198, 51, 100, 77],
+            41234,
+        ))));
+    let res3 = app.oneshot(req3).await.unwrap();
+    assert_eq!(
+        res3.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "Untrusted X-Forwarded-For rotation must not bypass form rate limiting"
+    );
+
+    // 2. SSRF URL guard + DNS-pinning client reject loopback/metadata/hex/IPv6-mapped targets
+    for ssrf_url in [
+        "http://127.0.0.1:8080/hook",
+        "http://[::ffff:169.254.169.254]/latest/meta-data/",
+        "http://2130706433/admin",
+        "http://0x7f.0.0.1/admin",
+    ] {
+        assert!(
+            Database::validate_webhook_target_url_ssrf(ssrf_url).is_err(),
+            "Expected SSRF rejection for {ssrf_url}"
+        );
+    }
+
+    // DNS-pinning reqwest client rejects localhost resolution when DAYPRESS_ALLOW_PRIVATE_WEBHOOKS != 1
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let local_port = listener.local_addr().unwrap().port();
+    let ssrf_client = daypress_server::adapters::database::webhooks_shortlinks::build_ssrf_safe_http_client(
+        std::time::Duration::from_secs(2),
+    )
+    .unwrap();
+    let blocked_req = ssrf_client
+        .post(format!("http://localhost:{local_port}/metadata"))
+        .body("test")
+        .send()
+        .await;
+    assert!(
+        blocked_req.is_err(),
+        "DNS-pinning HTTP client must block localhost resolution"
+    );
+
+    // 3. Webhook delivery with missing/cleared secret fails closed rather than signing with daypress-default-secret
+    let wh_db_path = temp_db_path("step5_webhook_secret");
+    let _ = std::fs::remove_file(&wh_db_path);
+    let wh_db = Database::new(&wh_db_path).expect("temp db");
+    let hook = wh_db
+        .save_webhook_endpoint(&daypress_server::models::CreateWebhookEndpointRequest {
+            id: None,
+            name: "No Default Secret".to_string(),
+            target_url: "local://test".to_string(),
+            preset: "generic".to_string(),
+            events: vec!["post.published".to_string()],
+            secret: "real-random-secret-abc123".to_string(),
+            is_active: true,
+        })
+        .unwrap();
+    wh_db
+        .dispatch_outbound_webhook_event("post.published", json!({ "id": 1 }))
+        .unwrap();
+    let deliveries = wh_db.list_webhook_deliveries(Some(hook.id), 10).unwrap();
+    let deliv_id = deliveries[0].id;
+    {
+        let raw_conn = rusqlite::Connection::open(&wh_db_path).unwrap();
+        raw_conn
+            .execute(
+                "UPDATE daypress_webhooks SET secret = '' WHERE id = ?1",
+                rusqlite::params![hook.id],
+            )
+            .unwrap();
+    }
+    assert!(
+        wh_db.execute_http_webhook_delivery(deliv_id).await.is_err(),
+        "Webhook delivery must fail closed when signing secret is missing"
+    );
+    assert!(
+        wh_db.replay_webhook_delivery(deliv_id).await.is_err(),
+        "Webhook replay must fail closed when signing secret is missing"
+    );
+    drop(wh_db);
+    let _ = std::fs::remove_file(&wh_db_path);
+}

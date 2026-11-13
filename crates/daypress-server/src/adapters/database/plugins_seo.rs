@@ -225,11 +225,13 @@ impl Database {
             );
             conn.execute("DELETE FROM daypress_forms WHERE id = ?1", params![id])?
         };
-        let upload_dir = Path::new("uploads")
-            .join("form-submissions")
-            .join(id.to_string());
-        if upload_dir.exists() {
-            let _ = fs::remove_dir_all(upload_dir);
+        for root_dir in ["data", "uploads"] {
+            let upload_dir = Path::new(root_dir)
+                .join("form-submissions")
+                .join(id.to_string());
+            if upload_dir.exists() {
+                let _ = fs::remove_dir_all(upload_dir);
+            }
         }
         self.invalidate_hot_cache("form_deleted");
         Ok(rows > 0)
@@ -355,7 +357,19 @@ impl Database {
         if let Ok(Some(entry)) = self.get_form_entry_by_id(entry_id) {
             for att in &entry.attachments {
                 let p = Path::new(&att.stored_path);
-                if p.starts_with("uploads/form-submissions") && p.exists() {
+                let has_traversal = p.components().any(|c| {
+                    matches!(
+                        c,
+                        std::path::Component::ParentDir
+                            | std::path::Component::RootDir
+                            | std::path::Component::Prefix(_)
+                    )
+                });
+                if !has_traversal
+                    && (p.starts_with("data/form-submissions")
+                        || p.starts_with("uploads/form-submissions"))
+                    && p.exists()
+                {
                     let _ = fs::remove_file(p);
                 }
             }

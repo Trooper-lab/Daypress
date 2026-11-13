@@ -17,11 +17,58 @@ type HmacSha256 = Hmac<Sha256>;
 /// Computes the canonical `X-Daypress-Signature-256` header (`sha256=<hex>`) over `"{timestamp}.{payload_json}"`.
 pub fn compute_webhook_hmac_sha256(secret: &str, timestamp: i64, payload_json: &str) -> String {
     let signing_input = format!("{}.{}", timestamp, payload_json);
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .unwrap_or_else(|_| HmacSha256::new_from_slice(b"daypress-default-secret").unwrap());
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC-SHA256 accepts any key length");
     mac.update(signing_input.as_bytes());
     let result = mac.finalize().into_bytes();
     format!("sha256={}", hex::encode(result))
+}
+
+struct SsrfSafeDnsResolver;
+
+impl reqwest::dns::Resolve for SsrfSafeDnsResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        Box::pin(async move {
+            let allow_private =
+                std::env::var("DAYPRESS_ALLOW_PRIVATE_WEBHOOKS").as_deref() == Ok("1");
+            let addrs: Vec<std::net::SocketAddr> =
+                tokio::net::lookup_host((name.as_str(), 0))
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
+                    .collect();
+            if !allow_private {
+                for addr in &addrs {
+                    if is_disallowed_webhook_ip(&addr.ip()) {
+                        return Err(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied,
+                            "Webhook DNS resolved to a private/loopback/metadata IP (SSRF blocked)",
+                        ))
+                            as Box<dyn std::error::Error + Send + Sync>);
+                    }
+                }
+            }
+            if addrs.is_empty() {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::AddrNotAvailable,
+                    "Webhook hostname resolved to zero IP addresses",
+                ))
+                    as Box<dyn std::error::Error + Send + Sync>);
+            }
+            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+/// Builds a `reqwest::Client` that pins DNS resolution through [`SsrfSafeDnsResolver`] (preventing
+/// DNS rebinding TOCTOU) and disables HTTP redirects (preventing 301/302 SSRF pivots).
+pub fn build_ssrf_safe_http_client(
+    timeout: Duration,
+) -> std::result::Result<reqwest::Client, reqwest::Error> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .dns_resolver(std::sync::Arc::new(SsrfSafeDnsResolver))
+        .build()
 }
 
 fn append_utm_params(
@@ -701,9 +748,16 @@ impl Database {
             conn.query_row(
                 "SELECT secret FROM daypress_webhooks WHERE id = ?1",
                 params![webhook_id],
-                |r| r.get(0),
+                |r| r.get::<_, String>(0),
             )
-            .unwrap_or_else(|_| "daypress-default-secret".to_string())
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                AppError::Internal(format!(
+                    "Webhook {} signing secret is missing or unconfigured",
+                    webhook_id
+                ))
+            })?
         };
 
         let ts = Utc::now().timestamp();
@@ -779,11 +833,8 @@ impl Database {
                 }
             }
             let start = Instant::now();
-            let client = reqwest::Client::builder()
-                .timeout(Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .unwrap_or_default();
+            let client = build_ssrf_safe_http_client(Duration::from_secs(10))
+                .map_err(|e| AppError::Internal(format!("HTTP client initialization failed: {e}")))?;
             let resp = client
                 .post(&target_url)
                 .header("Content-Type", "application/json")
@@ -923,9 +974,16 @@ impl Database {
             conn.query_row(
                 "SELECT secret FROM daypress_webhooks WHERE id = ?1",
                 params![webhook_id],
-                |r| r.get(0),
+                |r| r.get::<_, String>(0),
             )
-            .unwrap_or_else(|_| "daypress-default-secret".to_string())
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                AppError::Internal(format!(
+                    "Webhook {} signing secret is missing or unconfigured",
+                    webhook_id
+                ))
+            })?
         };
         let ts = Utc::now().timestamp();
         let sig = compute_webhook_hmac_sha256(&secret, ts, &payload_json);
