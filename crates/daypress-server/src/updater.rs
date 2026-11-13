@@ -24,6 +24,10 @@ pub const OPTION_UPDATE_STATE: &str = "daypress_update_state";
 pub const OPTION_UPDATE_SETTINGS: &str = "daypress_update_settings";
 pub const OPTION_UPDATE_HISTORY: &str = "daypress_update_history";
 pub const DEFAULT_GITHUB_REPO: &str = "Trooper-lab/daypress";
+/// Built-in official Ed25519 release signing public key (32-byte hex) for `Trooper-lab/Daypress`.
+/// Can be overridden via runtime `DAYPRESS_UPDATER_PUBLIC_KEY` or compile-time `DAYPRESS_RELEASE_SIGNING_PUBKEY`.
+pub const OFFICIAL_RELEASE_SIGNING_PUBKEY: &str =
+    "25568abca2c707f7616c1bac93124fe88ac1061a72c27b0574f1fb643ff4d7c4";
 const MAX_EXTRACTED_BINARY_BYTES: u64 = 150 * 1024 * 1024; // 150 MB safety cap
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -681,8 +685,8 @@ pub enum UpdateSignatureProof<'a> {
     },
 }
 
-/// Resolves the trusted Ed25519 public key configured via runtime `DAYPRESS_UPDATER_PUBLIC_KEY`
-/// or compile-time `DAYPRESS_RELEASE_SIGNING_PUBKEY`.
+/// Resolves the trusted Ed25519 public key configured via runtime `DAYPRESS_UPDATER_PUBLIC_KEY`,
+/// compile-time `DAYPRESS_RELEASE_SIGNING_PUBKEY`, or the built-in official Daypress release key.
 pub fn effective_updater_pubkey() -> Option<String> {
     if let Ok(runtime) = std::env::var("DAYPRESS_UPDATER_PUBLIC_KEY") {
         let trimmed = runtime.trim();
@@ -690,10 +694,13 @@ pub fn effective_updater_pubkey() -> Option<String> {
             return Some(trimmed.to_string());
         }
     }
-    option_env!("DAYPRESS_RELEASE_SIGNING_PUBKEY")
+    if let Some(compiled) = option_env!("DAYPRESS_RELEASE_SIGNING_PUBKEY")
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(str::to_string)
+    {
+        return Some(compiled.to_string());
+    }
+    Some(OFFICIAL_RELEASE_SIGNING_PUBKEY.to_string())
 }
 
 fn decode_ed25519_bytes(raw: &str, expected_len: usize, label: &str) -> Result<Vec<u8>, AppError> {
@@ -1235,7 +1242,13 @@ pub async fn download_and_apply_github_update(
     db: &Database,
 ) -> Result<UpdateApplyReport, AppError> {
     let mut state = load_update_state(db);
-    if state.asset_download_url.is_none() {
+    if state.asset_download_url.is_none()
+        || state
+            .sha256_digest
+            .as_deref()
+            .is_none_or(|s| s.trim().is_empty())
+        || (state.signature.is_none() && state.asset_signature.is_none())
+    {
         state = check_for_updates_now(db).await?;
     }
 
@@ -1272,11 +1285,12 @@ pub async fn download_and_apply_github_update(
     } else {
         None
     };
-    if proof.is_none()
-        || state
-            .sha256_digest
-            .as_deref()
-            .is_none_or(|s| s.trim().is_empty())
+    let require_sig = effective_updater_pubkey().is_some();
+    if state
+        .sha256_digest
+        .as_deref()
+        .is_none_or(|s| s.trim().is_empty())
+        || (require_sig && proof.is_none())
     {
         return Err(AppError::BadRequest(
             "Release lacks required SHA-256 checksum or Ed25519 signature; refusing automatic update.".into(),
@@ -1287,9 +1301,19 @@ pub async fn download_and_apply_github_update(
         .clone()
         .unwrap_or_else(|| current_version().to_string());
 
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 5 {
+            attempt.error("Too many redirects while downloading release asset")
+        } else if attempt.url().scheme() == "https" {
+            attempt.follow()
+        } else {
+            attempt.error("Refusing insecure non-HTTPS redirect during release download")
+        }
+    });
+
     let client = reqwest::Client::builder()
         .user_agent(format!("Daypress-Updater/{}", current_version()))
-        .redirect(reqwest::redirect::Policy::none())
+        .redirect(redirect_policy)
         .timeout(Duration::from_secs(120))
         .build()
         .map_err(|e| AppError::Internal(format!("HTTP client initialization failed: {e}")))?;

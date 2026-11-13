@@ -264,6 +264,7 @@ pub(crate) async fn upload_update_archive_handler(
     mut multipart: Multipart,
 ) -> Result<Json<crate::updater::UpdateApplyReport>, AppError> {
     let mut archive_bytes: Option<Vec<u8>> = None;
+    let mut archive_filename: Option<String> = None;
     let mut expected_sha256: Option<String> = None;
     let mut expected_signature: Option<String> = None;
     let mut target_version: Option<String> = None;
@@ -276,8 +277,8 @@ pub(crate) async fn upload_update_archive_handler(
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
             "archive" | "file" => {
-                if target_version.is_none() {
-                    if let Some(fname) = field.file_name() {
+                if let Some(fname) = field.file_name().map(str::to_string) {
+                    if target_version.is_none() {
                         // Extract version tag from `daypress-v0.2.0-...` if present
                         if let Some(rest) = fname.strip_prefix("daypress-v") {
                             if let Some(ver) = rest.split('-').next() {
@@ -285,6 +286,7 @@ pub(crate) async fn upload_update_archive_handler(
                             }
                         }
                     }
+                    archive_filename = Some(fname);
                 }
                 let data = field.bytes().await.map_err(|e| {
                     AppError::BadRequest(format!("Failed to read archive field: {e}"))
@@ -319,9 +321,27 @@ pub(crate) async fn upload_update_archive_handler(
     let ver = target_version.unwrap_or_else(|| "custom".to_string());
     let exe_path = crate::updater::canonical_executable_path()?;
 
-    let proof = expected_signature
+    let cached_state = crate::updater::load_update_state(&db);
+    let fallback_asset_name = archive_filename
         .as_deref()
-        .map(crate::updater::UpdateSignatureProof::ArchiveSignature);
+        .or(cached_state.asset_name.as_deref())
+        .unwrap_or("");
+    let proof = if let Some(sig) = expected_signature.as_deref() {
+        Some(crate::updater::UpdateSignatureProof::ArchiveSignature(sig))
+    } else if let Some(sig) = cached_state.asset_signature.as_deref() {
+        Some(crate::updater::UpdateSignatureProof::ArchiveSignature(sig))
+    } else if let (Some(sums), Some(sig)) = (
+        cached_state.sha256sums_raw.as_deref(),
+        cached_state.signature.as_deref(),
+    ) {
+        Some(crate::updater::UpdateSignatureProof::SignedSumsManifest {
+            sums_text: sums,
+            sums_signature: sig,
+            asset_name: fallback_asset_name,
+        })
+    } else {
+        None
+    };
     let report = crate::updater::apply_binary_update_to_path(
         &db,
         &exe_path,

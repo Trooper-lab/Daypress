@@ -7,7 +7,7 @@
 
 The long-term goal is a CMS that most WordPress sites can move to with their content and design intact. **We are not there yet.** Today Daypress is good for building new sites, and it has an experimental WordPress importer that we want to improve together with the community.
 
-> **Status: Stable (`v1.0.5`).** Daypress includes a locked SQLite Schema Contract (`v100`), WebAssembly Host ABI (`v1`), a built-in 10-point Security & Production Readiness Audit (`daypress doctor` & `/d-admin/site-health`), reproducible performance benchmarks ([`BENCHMARKS.md`](BENCHMARKS.md)), and `70%+` (`95%–100%` tested) 1-Click WordPress migration sign-off across Elementor, Divi, Gutenberg, and Classic sites. Always keep backups when upgrading or migrating production sites.
+> **Status: Stable (`v1.0.6`).** Daypress includes a locked SQLite Schema Contract (`v100`), WebAssembly Host ABI (`v1`), a built-in 10-point Security & Production Readiness Audit (`daypress doctor` & `/d-admin/site-health`), reproducible performance benchmarks ([`BENCHMARKS.md`](BENCHMARKS.md)), and `70%+` (`95%–100%` tested) 1-Click WordPress migration sign-off across Elementor, Divi, Gutenberg, and Classic sites. Always keep backups when upgrading or migrating production sites.
 
 | Public site | DayStudio visual builder |
 | :---: | :---: |
@@ -134,7 +134,7 @@ See [ROADMAP.md](ROADMAP.md) for the detailed sub-feature checklists.
 | **`0.8.0`** | Multilingual (`i18n`), Editorial Workflows & Visual Side-by-Side AST Revision Diffs | **Shipped** |
 | **`0.8.5`** | WordPress-Native Admin & Editor Ergonomics (Screen Options, Movable/Collapsible Meta Boxes & Blocks, Quick/Bulk Edit) | **Shipped** |
 | **`0.9.0`** | Built-in Newsletters, Outbound Webhooks, Zero-Flicker A/B Testing & WebAssembly Crates | **Shipped** |
-| **`1.0`** | First Stable Release (Automated Security & Readiness Audit, Reproducible Benchmarks, Stable Schema v100 / Wasm ABI v1 & 70%+ WP Migration Sign-off) | **Shipped (`v1.0.5`)** |
+| **`1.0`** | First Stable Release (Automated Security & Readiness Audit, Reproducible Benchmarks, Stable Schema v100 / Wasm ABI v1 & 70%+ WP Migration Sign-off) | **Shipped (`v1.0.6`)** |
 
 ---
 

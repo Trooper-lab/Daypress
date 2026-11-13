@@ -60,6 +60,8 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
+        env:
+          DAYPRESS_RELEASE_SIGNING_PUBKEY: ${{ secrets.DAYPRESS_RELEASE_SIGNING_PUBKEY }}
         run: cargo build --release --locked -p daypress-server --bin daypress --target ${{ matrix.target }}
 
       - name: Smoke test
@@ -187,6 +189,8 @@ jobs:
           merge-multiple: true
 
       - name: Generate Homebrew formula and checksums
+        env:
+          DAYPRESS_RELEASE_SIGNING_PKCS8: ${{ secrets.DAYPRESS_RELEASE_SIGNING_PKCS8 }}
         shell: bash
         run: |
           VER="${TAG#v}"
@@ -202,6 +206,28 @@ jobs:
           cd dist
           sha256sum daypress* > SHA256SUMS
           cat SHA256SUMS
+          if [ -n "${DAYPRESS_RELEASE_SIGNING_PKCS8:-}" ]; then
+            python3 - <<'PY'
+          import os, subprocess, tempfile, binascii
+          key_b64 = os.environ["DAYPRESS_RELEASE_SIGNING_PKCS8"].strip()
+          pem = "-----BEGIN PRIVATE KEY-----\n" + key_b64 + "\n-----END PRIVATE KEY-----\n"
+          with tempfile.NamedTemporaryFile("w", delete=False) as kf:
+              kf.write(pem)
+              key_path = kf.name
+          try:
+              for fname in sorted(os.listdir(".")):
+                  if fname == "SHA256SUMS" or fname.startswith("daypress"):
+                      if fname.endswith(".sig"):
+                          continue
+                      sig_raw = subprocess.check_output(
+                          ["openssl", "pkeyutl", "-sign", "-inkey", key_path, "-rawin", "-in", fname]
+                      )
+                      with open(fname + ".sig", "w") as sf:
+                          sf.write(binascii.hexlify(sig_raw).decode("ascii") + "\n")
+          finally:
+              os.remove(key_path)
+          PY
+          fi
 
       - name: Create the release or add the assets to it
         env:

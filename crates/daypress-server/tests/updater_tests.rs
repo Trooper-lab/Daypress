@@ -365,6 +365,11 @@ fn test_atomic_binary_swap_backup_and_rollback() {
     .expect("Signed SHA256SUMS manifest update should succeed");
     assert!(manifest_report.success);
 
+    // Verify official built-in release signing keypair (`OFFICIAL_RELEASE_SIGNING_PUBKEY`) is non-empty and valid
+    let official_pub = daypress_server::updater::effective_updater_pubkey()
+        .expect("Built-in official release signing public key must be present");
+    assert_eq!(official_pub.len(), 64);
+
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
 

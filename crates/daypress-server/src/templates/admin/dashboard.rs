@@ -634,9 +634,21 @@ pub fn render_updates_view_with_status(
         .sha256_digest
         .as_deref()
         .map(|hash| {
+            let sig_pill = state
+                .asset_signature
+                .as_deref()
+                .or(state.signature.as_deref())
+                .map(|sig| {
+                    format!(
+                        r#"<div style="margin-top:4px;font-size:12px;color:var(--ink-muted);">Ed25519 Signature: <code style="font-size:11px;padding:2px 6px;background:var(--paper-sunk);border-radius:4px;word-break:break-all;">{}</code></div>"#,
+                        escape_html(sig)
+                    )
+                })
+                .unwrap_or_default();
             format!(
-                r#"<div style="margin-top:8px;font-size:12px;color:var(--ink-muted);">SHA-256: <code style="font-size:11px;padding:2px 6px;background:var(--paper-sunk);border-radius:4px;">{}</code></div>"#,
-                escape_html(hash)
+                r#"<div style="margin-top:8px;font-size:12px;color:var(--ink-muted);">SHA-256: <code style="font-size:11px;padding:2px 6px;background:var(--paper-sunk);border-radius:4px;">{}</code></div>{}"#,
+                escape_html(hash),
+                sig_pill
             )
         })
         .unwrap_or_default();
@@ -893,12 +905,12 @@ pub fn render_updates_view_with_status(
                         </div>
                         <div>
                             <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Expected SHA-256 (required)</label>
-                            <input type="text" id="update-archive-sha256" name="sha256" required placeholder="64-character hex digest from SHA256SUMS" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
+                            <input type="text" id="update-archive-sha256" name="sha256" value="{default_sha}" required placeholder="64-character hex digest from SHA256SUMS" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
                         </div>
                     </div>
                     <div>
-                        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Ed25519 Signature (required)</label>
-                        <input type="text" id="update-archive-signature" name="signature" required placeholder="128-char hex or base64 Ed25519 signature over the archive" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
+                        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Ed25519 Signature (auto-filled from release or paste .sig)</label>
+                        <input type="text" id="update-archive-signature" name="signature" value="{default_sig}" placeholder="128-char hex or base64 Ed25519 signature over the archive" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
                     </div>
                     <div style="margin-top:4px;">
                         <button type="submit" id="btn-upload-update" class="btn btn-secondary">⬆ Verify, Backup &amp; Install Archive</button>
@@ -1208,6 +1220,8 @@ pub fn render_updates_view_with_status(
         channel_prerelease_selected = channel_prerelease_selected,
         github_repo = escape_html(&upd_settings.github_repo),
         history_table_html = history_table_html,
+        default_sha = escape_html(state.sha256_digest.as_deref().unwrap_or("")),
+        default_sig = escape_html(state.asset_signature.as_deref().unwrap_or("")),
     );
 
     render_admin_shell("updates", "Updates", &body, settings)
