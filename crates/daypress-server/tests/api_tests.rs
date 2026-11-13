@@ -1747,7 +1747,7 @@ async fn test_native_subsystems_seo_sitemap_and_email_api() {
         .unwrap();
     let analytics_html = String::from_utf8(analytics_body.to_vec()).unwrap();
     assert!(analytics_html.contains("Cookieless Analytics"));
-    assert!(analytics_html.contains("Unique Daily Visitors"));
+    assert!(analytics_html.contains("Unique Visitors"));
 
     // 4. Native Email Dispatch
     let email_payload = serde_json::json!({

@@ -88,6 +88,13 @@ pub trait OptionRepository: Send + Sync {
     fn get_analytics_dashboard(&self, _range: &str) -> DomainResult<AnalyticsSummary> {
         Ok(AnalyticsSummary::default())
     }
+    fn get_analytics_dashboard_filtered(
+        &self,
+        range: &str,
+        _filter: &crate::models::AnalyticsFilter,
+    ) -> DomainResult<AnalyticsSummary> {
+        self.get_analytics_dashboard(range)
+    }
     fn list_theme_templates(
         &self,
         _template_type: Option<&str>,

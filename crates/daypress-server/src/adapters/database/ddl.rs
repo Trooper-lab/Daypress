@@ -209,11 +209,17 @@ CREATE TABLE IF NOT EXISTS daypress_analytics_events (
     goal_name TEXT DEFAULT NULL,
     page_url TEXT NOT NULL,
     referrer TEXT NOT NULL DEFAULT '',
+    referrer_domain TEXT NOT NULL DEFAULT '',
+    channel TEXT NOT NULL DEFAULT 'Direct',
     device_type TEXT NOT NULL DEFAULT 'desktop',
+    browser TEXT NOT NULL DEFAULT '',
+    os TEXT NOT NULL DEFAULT '',
     country TEXT NOT NULL DEFAULT 'XX',
     utm_source TEXT DEFAULT NULL,
     utm_medium TEXT DEFAULT NULL,
     utm_campaign TEXT DEFAULT NULL,
+    duration_secs INTEGER NOT NULL DEFAULT 0,
+    scroll_depth INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -223,6 +229,10 @@ CREATE TABLE IF NOT EXISTS daypress_analytics_daily (
     unique_visitors INTEGER NOT NULL DEFAULT 0,
     pageviews INTEGER NOT NULL DEFAULT 0,
     bounces INTEGER NOT NULL DEFAULT 0,
+    conversions INTEGER NOT NULL DEFAULT 0,
+    total_duration_secs INTEGER NOT NULL DEFAULT 0,
+    scroll_sum INTEGER NOT NULL DEFAULT 0,
+    engaged_views INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (date, page_url)
 );
 

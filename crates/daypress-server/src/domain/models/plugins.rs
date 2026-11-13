@@ -344,7 +344,7 @@ pub struct FormSubmitRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalyticsEventRequest {
     pub page_url: String,
-    #[serde(default = "default_analytics_event_type")]
+    #[serde(default = "default_analytics_event_type", alias = "event_name")]
     pub event_type: String,
     #[serde(default)]
     pub goal_name: Option<String>,
@@ -358,10 +358,114 @@ pub struct AnalyticsEventRequest {
     pub utm_medium: Option<String>,
     #[serde(default)]
     pub utm_campaign: Option<String>,
+    #[serde(default)]
+    pub duration_secs: Option<i64>,
+    #[serde(default)]
+    pub scroll_depth: Option<i64>,
 }
 
 pub fn default_analytics_event_type() -> String {
     "pageview".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct AnalyticsFilter {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub referrer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub utm_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub utm_medium: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub utm_campaign: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal: Option<String>,
+}
+
+impl AnalyticsFilter {
+    pub fn normalized(&self) -> Self {
+        let clean = |opt: &Option<String>| -> Option<String> {
+            opt.as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.chars().take(240).collect())
+        };
+        Self {
+            page: clean(&self.page),
+            referrer: clean(&self.referrer),
+            channel: clean(&self.channel),
+            utm_source: clean(&self.utm_source),
+            utm_medium: clean(&self.utm_medium),
+            utm_campaign: clean(&self.utm_campaign),
+            device: clean(&self.device),
+            browser: clean(&self.browser),
+            os: clean(&self.os),
+            country: clean(&self.country),
+            goal: clean(&self.goal),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.page.is_none()
+            && self.referrer.is_none()
+            && self.channel.is_none()
+            && self.utm_source.is_none()
+            && self.utm_medium.is_none()
+            && self.utm_campaign.is_none()
+            && self.device.is_none()
+            && self.browser.is_none()
+            && self.os.is_none()
+            && self.country.is_none()
+            && self.goal.is_none()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalyticsTelemetrySettings {
+    #[serde(default = "default_analytics_retention_days")]
+    pub retention_days: i64,
+    #[serde(default = "default_true_bool")]
+    pub exclude_admins: bool,
+    #[serde(default = "default_true_bool")]
+    pub filter_bots: bool,
+    #[serde(default = "default_true_bool")]
+    pub honor_dnt_gpc: bool,
+    #[serde(default = "default_true_bool")]
+    pub daily_salt_active: bool,
+    #[serde(default)]
+    pub raw_events_count: i64,
+    #[serde(default)]
+    pub daily_rollup_rows: i64,
+}
+
+pub fn default_analytics_retention_days() -> i64 {
+    180
+}
+
+impl Default for AnalyticsTelemetrySettings {
+    fn default() -> Self {
+        Self {
+            retention_days: 180,
+            exclude_admins: true,
+            filter_bots: true,
+            honor_dnt_gpc: true,
+            daily_salt_active: true,
+            raw_events_count: 0,
+            daily_rollup_rows: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -391,6 +495,42 @@ pub struct AnalyticsSummary {
     pub devices: Vec<BreakdownMetric>,
     #[serde(default)]
     pub conversions: Vec<ConversionMetric>,
+    #[serde(default)]
+    pub live_visitors: i64,
+    #[serde(default)]
+    pub views_per_visit: f64,
+    #[serde(default)]
+    pub avg_duration_secs: f64,
+    #[serde(default)]
+    pub avg_scroll_depth_pct: f64,
+    #[serde(default)]
+    pub conversion_rate_pct: f64,
+    #[serde(default)]
+    pub prev_visitors: i64,
+    #[serde(default)]
+    pub prev_pageviews: i64,
+    #[serde(default)]
+    pub prev_conversions: i64,
+    #[serde(default)]
+    pub prev_bounce_rate_pct: f64,
+    #[serde(default)]
+    pub prev_avg_duration_secs: f64,
+    #[serde(default)]
+    pub entry_pages: Vec<TopPageMetric>,
+    #[serde(default)]
+    pub exit_pages: Vec<TopPageMetric>,
+    #[serde(default)]
+    pub channels: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub browsers: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub operating_systems: Vec<BreakdownMetric>,
+    #[serde(default)]
+    pub outbound_clicks: Vec<ConversionMetric>,
+    #[serde(default)]
+    pub file_downloads: Vec<ConversionMetric>,
+    #[serde(default)]
+    pub active_filter: AnalyticsFilter,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -399,6 +539,10 @@ pub struct TopPageMetric {
     pub views: i64,
     #[serde(default)]
     pub visitors: i64,
+    #[serde(default)]
+    pub avg_duration_secs: f64,
+    #[serde(default)]
+    pub avg_scroll_depth_pct: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -773,6 +917,17 @@ pub fn default_vitals_device() -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RouteWebVitalsMetric {
+    pub page_url: String,
+    pub sample_count: i64,
+    pub lcp_p75_ms: f64,
+    pub inp_p75_ms: f64,
+    pub cls_p75: f64,
+    pub ttfb_p75_ms: f64,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CoreWebVitalsSummary {
     pub sample_count: i64,
     pub lcp_p75_ms: f64,
@@ -783,6 +938,8 @@ pub struct CoreWebVitalsSummary {
     pub inp_status: String,
     pub cls_status: String,
     pub overall_status: String,
+    #[serde(default)]
+    pub routes: Vec<RouteWebVitalsMetric>,
 }
 
 // =========================================================================

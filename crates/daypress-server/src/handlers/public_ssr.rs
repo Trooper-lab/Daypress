@@ -282,7 +282,7 @@ pub async fn handle_home_or_query(
             );
             let final_html =
                 crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
-            let visitor_hash = compute_visitor_hash_from_headers(&headers);
+            let visitor_hash = db.compute_daily_visitor_hash(&headers, None);
             let (final_html, ab_assignments) =
                 db.apply_ab_experiments_for_post(post.id, &visitor_hash, &final_html);
             return db.hot_cache.store_and_serve(
@@ -384,7 +384,7 @@ pub async fn handle_home_or_query(
                 .iter()
                 .any(|p| p == "daypress-ab-testing")
             {
-                let visitor_hash = compute_visitor_hash_from_headers(&headers);
+                let visitor_hash = db.compute_daily_visitor_hash(&headers, None);
                 db.apply_ab_experiments_for_post(page.id, &visitor_hash, &final_html)
             } else {
                 (final_html, Vec::new())
@@ -477,7 +477,7 @@ pub async fn handle_home_or_query(
                 .iter()
                 .any(|p| p == "daypress-ab-testing")
             {
-                let visitor_hash = compute_visitor_hash_from_headers(&headers);
+                let visitor_hash = db.compute_daily_visitor_hash(&headers, None);
                 db.apply_ab_experiments_for_post(front_page.id, &visitor_hash, &final_html)
             } else {
                 (final_html, Vec::new())
@@ -981,7 +981,7 @@ pub async fn handle_single(
             .iter()
             .any(|p| p == "daypress-ab-testing")
         {
-            let visitor_hash = compute_visitor_hash_from_headers(&headers);
+            let visitor_hash = db.compute_daily_visitor_hash(&headers, None);
             db.apply_ab_experiments_for_post(post.id, &visitor_hash, &final_html)
         } else {
             (final_html, Vec::new())
@@ -1338,18 +1338,7 @@ pub async fn handle_shortlink_redirect(
     AxPath(slug): AxPath<String>,
     headers: HeaderMap,
 ) -> Response {
-    let client_ip = crate::auth::resolve_client_ip(&headers, peer_ip.as_deref());
-    let ua = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown");
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(client_ip.as_bytes());
-    hasher.update(ua.as_bytes());
-    hasher.update(today.as_bytes());
-    let visitor_hash = hex::encode(hasher.finalize());
+    let visitor_hash = db.compute_daily_visitor_hash(&headers, peer_ip.as_deref());
 
     let referrer = headers
         .get(header::REFERER)

@@ -405,6 +405,18 @@ pub(crate) async fn record_web_vitals_v1_handler(
     headers: HeaderMap,
     Json(payload): Json<WebVitalsBeaconRequest>,
 ) -> Result<Json<Value>, AppError> {
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    if let Some(reason) =
+        super::analytics_updater_deploy::should_ignore_telemetry_request(&db, &headers, ua)
+    {
+        return Ok(Json(serde_json::json!({
+            "recorded": false,
+            "ignored": reason
+        })));
+    }
     let ip_raw = resolve_safe_client_ip(socket_ip.as_deref(), &headers);
     if !db.form_rate_limiter.check_and_record(-903, &ip_raw, 120) {
         return Err(AppError::TooManyRequests(
@@ -415,11 +427,17 @@ pub(crate) async fn record_web_vitals_v1_handler(
     Ok(Json(serde_json::json!({ "recorded": true })))
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub(crate) struct WebVitalsRangeQuery {
+    pub range: Option<String>,
+}
+
 pub(crate) async fn get_web_vitals_summary_v1_handler(
     _auth: crate::auth::AdminUser,
     State(db): State<Database>,
+    Query(query): Query<WebVitalsRangeQuery>,
 ) -> Result<Json<CoreWebVitalsSummary>, AppError> {
-    let summary = db.get_core_web_vitals_summary()?;
+    let summary = db.get_core_web_vitals_summary_for_range(query.range.as_deref())?;
     Ok(Json(summary))
 }
 

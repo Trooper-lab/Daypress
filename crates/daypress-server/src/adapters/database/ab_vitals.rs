@@ -3,7 +3,8 @@
 use super::Database;
 use crate::errors::AppError;
 use crate::models::{
-    AbTestRecord, CoreWebVitalsSummary, CreateAbTestRequest, WebVitalsBeaconRequest,
+    AbTestRecord, CoreWebVitalsSummary, CreateAbTestRequest, RouteWebVitalsMetric,
+    WebVitalsBeaconRequest,
 };
 use chrono::Utc;
 use rusqlite::{params, Result};
@@ -572,76 +573,197 @@ impl Database {
     }
 
     pub fn get_core_web_vitals_summary(&self) -> Result<CoreWebVitalsSummary> {
+        self.get_core_web_vitals_summary_for_range(None)
+    }
+
+    pub fn get_core_web_vitals_summary_for_range(
+        &self,
+        range: Option<&str>,
+    ) -> Result<CoreWebVitalsSummary> {
+        use chrono::Duration;
+        use std::collections::BTreeMap;
+
+        let cutoff_opt: Option<String> = range.and_then(|r| {
+            let now = Utc::now();
+            match r.trim() {
+                "24h" | "today" => Some(
+                    (now - Duration::hours(24))
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                ),
+                "7d" => Some(
+                    (now - Duration::days(7))
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                ),
+                "30d" => Some(
+                    (now - Duration::days(30))
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                ),
+                "90d" => Some(
+                    (now - Duration::days(90))
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                ),
+                "12m" => Some(
+                    (now - Duration::days(365))
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                ),
+                "all" => None,
+                _ => None,
+            }
+        });
+
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            r#"SELECT lcp_ms, inp_ms, cls_score, ttfb_ms
-               FROM daypress_web_vitals
-               ORDER BY id DESC
-               LIMIT 1000"#,
-        )?;
         let mut lcps = Vec::new();
         let mut inps = Vec::new();
         let mut clss = Vec::new();
         let mut ttfbs = Vec::new();
         let mut count = 0_i64;
 
-        let rows = stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, Option<f64>>(0)?,
-                r.get::<_, Option<f64>>(1)?,
-                r.get::<_, Option<f64>>(2)?,
-                r.get::<_, Option<f64>>(3)?,
-            ))
-        })?;
-        for row in rows.flatten() {
+        type RouteBucket = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, i64);
+        let mut by_route: BTreeMap<String, RouteBucket> = BTreeMap::new();
+
+        let mut ingest_row = |route: String,
+                              lcp: Option<f64>,
+                              inp: Option<f64>,
+                              cls: Option<f64>,
+                              ttfb: Option<f64>| {
             count += 1;
-            if let Some(v) = row.0 {
+            let entry = by_route
+                .entry(route)
+                .or_insert_with(|| (Vec::new(), Vec::new(), Vec::new(), Vec::new(), 0));
+            entry.4 += 1;
+            if let Some(v) = lcp {
                 lcps.push(v);
+                entry.0.push(v);
             }
-            if let Some(v) = row.1 {
+            if let Some(v) = inp {
                 inps.push(v);
+                entry.1.push(v);
             }
-            if let Some(v) = row.2 {
+            if let Some(v) = cls {
                 clss.push(v);
+                entry.2.push(v);
             }
-            if let Some(v) = row.3 {
+            if let Some(v) = ttfb {
                 ttfbs.push(v);
+                entry.3.push(v);
+            }
+        };
+
+        if let Some(ref cutoff) = cutoff_opt {
+            let mut stmt = conn.prepare(
+                r#"SELECT page_url, lcp_ms, inp_ms, cls_score, ttfb_ms
+                   FROM daypress_web_vitals
+                   WHERE created_at >= ?1
+                   ORDER BY id DESC
+                   LIMIT 2000"#,
+            )?;
+            let rows = stmt.query_map(params![cutoff], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<f64>>(1)?,
+                    r.get::<_, Option<f64>>(2)?,
+                    r.get::<_, Option<f64>>(3)?,
+                    r.get::<_, Option<f64>>(4)?,
+                ))
+            })?;
+            for row in rows.flatten() {
+                ingest_row(row.0, row.1, row.2, row.3, row.4);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                r#"SELECT page_url, lcp_ms, inp_ms, cls_score, ttfb_ms
+                   FROM daypress_web_vitals
+                   ORDER BY id DESC
+                   LIMIT 1000"#,
+            )?;
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<f64>>(1)?,
+                    r.get::<_, Option<f64>>(2)?,
+                    r.get::<_, Option<f64>>(3)?,
+                    r.get::<_, Option<f64>>(4)?,
+                ))
+            })?;
+            for row in rows.flatten() {
+                ingest_row(row.0, row.1, row.2, row.3, row.4);
             }
         }
+
+        let rate_cwv = |n: i64,
+                        lcp: f64,
+                        inp: f64,
+                        cls: f64|
+         -> (&'static str, &'static str, &'static str, &'static str) {
+            let l_st = if n == 0 || lcp <= 2500.0 {
+                "good"
+            } else if lcp <= 4000.0 {
+                "needs_improvement"
+            } else {
+                "poor"
+            };
+            let i_st = if n == 0 || inp <= 200.0 {
+                "good"
+            } else if inp <= 500.0 {
+                "needs_improvement"
+            } else {
+                "poor"
+            };
+            let c_st = if n == 0 || cls <= 0.10 {
+                "good"
+            } else if cls <= 0.25 {
+                "needs_improvement"
+            } else {
+                "poor"
+            };
+            let ov = if [l_st, i_st, c_st].contains(&"poor") {
+                "poor"
+            } else if [l_st, i_st, c_st].contains(&"needs_improvement") {
+                "needs_improvement"
+            } else {
+                "good"
+            };
+            (l_st, i_st, c_st, ov)
+        };
 
         let lcp_p75 = percentile_p75(lcps);
         let inp_p75 = percentile_p75(inps);
         let cls_p75 = percentile_p75(clss);
         let ttfb_p75 = percentile_p75(ttfbs);
+        let (lcp_status, inp_status, cls_status, overall_status) =
+            rate_cwv(count, lcp_p75, inp_p75, cls_p75);
 
-        let lcp_status = if count == 0 || lcp_p75 <= 2500.0 {
-            "good"
-        } else if lcp_p75 <= 4000.0 {
-            "needs_improvement"
-        } else {
-            "poor"
-        };
-        let inp_status = if count == 0 || inp_p75 <= 200.0 {
-            "good"
-        } else if inp_p75 <= 500.0 {
-            "needs_improvement"
-        } else {
-            "poor"
-        };
-        let cls_status = if count == 0 || cls_p75 <= 0.10 {
-            "good"
-        } else if cls_p75 <= 0.25 {
-            "needs_improvement"
-        } else {
-            "poor"
-        };
-        let overall_status = if [lcp_status, inp_status, cls_status].contains(&"poor") {
-            "poor"
-        } else if [lcp_status, inp_status, cls_status].contains(&"needs_improvement") {
-            "needs_improvement"
-        } else {
-            "good"
-        };
+        let mut routes: Vec<RouteWebVitalsMetric> = by_route
+            .into_iter()
+            .map(|(page_url, (rl, ri, rc, rt, samples))| {
+                let lp = percentile_p75(rl);
+                let ip = percentile_p75(ri);
+                let cp = percentile_p75(rc);
+                let tp = percentile_p75(rt);
+                let (_, _, _, st) = rate_cwv(samples, lp, ip, cp);
+                RouteWebVitalsMetric {
+                    page_url,
+                    sample_count: samples,
+                    lcp_p75_ms: lp,
+                    inp_p75_ms: ip,
+                    cls_p75: cp,
+                    ttfb_p75_ms: tp,
+                    status: st.to_string(),
+                }
+            })
+            .collect();
+        routes.sort_by(|a, b| {
+            b.lcp_p75_ms
+                .partial_cmp(&a.lcp_p75_ms)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| b.sample_count.cmp(&a.sample_count))
+        });
+        routes.truncate(8);
 
         Ok(CoreWebVitalsSummary {
             sample_count: count,
@@ -653,6 +775,7 @@ impl Database {
             inp_status: inp_status.to_string(),
             cls_status: cls_status.to_string(),
             overall_status: overall_status.to_string(),
+            routes,
         })
     }
 }

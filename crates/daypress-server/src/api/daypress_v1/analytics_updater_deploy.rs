@@ -23,12 +23,86 @@ use std::path::Path;
 #[derive(Debug, Deserialize, Default)]
 pub struct AnalyticsRangeQuery {
     pub range: Option<String>,
+    pub page: Option<String>,
+    pub referrer: Option<String>,
+    pub channel: Option<String>,
+    pub utm_source: Option<String>,
+    pub utm_medium: Option<String>,
+    pub utm_campaign: Option<String>,
+    pub device: Option<String>,
+    pub browser: Option<String>,
+    pub os: Option<String>,
+    pub country: Option<String>,
+    pub goal: Option<String>,
+}
+
+impl AnalyticsRangeQuery {
+    pub fn to_filter(&self) -> AnalyticsFilter {
+        AnalyticsFilter {
+            page: self.page.clone(),
+            referrer: self.referrer.clone(),
+            channel: self.channel.clone(),
+            utm_source: self.utm_source.clone(),
+            utm_medium: self.utm_medium.clone(),
+            utm_campaign: self.utm_campaign.clone(),
+            device: self.device.clone(),
+            browser: self.browser.clone(),
+            os: self.os.clone(),
+            country: self.country.clone(),
+            goal: self.goal.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveAnalyticsSettingsPayload {
+    #[serde(default = "crate::models::default_analytics_retention_days")]
+    pub retention_days: i64,
+    #[serde(default = "crate::models::default_true_bool")]
+    pub exclude_admins: bool,
+    #[serde(default = "crate::models::default_true_bool")]
+    pub filter_bots: bool,
+    #[serde(default = "crate::models::default_true_bool")]
+    pub honor_dnt_gpc: bool,
+}
+
+pub(crate) fn should_ignore_telemetry_request(
+    db: &Database,
+    headers: &HeaderMap,
+    ua: &str,
+) -> Option<&'static str> {
+    use crate::adapters::database::analytics::{
+        has_dnt_or_gpc, is_bot_or_crawler, is_prefetch_or_prerender,
+    };
+
+    if is_prefetch_or_prerender(headers) {
+        return Some("prefetch");
+    }
+    let cfg = db.get_analytics_telemetry_settings().unwrap_or_default();
+    if cfg.honor_dnt_gpc && has_dnt_or_gpc(headers) {
+        return Some("dnt_gpc");
+    }
+    if cfg.filter_bots && is_bot_or_crawler(ua) {
+        return Some("bot");
+    }
+    if cfg.exclude_admins {
+        if let Some(cookie_hdr) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
+            if let Some(user) = crate::auth::session_user_from_cookie_header(cookie_hdr, db) {
+                if user.is_editor_or_above() {
+                    return Some("staff");
+                }
+            }
+        }
+    }
+    None
 }
 
 pub(crate) async fn record_analytics_event_handler(
     State(db): State<Database>,
     request: Request,
 ) -> Result<Json<Value>, AppError> {
+    use crate::adapters::database::analytics::parse_ua_telemetry;
+
     let (parts, body) = request.into_parts();
     let bytes = to_bytes(body, 64 * 1024)
         .await
@@ -37,44 +111,57 @@ pub(crate) async fn record_analytics_event_handler(
     let payload: AnalyticsEventRequest = serde_json::from_slice(&bytes)
         .map_err(|e| AppError::BadRequest(format!("Invalid analytics payload: {}", e)))?;
 
-    let peer_ip = crate::auth::client_ip(&parts);
-    let client_ip = crate::auth::resolve_client_ip(&parts.headers, peer_ip.as_deref());
-
     let ua = parts
         .headers
         .get(header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown");
 
+    if let Some(reason) = should_ignore_telemetry_request(&db, &parts.headers, ua) {
+        return Ok(Json(serde_json::json!({
+            "recorded": false,
+            "ignored": reason
+        })));
+    }
+
+    let peer_ip = crate::auth::client_ip(&parts);
+    let visitor_hash = db.compute_daily_visitor_hash(&parts.headers, peer_ip.as_deref());
     let country = extract_country_from_headers(&parts.headers);
+    let req_host = parts
+        .headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok());
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(client_ip.as_bytes());
-    hasher.update(ua.as_bytes());
-    hasher.update(today.as_bytes());
-    let visitor_hash = hex::encode(hasher.finalize());
-
+    let (browser, os, fallback_device) = parse_ua_telemetry(ua);
     let referrer = payload.referrer.unwrap_or_default();
-    let device_type = payload.device_type.unwrap_or_else(|| "desktop".to_string());
+    let device_type = payload
+        .device_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(fallback_device);
     let event_type = if payload.event_type.trim().is_empty() {
         "pageview"
     } else {
         payload.event_type.trim()
     };
 
-    db.record_analytics_event_full(
+    db.record_analytics_beacon(
         &visitor_hash,
         &payload.page_url,
         &referrer,
-        &device_type,
+        req_host,
+        device_type,
+        browser,
+        os,
         &country,
         payload.utm_source.as_deref(),
         payload.utm_medium.as_deref(),
         payload.utm_campaign.as_deref(),
         event_type,
         payload.goal_name.as_deref(),
+        payload.duration_secs,
+        payload.scroll_depth,
     )?;
 
     Ok(Json(serde_json::json!({ "recorded": true })))
@@ -86,8 +173,34 @@ pub(crate) async fn get_analytics_summary_handler(
     Query(query): Query<AnalyticsRangeQuery>,
 ) -> Result<Json<AnalyticsSummary>, AppError> {
     let range = query.range.as_deref().unwrap_or("30d");
-    let summary = db.get_analytics_dashboard(range)?;
+    let summary = db.get_analytics_dashboard_filtered(range, &query.to_filter())?;
     Ok(Json(summary))
+}
+
+pub(crate) async fn get_analytics_settings_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+) -> Result<Json<AnalyticsTelemetrySettings>, AppError> {
+    let cfg = db.get_analytics_telemetry_settings()?;
+    Ok(Json(cfg))
+}
+
+pub(crate) async fn save_analytics_settings_handler(
+    _auth: crate::auth::AdminUser,
+    State(db): State<Database>,
+    Json(payload): Json<SaveAnalyticsSettingsPayload>,
+) -> Result<Json<Value>, AppError> {
+    let (settings, pruned_rows) = db.update_analytics_telemetry_settings(
+        payload.retention_days,
+        payload.exclude_admins,
+        payload.filter_bots,
+        payload.honor_dnt_gpc,
+    )?;
+    Ok(Json(serde_json::json!({
+        "saved": true,
+        "pruned_rows": pruned_rows,
+        "settings": settings,
+    })))
 }
 
 // --- Native Subsystems: Transactional Email Handler ---

@@ -761,6 +761,11 @@ pub fn render_base_layout(
     } else {
         "false"
     };
+    let staff_skip_analytics = if current_user.is_some_and(|u| u.is_editor_or_above()) {
+        "true"
+    } else {
+        "false"
+    };
     let cookie_consent_html = render_cookie_consent_banner(settings);
     let cmdk_search_html = render_cmdk_search_modal();
     let html_lang = current_post
@@ -821,6 +826,8 @@ pub fn render_base_layout(
 	<script>
 	(function(){{
 		var gate = {gate_analytics};
+		var isStaff = {staff_skip_analytics};
+		if (isStaff || navigator.webdriver) return;
 		function canTrack() {{
 			if (!gate) return true;
 			try {{
@@ -830,48 +837,126 @@ pub fn render_base_layout(
 				return !!(c && c.analytics);
 			}} catch(e) {{ return false; }}
 		}}
-		function sendEvent(eventName, goalName) {{
-			if (!canTrack() || !window.fetch) return;
+		function detectDevice() {{
+			return window.innerWidth < 768 ? 'mobile' : (window.innerWidth < 1024 ? 'tablet' : 'desktop');
+		}}
+		function transmitJson(url, obj, preferBeacon) {{
+			if (!canTrack()) return;
+			try {{
+				var body = JSON.stringify(obj);
+				if (preferBeacon && navigator.sendBeacon) {{
+					var blob = new Blob([body], {{ type: 'application/json' }});
+					if (navigator.sendBeacon(url, blob)) return;
+				}}
+				if (window.fetch) {{
+					fetch(url, {{
+						method: 'POST',
+						headers: {{ 'Content-Type': 'application/json' }},
+						body: body,
+						keepalive: true
+					}}).catch(function(){{}});
+				}}
+			}} catch(e) {{}}
+		}}
+		function sendEvent(eventType, goalName, extra, preferBeacon) {{
+			if (!canTrack()) return;
 			try {{
 				var sp = new URLSearchParams(window.location.search || '');
-				fetch('/wp-json/daypress/v1/analytics/event', {{
-					method: 'POST',
-					headers: {{ 'Content-Type': 'application/json' }},
-					body: JSON.stringify({{
-						page_url: window.location.pathname,
-						referrer: document.referrer || '',
-						device_type: window.innerWidth < 768 ? 'mobile' : (window.innerWidth < 1024 ? 'tablet' : 'desktop'),
-						utm_source: sp.get('utm_source') || '',
-						utm_medium: sp.get('utm_medium') || '',
-						utm_campaign: sp.get('utm_campaign') || '',
-						event_name: eventName || 'pageview',
-						goal_name: goalName || ''
-					}}),
-					keepalive: true
-				}}).catch(function(){{}});
+				var payload = {{
+					page_url: window.location.pathname,
+					referrer: document.referrer || '',
+					device_type: detectDevice(),
+					utm_source: sp.get('utm_source') || '',
+					utm_medium: sp.get('utm_medium') || '',
+					utm_campaign: sp.get('utm_campaign') || '',
+					event_type: eventType || 'pageview',
+					goal_name: goalName || ''
+				}};
+				if (extra) {{
+					if (typeof extra.duration_secs === 'number') payload.duration_secs = extra.duration_secs;
+					if (typeof extra.scroll_depth === 'number') payload.scroll_depth = extra.scroll_depth;
+				}}
+				transmitJson('/wp-json/daypress/v1/analytics/event', payload, !!preferBeacon);
 			}} catch(e) {{}}
 		}}
 		window.daypressTrack = function(goalName) {{
-			if (goalName) sendEvent('goal', String(goalName));
+			if (goalName) sendEvent('goal', String(goalName), null, false);
 		}};
 		var pvSent = false;
 		function trackPageviewOnce() {{
 			if (pvSent || !canTrack()) return;
 			pvSent = true;
-			sendEvent('pageview', '');
+			sendEvent('pageview', '', null, false);
 		}}
 		trackPageviewOnce();
 		window.addEventListener('daypress:consent', function() {{ trackPageviewOnce(); }});
-		document.addEventListener('click', function(e) {{
-			var el = e.target && e.target.closest ? e.target.closest('[data-dp-goal]') : null;
-			if (el) {{
-				var g = el.getAttribute('data-dp-goal');
-				if (g) window.daypressTrack(g);
+
+		// Engaged reading time + max scroll depth tracking
+		var activeMs = 0;
+		var lastTick = Date.now();
+		var lastInteract = Date.now();
+		var maxScrollPct = 0;
+		var engFlushedDur = 0;
+		var engFlushedScroll = 0;
+		function updateScrollDepth() {{
+			try {{
+				var docEl = document.documentElement;
+				var totalH = Math.max(docEl.scrollHeight || 0, document.body ? document.body.scrollHeight : 0);
+				var winH = window.innerHeight || docEl.clientHeight || 0;
+				var scY = window.scrollY || window.pageYOffset || 0;
+				if (totalH <= 0) return;
+				var pct = Math.min(100, Math.round(((scY + winH) / totalH) * 100));
+				if (pct > maxScrollPct) maxScrollPct = pct;
+			}} catch(e) {{}}
+		}}
+		function markInteraction() {{
+			var now = Date.now();
+			if (document.visibilityState === 'visible' && (now - lastInteract) < 45000) {{
+				activeMs += Math.max(0, Math.min(now - lastTick, 5000));
 			}}
+			lastTick = now;
+			lastInteract = now;
+		}}
+		setInterval(function() {{
+			var now = Date.now();
+			if (document.visibilityState === 'visible' && (now - lastInteract) < 45000) {{
+				activeMs += Math.max(0, Math.min(now - lastTick, 5000));
+			}}
+			lastTick = now;
+		}}, 2000);
+		window.addEventListener('scroll', function() {{ markInteraction(); updateScrollDepth(); }}, {{ passive: true }});
+		document.addEventListener('pointerdown', markInteraction, {{ passive: true }});
+		document.addEventListener('keydown', markInteraction, {{ passive: true }});
+		window.addEventListener('load', updateScrollDepth, {{ once: true }});
+
+		// Delegated click tracking: custom [data-dp-goal], outbound links & file downloads
+		var dlExtRe = /\.(pdf|zip|tar|gz|tgz|7z|dmg|exe|msi|pkg|deb|rpm|appimage|csv|xlsx|xls|docx|pptx|epub|mp4|mp3)$/i;
+		document.addEventListener('click', function(e) {{
+			markInteraction();
+			var target = e.target && e.target.closest ? e.target : null;
+			if (!target) return;
+			var goalEl = target.closest('[data-dp-goal]');
+			if (goalEl) {{
+				var g = goalEl.getAttribute('data-dp-goal');
+				if (g) sendEvent('goal', g, null, true);
+				return;
+			}}
+			var link = target.closest('a[href]');
+			if (!link) return;
+			try {{
+				var u = new URL(link.href, window.location.origin);
+				if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+				if (u.hostname && u.hostname !== window.location.hostname) {{
+					sendEvent('outbound_click', u.hostname + (u.pathname && u.pathname !== '/' ? u.pathname : ''), null, true);
+				}} else if (dlExtRe.test(u.pathname || '')) {{
+					sendEvent('file_download', u.pathname, null, true);
+				}}
+			}} catch(err) {{}}
 		}});
+
+		var vitals = {{ lcp_ms: null, inp_ms: null, cls_score: 0, ttfb_ms: null }};
+		var vitalsSent = false;
 		if (window.PerformanceObserver) {{
-			var vitals = {{ lcp_ms: null, inp_ms: null, cls_score: 0, ttfb_ms: null }};
-			var vitalsSent = false;
 			try {{
 				var navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
 				if (navEntry && navEntry.responseStart > 0) vitals.ttfb_ms = Math.round(navEntry.responseStart);
@@ -891,28 +976,38 @@ pub fn render_base_layout(
 					}});
 				}}).observe({{ type: 'event', buffered: true, durationThreshold: 16 }});
 			}} catch(e) {{}}
-			function flushVitals() {{
-				if (vitalsSent || !canTrack() || !window.fetch) return;
-				if (vitals.lcp_ms === null && vitals.ttfb_ms === null) return;
-				vitalsSent = true;
-				fetch('/wp-json/daypress/v1/analytics/vitals', {{
-					method: 'POST',
-					headers: {{ 'Content-Type': 'application/json' }},
-					body: JSON.stringify({{
-						page_url: window.location.pathname,
-						device_type: window.innerWidth < 768 ? 'mobile' : (window.innerWidth < 1024 ? 'tablet' : 'desktop'),
-						lcp_ms: vitals.lcp_ms,
-						inp_ms: vitals.inp_ms,
-						cls_score: vitals.cls_score,
-						ttfb_ms: vitals.ttfb_ms
-					}}),
-					keepalive: true
-				}}).catch(function(){{}});
-			}}
-			document.addEventListener('visibilitychange', function() {{
-				if (document.visibilityState === 'hidden') flushVitals();
-			}});
 		}}
+		function flushUnloadTelemetry() {{
+			if (!canTrack()) return;
+			updateScrollDepth();
+			var now = Date.now();
+			if ((now - lastInteract) < 45000) {{
+				activeMs += Math.max(0, Math.min(now - lastTick, 5000));
+			}}
+			lastTick = now;
+			var durSecs = Math.min(3600, Math.round(activeMs / 1000));
+			if (pvSent && (durSecs > engFlushedDur || maxScrollPct > engFlushedScroll) && (durSecs >= 1 || maxScrollPct > 0)) {{
+				engFlushedDur = Math.max(engFlushedDur, durSecs);
+				engFlushedScroll = Math.max(engFlushedScroll, maxScrollPct);
+				sendEvent('engagement', '', {{ duration_secs: engFlushedDur, scroll_depth: engFlushedScroll }}, true);
+			}}
+			if (!vitalsSent && (vitals.lcp_ms !== null || vitals.ttfb_ms !== null)) {{
+				vitalsSent = true;
+				transmitJson('/wp-json/daypress/v1/analytics/vitals', {{
+					page_url: window.location.pathname,
+					device_type: detectDevice(),
+					lcp_ms: vitals.lcp_ms,
+					inp_ms: vitals.inp_ms,
+					cls_score: vitals.cls_score,
+					ttfb_ms: vitals.ttfb_ms
+				}}, true);
+			}}
+		}}
+		document.addEventListener('visibilitychange', function() {{
+			if (document.visibilityState === 'hidden') flushUnloadTelemetry();
+			else lastTick = Date.now();
+		}});
+		window.addEventListener('pagehide', flushUnloadTelemetry);
 	}})();
 	</script>
 
@@ -959,6 +1054,7 @@ pub fn render_base_layout(
         favicon_href = favicon_href,
         schema_json_ld = schema_json_ld,
         gate_analytics = gate_analytics,
+        staff_skip_analytics = staff_skip_analytics,
         public_theme_css = super::styles::render_public_theme_css(&escape_html(brand_color)),
         daystudio_kit_css_block = daystudio_kit_css_block,
         custom_css_block = custom_css_block,

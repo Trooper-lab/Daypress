@@ -301,6 +301,15 @@ impl crate::ports::output::OptionRepository for Database {
             .map_err(|e| DomainError::Storage(e.to_string()))
     }
 
+    fn get_analytics_dashboard_filtered(
+        &self,
+        range: &str,
+        filter: &crate::models::AnalyticsFilter,
+    ) -> DomainResult<AnalyticsSummary> {
+        Database::get_analytics_dashboard_filtered(self, range, filter)
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
     fn list_theme_templates(
         &self,
         template_type: Option<&str>,

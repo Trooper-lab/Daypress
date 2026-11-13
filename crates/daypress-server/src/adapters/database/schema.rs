@@ -535,10 +535,24 @@ impl Database {
             "ALTER TABLE daypress_form_entries ADD COLUMN webhook_status TEXT DEFAULT NULL;",
             "ALTER TABLE daypress_form_entries ADD COLUMN source_url TEXT NOT NULL DEFAULT '';",
             "CREATE INDEX IF NOT EXISTS idx_form_entries_form_status ON daypress_form_entries(form_id, status, created_at);",
-            // Idempotent v0.4 migrations for daypress_analytics_events (Goal/Form Conversions)
+            // Idempotent v0.4 + v1.0+ migrations for daypress_analytics_events & daypress_analytics_daily
             "ALTER TABLE daypress_analytics_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'pageview';",
             "ALTER TABLE daypress_analytics_events ADD COLUMN goal_name TEXT DEFAULT NULL;",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN referrer_domain TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN channel TEXT NOT NULL DEFAULT 'Direct';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN browser TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN os TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN duration_secs INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN scroll_depth INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN conversions INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN total_duration_secs INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN scroll_sum INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN engaged_views INTEGER NOT NULL DEFAULT 0;",
+            "UPDATE daypress_analytics_events SET created_at = substr(replace(created_at, 'T', ' '), 1, 19) WHERE created_at LIKE '%T%';",
+            "UPDATE daypress_web_vitals SET created_at = substr(replace(created_at, 'T', ' '), 1, 19) WHERE created_at LIKE '%T%';",
             "CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON daypress_analytics_events(created_at, event_type);",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_created_event ON daypress_analytics_events(created_at, event_type, page_url, visitor_hash);",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_visitor_created ON daypress_analytics_events(visitor_hash, created_at);",
         ] {
             let _ = conn.execute(alter_sql, []);
         }

@@ -241,11 +241,19 @@ pub fn mcp_tools_manifest() -> Value {
             },
             {
                 "name": "daypress_get_analytics",
-                "description": "Retrieve the Plausible-style Cookieless Analytics dashboard summary (pageviews, unique visitors, bounce rate, time-series, top pages, referrers, UTM campaigns, devices, countries, and conversions).",
+                "description": "Retrieve the Plausible-style Cookieless Analytics dashboard summary (pageviews, unique visitors, live visitors, engaged time, scroll depth, bounce rate, period-over-period deltas, time-series, top/entry/exit pages, channels, referrers, UTMs, devices, browsers, OS, countries, conversions, outbound clicks, and file downloads).",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "range": { "type": "string", "default": "30d", "description": "Date range ('today', '7d', '30d', '90d', '12m', or 'all')" }
+                        "range": { "type": "string", "default": "30d", "description": "Date range ('today', '24h', '7d', '30d', '90d', '12m', or 'all')" },
+                        "page": { "type": "string", "description": "Optional page path filter (e.g. '/pricing')" },
+                        "channel": { "type": "string", "description": "Optional acquisition channel filter ('Direct', 'Organic Search', 'Social', 'Referral', 'Email', 'Paid')" },
+                        "referrer": { "type": "string", "description": "Optional normalized referrer domain filter (e.g. 'google.com')" },
+                        "country": { "type": "string", "description": "Optional 2-letter ISO country filter (e.g. 'NL', 'US')" },
+                        "device": { "type": "string", "description": "Optional device filter ('desktop', 'mobile', 'tablet')" },
+                        "browser": { "type": "string", "description": "Optional browser family filter ('Chrome', 'Safari', 'Firefox', 'Edge')" },
+                        "os": { "type": "string", "description": "Optional OS filter ('macOS', 'Windows', 'iOS', 'Android', 'Linux')" },
+                        "goal": { "type": "string", "description": "Optional goal/conversion filter to inspect converting visitors" }
                     }
                 }
             },

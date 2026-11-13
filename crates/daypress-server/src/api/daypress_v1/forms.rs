@@ -626,21 +626,22 @@ pub(crate) async fn submit_form_handler(
     )?;
 
     // 5. Record Cookieless Analytics Conversion (`form_submit`)
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let mut v_hasher = Sha256::new();
-    v_hasher.update(ip.as_bytes());
-    v_hasher.update(ua.as_bytes());
-    v_hasher.update(today.as_bytes());
-    let visitor_hash = hex::encode(v_hasher.finalize());
+    let visitor_hash = db.compute_daily_visitor_hash_from_parts(&ip, ua);
+    let (browser, os, fallback_device) =
+        crate::adapters::database::analytics::parse_ua_telemetry(ua);
     let country = extract_country_from_headers(&parts.headers);
     let utm_source = clean_map.get("_utm_source").and_then(|v| v.as_str());
     let utm_medium = clean_map.get("_utm_medium").and_then(|v| v.as_str());
     let utm_campaign = clean_map.get("_utm_campaign").and_then(|v| v.as_str());
+    let req_host = parts
+        .headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok());
     let form_title_for_goal = form_rec_opt
         .as_ref()
         .map(|f| f.title.as_str())
         .unwrap_or("Form");
-    let _ = db.record_analytics_event_full(
+    let _ = db.record_analytics_beacon(
         &visitor_hash,
         if source_url.is_empty() {
             "/"
@@ -648,13 +649,18 @@ pub(crate) async fn submit_form_handler(
             &source_url
         },
         "",
-        "desktop",
+        req_host,
+        fallback_device,
+        browser,
+        os,
         &country,
         utm_source,
         utm_medium,
         utm_campaign,
         "form_submit",
         Some(&format!("Form: {}", form_title_for_goal)),
+        None,
+        None,
     );
 
     // 6. Dispatch Admin Notifications, User Auto-Responder, and Outbound Webhook

@@ -374,6 +374,10 @@ fn daypress_v1_routes() -> Router<Database> {
             axum::routing::post(record_analytics_event_handler),
         )
         .route("/analytics/summary", get(get_analytics_summary_handler))
+        .route(
+            "/analytics/settings",
+            get(get_analytics_settings_handler).post(save_analytics_settings_handler),
+        )
         // Native Subsystem: Transactional Email Dispatcher
         .route("/email/send", axum::routing::post(send_email_handler))
         // Native Subsystem: Self-Updater & Release Lifecycle

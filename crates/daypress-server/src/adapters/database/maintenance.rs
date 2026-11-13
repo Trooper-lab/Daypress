@@ -64,6 +64,25 @@ impl Database {
         let _ = conn.execute_batch(super::ddl::FTS5_SEARCH_SCHEMA_SQL);
         let _ = crate::theme_builder::schema::init_theme_builder_schema(&conn);
         conn.execute_batch(super::ddl::V10_SCHEMA_MIGRATIONS_SQL)?;
+        for alter_sql in [
+            "ALTER TABLE daypress_analytics_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'pageview';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN goal_name TEXT DEFAULT NULL;",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN referrer_domain TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN channel TEXT NOT NULL DEFAULT 'Direct';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN browser TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN os TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN duration_secs INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_events ADD COLUMN scroll_depth INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN conversions INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN total_duration_secs INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN scroll_sum INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE daypress_analytics_daily ADD COLUMN engaged_views INTEGER NOT NULL DEFAULT 0;",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON daypress_analytics_events(created_at, event_type);",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_created_event ON daypress_analytics_events(created_at, event_type, page_url, visitor_hash);",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_visitor_created ON daypress_analytics_events(visitor_hash, created_at);",
+        ] {
+            let _ = conn.execute(alter_sql, []);
+        }
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_path_buf(),

@@ -499,7 +499,29 @@ fn dispatch_tool_call(
         }
         "daypress_get_analytics" => {
             let range = args.get("range").and_then(Value::as_str).unwrap_or("30d");
-            let summary = service.options_repo().get_analytics_dashboard(range)?;
+            let str_arg = |k: &str| -> Option<String> {
+                args.get(k)
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(ToString::to_string)
+            };
+            let filter = crate::models::AnalyticsFilter {
+                page: str_arg("page"),
+                referrer: str_arg("referrer"),
+                channel: str_arg("channel"),
+                utm_source: str_arg("utm_source"),
+                utm_medium: str_arg("utm_medium"),
+                utm_campaign: str_arg("utm_campaign"),
+                device: str_arg("device"),
+                browser: str_arg("browser"),
+                os: str_arg("os"),
+                country: str_arg("country"),
+                goal: str_arg("goal"),
+            };
+            let summary = service
+                .options_repo()
+                .get_analytics_dashboard_filtered(range, &filter)?;
             Ok(serde_json::to_value(summary).unwrap_or(Value::Null))
         }
         "daypress_list_templates" => {

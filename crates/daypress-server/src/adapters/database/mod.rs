@@ -6,6 +6,7 @@
 
 pub mod ab_vitals;
 pub mod admin_lists;
+pub mod analytics;
 pub mod comments;
 pub mod content_model;
 pub mod ddl;
