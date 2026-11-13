@@ -44,6 +44,26 @@ pub(super) fn lock(db: &Database) -> Result<MutexGuard<'_, Connection>, AppError
         .map_err(|_| AppError::Internal("database connection lock poisoned".to_string()))
 }
 
+/// Resolves the active session version for `user_id` and increments `daypress_session_ver` in
+/// `usermeta`, invalidating previously issued session cookies and JWT tokens.
+pub(super) fn bump_session_version_with_conn(
+    conn: &Connection,
+    user_id: i64,
+) -> rusqlite::Result<i64> {
+    let current: i64 = conn
+        .query_row(
+            "SELECT meta_value FROM usermeta WHERE user_id = ?1 AND meta_key = 'daypress_session_ver'",
+            params![user_id],
+            |r| r.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(0);
+    let next = current + 1;
+    Database::upsert_usermeta(conn, user_id, "daypress_session_ver", &next.to_string())?;
+    Ok(next)
+}
+
 /// Lowercase form of a token taken from a reset link, or `None` when it cannot be one of
 /// ours (tokens are 64 hex characters).
 fn normalize_token(raw: &str) -> Option<String> {
@@ -219,6 +239,7 @@ impl Database {
             return Ok(None);
         }
         revoke_tokens_with_conn(&tx, user_id, now)?;
+        bump_session_version_with_conn(&tx, user_id)?;
         tx.commit()?;
         Ok(Some(user_id))
     }

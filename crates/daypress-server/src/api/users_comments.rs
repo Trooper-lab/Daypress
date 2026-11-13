@@ -366,17 +366,22 @@ pub(crate) async fn delete_all_app_passwords(
 pub(crate) async fn destroy_other_sessions_handler(
     auth: AuthUser,
     State(db): State<Database>,
+    headers_in: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     AxPath(user_id): AxPath<i64>,
 ) -> Result<(HeaderMap, Json<Value>), AppError> {
     if auth.user_id != user_id && !auth.is_admin() {
         return Err(AppError::Forbidden("Permission denied".to_string()));
     }
     let new_ver = db.bump_user_session_version(user_id)?;
+    let secure = crate::auth::should_set_secure_cookies(&headers_in, trusted_proxy, &db);
     let mut headers = HeaderMap::new();
     if auth.user_id == user_id {
         if let Ok(secret) = db.get_auth_secret() {
-            let cookie =
-                crate::auth::session_cookie_header_with_version(user_id, &secret, false, new_ver);
+            let cookie = crate::auth::format_cookie_with_security(
+                crate::auth::session_cookie_header_with_version(user_id, &secret, false, new_ver),
+                secure,
+            );
             if let Ok(hv) = header::HeaderValue::from_str(&cookie) {
                 headers.insert(header::SET_COOKIE, hv);
             }
@@ -438,10 +443,19 @@ pub(crate) async fn generate_jwt_token(
             .as_deref()
             .or_else(|| headers.get("x-daypress-otp").and_then(|v| v.to_str().ok()))
             .unwrap_or("");
-        if !db.verify_user_2fa_code(user.user_id, otp).unwrap_or(false) {
-            return Err(AppError::Unauthorized(
-                "Two-factor authentication code required (pass totp_code in JSON or X-Daypress-OTP header).".to_string(),
-            ));
+        match db.verify_user_2fa_throttled(user.user_id, otp, client.as_deref())? {
+            crate::auth::TwoFactorVerifyOutcome::Verified => {}
+            crate::auth::TwoFactorVerifyOutcome::Throttled { retry_after_secs } => {
+                return Err(AppError::TooManyRequests(format!(
+                    "Too many failed two-factor attempts. Try again in {} minutes.",
+                    (retry_after_secs + 59) / 60
+                )));
+            }
+            crate::auth::TwoFactorVerifyOutcome::Invalid => {
+                return Err(AppError::Unauthorized(
+                    "Two-factor authentication code required (pass totp_code in JSON or X-Daypress-OTP header).".to_string(),
+                ));
+            }
         }
     }
 
@@ -456,7 +470,14 @@ pub(crate) async fn generate_jwt_token(
 
     let secret = db.get_auth_secret()?;
     let site_url = db.get_base_url();
-    let token = crate::auth::create_jwt_token(user.user_id, &user.username, &site_url, &secret, 7);
+    let token = crate::auth::create_versioned_jwt_token(
+        user.user_id,
+        &user.username,
+        &site_url,
+        &secret,
+        7,
+        user_detail.session_ver,
+    );
 
     Ok(Json(JwtTokenResponse {
         token,

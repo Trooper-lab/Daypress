@@ -77,10 +77,13 @@ pub async fn handle_api_getting_started_agent_key(
 
 pub async fn handle_login_page(
     State(db): State<Database>,
+    req_headers: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     Query(params): Query<LoginQueryParams>,
 ) -> impl IntoResponse {
     if params.action.as_deref() == Some("logout") {
-        return handle_logout().await.into_response();
+        let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
+        return build_logout_response(secure).into_response();
     }
     if db.needs_onboarding() {
         return axum::response::Redirect::to("/setup").into_response();
@@ -196,6 +199,8 @@ pub async fn handle_setup_page(State(db): State<Database>) -> impl IntoResponse 
 
 pub async fn handle_setup_submit(
     State(db): State<Database>,
+    req_headers: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     Form(form): Form<crate::db::OnboardingSetupRequest>,
 ) -> impl IntoResponse {
     if !db.needs_onboarding() {
@@ -225,8 +230,11 @@ pub async fn handle_setup_submit(
                 .flatten()
                 .map(|u| u.session_ver)
                 .unwrap_or(1);
-            let cookie_val =
-                crate::auth::session_cookie_header_with_version(user.user_id, &secret, true, ver);
+            let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
+            let cookie_val = crate::auth::format_cookie_with_security(
+                crate::auth::session_cookie_header_with_version(user.user_id, &secret, true, ver),
+                secure,
+            );
             if let Ok(val) = cookie_val.parse() {
                 headers.insert(header::SET_COOKIE, val);
             }
@@ -265,6 +273,8 @@ pub async fn handle_setup_submit(
 
 pub async fn handle_login_submit(
     State(db): State<Database>,
+    req_headers: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     crate::auth::ClientIp(client): crate::auth::ClientIp,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
@@ -302,10 +312,13 @@ pub async fn handle_login_submit(
             let mut headers = HeaderMap::new();
             let secret = db.get_auth_secret().unwrap_or_default();
             let remember = form.rememberme.is_some();
+            let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
 
             if db.is_user_2fa_enabled(user.user_id).unwrap_or(false) {
-                let challenge_cookie =
-                    crate::auth::challenge_2fa_cookie_header(user.user_id, remember, &secret);
+                let challenge_cookie = crate::auth::format_cookie_with_security(
+                    crate::auth::challenge_2fa_cookie_header(user.user_id, remember, &secret),
+                    secure,
+                );
                 if let Ok(val) = challenge_cookie.parse() {
                     headers.insert(header::SET_COOKIE, val);
                 }
@@ -331,11 +344,14 @@ pub async fn handle_login_submit(
                 .flatten()
                 .map(|u| u.session_ver)
                 .unwrap_or(0);
-            let cookie_val = crate::auth::session_cookie_header_with_version(
-                user.user_id,
-                &secret,
-                remember,
-                ver,
+            let cookie_val = crate::auth::format_cookie_with_security(
+                crate::auth::session_cookie_header_with_version(
+                    user.user_id,
+                    &secret,
+                    remember,
+                    ver,
+                ),
+                secure,
             );
             if let Ok(val) = cookie_val.parse() {
                 headers.insert(header::SET_COOKIE, val);
@@ -384,6 +400,7 @@ pub async fn handle_login_2fa_page(
 
 pub async fn handle_login_2fa_submit(
     State(db): State<Database>,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     crate::auth::ClientIp(client): crate::auth::ClientIp,
     req_headers: HeaderMap,
     Form(form): Form<LoginTwoFactorForm>,
@@ -432,6 +449,7 @@ pub async fn handle_login_2fa_submit(
 
     if db.verify_user_2fa_code(user_id, code).unwrap_or(false) {
         db.login_throttle.record_success(&throttle_key);
+        let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
         let mut headers = HeaderMap::new();
         let ver = db
             .get_user_detail(user_id)
@@ -439,12 +457,18 @@ pub async fn handle_login_2fa_submit(
             .flatten()
             .map(|u| u.session_ver)
             .unwrap_or(0);
-        let session_cookie =
-            crate::auth::session_cookie_header_with_version(user_id, &secret, remember, ver);
+        let session_cookie = crate::auth::format_cookie_with_security(
+            crate::auth::session_cookie_header_with_version(user_id, &secret, remember, ver),
+            secure,
+        );
         if let Ok(val) = session_cookie.parse() {
             headers.append(header::SET_COOKIE, val);
         }
-        if let Ok(val) = crate::auth::clear_2fa_challenge_cookie_header().parse() {
+        let clear_2fa = crate::auth::format_cookie_with_security(
+            crate::auth::clear_2fa_challenge_cookie_header().to_string(),
+            secure,
+        );
+        if let Ok(val) = clear_2fa.parse() {
             headers.append(header::SET_COOKIE, val);
         }
         if let Ok(loc) = redirect_to.parse() {
@@ -470,14 +494,24 @@ pub async fn handle_login_2fa_submit(
     }
 }
 
-pub async fn handle_logout() -> impl IntoResponse {
+fn build_logout_response(secure: bool) -> impl IntoResponse {
     let mut headers = HeaderMap::new();
-    headers.insert(
-        header::SET_COOKIE,
-        "daypress_admin=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly"
-            .parse()
-            .unwrap(),
+    let clear_cookie = crate::auth::format_cookie_with_security(
+        "daypress_admin=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly".to_string(),
+        secure,
     );
+    if let Ok(hv) = clear_cookie.parse() {
+        headers.insert(header::SET_COOKIE, hv);
+    }
     headers.insert(header::LOCATION, "/login?loggedout=true".parse().unwrap());
     (StatusCode::SEE_OTHER, headers, Html(String::new()))
+}
+
+pub async fn handle_logout(
+    State(db): State<Database>,
+    req_headers: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
+) -> impl IntoResponse {
+    let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
+    build_logout_response(secure)
 }

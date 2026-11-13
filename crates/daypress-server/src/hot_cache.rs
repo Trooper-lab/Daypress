@@ -64,12 +64,18 @@ impl SsrHotCache {
         Self::default()
     }
 
-    /// Returns `true` if the incoming request carries an active admin/editor session cookie.
+    /// Returns `true` if the incoming request carries an active admin/editor or subscriber unlock session cookie.
     pub fn has_session_cookie(headers: &HeaderMap) -> bool {
         headers
             .get(header::COOKIE)
             .and_then(|v| v.to_str().ok())
-            .map(|cookie_str| cookie_str.contains("daypress_session="))
+            .map(|cookie_str| {
+                cookie_str.split(';').any(|item| {
+                    let trimmed = item.trim();
+                    trimmed.starts_with("daypress_admin=")
+                        || trimmed.starts_with("daypress_subscriber=")
+                })
+            })
             .unwrap_or(false)
     }
 

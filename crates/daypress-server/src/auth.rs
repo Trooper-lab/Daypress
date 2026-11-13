@@ -26,6 +26,7 @@ pub struct OptionalAuthUser(pub Option<AuthUser>);
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtHeader {
     pub alg: String,
+    #[serde(default)]
     pub typ: String,
 }
 
@@ -34,6 +35,8 @@ pub struct JwtClaims {
     pub iss: String,
     pub iat: i64,
     pub exp: i64,
+    #[serde(default)]
+    pub session_ver: i64,
     pub data: JwtUserData,
 }
 
@@ -201,6 +204,14 @@ pub enum LoginAttempt {
     },
 }
 
+/// Outcome of a throttled second-factor (TOTP / recovery code) check.
+#[derive(Debug, Clone)]
+pub enum TwoFactorVerifyOutcome {
+    Verified,
+    Invalid,
+    Throttled { retry_after_secs: i64 },
+}
+
 /// In-memory failed-login counter keyed by client address + username, so a brute-force run
 /// against one account from one address is slowed to [`MAX_FAILED_LOGINS`] per window
 /// without letting a third party lock that account out for everyone else.
@@ -265,6 +276,117 @@ impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         Ok(ClientIp(client_ip(parts)))
+    }
+}
+
+fn ip_is_trusted_proxy(ip: std::net::IpAddr) -> bool {
+    if ip.is_loopback() {
+        return true;
+    }
+    std::env::var("DAYPRESS_TRUSTED_PROXY_IPS")
+        .ok()
+        .is_some_and(|raw| {
+            raw.split(',')
+                .filter_map(|entry| entry.trim().parse::<std::net::IpAddr>().ok())
+                .any(|trusted| trusted == ip)
+        })
+}
+
+fn is_loopback_host_header(host: &str) -> bool {
+    let trimmed = host.trim();
+    if let Some(port) = trimmed.strip_prefix("127.0.0.1:") {
+        return !port.is_empty() && port.chars().all(|c| c.is_ascii_digit());
+    }
+    if let Some(port) = trimmed.strip_prefix("[::1]:") {
+        return !port.is_empty() && port.chars().all(|c| c.is_ascii_digit());
+    }
+    trimmed == "127.0.0.1" || trimmed == "[::1]"
+}
+
+/// Returns `true` when forwarded proxy headers (`X-Forwarded-Host`, `X-Forwarded-Proto`) can be
+/// trusted because the TCP peer is a trusted proxy (loopback or `DAYPRESS_TRUSTED_PROXY_IPS`),
+/// or in local reverse-proxy unit harnesses without `ConnectInfo` targeting `127.0.0.1` / `[::1]`.
+pub fn is_trusted_proxy_request(
+    headers: &header::HeaderMap,
+    peer_ip: Option<std::net::IpAddr>,
+) -> bool {
+    match peer_ip {
+        Some(ip) => ip_is_trusted_proxy(ip),
+        None => headers
+            .get(header::HOST)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(is_loopback_host_header),
+    }
+}
+
+/// Extractor indicating whether the request arrived from a trusted reverse proxy; never rejects.
+#[derive(Debug, Clone, Copy)]
+pub struct TrustedProxy(pub bool);
+
+impl<S: Send + Sync> FromRequestParts<S> for TrustedProxy {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let peer_ip = parts
+            .extensions
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+            .map(|info| info.0.ip());
+        Ok(TrustedProxy(is_trusted_proxy_request(
+            &parts.headers,
+            peer_ip,
+        )))
+    }
+}
+
+/// Returns `true` when cookies should include `; Secure` (configured `https://` site URL,
+/// active built-in TLS, or trusted `X-Forwarded-Proto: https`).
+pub fn should_set_secure_cookies(
+    headers: &header::HeaderMap,
+    trusted_proxy: bool,
+    db: &Database,
+) -> bool {
+    if db
+        .get_base_url()
+        .trim()
+        .to_ascii_lowercase()
+        .starts_with("https://")
+    {
+        return true;
+    }
+    if db
+        .get_option("daypress_tls_config")
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get("enabled")?.as_bool())
+        == Some(true)
+    {
+        return true;
+    }
+    if trusted_proxy {
+        if let Some(proto) = headers
+            .get("x-forwarded-proto")
+            .and_then(|v| v.to_str().ok())
+        {
+            if proto
+                .split(',')
+                .next()
+                .map(str::trim)
+                .is_some_and(|s| s.eq_ignore_ascii_case("https"))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Appends `; Secure` to a `Set-Cookie` header string when `secure` is `true`.
+pub fn format_cookie_with_security(cookie: String, secure: bool) -> String {
+    if secure && !cookie.contains("; Secure") {
+        format!("{}; Secure", cookie)
+    } else {
+        cookie
     }
 }
 
@@ -703,13 +825,14 @@ pub fn verify_rest_nonce(nonce: &str, action: &str, user_id: i64, secret: &str) 
     false
 }
 
-/// Creates a signed HS256 JWT token compatible with WordPress `jwt-auth` plugins.
-pub fn create_jwt_token(
+/// Creates a signed HS256 JWT token carrying an explicit `session_ver`.
+pub fn create_versioned_jwt_token(
     user_id: i64,
     username: &str,
     site_url: &str,
     secret: &str,
     duration_days: i64,
+    session_ver: i64,
 ) -> String {
     let now = Utc::now().timestamp();
     let exp = now + (duration_days * 86400);
@@ -723,6 +846,7 @@ pub fn create_jwt_token(
         iss: site_url.to_string(),
         iat: now,
         exp,
+        session_ver,
         data: JwtUserData {
             user: JwtUserRecord {
                 id: user_id,
@@ -731,8 +855,10 @@ pub fn create_jwt_token(
         },
     };
 
-    let header_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_string(&header).unwrap());
-    let claims_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_string(&claims).unwrap());
+    let header_json = serde_json::to_string(&header).unwrap_or_else(|_| "{}".to_string());
+    let claims_json = serde_json::to_string(&claims).unwrap_or_else(|_| "{}".to_string());
+    let header_b64 = URL_SAFE_NO_PAD.encode(header_json);
+    let claims_b64 = URL_SAFE_NO_PAD.encode(claims_json);
     let signing_input = format!("{}.{}", header_b64, claims_b64);
     let sig = hmac_sha256(secret.as_bytes(), signing_input.as_bytes());
     let sig_b64 = URL_SAFE_NO_PAD.encode(sig);
@@ -740,11 +866,33 @@ pub fn create_jwt_token(
     format!("{}.{}", signing_input, sig_b64)
 }
 
+/// Creates a signed HS256 JWT token compatible with WordPress `jwt-auth` plugins.
+pub fn create_jwt_token(
+    user_id: i64,
+    username: &str,
+    site_url: &str,
+    secret: &str,
+    duration_days: i64,
+) -> String {
+    create_versioned_jwt_token(user_id, username, site_url, secret, duration_days, 0)
+}
+
 /// Verifies and decodes an HS256 JWT token.
 pub fn verify_jwt_token(token: &str, secret: &str) -> Result<JwtClaims, AppError> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
         return Err(AppError::Unauthorized("Invalid token format".to_string()));
+    }
+
+    let header_bytes = URL_SAFE_NO_PAD
+        .decode(parts[0])
+        .map_err(|_| AppError::Unauthorized("Invalid token header encoding".to_string()))?;
+    let header: JwtHeader = serde_json::from_slice(&header_bytes)
+        .map_err(|_| AppError::Unauthorized("Invalid token header JSON".to_string()))?;
+    if header.alg != "HS256" || (!header.typ.is_empty() && !header.typ.eq_ignore_ascii_case("JWT")) {
+        return Err(AppError::Unauthorized(
+            "Unsupported token algorithm".to_string(),
+        ));
     }
 
     let signing_input = format!("{}.{}", parts[0], parts[1]);
@@ -786,12 +934,17 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
         if let Ok(auth_str) = auth_header.to_str() {
             let auth_str = auth_str.trim();
 
-            // Bearer Token: the role always comes from the current user record, never the token.
+            // Bearer Token: the role and session_ver always come from the current user record, never the token.
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 let claims = verify_jwt_token(token.trim(), &secret)?;
                 let user = db.get_user_detail(claims.data.user.id)?.ok_or_else(|| {
                     AppError::Unauthorized("Token user no longer exists".to_string())
                 })?;
+                if claims.session_ver < user.session_ver {
+                    return Err(AppError::Unauthorized(
+                        "Token has been invalidated".to_string(),
+                    ));
+                }
                 return Ok(AuthUser {
                     user_id: user.id,
                     username: user.username,
@@ -823,13 +976,25 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
                                             .get("x-daypress-otp")
                                             .and_then(|v| v.to_str().ok())
                                             .unwrap_or("");
-                                        if !db
-                                            .verify_user_2fa_code(auth_user.user_id, otp)
-                                            .unwrap_or(false)
-                                        {
-                                            return Err(AppError::Unauthorized(
-                                                "Two-factor authentication code required (provide X-Daypress-OTP header or use an Application Password).".to_string(),
-                                            ));
+                                        match db.verify_user_2fa_throttled(
+                                            auth_user.user_id,
+                                            otp,
+                                            client.as_deref(),
+                                        )? {
+                                            TwoFactorVerifyOutcome::Verified => {}
+                                            TwoFactorVerifyOutcome::Throttled {
+                                                retry_after_secs,
+                                            } => {
+                                                return Err(AppError::TooManyRequests(format!(
+                                                    "Too many failed two-factor attempts. Try again in {} minutes.",
+                                                    (retry_after_secs + 59) / 60
+                                                )));
+                                            }
+                                            TwoFactorVerifyOutcome::Invalid => {
+                                                return Err(AppError::Unauthorized(
+                                                    "Two-factor authentication code required (provide X-Daypress-OTP header or use an Application Password).".to_string(),
+                                                ));
+                                            }
                                         }
                                     }
                                     return Ok(auth_user);
@@ -896,11 +1061,20 @@ pub async fn authenticate_request(parts: &Parts, db: &Database) -> Result<AuthUs
                                 .headers
                                 .get(header::HOST)
                                 .and_then(|v| v.to_str().ok());
-                            let forwarded_host = parts
-                                .headers
-                                .get("x-forwarded-host")
-                                .and_then(|v| v.to_str().ok());
-                            if !origin_matches_request_host(origin, host, forwarded_host) {
+                            let peer_ip = parts
+                                .extensions
+                                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                                .map(|info| info.0.ip());
+                            let trusted_forwarded_host =
+                                if is_trusted_proxy_request(&parts.headers, peer_ip) {
+                                    parts
+                                        .headers
+                                        .get("x-forwarded-host")
+                                        .and_then(|v| v.to_str().ok())
+                                } else {
+                                    None
+                                };
+                            if !origin_matches_request_host(origin, host, trusted_forwarded_host) {
                                 return Err(AppError::Forbidden(
                                     "Cross-origin cookie mutation blocked (CSRF protection)."
                                         .to_string(),
@@ -946,7 +1120,7 @@ fn origin_matches_request_host(
     };
     let origin_authority = strip_default_port(rest.split('/').next().unwrap_or(""), is_https);
     if origin_authority.is_empty() || origin_authority.eq_ignore_ascii_case("null") {
-        return true;
+        return false;
     }
 
     let primary_forwarded = forwarded_host
@@ -956,7 +1130,7 @@ fn origin_matches_request_host(
     let direct_host = host.map(str::trim).filter(|s| !s.is_empty());
 
     if primary_forwarded.is_none() && direct_host.is_none() {
-        return true;
+        return false;
     }
 
     [primary_forwarded, direct_host]

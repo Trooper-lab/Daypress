@@ -1271,3 +1271,399 @@ async fn step3_member_gate_password_and_draft_isolation_across_ssr_rest_rss_og_s
         .unwrap();
     assert_eq!(admin_layout.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn step4_jwt_alg_validation_and_session_invalidation_on_password_reset() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+    let secret = db.get_auth_secret().unwrap();
+
+    // 1. Forged alg=none JWT (or HS512 header over HMAC-SHA256) must be rejected
+    let header_none = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(r#"{"alg":"none","typ":"JWT"}"#);
+    let claims_json = serde_json::json!({
+        "iss": "http://localhost:8090",
+        "iat": chrono::Utc::now().timestamp(),
+        "exp": chrono::Utc::now().timestamp() + 3600,
+        "session_ver": 0,
+        "data": { "user": { "id": 1, "username": "admin" } }
+    });
+    let claims_b64 =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(claims_json.to_string());
+    let alg_none_tok = format!("{}.{}.", header_none, claims_b64);
+    assert!(
+        daypress_server::auth::verify_jwt_token(&alg_none_tok, &secret).is_err(),
+        "alg=none JWT must never validate"
+    );
+
+    let header_hs512 = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(r#"{"alg":"HS512","typ":"JWT"}"#);
+    let signing_input = format!("{}.{}", header_hs512, claims_b64);
+    let sig_hs256 = daypress_server::auth::hmac_sha256(secret.as_bytes(), signing_input.as_bytes());
+    let forged_hs512 = format!(
+        "{}.{}",
+        signing_input,
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sig_hs256)
+    );
+    let res_forged_alg = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/wp/v2/users/me")
+                .header("Authorization", format!("Bearer {forged_hs512}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_forged_alg.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. Capture valid JWT and session cookie before password reset
+    let jwt_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/jwt-auth/v1/token")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "username": "admin", "password": "admin" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(jwt_res.status(), StatusCode::OK);
+    let old_jwt = body_to_json(jwt_res).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let old_cookie = daypress_server::auth::session_cookie_for(1, &db);
+
+    // Verify both work pre-reset
+    for (hdr, val) in [
+        ("Authorization", format!("Bearer {old_jwt}")),
+        ("Cookie", old_cookie.clone()),
+    ] {
+        let ok_res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/wp-json/wp/v2/users/me")
+                    .header(hdr, val)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ok_res.status(), StatusCode::OK);
+    }
+
+    // 3. Consume single-use password reset token
+    let reset_tok = db.create_password_reset_token(1).unwrap();
+    let uid = db
+        .consume_password_reset_token(&reset_tok, "NewStrongPass#2026")
+        .unwrap()
+        .expect("token consumed");
+    assert_eq!(uid, 1);
+
+    // Both old JWT and old session cookie are immediately rejected (`401`)!
+    for (hdr, val) in [
+        ("Authorization", format!("Bearer {old_jwt}")),
+        ("Cookie", old_cookie),
+    ] {
+        let rev_res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/wp-json/wp/v2/users/me")
+                    .header(hdr, val)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            rev_res.status(),
+            StatusCode::UNAUTHORIZED,
+            "Pre-reset credential via {hdr} must be rejected after password reset"
+        );
+    }
+
+    // 4. Re-authenticating with the new password yields a fresh JWT (bumped session_ver) that works
+    let new_jwt_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/jwt-auth/v1/token")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "username": "admin", "password": "NewStrongPass#2026" })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(new_jwt_res.status(), StatusCode::OK);
+    let new_jwt = body_to_json(new_jwt_res).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let ok_new = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/wp/v2/users/me")
+                .header("Authorization", format!("Bearer {new_jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ok_new.status(), StatusCode::OK);
+
+    // 5. CLI/maintenance reset_user_password also bumps session_ver & revokes the newest JWT
+    db.reset_user_password("admin", Some("CliStrongPass#2026"))
+        .unwrap();
+    let rev_cli = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/wp/v2/users/me")
+                .header("Authorization", format!("Bearer {new_jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rev_cli.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn step4_two_factor_throttled_across_jwt_and_basic_otp_endpoints() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+
+    // Enable 2FA on admin
+    let setup = db.begin_user_2fa_setup(1).unwrap();
+    let valid_code =
+        daypress_server::totp::current_totp_code(&setup.secret, chrono::Utc::now().timestamp())
+            .unwrap();
+    let _enable = db.enable_user_2fa(1, &valid_code).unwrap();
+
+    // Burn MAX_FAILED_LOGINS (5) wrong OTP attempts against JWT token endpoint
+    for _ in 0..5 {
+        let bad = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/wp-json/jwt-auth/v1/token")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "username": "admin",
+                            "password": "admin",
+                            "totp_code": "000000"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(bad.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    // 6th attempt is throttled across BOTH JWT and Basic X-Daypress-OTP even if valid recovery code is presented!
+    let recovery = _enable.recovery_codes[0].clone();
+    let throttled_jwt = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/jwt-auth/v1/token")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "username": "admin",
+                        "password": "admin",
+                        "totp_code": recovery
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(throttled_jwt.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let admin_auth = basic_auth("admin", "admin");
+    let throttled_basic = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/wp/v2/users/me")
+                .header("Authorization", &admin_auth)
+                .header("X-Daypress-OTP", &recovery)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(throttled_basic.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn step4_csrf_origin_null_untrusted_proxy_secure_cookies_and_hot_cache() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+    let admin_cookie = daypress_server::auth::session_cookie_for(1, &db);
+
+    // 1. Origin: null must NEVER bypass CSRF protection
+    let null_origin = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/posts")
+                .header("Cookie", &admin_cookie)
+                .header("Host", "localhost:8090")
+                .header("Origin", "null")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "title": "Null Origin CSRF", "content": "x" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(null_origin.status(), StatusCode::FORBIDDEN);
+
+    // 2. Spoofed X-Forwarded-Host from untrusted peer (non-loopback Host or remote ConnectInfo) must fail
+    let spoofed_host_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/posts")
+                .header("Cookie", &admin_cookie)
+                .header("Host", "cms.example.com")
+                .header("X-Forwarded-Host", "attacker.example")
+                .header("Origin", "https://attacker.example")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "title": "Spoofed XFH", "content": "x" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(spoofed_host_res.status(), StatusCode::FORBIDDEN);
+
+    // Also test with explicit remote ConnectInfo even if attacker sends Host: 127.0.0.1:8090
+    let mut remote_req = Request::builder()
+        .method("POST")
+        .uri("/wp-json/wp/v2/posts")
+        .header("Cookie", &admin_cookie)
+        .header("Host", "127.0.0.1:8090")
+        .header("X-Forwarded-Host", "attacker.example")
+        .header("Origin", "https://attacker.example")
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "title": "Remote Peer XFH", "content": "x" }).to_string(),
+        ))
+        .unwrap();
+    remote_req
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [198, 51, 100, 44],
+            55555,
+        ))));
+    let remote_res = app.clone().oneshot(remote_req).await.unwrap();
+    assert_eq!(remote_res.status(), StatusCode::FORBIDDEN);
+
+    // 3. HotCache must bypass for daypress_admin= and daypress_subscriber= cookies
+    let mut admin_headers = axum::http::HeaderMap::new();
+    admin_headers.insert(
+        axum::http::header::COOKIE,
+        admin_cookie.parse().unwrap(),
+    );
+    assert!(
+        daypress_server::hot_cache::SsrHotCache::has_session_cookie(&admin_headers),
+        "HotCache must detect daypress_admin cookie"
+    );
+    let mut sub_headers = axum::http::HeaderMap::new();
+    sub_headers.insert(
+        axum::http::header::COOKIE,
+        "daypress_subscriber=sub.1.9999999999.deadbeef".parse().unwrap(),
+    );
+    assert!(
+        daypress_server::hot_cache::SsrHotCache::has_session_cookie(&sub_headers),
+        "HotCache must detect daypress_subscriber cookie"
+    );
+
+    // 4. Cookies carry `; Secure` when site URL is HTTPS or trusted proxy sets X-Forwarded-Proto: https
+    db.set_option("siteurl", "https://secure.example.com")
+        .unwrap();
+    db.set_option("home", "https://secure.example.com").unwrap();
+    let https_login = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/login")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(Body::from("log=admin&pwd=admin&redirect_to=/d-admin/"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(https_login.status(), StatusCode::SEE_OTHER);
+    let set_cookie = https_login
+        .headers()
+        .get(axum::http::header::SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        set_cookie.contains("; Secure"),
+        "HTTPS deployment must emit Secure cookies: {set_cookie}"
+    );
+    assert!(set_cookie.contains("; HttpOnly"));
+
+    // Subscriber confirmation cookie also receives `; Secure`
+    let sub = db
+        .subscribe_newsletter_contact(
+            &daypress_server::models::NewsletterSubscribeRequest {
+                email: "sec_sub@example.com".to_string(),
+                name: "Sec Sub".to_string(),
+                lists: vec!["all".to_string()],
+                source_url: "/".to_string(),
+                skip_double_opt_in: false,
+            },
+            "127.0.0.1",
+        )
+        .unwrap();
+    let confirm_res = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/newsletter/confirm/{}", sub.confirm_token.unwrap()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let sub_cookie = confirm_res
+        .headers()
+        .get(axum::http::header::SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        sub_cookie.contains("; Secure"),
+        "HTTPS subscriber cookie must include Secure: {sub_cookie}"
+    );
+}

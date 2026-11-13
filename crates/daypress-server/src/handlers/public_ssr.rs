@@ -1222,15 +1222,21 @@ pub fn apply_member_gate_to_post(
 /// `GET /newsletter/confirm/{token}`: Confirms a double opt-in subscriber and sets the `daypress_subscriber` cookie.
 pub async fn handle_newsletter_confirm(
     State(db): State<Database>,
+    req_headers: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     AxPath(token): AxPath<String>,
 ) -> Response {
     let settings = db.get_settings().unwrap_or_default();
+    let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
     match db.confirm_subscriber_by_token(&token) {
         Ok(Some(sub)) => {
             let cookie_tok = db.issue_subscriber_cookie_token(sub.id);
-            let cookie_val = format!(
-                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly",
-                cookie_tok
+            let cookie_val = crate::auth::format_cookie_with_security(
+                format!(
+                    "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly",
+                    cookie_tok
+                ),
+                secure,
             );
             let trimmed_ret = sub.source_url.trim();
             let return_url = if trimmed_ret.starts_with('/')
@@ -1282,13 +1288,20 @@ pub async fn handle_newsletter_confirm(
 /// `GET|POST /newsletter/unsubscribe/{token}`: 1-Click RFC-8058 unsubscribe handler.
 pub async fn handle_newsletter_unsubscribe(
     State(db): State<Database>,
+    req_headers: HeaderMap,
+    crate::auth::TrustedProxy(trusted_proxy): crate::auth::TrustedProxy,
     AxPath(token): AxPath<String>,
 ) -> Response {
     let settings = db.get_settings().unwrap_or_default();
+    let secure = crate::auth::should_set_secure_cookies(&req_headers, trusted_proxy, &db);
     match db.unsubscribe_by_token(&token) {
         Ok(Some(sub)) => {
             let mut resp_headers = HeaderMap::new();
-            if let Ok(hv) = "daypress_subscriber=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly".parse() {
+            let clear_cookie = crate::auth::format_cookie_with_security(
+                "daypress_subscriber=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly".to_string(),
+                secure,
+            );
+            if let Ok(hv) = clear_cookie.parse() {
                 resp_headers.insert(header::SET_COOKIE, hv);
             }
             let html = format!(

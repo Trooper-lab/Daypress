@@ -439,21 +439,10 @@ impl Database {
     }
 
     /// Increments the user's `daypress_session_ver` in `usermeta`, invalidating all older session cookies
-    /// for this user ("Log Out Everywhere Else"). Returns the new session version.
+    /// and JWTs for this user ("Log Out Everywhere Else"). Returns the new session version.
     pub fn bump_user_session_version(&self, user_id: i64) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
-        let current: i64 = conn
-            .query_row(
-                "SELECT meta_value FROM usermeta WHERE user_id = ?1 AND meta_key = 'daypress_session_ver'",
-                params![user_id],
-                |r| r.get::<_, String>(0),
-            )
-            .ok()
-            .and_then(|v| v.trim().parse::<i64>().ok())
-            .unwrap_or(0);
-        let next = current + 1;
-        Self::upsert_usermeta(&conn, user_id, "daypress_session_ver", &next.to_string())?;
-        Ok(next)
+        super::password_resets::bump_session_version_with_conn(&conn, user_id)
     }
 
     // --- Authentication & Application Passwords ---
@@ -573,7 +562,10 @@ impl Database {
         })?;
         for r in rows {
             let (uuid, hash) = r?;
-            if input_hash == hash {
+            if crate::auth::constant_time_eq(
+                input_hash.as_bytes(),
+                hash.trim().to_ascii_lowercase().as_bytes(),
+            ) {
                 let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
                 let _ = conn.execute(
                     "UPDATE application_passwords SET last_used = ?1 WHERE uuid = ?2",
@@ -797,6 +789,29 @@ impl Database {
         }
 
         Ok(false)
+    }
+
+    /// Checks a TOTP or single-use recovery code behind [`LoginThrottle`] keyed on
+    /// `client` + `2fa:{user_id}` so attackers cannot brute-force 6-digit OTPs after obtaining
+    /// or guessing a primary password across HTTP Basic, JWT, or `/login/2fa`.
+    pub fn verify_user_2fa_throttled(
+        &self,
+        user_id: i64,
+        code: &str,
+        client: Option<&str>,
+    ) -> Result<crate::auth::TwoFactorVerifyOutcome> {
+        use crate::auth::{LoginThrottle, TwoFactorVerifyOutcome};
+        let key = LoginThrottle::key(client, &format!("2fa:{user_id}"));
+        if let Some(retry_after_secs) = self.login_throttle.retry_after(&key) {
+            return Ok(TwoFactorVerifyOutcome::Throttled { retry_after_secs });
+        }
+        if self.verify_user_2fa_code(user_id, code)? {
+            self.login_throttle.record_success(&key);
+            Ok(TwoFactorVerifyOutcome::Verified)
+        } else {
+            self.login_throttle.record_failure(&key);
+            Ok(TwoFactorVerifyOutcome::Invalid)
+        }
     }
 
     /// [`Self::authenticate_credentials`] behind the failed-login throttle: after

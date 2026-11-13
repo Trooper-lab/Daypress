@@ -1,7 +1,7 @@
 //! Offline maintenance for the `daypress` CLI (`daypress reset-password`): open an existing
 //! database without seeding it, and get back into an account after losing its password.
 
-use super::password_resets::{lock, revoke_tokens_with_conn};
+use super::password_resets::{bump_session_version_with_conn, lock, revoke_tokens_with_conn};
 use super::Database;
 use crate::errors::AppError;
 use chrono::Utc;
@@ -74,12 +74,10 @@ impl Database {
         })
     }
 
-    /// Sets a new argon2id password for the account with this login or email address and
-    /// cancels its unused reset links. With `new_password: None` a random password is
-    /// generated and returned in the report.
-    ///
-    /// Login sessions are signed tokens without server-side state, so sessions that already
-    /// exist stay valid until they expire; [`Self::rotate_auth_secret`] ends all of them.
+    /// Sets a new argon2id password for the account with this login or email address,
+    /// cancels its unused reset links, and increments `daypress_session_ver` so existing
+    /// cookies and JWTs for that user stop authenticating immediately. With
+    /// `new_password: None` a random password is generated and returned in the report.
     pub fn reset_user_password(
         &self,
         identifier: &str,
@@ -113,6 +111,7 @@ impl Database {
         )?;
         let cancelled_reset_links =
             revoke_tokens_with_conn(&tx, account.user_id, Utc::now().timestamp())?;
+        bump_session_version_with_conn(&tx, account.user_id)?;
         tx.commit()?;
 
         Ok(PasswordResetReport {
