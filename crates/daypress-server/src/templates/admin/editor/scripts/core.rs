@@ -339,11 +339,7 @@ pub fn render_core_script(
                 const acfContainer = document.getElementById('acfBlocksContainer');
 
                 [btnBlocks, btnVisual, btnHtml].forEach(b => {{
-                    if (b) {{
-                        b.style.background = 'transparent';
-                        b.style.color = 'var(--ink-muted)';
-                        b.style.boxShadow = 'none';
-                    }}
+                    if (b) b.classList.remove('is-active');
                 }});
 
                 if (mode === 'blocks') {{
@@ -351,7 +347,7 @@ pub fn render_core_script(
                     if (acfContainer) acfContainer.style.display = 'block';
                     visualEditor.style.display = 'none'; contentArea.style.display = 'none';
                     if (toolbar) toolbar.style.display = 'none';
-                    if (btnBlocks) {{ btnBlocks.style.background = 'var(--paper-raised)'; btnBlocks.style.color = 'var(--ink)'; btnBlocks.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'; }}
+                    if (btnBlocks) btnBlocks.classList.add('is-active');
                     if (!silent) showToast('Switched to Blocks View');
                 }} else if (mode === 'visual') {{
                     visualEditor.innerHTML = cleanWpContent(contentArea.value);
@@ -359,14 +355,14 @@ pub fn render_core_script(
                     if (acfContainer) acfContainer.style.display = 'none';
                     visualEditor.style.display = 'block'; contentArea.style.display = 'none';
                     if (toolbar) toolbar.style.display = 'flex';
-                    btnVisual.style.background = 'var(--paper-raised)'; btnVisual.style.color = 'var(--ink)'; btnVisual.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    if (btnVisual) btnVisual.classList.add('is-active');
                     if (!silent) showToast('Switched to Visual Editor');
                 }} else if (mode === 'html') {{
                     if (acfContainer) acfContainer.style.display = 'none';
                     visualEditor.style.display = 'none'; contentArea.style.display = 'block';
                     if (toolbar) toolbar.style.display = 'flex';
-                    btnHtml.style.background = 'var(--paper-raised)'; btnHtml.style.color = 'var(--ink)'; btnHtml.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    if (!silent) showToast('Switched to HTML Source View');
+                    if (btnHtml) btnHtml.classList.add('is-active');
+                    if (!silent) showToast('Switched to Code View');
                 }}
                 updateWordCount();
             }}
