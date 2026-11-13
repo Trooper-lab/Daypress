@@ -110,13 +110,13 @@ pub(super) fn render_featured_image_preview(
             r#"<div id="featuredImgContainer" style="display: none; height: 140px; border-radius: var(--radius-sm); overflow: hidden; background: var(--ink); margin-bottom: 10px;">
             <img id="featuredImgElem" src="" style="width: 100%; height: 100%; object-fit: cover;" />
         </div>
-        <button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12px;" onclick="openMediaPicker('featured')">+ Set Featured Image</button>"#.to_string()
+        <a href="javascript:void(0)" onclick="openMediaPicker('featured')" style="color: var(--press); text-decoration: underline; font-size: 13px;">Set featured image</a>"#.to_string()
         }
     } else {
         r#"<div id="featuredImgContainer" style="display: none; height: 140px; border-radius: var(--radius-sm); overflow: hidden; background: var(--ink); margin-bottom: 10px;">
         <img id="featuredImgElem" src="" style="width: 100%; height: 100%; object-fit: cover;" />
     </div>
-    <button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12px;" onclick="openMediaPicker('featured')">+ Set Featured Image</button>"#.to_string()
+    <a href="javascript:void(0)" onclick="openMediaPicker('featured')" style="color: var(--press); text-decoration: underline; font-size: 13px;">Set featured image</a>"#.to_string()
     }
 }
 

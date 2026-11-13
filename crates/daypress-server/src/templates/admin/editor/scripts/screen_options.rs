@@ -2,6 +2,7 @@
 
 pub const JS_SCREEN_OPTIONS: &str = r###"
             let editorScreenState = {
+                v: 2,
                 columns: 2,
                 hidden: {},
                 collapsed: {},
@@ -11,7 +12,7 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
             let draggedMetaBoxEl = null;
 
             function getEditorScreenStorageKey() {
-                return 'daypress_editor_screen_prefs_v1';
+                return 'daypress_editor_screen_prefs_v2';
             }
 
             function saveEditorScreenState() {
@@ -41,7 +42,7 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                 const sideCol = document.getElementById('editorSideColumn');
                 const cols = editorScreenState.columns === 1 ? 1 : 2;
                 if (grid) {
-                    grid.style.gridTemplateColumns = cols === 1 ? '1fr' : '3fr 1fr';
+                    grid.style.gridTemplateColumns = cols === 1 ? '1fr' : 'minmax(0, 1fr) 280px';
                 }
                 const r1 = document.getElementById('editorCols1');
                 const r2 = document.getElementById('editorCols2');
@@ -49,7 +50,7 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                 if (r2) r2.checked = cols === 2;
 
                 const placeCards = (colEl, orderArr) => {
-                    if (!colEl || !Array.isArray(orderArr)) return;
+                    if (!colEl || !Array.isArray(orderArr) || orderArr.length === 0) return;
                     orderArr.forEach(ident => {
                         const card = document.getElementById(ident) || document.querySelector(`.day-card[data-metabox-id="${ident}"]`);
                         if (card && card.hasAttribute('data-metabox-id')) {
@@ -58,7 +59,9 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                     });
                 };
                 placeCards(mainCol, editorScreenState.mainOrder);
-                placeCards(sideCol, editorScreenState.sideOrder);
+                if (Array.isArray(editorScreenState.sideOrder) && editorScreenState.sideOrder.includes('metabox-status_visibility')) {
+                    placeCards(sideCol, editorScreenState.sideOrder);
+                }
 
                 document.querySelectorAll('.day-card[data-metabox-id]').forEach((card, idx) => {
                     const boxId = card.getAttribute('data-metabox-id');
@@ -246,7 +249,7 @@ pub const JS_SCREEN_OPTIONS: &str = r###"
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
                         const remote = data && data.preferences && data.preferences.screens && data.preferences.screens.post_editor;
-                        if (remote && typeof remote === 'object') {
+                        if (remote && typeof remote === 'object' && remote.v === 2) {
                             editorScreenState = Object.assign(editorScreenState, remote);
                             applyEditorScreenStateToDom();
                         }

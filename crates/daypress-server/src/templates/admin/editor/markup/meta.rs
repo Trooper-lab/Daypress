@@ -109,15 +109,11 @@ pub fn render_acf_fields_card(existing: Option<&DaypressPostResponse>, _post_typ
     let header_left = get_meta("header_left");
 
     format!(
-        r#"<div class="day-card" id="metabox-acf_settings" data-metabox-id="acf_settings" data-metabox-title="Theme Header &amp; ACF Page Settings" style="padding: 22px;">
-            <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <h2 class="day-card-title">Theme Header &amp; ACF Page Settings</h2>
-                    <span class="badge badge-published" style="font-size: 11px;">ACF / Gutenberg Hybrid</span>
-                </div>
-                <span style="font-size: 11.5px; color: var(--ink-muted); font-family: var(--font-mono);">postmeta synced</span>
+        r#"<div class="day-card" id="metabox-acf_settings" data-metabox-id="acf_settings" data-metabox-title="Theme Header &amp; ACF Page Settings">
+            <div class="day-card-header">
+                <h2 class="day-card-title">Theme Header &amp; ACF Page Settings</h2>
             </div>
-            <div class="day-card-body" style="padding: 0;">
+            <div class="day-card-body">
 
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
@@ -175,18 +171,11 @@ pub fn render_structured_field_groups(
         }
 
         html.push_str(&format!(
-            r#"<div class="day-card dp-structured-field-group" data-field-group-key="{group_key}" data-metabox-id="structured_fields" data-metabox-title="{group_title}" style="padding: 22px;">
-                <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <h2 class="day-card-title">{group_title}</h2>
-                        <span class="badge badge-published" style="font-size: 11px;">Structured Fields</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono);">{group_key}</span>
-                        <a href="/d-admin/content-types?tab=fields" style="font-size: 11.5px; color: var(--press); text-decoration: none; font-weight: 600;">Schema &nearr;</a>
-                    </div>
+            r#"<div class="day-card dp-structured-field-group" data-field-group-key="{group_key}" data-metabox-id="structured_fields" data-metabox-title="{group_title}">
+                <div class="day-card-header">
+                    <h2 class="day-card-title">{group_title}</h2>
                 </div>
-                <div class="day-card-body" style="padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                <div class="day-card-body" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
                     {fields_html}
                 </div>
             </div>"#

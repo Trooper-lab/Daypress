@@ -162,7 +162,7 @@ pub fn render_post_new_view_with_fields(
         String::new()
     };
 
-    let _add_new_action_btn = if existing.is_some() {
+    let add_new_action_btn = if existing.is_some() {
         format!(
             r#"<a href="/d-admin/post-new?post_type={}" class="page-title-action">Add New {}</a>"#,
             escape_html(post_type),

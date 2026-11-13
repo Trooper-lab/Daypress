@@ -63,15 +63,11 @@ pub fn render_custom_fields_card(existing: Option<&DaypressPostResponse>) -> Str
     };
 
     format!(
-        r#"<div class="day-card custom-fields-card" style="padding: 22px;" id="custom_fields_card" data-metabox-id="custom_fields" data-metabox-title="Dynamic Custom Fields">
-            <div class="day-card-header" style="padding: 0 0 14px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <h2 class="day-card-title">Dynamic Custom Fields (<code>postmeta</code>)</h2>
-                    <span class="badge badge-published" style="font-size: 11px;">Dynamic Schema</span>
-                </div>
-                <span style="font-size: 11.5px; color: var(--ink-muted); font-family: var(--font-mono);">Direct SQLite Persistence</span>
+        r#"<div class="day-card custom-fields-card" id="custom_fields_card" data-metabox-id="custom_fields" data-metabox-title="Dynamic Custom Fields">
+            <div class="day-card-header">
+                <h2 class="day-card-title">Dynamic Custom Fields (<code>postmeta</code>)</h2>
             </div>
-            <div class="day-card-body" style="padding: 0;">
+            <div class="day-card-body">
 
             <table class="day-table" id="custom-fields-table" style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
                 <thead>
