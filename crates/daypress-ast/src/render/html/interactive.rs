@@ -2,6 +2,10 @@ use super::RenderArgs;
 use crate::daystudio::normalize_video_embed_url;
 use crate::render::sanitizer::{escape_attr, with_extra_classes};
 use crate::schema::NodeKind;
+use crate::url_utils::{
+    sanitize_css_class_token, sanitize_css_value, sanitize_media_url, sanitize_safe_url,
+    sanitize_untrusted_html,
+};
 
 fn url_encode_query(input: &str) -> String {
     let mut encoded = String::with_capacity(input.len() * 2);
@@ -32,7 +36,8 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
             for item in items {
                 acc_html.push_str(&format!(
                     "<details class=\"dp-accordion-item\">\n<summary>{}</summary>\n<div class=\"dp-accordion-body\">{}</div>\n</details>\n",
-                    item.title, item.content_html
+                    escape_attr(&item.title),
+                    sanitize_untrusted_html(&item.content_html)
                 ));
             }
             Some(format!(
@@ -54,7 +59,18 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
             } else {
                 aspect_ratio.as_str()
             };
-            let mut embed_url = normalize_video_embed_url(url);
+            let normalized_video = normalize_video_embed_url(url);
+            let checked = sanitize_safe_url(&normalized_video);
+            let lower_checked = checked.to_ascii_lowercase();
+            let mut embed_url = if checked == "#"
+                || lower_checked.starts_with("data:")
+                || lower_checked.starts_with("mailto:")
+                || lower_checked.starts_with("tel:")
+            {
+                String::new()
+            } else {
+                checked
+            };
             let mut params = Vec::new();
             if *autoplay {
                 params.push("autoplay=1");
@@ -73,7 +89,7 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
             Some(format!(
                 "<div id=\"{}\" class=\"dp-video-embed\" style=\"aspect-ratio: {}; {}\">\n<iframe src=\"{}\" frameborder=\"0\" allow=\"autoplay; encrypted-media; picture-in-picture\" allowfullscreen></iframe>\n</div>",
                 escape_attr(&node.id),
-                escape_attr(ratio),
+                escape_attr(&sanitize_css_value(ratio)),
                 css,
                 escape_attr(&embed_url)
             ))
@@ -103,7 +119,7 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
                 .map(|u| {
                     format!(
                         "<img src=\"{}\" alt=\"{}\" class=\"dp-testimonial-avatar\" />",
-                        escape_attr(u),
+                        escape_attr(&sanitize_media_url(u)),
                         escape_attr(name)
                     )
                 })
@@ -112,10 +128,10 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
                 "<blockquote id=\"{}\" class=\"dp-testimonial\"{}>\n<p class=\"dp-testimonial-content\">\"{}\"</p>\n<div class=\"dp-testimonial-meta\">\n{}\n<div><cite class=\"dp-testimonial-name\">{}</cite><span class=\"dp-testimonial-job\">{}</span></div>\n</div>\n</blockquote>",
                 escape_attr(&node.id),
                 style_attr,
-                content,
+                sanitize_untrusted_html(content),
                 img_html,
-                name,
-                job
+                escape_attr(name),
+                escape_attr(job)
             ))
         }
         NodeKind::TestimonialCarousel {
@@ -129,7 +145,13 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
                 let avatar_html = slide
                     .avatar_url
                     .as_ref()
-                    .map(|img| format!("<img src=\"{}\" alt=\"{}\" class=\"dp-testimonial-avatar\" />", escape_attr(img), escape_attr(&slide.author)))
+                    .map(|img| {
+                        format!(
+                            "<img src=\"{}\" alt=\"{}\" class=\"dp-testimonial-avatar\" />",
+                            escape_attr(&sanitize_media_url(img)),
+                            escape_attr(&slide.author)
+                        )
+                    })
                     .unwrap_or_default();
                 let job_str = match (slide.role.as_deref(), slide.company.as_deref()) {
                     (Some(r), Some(c)) if !r.is_empty() && !c.is_empty() => format!("{}, {}", r, c),
@@ -149,7 +171,10 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
 
             let skin_str = skin.as_deref().unwrap_or("bubble");
             let cls = with_extra_classes(
-                &format!("dp-testimonial-carousel dp-carousel-skin-{}", skin_str),
+                &format!(
+                    "dp-testimonial-carousel dp-carousel-skin-{}",
+                    sanitize_css_class_token(skin_str)
+                ),
                 extra_cls,
             );
             Some(format!(
@@ -175,11 +200,15 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
                 };
                 nav_html.push_str(&format!(
                     "<button type=\"button\" class=\"dp-tab-btn{}\" onclick=\"{}\">{}</button>\n",
-                    active, tab_onclick, item.title
+                    active,
+                    tab_onclick,
+                    escape_attr(&item.title)
                 ));
                 content_html.push_str(&format!(
                     "<div class=\"dp-tab-pane{}\"{}>{}</div>\n",
-                    active, display_style, item.content_html
+                    active,
+                    display_style,
+                    sanitize_untrusted_html(&item.content_html)
                 ));
             }
             Some(format!(
@@ -195,7 +224,8 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
             for item in items {
                 tog_html.push_str(&format!(
                     "<details class=\"dp-toggle-item\">\n<summary>{}</summary>\n<div class=\"dp-toggle-body\">{}</div>\n</details>\n",
-                    item.title, item.content_html
+                    escape_attr(&item.title),
+                    sanitize_untrusted_html(&item.content_html)
                 ));
             }
             Some(format!(
@@ -209,7 +239,7 @@ pub(crate) fn render_interactive(args: &RenderArgs) -> Option<String> {
             "<div id=\"{}\" class=\"dp-audio-wrapper\"{}>\n<audio controls src=\"{}\"></audio>\n</div>",
             escape_attr(&node.id),
             style_attr,
-            escape_attr(url)
+            escape_attr(&sanitize_media_url(url))
         )),
         _ => None,
     }

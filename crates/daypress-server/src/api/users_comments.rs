@@ -604,16 +604,17 @@ pub(crate) async fn upload_user_avatar_handler(
             .collect::<String>();
 
         let lower_name = clean_name.to_ascii_lowercase();
-        let is_image_ext = lower_name.ends_with(".png")
+        let lower_ct = content_type.to_ascii_lowercase();
+        let is_raster_ext = lower_name.ends_with(".png")
             || lower_name.ends_with(".jpg")
             || lower_name.ends_with(".jpeg")
             || lower_name.ends_with(".webp")
             || lower_name.ends_with(".gif")
-            || lower_name.ends_with(".svg")
             || lower_name.ends_with(".avif");
-        if !content_type.starts_with("image/") && !is_image_ext {
+        let is_svg = lower_name.ends_with(".svg") || lower_ct.contains("svg");
+        if is_svg || !is_raster_ext || !lower_ct.starts_with("image/") {
             return Err(AppError::BadRequest(
-                "Avatar must be an image file (PNG, JPG, WebP, GIF, SVG, or AVIF).".to_string(),
+                "Avatar must be a raster image file (PNG, JPG, WebP, GIF, or AVIF). SVG avatars are not permitted.".to_string(),
             ));
         }
 

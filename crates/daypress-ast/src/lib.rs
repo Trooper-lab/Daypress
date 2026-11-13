@@ -42,3 +42,7 @@ pub use schema::{
     StyleProperties, SymbolOverride, TabItem, TemplateType, TestimonialSlide, ThemeTemplate,
     ToggleItem, TypographyConfig,
 };
+pub use url_utils::{
+    sanitize_css_class_token, sanitize_css_value, sanitize_media_url, sanitize_safe_url,
+    sanitize_untrusted_html,
+};

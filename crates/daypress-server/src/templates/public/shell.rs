@@ -632,13 +632,14 @@ pub fn render_base_layout(
     } else {
         format!(
             "\n\t<style id=\"daypress-typography\">{}</style>",
-            typography_css
+            crate::templates::utils::escape_style_tag_contents(&typography_css)
         )
     };
     let custom_css_block = if !settings.custom_css.trim().is_empty() {
         format!(
             "{}\n\t<style id=\"daypress-custom-css\">\n{}\n\t</style>",
-            typography_block, settings.custom_css
+            typography_block,
+            crate::templates::utils::escape_style_tag_contents(&settings.custom_css)
         )
     } else {
         typography_block
@@ -649,16 +650,19 @@ pub fn render_base_layout(
     let daystudio_kit_css_block = if !settings.daystudio_kit_css.trim().is_empty() {
         format!(
             "\n\t<style id=\"daystudio-kit-css\">\n{}\n\t</style>",
-            settings.daystudio_kit_css
+            crate::templates::utils::escape_style_tag_contents(&settings.daystudio_kit_css)
         )
     } else {
         String::new()
     };
 
-    let favicon_href = if !settings.site_favicon_url.trim().is_empty() {
-        escape_html(settings.site_favicon_url.trim())
-    } else {
-        "/static/favicon.svg".to_string()
+    let favicon_href = {
+        let safe = daypress_ast::sanitize_media_url(settings.site_favicon_url.trim());
+        if !safe.is_empty() {
+            escape_html(&safe)
+        } else {
+            "/static/favicon.svg".to_string()
+        }
     };
 
     let html_theme_class = site_chrome::html_theme_class(settings, content, is_blank_template);
@@ -673,7 +677,7 @@ pub fn render_base_layout(
         .map(|css| {
             format!(
                 "\n\t<style id=\"dp-theme-header-css\">\n{}\n\t</style>",
-                css
+                crate::templates::utils::escape_style_tag_contents(css)
             )
         })
         .unwrap_or_default();
@@ -683,7 +687,7 @@ pub fn render_base_layout(
         .map(|css| {
             format!(
                 "\n\t<style id=\"dp-theme-footer-css\">\n{}\n\t</style>",
-                css
+                crate::templates::utils::escape_style_tag_contents(css)
             )
         })
         .unwrap_or_default();
@@ -694,7 +698,7 @@ pub fn render_base_layout(
         .map(|css| {
             format!(
                 "\n\t<style id=\"dp-theme-popups-css\">\n{}\n\t</style>",
-                css
+                crate::templates::utils::escape_style_tag_contents(css)
             )
         })
         .unwrap_or_default();

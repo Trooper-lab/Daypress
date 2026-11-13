@@ -34,10 +34,17 @@ pub fn clean_post_content(raw: &str) -> String {
         regex::Regex::new(r#"(?i)\[audio[^\]]*(?:src|mp3)=["']([^"']+)["'][^\]]*\](?:\[/audio\])?"#)
     {
         s = re_audio
-            .replace_all(
-                &s,
-                r#"<audio controls src="$1" style="width:100%;margin:16px 0;"></audio>"#,
-            )
+            .replace_all(&s, |caps: &regex::Captures| {
+                let safe = daypress_ast::sanitize_media_url(&caps[1]);
+                if safe.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        r#"<audio controls src="{}" style="width:100%;margin:16px 0;"></audio>"#,
+                        escape_html(&safe)
+                    )
+                }
+            })
             .into_owned();
     }
 
@@ -46,10 +53,17 @@ pub fn clean_post_content(raw: &str) -> String {
         regex::Regex::new(r#"(?i)\[video[^\]]*(?:src|mp4)=["']([^"']+)["'][^\]]*\](?:\[/video\])?"#)
     {
         s = re_video
-            .replace_all(
-                &s,
-                r#"<video controls src="$1" style="max-width:100%;border-radius:8px;margin:16px 0;"></video>"#,
-            )
+            .replace_all(&s, |caps: &regex::Captures| {
+                let safe = daypress_ast::sanitize_media_url(&caps[1]);
+                if safe.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        r#"<video controls src="{}" style="max-width:100%;border-radius:8px;margin:16px 0;"></video>"#,
+                        escape_html(&safe)
+                    )
+                }
+            })
             .into_owned();
     }
 
@@ -100,6 +114,14 @@ pub fn escape_json(s: &str) -> String {
         }
     }
     out
+}
+
+/// Neutralizes case-insensitive `</style` closing sequences and null bytes inside inline `<style>` tags.
+pub fn escape_style_tag_contents(raw_css: &str) -> String {
+    static STYLE_CLOSE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = STYLE_CLOSE_RE.get_or_init(|| regex::Regex::new(r"(?i)</\s*style").unwrap());
+    let cleaned = raw_css.replace('\0', "");
+    re.replace_all(&cleaned, r"\3c /style").into_owned()
 }
 
 /// Inline tags a visitor's comment may keep; they are restored only in their exact,

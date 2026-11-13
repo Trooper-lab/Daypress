@@ -261,26 +261,38 @@ fn collect_node_css(node: &DaypressNode, b: &mut CssBuckets, fonts: &mut Vec<&'s
 pub fn scope_custom_css(scope: &str, css: &str) -> String {
     let mut out = String::new();
     for (prelude, body) in split_css_blocks(css) {
-        let lower = prelude.to_ascii_lowercase();
+        let safe_prelude = crate::url_utils::sanitize_css_value(&prelude);
+        let safe_body = crate::url_utils::sanitize_css_value(&body);
+        if safe_prelude.is_empty() || safe_body.is_empty() {
+            continue;
+        }
+        let lower = safe_prelude.to_ascii_lowercase();
         if lower.starts_with("@media")
             || lower.starts_with("@supports")
             || lower.starts_with("@container")
         {
             out.push_str(&format!(
                 "{} {{\n{}}}\n",
-                prelude,
-                scope_custom_css(scope, &body)
+                safe_prelude,
+                scope_custom_css(scope, &safe_body)
             ));
-        } else if prelude.starts_with('@') {
-            out.push_str(&format!("{} {{{}}}\n", prelude, body));
+        } else if safe_prelude.starts_with('@') {
+            if lower.starts_with("@import") {
+                continue;
+            }
+            out.push_str(&format!("{} {{{}}}\n", safe_prelude, safe_body));
         } else {
-            let selectors: Vec<String> = split_top_level_commas(&prelude)
+            let selectors: Vec<String> = split_top_level_commas(&safe_prelude)
                 .into_iter()
                 .map(|s| scope_selector(scope, s.trim()))
                 .filter(|s| !s.is_empty())
                 .collect();
             if !selectors.is_empty() {
-                out.push_str(&format!("{} {{ {} }}\n", selectors.join(", "), body.trim()));
+                out.push_str(&format!(
+                    "{} {{ {} }}\n",
+                    selectors.join(", "),
+                    safe_body.trim()
+                ));
             }
         }
     }

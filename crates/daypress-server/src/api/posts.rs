@@ -118,11 +118,7 @@ pub(crate) async fn get_post(
 }
 
 fn strip_unfiltered_scripts_for_non_editors(html: &str) -> String {
-    static SCRIPT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let re = SCRIPT_RE.get_or_init(|| {
-        regex::Regex::new(r"(?is)<script\b[^>]*>.*?</script\s*>|<script\b[^>]*/?>").unwrap()
-    });
-    re.replace_all(html, "").into_owned()
+    daypress_ast::sanitize_untrusted_html(html)
 }
 
 pub(crate) async fn create_post(
@@ -144,7 +140,11 @@ pub(crate) async fn create_post(
             }
         }
         payload.author = Some(user.user_id);
+        payload.title = strip_unfiltered_scripts_for_non_editors(&payload.title);
         payload.content = strip_unfiltered_scripts_for_non_editors(&payload.content);
+        if let Some(ref ex) = payload.excerpt {
+            payload.excerpt = Some(strip_unfiltered_scripts_for_non_editors(ex));
+        }
     } else if payload.author.is_none() {
         payload.author = Some(user.user_id);
     }
@@ -181,8 +181,14 @@ pub(crate) async fn update_post(
         ));
     }
     if !user.is_editor_or_above() {
+        if let Some(ref t) = payload.title {
+            payload.title = Some(strip_unfiltered_scripts_for_non_editors(t));
+        }
         if let Some(ref c) = payload.content {
             payload.content = Some(strip_unfiltered_scripts_for_non_editors(c));
+        }
+        if let Some(ref ex) = payload.excerpt {
+            payload.excerpt = Some(strip_unfiltered_scripts_for_non_editors(ex));
         }
     }
     if !user.can_publish_posts()
@@ -320,7 +326,14 @@ pub(crate) async fn create_page(
         ));
     }
     payload.post_type = "page".to_string();
-    if payload.author.is_none() {
+    if !user.is_editor_or_above() {
+        payload.author = Some(user.user_id);
+        payload.title = strip_unfiltered_scripts_for_non_editors(&payload.title);
+        payload.content = strip_unfiltered_scripts_for_non_editors(&payload.content);
+        if let Some(ref ex) = payload.excerpt {
+            payload.excerpt = Some(strip_unfiltered_scripts_for_non_editors(ex));
+        }
+    } else if payload.author.is_none() {
         payload.author = Some(user.user_id);
     }
     check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
@@ -332,12 +345,23 @@ pub(crate) async fn update_page(
     crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-    Json(payload): Json<UpdatePostRequest>,
+    Json(mut payload): Json<UpdatePostRequest>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
     if !user.can_edit_pages() {
         return Err(AppError::Forbidden(
             "Sorry, you are not allowed to edit pages.".to_string(),
         ));
+    }
+    if !user.is_editor_or_above() {
+        if let Some(ref t) = payload.title {
+            payload.title = Some(strip_unfiltered_scripts_for_non_editors(t));
+        }
+        if let Some(ref c) = payload.content {
+            payload.content = Some(strip_unfiltered_scripts_for_non_editors(c));
+        }
+        if let Some(ref ex) = payload.excerpt {
+            payload.excerpt = Some(strip_unfiltered_scripts_for_non_editors(ex));
+        }
     }
     check_dates(payload.date.as_deref(), payload.date_gmt.as_deref())?;
     match db.update_post(id, &payload)? {

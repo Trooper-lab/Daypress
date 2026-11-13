@@ -46,7 +46,26 @@ impl<'a> WasmHostEnvironment for SqliteWasmHost<'a> {
     }
 
     fn get_option(&self, option_name: &str) -> Option<String> {
-        self.db.get_option(option_name).ok().flatten()
+        // Only expose strictly non-sensitive public presentation options to .wasm extensions.
+        // Secrets (auth keys, SMTP passwords, S3/Cloudflare/Netlify tokens) are never exposed.
+        const ALLOWED_PUBLIC_OPTIONS: &[&str] = &[
+            "blogname",
+            "blogdescription",
+            "siteurl",
+            "home",
+            "date_format",
+            "time_format",
+            "WPLANG",
+            "timezone_string",
+            "posts_per_page",
+            "active_theme",
+            "daypress_i18n_default_lang",
+            "daypress_i18n_prefix_default",
+        ];
+        if !ALLOWED_PUBLIC_OPTIONS.contains(&option_name.trim()) {
+            return None;
+        }
+        self.db.get_option(option_name.trim()).ok().flatten()
     }
 }
 

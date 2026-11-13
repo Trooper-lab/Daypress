@@ -2,6 +2,7 @@ use super::RenderArgs;
 use crate::render::forms::{render_login_form_html, render_search_form_html};
 use crate::render::sanitizer::{escape_attr, with_extra_classes};
 use crate::schema::{DaypressNode, NavMenuItem, NodeKind};
+use crate::url_utils::{sanitize_css_class_token, sanitize_css_value, sanitize_safe_url};
 
 pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
     let RenderArgs {
@@ -36,7 +37,11 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                     .and_then(|v| v.as_str())
                 {
                     if !val.trim().is_empty() {
-                        custom_vars.push_str(&format!("{}:{};", css_var, escape_attr(val.trim())));
+                        custom_vars.push_str(&format!(
+                            "{}:{};",
+                            css_var,
+                            escape_attr(&sanitize_css_value(val.trim()))
+                        ));
                     }
                 }
             }
@@ -54,8 +59,8 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             };
             let mut list_html = format!(
                 "<ul class=\"dp-nav-menu-list dp-nav-layout-{} dp-nav-align-{}\">\n",
-                escape_attr(layout),
-                escape_attr(align)
+                escape_attr(&sanitize_css_class_token(layout)),
+                escape_attr(&sanitize_css_class_token(align))
             );
             list_html.push_str(&render_nav_items_recursive(items, &node.children));
             list_html.push_str("</ul>");
@@ -74,7 +79,7 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
         NodeKind::MegaMenuContainer { trigger, width } => {
             let mut style_extra = String::new();
             if let Some(w) = width {
-                style_extra = format!("width: {}; ", escape_attr(w));
+                style_extra = format!("width: {}; ", escape_attr(&sanitize_css_value(w)));
             }
             let cls = with_extra_classes("dp-megamenu-container", extra_cls);
             Some(format!(
@@ -100,7 +105,12 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             };
             let ov_style = overlay_bg
                 .as_ref()
-                .map(|bg| format!(" style=\"background-color: {};\"", escape_attr(bg)))
+                .map(|bg| {
+                    format!(
+                        " style=\"background-color: {};\"",
+                        escape_attr(&sanitize_css_value(bg))
+                    )
+                })
                 .unwrap_or_default();
             let trig_attr = trigger_selector
                 .as_ref()
@@ -280,7 +290,7 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
             let cls = with_extra_classes(
                 &format!(
                     "dp-language-switcher dp-lang-switcher dp-lang-style-{}",
-                    escape_attr(display_style)
+                    escape_attr(&sanitize_css_class_token(display_style))
                 ),
                 extra_cls,
             );
@@ -303,14 +313,14 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                     let sel = if is_active { " selected" } else { "" };
                     opts.push_str(&format!(
                         "<option value=\"{}\" data-lang=\"{}\"{}>{}</option>",
-                        escape_attr(&item.url),
+                        escape_attr(&sanitize_safe_url(&item.url)),
                         escape_attr(&item.code),
                         sel,
                         label
                     ));
                 }
                 Some(format!(
-                    "<div id=\"{}\" class=\"{}\" data-current-lang=\"{}\"{}><select class=\"dp-lang-select\" aria-label=\"Select language\" onchange=\"if(this.value)window.location.href=this.value;\">{}</select></div>",
+                    "<div id=\"{}\" class=\"{}\" data-current-lang=\"{}\"{}><select class=\"dp-lang-select\" aria-label=\"Select language\" onchange=\"if(this.value&&(/^\\/(?!\\/)/.test(this.value)||/^https?:\\/\\//i.test(this.value)))window.location.href=this.value;\">{}</select></div>",
                     escape_attr(&node.id),
                     escape_attr(&cls),
                     escape_attr(current_lang),
@@ -349,7 +359,7 @@ pub(crate) fn render_dynamic(args: &RenderArgs) -> Option<String> {
                     };
                     pills.push_str(&format!(
                         "<a href=\"{}\" hreflang=\"{}\" lang=\"{}\" class=\"dp-lang-pill{}\"{}>{}</a>",
-                        escape_attr(&item.url),
+                        escape_attr(&sanitize_safe_url(&item.url)),
                         escape_attr(&item.code),
                         escape_attr(&item.code),
                         active_cls,
@@ -420,10 +430,9 @@ fn render_nav_items_recursive(items: &[NavMenuItem], nav_children: &[DaypressNod
         } else {
             "menu-item dp-nav-item"
         };
-        let target_attr = if !item.target.is_empty() {
-            format!(r#" target="{}""#, escape_attr(&item.target))
-        } else {
-            String::new()
+        let target_attr = match item.target.as_str() {
+            "_blank" | "_self" | "_parent" | "_top" => format!(r#" target="{}""#, item.target),
+            _ => String::new(),
         };
         let icon_html = item
             .icon
@@ -456,7 +465,7 @@ fn render_nav_items_recursive(items: &[NavMenuItem], nav_children: &[DaypressNod
         out.push_str(&format!(
             r#"<li class="{}"><a href="{}" class="dp-nav-link"{}>{}{}{}{}{}</a>"#,
             li_class,
-            escape_attr(&item.url),
+            escape_attr(&sanitize_safe_url(&item.url)),
             target_attr,
             icon_html,
             escape_attr(&item.title),
@@ -469,7 +478,12 @@ fn render_nav_items_recursive(items: &[NavMenuItem], nav_children: &[DaypressNod
                 .mega_menu_width
                 .as_deref()
                 .filter(|w| !w.trim().is_empty())
-                .map(|w| format!(r#" style="width: {}; max-width: 94vw;""#, escape_attr(w)))
+                .map(|w| {
+                    format!(
+                        r#" style="width: {}; max-width: 94vw;""#,
+                        escape_attr(&sanitize_css_value(w))
+                    )
+                })
                 .unwrap_or_default();
             let node_id_attr = item
                 .mega_menu_node_id

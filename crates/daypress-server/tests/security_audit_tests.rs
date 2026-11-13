@@ -1944,3 +1944,314 @@ async fn step5_client_ip_spoofing_blocked_and_ssrf_dns_redirect_no_default_secre
     drop(wh_db);
     let _ = std::fs::remove_file(&wh_db_path);
 }
+
+#[tokio::test]
+async fn step6_wasm_get_option_allowlist_blocks_sensitive_secrets() {
+    let db_path = temp_db_path("step6_wasm_opts");
+    let _ = std::fs::remove_file(&db_path);
+    let db = Database::new(&db_path).expect("file db");
+    db.seed_data().expect("seed");
+
+    db.set_option("blogname", "Public Site Title")
+        .expect("set blogname");
+    db.set_option("daypress_smtp_pass", "TOP-SECRET-SMTP-PASS")
+        .expect("set smtp");
+    db.set_option("daypress_s3_secret_key", "TOP-SECRET-S3-KEY")
+        .expect("set s3");
+    db.set_option("daypress_jwt_secret", "TOP-SECRET-JWT")
+        .expect("set jwt");
+
+    let req: daypress_server::InstallWasmExtensionRequest = serde_json::from_value(json!({
+        "slug": "sec-opt-test",
+        "name": "Option Audit Ext",
+        "shortcode": "sec_opt",
+        "template_source": "SITE={{option:blogname}}|SMTP={{option:daypress_smtp_pass}}|S3={{option:daypress_s3_secret_key}}|JWT={{option:daypress_jwt_secret}}",
+        "capabilities": {
+            "shortcodes": true,
+            "read_options": true
+        }
+    }))
+    .expect("valid install request");
+    db.install_or_update_wasm_extension(&req)
+        .expect("install wasm extension");
+
+    let out = db
+        .execute_wasm_extension(
+            "sec-opt-test",
+            "render_shortcode",
+            &std::collections::HashMap::new(),
+            "",
+        )
+        .expect("execute wasm");
+
+    assert!(
+        out.output_html.contains("SITE=Public Site Title"),
+        "Safe public blogname option must be readable: {}",
+        out.output_html
+    );
+    assert!(
+        !out.output_html.contains("TOP-SECRET-SMTP-PASS")
+            && !out.output_html.contains("TOP-SECRET-S3-KEY")
+            && !out.output_html.contains("TOP-SECRET-JWT"),
+        "Sensitive secrets leaked through Wasm get_option: {}",
+        out.output_html
+    );
+
+    drop(db);
+    let _ = std::fs::remove_file(&db_path);
+}
+
+#[tokio::test]
+async fn step6_contributor_post_and_layout_xss_sanitized() {
+    let db_path = temp_db_path("step6_xss_posts");
+    let _ = std::fs::remove_file(&db_path);
+    let db = Database::new(&db_path).expect("file db");
+    db.seed_data().expect("seed");
+    db.create_user(&CreateUserRequest {
+        username: "contrib_xss".to_string(),
+        email: "contrib_xss@example.com".to_string(),
+        password: "ContribPassword123!".to_string(),
+        role: Some("contributor".to_string()),
+        ..Default::default()
+    })
+    .expect("create contributor");
+
+    let app = create_app(db.clone());
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/wp/v2/posts")
+                .header("Authorization", basic_auth("contrib_xss", "ContribPassword123!"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "title": "<script>t()</script>Safe Title",
+                        "content": "<p>Body</p><script>evil()</script><img src=x onerror=alert(1)><svg onload=alert(2)></svg><a href=\"javascript:alert(3)\">Go</a>",
+                        "excerpt": "<img src=x onerror=alert(4)>Summary",
+                        "status": "draft"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let created = body_to_json(res).await;
+    let post_id = created["id"].as_i64().expect("post id");
+
+    let title_s = created["title"]["rendered"].as_str().unwrap_or("");
+    let content_s = created["content"]["rendered"].as_str().unwrap_or("");
+    let excerpt_s = created["excerpt"]["rendered"].as_str().unwrap_or("");
+    for field in [title_s, content_s, excerpt_s] {
+        let lower = field.to_ascii_lowercase();
+        assert!(!lower.contains("<script"), "script tag leaked: {field}");
+        assert!(!lower.contains("<svg"), "svg tag leaked: {field}");
+        assert!(!lower.contains("onerror"), "onerror leaked: {field}");
+        assert!(!lower.contains("onload"), "onload leaked: {field}");
+        assert!(!lower.contains("javascript:"), "javascript: leaked: {field}");
+    }
+
+    // Also attempt raw rendered_html + malicious AST payload via save_layout_handler as contributor
+    let layout_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/wp-json/daypress/v1/layout/{post_id}"))
+                .header("Authorization", basic_auth("contrib_xss", "ContribPassword123!"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "layout": {
+                            "version": "1.0",
+                            "root": {
+                                "id": "root",
+                                "type": "Section",
+                                "styles": {},
+                                "children": [
+                                    {
+                                        "id": "c1",
+                                        "type": "CustomHtml",
+                                        "styles": {},
+                                        "data": { "raw": "<p>Hi</p><svg onload=alert(8)></svg><script>bad()</script>" },
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "b1",
+                                        "type": "Button",
+                                        "styles": {},
+                                        "data": { "text": "Click", "url": "javascript:alert(7)", "target": "_self" },
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        },
+                        "rendered_html": "<img src=x onerror=alert(9)>"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(layout_res.status(), StatusCode::OK);
+
+    let updated_post = db.get_post_by_id(post_id).unwrap().expect("post exists");
+    let compiled = updated_post.content.rendered.to_ascii_lowercase();
+    assert!(!compiled.contains("<script"), "script in compiled layout: {compiled}");
+    assert!(!compiled.contains("<svg"), "svg in compiled layout: {compiled}");
+    assert!(!compiled.contains("onerror"), "onerror in compiled layout: {compiled}");
+    assert!(
+        !compiled.contains("javascript:alert"),
+        "javascript: URL in compiled layout: {compiled}"
+    );
+
+    drop(db);
+    let _ = std::fs::remove_file(&db_path);
+}
+
+#[tokio::test]
+async fn step6_svg_avatar_upload_blocked_and_svg_sanitizer_hardened() {
+    let db_path = temp_db_path("step6_svg");
+    let _ = std::fs::remove_file(&db_path);
+    let db = Database::new(&db_path).expect("file db");
+    db.seed_data().expect("seed");
+    db.set_option("daypress_setup_completed", "1")
+        .expect("complete setup");
+    let admin = db
+        .create_user(&CreateUserRequest {
+            username: "sec_admin".to_string(),
+            email: "sec_admin@example.com".to_string(),
+            password: "AdminPassword123!".to_string(),
+            role: Some("administrator".to_string()),
+            ..Default::default()
+        })
+        .expect("create admin");
+    let app = create_app(db.clone());
+
+    for (fname, ct) in [
+        ("evil.svg", "image/svg+xml"),
+        ("evil.png", "image/svg+xml"),
+        ("evil.svg", "image/png"),
+    ] {
+        let boundary = "----DaypressSecSvgBoundary";
+        let body_str = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{fname}\"\r\nContent-Type: {ct}\r\n\r\n<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>\r\n--{boundary}--\r\n"
+        );
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/wp-json/daypress/v1/users/{}/avatar", admin.id))
+                    .header("Authorization", basic_auth("sec_admin", "AdminPassword123!"))
+                    .header(
+                        "Content-Type",
+                        format!("multipart/form-data; boundary={boundary}"),
+                    )
+                    .body(Body::from(body_str))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::BAD_REQUEST,
+            "SVG avatar upload ({fname}, {ct}) must be rejected"
+        );
+    }
+
+    let malicious_svg = br#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><animate attributeName="href" to="javascript:alert(1)"/><set attributeName="onbegin" to="alert(1)"/><feimage href="data:image/svg+xml,<svg onload=alert(1)>"/> <a xlink:href="javascript:alert(2)"><rect width="10" height="10" style="width:expression(alert(3))"/></a></svg>"#;
+    let clean = daypress_server::media::sanitize_svg_bytes(malicious_svg).expect("valid svg");
+    let clean_str = String::from_utf8(clean).expect("utf8 svg").to_ascii_lowercase();
+    assert!(!clean_str.contains("<animate"), "animate leaked: {clean_str}");
+    assert!(!clean_str.contains("<set"), "set leaked: {clean_str}");
+    assert!(!clean_str.contains("<feimage"), "feimage leaked: {clean_str}");
+    assert!(!clean_str.contains("javascript:"), "javascript leaked: {clean_str}");
+    assert!(!clean_str.contains("expression("), "expression leaked: {clean_str}");
+    assert!(clean_str.contains("<rect"), "benign rect stripped: {clean_str}");
+
+    drop(db);
+    let _ = std::fs::remove_file(&db_path);
+}
+
+#[tokio::test]
+async fn step6_shortcodes_style_breakout_and_languages_onclick_hardened() {
+    let cleaned = daypress_server::templates::utils::clean_post_content(
+        r#"[audio src="javascript:alert(1)"] [video src="https://cdn.example.com/ok.mp4"]"#,
+    );
+    assert!(
+        !cleaned.to_ascii_lowercase().contains("javascript:"),
+        "audio shortcode emitted javascript: URL: {cleaned}"
+    );
+    assert!(
+        cleaned.contains(r#"<video controls src="https://cdn.example.com/ok.mp4""#),
+        "valid video shortcode should render: {cleaned}"
+    );
+
+    let safe_css = daypress_server::templates::utils::escape_style_tag_contents(
+        "body { color: red; }\0</StYlE><script>alert(1)</script>",
+    );
+    assert!(
+        !safe_css.to_ascii_lowercase().contains("</style"),
+        "style breakout not neutralized: {safe_css}"
+    );
+    assert!(!safe_css.contains('\0'));
+
+    // Also verify languages admin HTML uses data-* attributes rather than unescaped inline JS strings
+    let db_path = temp_db_path("step6_langs");
+    let _ = std::fs::remove_file(&db_path);
+    let db = Database::new(&db_path).expect("file db");
+    db.seed_data().expect("seed");
+    db.set_option("daypress_setup_completed", "1")
+        .expect("complete setup");
+    db.create_user(&CreateUserRequest {
+        username: "sec_admin".to_string(),
+        email: "sec_admin@example.com".to_string(),
+        password: "AdminPassword123!".to_string(),
+        role: Some("administrator".to_string()),
+        ..Default::default()
+    })
+    .expect("create admin");
+    db.upsert_language(&daypress_server::DaypressLanguage {
+        code: "de".to_string(),
+        locale: "de_DE".to_string(),
+        name: "Deutsch');alert(1);//".to_string(),
+        native_name: "Deutsch".to_string(),
+        flag_emoji: "DE".to_string(),
+        is_default: false,
+        is_rtl: false,
+        is_active: true,
+        sort_order: 2,
+    })
+    .expect("upsert language");
+
+    let app = create_app(db.clone());
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/languages")
+                .header("Authorization", basic_auth("sec_admin", "AdminPassword123!"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body =
+        String::from_utf8(to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    assert!(
+        body.contains("setAsDefaultLangFromBtn(this)")
+            && body.contains("removeLang(this.dataset.code)")
+            && !body.contains("onclick=\"setAsDefaultLang('")
+            && !body.contains("onclick=\"removeLang('"),
+        "Languages admin must bind language params safely via dataset rather than raw onclick JS interpolation"
+    );
+
+    drop(db);
+    let _ = std::fs::remove_file(&db_path);
+}

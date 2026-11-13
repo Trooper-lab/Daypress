@@ -1,6 +1,7 @@
 use super::RenderArgs;
 use crate::render::sanitizer::{escape_attr, resolve_semantic_tag, with_extra_classes};
 use crate::schema::NodeKind;
+use crate::url_utils::{sanitize_css_value, sanitize_safe_url};
 
 pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
     let RenderArgs {
@@ -59,10 +60,11 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
                     "dp-container dp-clickable-container"
                 };
                 let cls = with_extra_classes(base, extra_cls);
+                let safe_href = sanitize_safe_url(href);
                 Some(format!(
                     "<a id=\"{}\" href=\"{}\" class=\"{}\"{}>\n{}\n</a>",
                     escape_attr(&node.id),
-                    escape_attr(href),
+                    escape_attr(&safe_href),
                     escape_attr(&cls),
                     effective_style_attr,
                     body_html
@@ -133,13 +135,18 @@ pub(crate) fn render_layout(args: &RenderArgs) -> Option<String> {
             let wrap_str = if *wrap { "wrap" } else { "nowrap" };
             let basis_str = basis
                 .as_ref()
-                .map(|b| format!("flex: 1 1 {}; min-width: 0; gap: 16px; ", escape_attr(b)))
+                .map(|b| {
+                    format!(
+                        "flex: 1 1 {}; min-width: 0; gap: 16px; ",
+                        escape_attr(&sanitize_css_value(b))
+                    )
+                })
                 .unwrap_or_default();
             let flex_style = format!(
                 "display: flex; flex-direction: {}; justify-content: {}; align-items: {}; flex-wrap: {}; {}{}",
-                escape_attr(direction),
-                escape_attr(justify),
-                escape_attr(align),
+                escape_attr(&sanitize_css_value(direction)),
+                escape_attr(&sanitize_css_value(justify)),
+                escape_attr(&sanitize_css_value(align)),
                 wrap_str,
                 basis_str,
                 css

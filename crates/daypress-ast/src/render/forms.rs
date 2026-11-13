@@ -1,9 +1,10 @@
 use crate::render::sanitizer::escape_attr;
+use crate::url_utils::sanitize_safe_url;
 
 /// Submit handler for AST `Form` nodes: posts to FormStudio (multipart when a file input is
 /// present, JSON otherwise, with repeated names such as checkbox groups joined by ", "), then
 /// reveals the `.dp-form-status` line with the server's message.
-const FORM_SUBMIT_JS: &str = "event.preventDefault();var f=this,s=f.querySelector('.dp-form-status'),b=f.querySelector('[type=submit]'),fd=new FormData(f),hasFile=!!f.querySelector('input[type=file]'),o={};fd.forEach(function(v,k){o[k]=Object.prototype.hasOwnProperty.call(o,k)?o[k]+', '+v:v;});var reqInit=hasFile?{method:'POST',body:fd}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)};if(b)b.disabled=true;fetch(f.action,reqInit).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:r.ok,j:{}};});}).catch(function(){return {ok:false,j:{}};}).then(function(res){if(b)b.disabled=false;var okMsg=(res.j&&res.j.message)||(s&&s.getAttribute('data-success-msg'))||'Thank you! Your message has been sent.';var redir=(res.j&&res.j.redirect_url)||(s&&s.getAttribute('data-redirect-url'));if(s){s.hidden=false;s.style.display='';s.textContent=res.ok?okMsg:((res.j&&res.j.message)||'Submission failed.');}if(res.ok){f.reset();if(redir)window.location.href=redir;}});return false;";
+const FORM_SUBMIT_JS: &str = "event.preventDefault();var f=this,s=f.querySelector('.dp-form-status'),b=f.querySelector('[type=submit]'),fd=new FormData(f),hasFile=!!f.querySelector('input[type=file]'),o={};fd.forEach(function(v,k){o[k]=Object.prototype.hasOwnProperty.call(o,k)?o[k]+', '+v:v;});var reqInit=hasFile?{method:'POST',body:fd}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)};if(b)b.disabled=true;fetch(f.action,reqInit).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:r.ok,j:{}};});}).catch(function(){return {ok:false,j:{}};}).then(function(res){if(b)b.disabled=false;var okMsg=(res.j&&res.j.message)||(s&&s.getAttribute('data-success-msg'))||'Thank you! Your message has been sent.';var redir=(res.j&&res.j.redirect_url)||(s&&s.getAttribute('data-redirect-url'));if(s){s.hidden=false;s.style.display='';s.textContent=res.ok?okMsg:((res.j&&res.j.message)||'Submission failed.');}if(res.ok){f.reset();if(redir&&(/^\\/(?!\\/)/.test(redir)||/^https?:\\/\\//i.test(redir)))window.location.href=redir;}});return false;";
 
 pub(crate) fn render_form_html(
     node_id: &str,
@@ -40,10 +41,12 @@ pub(crate) fn render_form_html_with_classes(
     inner_html: &str,
     extra_cls: Option<&str>,
 ) -> String {
-    let action = endpoint
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("/wp-json/daypress/v1/forms/{}/submit", form_id));
+    let action = sanitize_safe_url(
+        &endpoint
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("/wp-json/daypress/v1/forms/{}/submit", form_id)),
+    );
 
     let title_html = title
         .filter(|t| !t.trim().is_empty())
@@ -100,15 +103,16 @@ pub(crate) fn render_search_form_html(
     endpoint: &str,
     style_attr: &str,
 ) -> String {
-    let action = if endpoint.trim().is_empty() {
+    let raw_action = if endpoint.trim().is_empty() {
         "/"
     } else {
         endpoint.trim()
     };
+    let action = sanitize_safe_url(raw_action);
     format!(
         "<form id=\"{}\" class=\"dp-search-form\" method=\"GET\" action=\"{}\"{}>\n<div class=\"dp-search-input-wrap\">\n<input type=\"search\" name=\"s\" class=\"dp-search-input\" placeholder=\"{}\" required />\n<button type=\"submit\" class=\"dp-search-btn\">{}</button>\n</div>\n</form>",
         escape_attr(node_id),
-        escape_attr(action),
+        escape_attr(&action),
         style_attr,
         escape_attr(placeholder),
         escape_attr(button_text),
@@ -128,6 +132,14 @@ pub(crate) fn render_login_form_html(
     } else {
         ""
     };
+    let safe_redirect = {
+        let candidate = sanitize_safe_url(redirect_url);
+        if candidate.starts_with("//") {
+            "/".to_string()
+        } else {
+            candidate
+        }
+    };
     format!(
         "<form id=\"{}\" class=\"dp-login-form\" method=\"POST\" action=\"/login\"{}>\n<div class=\"dp-form-field\">\n<label>{}</label>\n<input type=\"text\" name=\"log\" class=\"dp-input\" required autocomplete=\"username\" />\n</div>\n<div class=\"dp-form-field\">\n<label>{}</label>\n<input type=\"password\" name=\"pwd\" class=\"dp-input\" required autocomplete=\"current-password\" />\n</div>\n{}<input type=\"hidden\" name=\"redirect_to\" value=\"{}\" />\n<button type=\"submit\" class=\"dp-button dp-login-btn\">Log In</button>\n</form>",
         escape_attr(node_id),
@@ -135,7 +147,7 @@ pub(crate) fn render_login_form_html(
         escape_attr(label_user),
         escape_attr(label_pass),
         rem_html,
-        escape_attr(redirect_url)
+        escape_attr(&safe_redirect)
     )
 }
 

@@ -326,23 +326,36 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
     let mut code_bodies = Vec::new();
     let mut data_segments = Vec::new();
 
+    const MAX_SECTION_ITEMS: u32 = 4096;
+    const MAX_FUNCTION_LOCALS: u32 = 65_536;
+
     while cursor < wasm_bytes.len() {
         let section_id = wasm_bytes[cursor];
         cursor += 1;
         let section_len = read_leb128_u32(wasm_bytes, &mut cursor)? as usize;
-        if cursor + section_len > wasm_bytes.len() {
+        let Some(section_end) = cursor.checked_add(section_len) else {
+            return Err(WasmError::InvalidBinary(format!(
+                "Section {} length ({}) overflows address space",
+                section_id, section_len
+            )));
+        };
+        if section_end > wasm_bytes.len() {
             return Err(WasmError::InvalidBinary(format!(
                 "Section {} length ({}) exceeds binary size",
                 section_id, section_len
             )));
         }
-        let section_end = cursor + section_len;
         let mut sc = cursor;
 
         match section_id {
             2 => {
                 // Import section
                 let count = read_leb128_u32(wasm_bytes, &mut sc)?;
+                if count > MAX_SECTION_ITEMS || sc > section_end {
+                    return Err(WasmError::InvalidBinary(
+                        "Import section count exceeds limits or section bounds".into(),
+                    ));
+                }
                 for _ in 0..count {
                     let mod_name = read_wasm_name(wasm_bytes, &mut sc)?;
                     let field_name = read_wasm_name(wasm_bytes, &mut sc)?;
@@ -354,6 +367,11 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
                     match kind {
                         0 => {
                             let _type_idx = read_leb128_u32(wasm_bytes, &mut sc)?;
+                            if sc > section_end {
+                                return Err(WasmError::InvalidBinary(
+                                    "Import entry exceeds section bounds".into(),
+                                ));
+                            }
                             imports.push((mod_name, field_name));
                         }
                         _ => {
@@ -371,11 +389,21 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
                     if (flags & 0x01) != 0 {
                         max_memory_pages = Some(read_leb128_u32(wasm_bytes, &mut sc)?);
                     }
+                    if sc > section_end {
+                        return Err(WasmError::InvalidBinary(
+                            "Memory section exceeds section bounds".into(),
+                        ));
+                    }
                 }
             }
             7 => {
                 // Export section
                 let count = read_leb128_u32(wasm_bytes, &mut sc)?;
+                if count > MAX_SECTION_ITEMS || sc > section_end {
+                    return Err(WasmError::InvalidBinary(
+                        "Export section count exceeds limits or section bounds".into(),
+                    ));
+                }
                 for _ in 0..count {
                     let name = read_wasm_name(wasm_bytes, &mut sc)?;
                     if sc >= section_end {
@@ -384,6 +412,11 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
                     let kind = wasm_bytes[sc];
                     sc += 1;
                     let idx = read_leb128_u32(wasm_bytes, &mut sc)? as usize;
+                    if sc > section_end {
+                        return Err(WasmError::InvalidBinary(
+                            "Export entry exceeds section bounds".into(),
+                        ));
+                    }
                     if kind == 0 {
                         exports.insert(name, idx);
                     }
@@ -392,18 +425,49 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
             10 => {
                 // Code section
                 let count = read_leb128_u32(wasm_bytes, &mut sc)?;
+                if count > MAX_SECTION_ITEMS || sc > section_end {
+                    return Err(WasmError::InvalidBinary(
+                        "Code section count exceeds limits or section bounds".into(),
+                    ));
+                }
                 for _ in 0..count {
                     let body_size = read_leb128_u32(wasm_bytes, &mut sc)? as usize;
-                    if sc + body_size > section_end {
+                    let Some(body_end) = sc.checked_add(body_size) else {
+                        return Err(WasmError::InvalidBinary(
+                            "Function body size overflows address space".into(),
+                        ));
+                    };
+                    if body_end > section_end {
                         return Err(WasmError::InvalidBinary(
                             "Function body exceeds code section".into(),
                         ));
                     }
-                    let body_end = sc + body_size;
                     let local_decl_count = read_leb128_u32(wasm_bytes, &mut sc)?;
+                    if sc > body_end || local_decl_count > MAX_SECTION_ITEMS {
+                        return Err(WasmError::InvalidBinary(
+                            "Invalid or excessive local declarations in function body".into(),
+                        ));
+                    }
+                    let mut total_locals = 0u32;
                     for _ in 0..local_decl_count {
-                        let _n = read_leb128_u32(wasm_bytes, &mut sc)?;
-                        sc += 1; // valtype
+                        if sc >= body_end {
+                            return Err(WasmError::InvalidBinary(
+                                "Truncated local declaration count in function body".into(),
+                            ));
+                        }
+                        let local_n = read_leb128_u32(wasm_bytes, &mut sc)?;
+                        total_locals = total_locals.saturating_add(local_n);
+                        if total_locals > MAX_FUNCTION_LOCALS || sc >= body_end {
+                            return Err(WasmError::InvalidBinary(
+                                "Truncated or excessive function locals".into(),
+                            ));
+                        }
+                        sc += 1; // valtype byte verified in-bounds
+                    }
+                    if sc > body_end {
+                        return Err(WasmError::InvalidBinary(
+                            "Function locals exceed body bounds".into(),
+                        ));
                     }
                     code_bodies.push(wasm_bytes[sc..body_end].to_vec());
                     sc = body_end;
@@ -412,8 +476,18 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
             11 => {
                 // Data section
                 let count = read_leb128_u32(wasm_bytes, &mut sc)?;
+                if count > MAX_SECTION_ITEMS || sc > section_end {
+                    return Err(WasmError::InvalidBinary(
+                        "Data section count exceeds limits or section bounds".into(),
+                    ));
+                }
                 for _ in 0..count {
                     let mode = read_leb128_u32(wasm_bytes, &mut sc)?;
+                    if sc > section_end {
+                        return Err(WasmError::InvalidBinary(
+                            "Data segment header exceeds section bounds".into(),
+                        ));
+                    }
                     let mut offset = 0usize;
                     if mode == 0 {
                         if sc < section_end && wasm_bytes[sc] == 0x41 {
@@ -425,16 +499,21 @@ fn parse_wasm_module(wasm_bytes: &[u8]) -> Result<ParsedWasmModule, WasmError> {
                         }
                     }
                     let size = read_leb128_u32(wasm_bytes, &mut sc)? as usize;
-                    if sc + size > section_end {
+                    let Some(seg_end) = sc.checked_add(size) else {
+                        return Err(WasmError::InvalidBinary(
+                            "Data segment size overflows address space".into(),
+                        ));
+                    };
+                    if seg_end > section_end {
                         return Err(WasmError::InvalidBinary(
                             "Data segment exceeds section bounds".into(),
                         ));
                     }
                     data_segments.push(DataSegment {
                         offset,
-                        bytes: wasm_bytes[sc..sc + size].to_vec(),
+                        bytes: wasm_bytes[sc..seg_end].to_vec(),
                     });
-                    sc += size;
+                    sc = seg_end;
                 }
             }
             _ => {}
@@ -1087,5 +1166,21 @@ mod tests {
         assert!(report
             .recognized_exports
             .contains(&"render_shortcode".to_string()));
+    }
+
+    #[test]
+    fn test_malformed_wasm_locals_oob_and_count_limits_rejected_without_panic() {
+        // Code section (id=10) with 1 function body: local_decl_count = 10, truncated body (no valtype)
+        let mut oob_wasm = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+        oob_wasm.extend_from_slice(&[10, 4, 1, 2, 10, 0x0b]);
+        let err = parse_wasm_module(&oob_wasm).expect_err("truncated locals must return error");
+        assert!(matches!(err, WasmError::InvalidBinary(_)));
+
+        // Excessive local_decl_count > MAX_SECTION_ITEMS (4096) in one function body -> clean error
+        let mut large_locals_wasm = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+        // LEB128 for 5000 = 0x88 0x27
+        large_locals_wasm.extend_from_slice(&[10, 5, 1, 3, 0x88, 0x27, 0x0b]);
+        let err = parse_wasm_module(&large_locals_wasm).expect_err("excessive local_decl_count");
+        assert!(matches!(err, WasmError::InvalidBinary(_)));
     }
 }

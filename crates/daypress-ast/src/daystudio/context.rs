@@ -221,7 +221,7 @@ pub fn normalize_video_embed_url(url: &str) -> String {
         }
     }
 
-    trimmed.to_string()
+    crate::url_utils::sanitize_media_url(trimmed)
 }
 
 pub(crate) fn percent_decode(input: &str) -> String {

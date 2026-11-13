@@ -79,11 +79,18 @@ pub fn inject_heading_anchors_and_build_toc(
             if existing_id.is_some() {
                 full.to_string()
             } else {
+                static ON_EVENT_ATTR_RE: std::sync::OnceLock<regex::Regex> =
+                    std::sync::OnceLock::new();
+                let ev_re = ON_EVENT_ATTR_RE.get_or_init(|| {
+                    regex::Regex::new(r#"(?i)\s+on[a-z0-9_-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)"#)
+                        .unwrap()
+                });
+                let clean_attrs = ev_re.replace_all(attrs, "");
                 format!(
                     "<h{level} id=\"{id}\"{attrs}>{inner}</h{level}>",
                     level = level,
                     id = escape_html(&anchor_id),
-                    attrs = attrs,
+                    attrs = clean_attrs,
                     inner = inner
                 )
             }
@@ -333,7 +340,7 @@ pub fn render_single_post(
                 </div>
             </section>
             "##,
-            title = post.title.rendered,
+            title = escape_html(&post.title.rendered),
             body = clean_content
         )
     } else {
@@ -527,12 +534,23 @@ pub fn render_single_post(
         } else {
             String::new()
         };
-        let back_href =
-            if !post.lang_code.trim().is_empty() && !post.lang_code.eq_ignore_ascii_case("en") {
-                format!("/{}/", escape_html(post.lang_code.trim()))
-            } else {
+        let back_href = if !post.lang_code.trim().is_empty()
+            && !post.lang_code.eq_ignore_ascii_case("en")
+        {
+            let clean_lang: String = post
+                .lang_code
+                .trim()
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+                .collect();
+            if clean_lang.is_empty() {
                 "/".to_string()
-            };
+            } else {
+                format!("/{}/", clean_lang)
+            }
+        } else {
+            "/".to_string()
+        };
 
         format!(
             r##"
@@ -569,7 +587,7 @@ pub fn render_single_post(
             </section>
             "##,
             site_name = escape_html(site_name),
-            title = post.title.rendered,
+            title = escape_html(&post.title.rendered),
             date = date_short,
             post_type = escape_html(&post.post_type),
             author_display = author_display,
@@ -581,7 +599,7 @@ pub fn render_single_post(
             tags_html = tags_html,
             comments_section_html = comments_section_html,
             body = clean_content,
-            back_href = back_href
+            back_href = escape_html(&back_href)
         )
     };
 
@@ -595,9 +613,10 @@ pub fn render_single_post(
     );
 
     if !page_custom_css.trim().is_empty() {
+        let safe_css = crate::templates::utils::escape_style_tag_contents(page_custom_css.trim());
         let page_style_tag = format!(
             "\t<style id=\"dp-page-styles\">\n{}\n\t</style>\n</head>",
-            page_custom_css.trim()
+            safe_css
         );
         doc.replace("</head>", &page_style_tag)
     } else {

@@ -318,7 +318,7 @@ pub(crate) async fn save_layout_handler(
     crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
-    Json(payload): Json<DaypressLayoutPayload>,
+    Json(mut payload): Json<DaypressLayoutPayload>,
 ) -> Result<Json<Value>, AppError> {
     let existing = db
         .get_post_by_id(id)?
@@ -328,10 +328,13 @@ pub(crate) async fn save_layout_handler(
             "Sorry, you are not allowed to edit the layout of this post.".to_string(),
         ));
     }
+    if !user.is_editor_or_above() {
+        sanitize_layout_value_for_non_editors(&mut payload.layout);
+    }
     let layout_str = serde_json::to_string(&payload.layout)
         .map_err(|e| AppError::BadRequest(format!("Invalid layout JSON: {}", e)))?;
 
-    let compiled_ssr = if payload.rendered_html.is_none() {
+    let compiled_ssr = if payload.rendered_html.is_none() || !user.is_editor_or_above() {
         serde_json::from_value::<daypress_ast::DaypressLayout>(payload.layout.clone())
             .ok()
             .map(|parsed| daypress_ast::render_layout_to_html(&parsed))
@@ -360,17 +363,88 @@ pub(crate) async fn save_layout_handler(
         }
     }
 
-    db.save_post_layout(
-        id,
-        &layout_str,
-        payload.rendered_html.as_deref().or(compiled_ssr.as_deref()),
-    )?;
+    let sanitized_rendered = if !user.is_editor_or_above() {
+        compiled_ssr.clone().or_else(|| {
+            payload
+                .rendered_html
+                .as_deref()
+                .map(daypress_ast::sanitize_untrusted_html)
+        })
+    } else {
+        None
+    };
+    let effective_rendered = if !user.is_editor_or_above() {
+        sanitized_rendered.as_deref()
+    } else {
+        payload.rendered_html.as_deref().or(compiled_ssr.as_deref())
+    };
+
+    db.save_post_layout(id, &layout_str, effective_rendered)?;
 
     Ok(Json(serde_json::json!({
         "success": true,
         "post_id": id,
         "status": "saved"
     })))
+}
+
+fn sanitize_layout_value_for_non_editors(val: &mut serde_json::Value) {
+    match val {
+        serde_json::Value::Object(map) => {
+            for (k, v) in map.iter_mut() {
+                if let serde_json::Value::String(s) = v {
+                    let kl = k.to_ascii_lowercase();
+                    if matches!(
+                        kl.as_str(),
+                        "raw" | "content_html" | "text" | "description" | "title" | "content"
+                            | "html" | "quote" | "button_text" | "secondary_button_text"
+                            | "label" | "value" | "comparison" | "period" | "prefix" | "suffix"
+                    ) {
+                        *s = daypress_ast::sanitize_untrusted_html(s);
+                    } else if matches!(
+                        kl.as_str(),
+                        "custom_css"
+                            | "color"
+                            | "background"
+                            | "background_color"
+                            | "width"
+                            | "height"
+                            | "border"
+                            | "star_color"
+                            | "track_color"
+                            | "bar_color"
+                            | "overlay_bg"
+                            | "aspect_ratio"
+                    ) {
+                        *s = daypress_ast::sanitize_css_value(s);
+                    } else if matches!(
+                        kl.as_str(),
+                        "url"
+                            | "src"
+                            | "href"
+                            | "link"
+                            | "link_url"
+                            | "button_url"
+                            | "image_url"
+                            | "avatar_url"
+                            | "secondary_button_url"
+                            | "endpoint"
+                            | "redirect_url"
+                    ) {
+                        *s = daypress_ast::sanitize_safe_url(s);
+                    }
+                } else {
+                    sanitize_layout_value_for_non_editors(v);
+                }
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                sanitize_layout_value_for_non_editors(item);
+            }
+        }
+        _ => {}
+    }
 }
 
 pub(crate) async fn delete_layout_handler(

@@ -469,7 +469,22 @@ fn is_dangerous_svg_tag(tag_name: &str) -> bool {
     let local = lower.rsplit(':').next().unwrap_or(&lower);
     matches!(
         local,
-        "script" | "foreignobject" | "iframe" | "object" | "embed" | "applet"
+        "script"
+            | "foreignobject"
+            | "iframe"
+            | "object"
+            | "embed"
+            | "applet"
+            | "animate"
+            | "animatemotion"
+            | "animatetransform"
+            | "set"
+            | "handler"
+            | "listener"
+            | "base"
+            | "meta"
+            | "link"
+            | "feimage"
     )
 }
 
@@ -490,6 +505,8 @@ fn is_dangerous_svg_attribute(attr_name: &str, attr_val: &str) -> bool {
     normalized_val.contains("javascript:")
         || normalized_val.contains("vbscript:")
         || normalized_val.contains("data:text/html")
+        || normalized_val.contains("data:image/svg")
+        || normalized_val.contains("expression(")
 }
 
 fn sanitize_svg_element<'a>(

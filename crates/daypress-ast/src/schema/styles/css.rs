@@ -94,7 +94,10 @@ impl StyleProperties {
         let mut css: Vec<String> = Vec::new();
         let mut push = |prop: &str, val: Option<&str>| {
             if let Some(v) = val.filter(|s| !s.trim().is_empty()) {
-                css.push(format!("{}: {};", prop, v.trim()));
+                let safe = crate::url_utils::sanitize_css_value(v);
+                if !safe.is_empty() {
+                    css.push(format!("{}: {};", prop, safe));
+                }
             }
         };
 

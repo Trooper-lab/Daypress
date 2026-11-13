@@ -44,8 +44,8 @@ pub async fn handle_admin_languages(State(db): State<Database>) -> Html<String> 
                 .to_string()
         } else {
             format!(
-                r#"<button type="button" class="btn btn-secondary" style="font-size:11.5px;padding:4px 10px;" onclick="setAsDefaultLang('{code_esc}', '{name_esc}', '{native_esc}', '{locale_esc}', '{flag_esc}')">Make Default</button>
-                <button type="button" class="btn btn-secondary" style="font-size:11.5px;padding:4px 10px;color:var(--oxide);" onclick="removeLang('{code_esc}')">Remove</button>"#
+                r#"<button type="button" class="btn btn-secondary" style="font-size:11.5px;padding:4px 10px;" data-code="{code_esc}" data-name="{name_esc}" data-native="{native_esc}" data-locale="{locale_esc}" data-flag="{flag_esc}" onclick="setAsDefaultLangFromBtn(this)">Make Default</button>
+                <button type="button" class="btn btn-secondary" style="font-size:11.5px;padding:4px 10px;color:var(--oxide);" data-code="{code_esc}" onclick="removeLang(this.dataset.code)">Remove</button>"#
             )
         };
         lang_rows.push_str(&format!(
@@ -106,7 +106,7 @@ pub async fn handle_admin_languages(State(db): State<Database>) -> Html<String> 
             } else {
                 let lcode = templates::utils::escape_html(&lang.code);
                 cells.push_str(&format!(
-                    r#"<td style="text-align:center;"><button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px;" onclick="quickCreateTranslation({}, '{}')">+ Translate</button></td>"#,
+                    r#"<td style="text-align:center;"><button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px;" data-post-id="{}" data-lang="{}" onclick="quickCreateTranslation(Number(this.dataset.postId), this.dataset.lang)">+ Translate</button></td>"#,
                     item.id, lcode
                 ));
             }
@@ -328,6 +328,16 @@ pub async fn handle_admin_languages(State(db): State<Database>) -> Html<String> 
                 }} else {{
                     showToast('Failed to add language', true);
                 }}
+            }}
+
+            function setAsDefaultLangFromBtn(el) {{
+                return setAsDefaultLang(
+                    el.dataset.code || '',
+                    el.dataset.name || '',
+                    el.dataset.native || '',
+                    el.dataset.locale || '',
+                    el.dataset.flag || ''
+                );
             }}
 
             async function setAsDefaultLang(code, name, native_name, locale, flag_emoji) {{

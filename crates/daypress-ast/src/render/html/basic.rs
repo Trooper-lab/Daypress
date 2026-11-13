@@ -3,6 +3,7 @@ use crate::render::sanitizer::{
     escape_attr, resolve_semantic_tag, sanitize_editor_html, with_extra_classes,
 };
 use crate::schema::NodeKind;
+use crate::url_utils::{sanitize_css_value, sanitize_media_url, sanitize_safe_url};
 
 pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
     let RenderArgs {
@@ -57,10 +58,11 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
                 _ => String::new(),
             };
             let cls = with_extra_classes("dp-image", extra_cls);
+            let safe_src = sanitize_media_url(src);
             let img_tag = format!(
                 "<img id=\"{}\" src=\"{}\" alt=\"{}\"{} class=\"{}\"{} loading=\"lazy\" />",
                 escape_attr(&node.id),
-                escape_attr(src),
+                escape_attr(&safe_src),
                 escape_attr(alt),
                 dim_attrs,
                 escape_attr(&cls),
@@ -68,9 +70,10 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             );
             Some(
                 if let Some(href) = link.as_ref().filter(|s| !s.is_empty()) {
+                    let safe_href = sanitize_safe_url(href);
                     format!(
                         "<a href=\"{}\" class=\"dp-image-link\">{}</a>",
-                        escape_attr(href),
+                        escape_attr(&safe_href),
                         img_tag
                     )
                 } else {
@@ -86,6 +89,7 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
                 "dp-button"
             };
             let cls = with_extra_classes(base_class, extra_cls);
+            let safe_text = sanitize_editor_html(text);
             if node.styles.html_tag.as_deref() == Some("button") && url.is_empty() {
                 // A `<button>` has no link target, so `target` carries its type: "submit" and
                 // "reset" act on the enclosing form; anything else is a plain button.
@@ -100,17 +104,22 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
                     escape_attr(&cls),
                     escape_attr(&node.id),
                     style_attr,
-                    sanitize_editor_html(text)
+                    safe_text
                 ))
             } else {
+                let safe_url = sanitize_safe_url(url);
+                let safe_target = match target.as_str() {
+                    "_blank" | "_self" | "_parent" | "_top" | "" => target.as_str(),
+                    _ => "_self",
+                };
                 Some(format!(
                     "<a href=\"{}\" target=\"{}\" class=\"{}\" id=\"{}\"{}>{}</a>",
-                    escape_attr(url),
-                    escape_attr(target),
+                    escape_attr(&safe_url),
+                    escape_attr(safe_target),
                     escape_attr(&cls),
                     escape_attr(&node.id),
                     style_attr,
-                    sanitize_editor_html(text)
+                    safe_text
                 ))
             }
         }
@@ -127,7 +136,7 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             escape_attr(&node.id),
             escape_attr(&with_extra_classes("dp-divider", extra_cls)),
             data_attrs,
-            escape_attr(style),
+            escape_attr(&sanitize_css_value(style)),
             css
         )),
         NodeKind::Icon { name, size, color } => {
@@ -137,7 +146,12 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             let color_style = color
                 .as_ref()
                 .filter(|c| !c.is_empty())
-                .map(|c| format!("color: {}; ", escape_attr(c)))
+                .map(|c| {
+                    format!(
+                        "color: {}; ",
+                        escape_attr(&sanitize_css_value(c))
+                    )
+                })
                 .unwrap_or_default();
             let combined = format!("{}{}{}", size_style, color_style, css);
             let cls = with_extra_classes("dp-icon", extra_cls);
@@ -152,9 +166,10 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             );
             Some(
                 if let Some(href) = node.styles.link_url.as_deref().filter(|s| !s.is_empty()) {
+                    let safe_href = sanitize_safe_url(href);
                     format!(
                         "<a href=\"{}\" class=\"dp-icon-link\">{}</a>",
-                        escape_attr(href),
+                        escape_attr(&safe_href),
                         span_html
                     )
                 } else {

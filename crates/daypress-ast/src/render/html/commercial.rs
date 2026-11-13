@@ -1,6 +1,9 @@
 use super::RenderArgs;
 use crate::render::sanitizer::{escape_attr, with_extra_classes};
 use crate::schema::NodeKind;
+use crate::url_utils::{
+    sanitize_css_class_token, sanitize_media_url, sanitize_safe_url, sanitize_untrusted_html,
+};
 
 pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
     let RenderArgs {
@@ -35,7 +38,13 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
             let curr = currency.as_deref().unwrap_or("$");
             let orig_html = original_price
                 .as_ref()
-                .map(|op| format!("<span class=\"dp-price-original\">{}{}</span>", curr, op))
+                .map(|op| {
+                    format!(
+                        "<span class=\"dp-price-original\">{}{}</span>",
+                        escape_attr(curr),
+                        escape_attr(op)
+                    )
+                })
                 .unwrap_or_default();
             let per_html = period
                 .as_ref()
@@ -77,7 +86,7 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 escape_attr(price),
                 per_html,
                 feats_html,
-                escape_attr(button_url),
+                escape_attr(&sanitize_safe_url(button_url)),
                 escape_attr(button_text)
             ))
         }
@@ -91,18 +100,21 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
         } => {
             let feats_html: String = features
                 .iter()
-                .map(|f| format!("<li class=\"dp-price-feature\">{}</li>\n", f))
+                .map(|f| format!("<li class=\"dp-price-feature\">{}</li>\n", escape_attr(f)))
                 .collect();
             let period_html = if !period.trim().is_empty() {
-                format!(" <span class=\"dp-price-period\">{}</span>", period)
+                format!(
+                    " <span class=\"dp-price-period\">{}</span>",
+                    escape_attr(period)
+                )
             } else {
                 String::new()
             };
             let btn_html = if !button_text.trim().is_empty() {
                 format!(
                     "\n<a href=\"{}\" class=\"dp-button dp-price-btn\">{}</a>",
-                    escape_attr(button_url),
-                    button_text
+                    escape_attr(&sanitize_safe_url(button_url)),
+                    escape_attr(button_text)
                 )
             } else {
                 String::new()
@@ -113,8 +125,8 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 escape_attr(&node.id),
                 escape_attr(&cls),
                 style_attr,
-                title,
-                price,
+                escape_attr(title),
+                escape_attr(price),
                 period_html,
                 feats_html,
                 btn_html
@@ -140,26 +152,29 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 .map(|img| {
                     format!(
                         "<div class=\"dp-cta-image\"><img src=\"{}\" alt=\"{}\" loading=\"lazy\" /></div>\n",
-                        escape_attr(img),
+                        escape_attr(&sanitize_media_url(img)),
                         escape_attr(title)
                     )
                 })
                 .unwrap_or_default();
             let title_html = if !title.trim().is_empty() {
-                format!("<h2 class=\"dp-cta-title\">{}</h2>\n", title)
+                format!("<h2 class=\"dp-cta-title\">{}</h2>\n", sanitize_untrusted_html(title))
             } else {
                 String::new()
             };
             let desc_html = if !description.trim().is_empty() {
-                format!("<div class=\"dp-cta-desc\">{}</div>\n", description)
+                format!(
+                    "<div class=\"dp-cta-desc\">{}</div>\n",
+                    sanitize_untrusted_html(description)
+                )
             } else {
                 String::new()
             };
             let btn_html = if !button_text.trim().is_empty() {
                 format!(
                     "<a href=\"{}\" class=\"dp-button dp-cta-btn\">{}</a>",
-                    escape_attr(button_url),
-                    button_text
+                    escape_attr(&sanitize_safe_url(button_url)),
+                    escape_attr(button_text)
                 )
             } else {
                 String::new()
@@ -168,7 +183,7 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 (Some(sec_txt), Some(sec_url)) if !sec_txt.trim().is_empty() => {
                     format!(
                         " <a href=\"{}\" class=\"dp-button dp-button-secondary dp-cta-sec-btn\">{}</a>",
-                        escape_attr(sec_url),
+                        escape_attr(&sanitize_safe_url(sec_url)),
                         escape_attr(sec_txt)
                     )
                 }
@@ -249,7 +264,7 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 .map(|img| {
                     format!(
                         "<div class=\"dp-flipbox-image\"><img src=\"{}\" alt=\"{}\" /></div>\n",
-                        escape_attr(img),
+                        escape_attr(&sanitize_media_url(img)),
                         escape_attr(front_title)
                     )
                 })
@@ -258,14 +273,19 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 (Some(txt), Some(url)) if !txt.is_empty() => {
                     format!(
                         "<a href=\"{}\" class=\"dp-button dp-flipbox-btn\">{}</a>\n",
-                        escape_attr(url),
+                        escape_attr(&sanitize_safe_url(url)),
                         escape_attr(txt)
                     )
                 }
                 _ => String::new(),
             };
-            let cls =
-                with_extra_classes(&format!("dp-flipbox dp-flipbox-{}", direction), extra_cls);
+            let cls = with_extra_classes(
+                &format!(
+                    "dp-flipbox dp-flipbox-{}",
+                    sanitize_css_class_token(direction)
+                ),
+                extra_cls,
+            );
             Some(format!(
                 "<div id=\"{}\" class=\"{}\"{}>\n<div class=\"dp-flipbox-front\">\n{}{}<h3 class=\"dp-flipbox-title\">{}</h3>\n<p class=\"dp-flipbox-desc\">{}</p>\n</div>\n<div class=\"dp-flipbox-back\">\n<h3 class=\"dp-flipbox-title\">{}</h3>\n<p class=\"dp-flipbox-desc\">{}</p>\n{}</div>\n</div>",
                 escape_attr(&node.id),
