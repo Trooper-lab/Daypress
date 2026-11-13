@@ -114,8 +114,35 @@ pub struct NetworkPermissionProbePayload {
 
 pub async fn handle_setup_network_permission(
     State(db): State<Database>,
+    crate::auth::OptionalAuthUser(auth): crate::auth::OptionalAuthUser,
     payload: Option<axum::Json<NetworkPermissionProbePayload>>,
 ) -> impl IntoResponse {
+    if !db.needs_onboarding() {
+        match auth.as_ref() {
+            Some(user) if user.is_admin() => {}
+            Some(_) => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    axum::Json(serde_json::json!({
+                        "success": false,
+                        "error": "Administrator privileges are required."
+                    })),
+                )
+                    .into_response();
+            }
+            None => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    axum::Json(serde_json::json!({
+                        "success": false,
+                        "error": "Setup is already complete; authentication is required."
+                    })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
     let mode = payload
         .and_then(|p| p.0.mode)
         .filter(|s| s.trim().eq_ignore_ascii_case("lan"))

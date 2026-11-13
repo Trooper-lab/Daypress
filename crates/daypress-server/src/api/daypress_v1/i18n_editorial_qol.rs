@@ -462,27 +462,25 @@ pub(crate) async fn cherry_pick_revision_node_v1_handler(
 // =========================================================================
 
 pub(crate) async fn get_user_preferences_v1_handler(
-    OptionalAuthUser(auth): OptionalAuthUser,
+    auth: AuthUser,
     State(db): State<Database>,
 ) -> Result<Json<Value>, AppError> {
-    let user_id = auth.as_ref().map(|u| u.user_id).unwrap_or(1);
-    let prefs = db.get_user_screen_preferences(user_id)?;
+    let prefs = db.get_user_screen_preferences(auth.user_id)?;
     Ok(Json(serde_json::json!({
-        "user_id": user_id,
+        "user_id": auth.user_id,
         "preferences": prefs,
     })))
 }
 
 pub(crate) async fn save_user_preferences_v1_handler(
-    OptionalAuthUser(auth): OptionalAuthUser,
+    auth: AuthUser,
     State(db): State<Database>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let user_id = auth.as_ref().map(|u| u.user_id).unwrap_or(1);
-    let prefs = db.save_user_screen_preferences(user_id, &payload)?;
+    let prefs = db.save_user_screen_preferences(auth.user_id, &payload)?;
     Ok(Json(serde_json::json!({
         "status": "saved",
-        "user_id": user_id,
+        "user_id": auth.user_id,
         "preferences": prefs,
     })))
 }

@@ -108,7 +108,7 @@ impl Database {
             .get("role")
             .cloned()
             .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| "Administrator".to_string());
+            .unwrap_or_else(|| "subscriber".to_string());
         let first_name = meta.get("first_name").cloned().unwrap_or_default();
         let last_name = meta.get("last_name").cloned().unwrap_or_default();
         let nickname = meta
@@ -173,7 +173,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             r#"SELECT u.ID, u.user_login, u.display_name, u.user_email, u.user_url, u.user_registered,
-                      COALESCE((SELECT meta_value FROM usermeta WHERE user_id = u.ID AND meta_key = 'role'), 'Administrator') as role,
+                      COALESCE(NULLIF(TRIM((SELECT meta_value FROM usermeta WHERE user_id = u.ID AND meta_key = 'role')), ''), 'subscriber') as role,
                       (SELECT count(*) FROM posts WHERE post_author = u.ID AND post_type = 'post' AND post_status = 'publish') as post_count,
                       COALESCE((SELECT meta_value FROM usermeta WHERE user_id = u.ID AND meta_key = 'daypress_avatar_url'), '') as avatar_url
                FROM users u
@@ -532,7 +532,9 @@ impl Database {
                         params![user_id],
                         |r| r.get(0),
                     )
-                    .unwrap_or_else(|_| "administrator".to_string());
+                    .ok()
+                    .filter(|s: &String| !s.trim().is_empty())
+                    .unwrap_or_else(|| "subscriber".to_string());
                 (user_id, login, stored_pass, role)
             })
         };

@@ -358,6 +358,7 @@ impl Database {
                    VALUES (1, 'admin', ?1, 'admin', 'admin@example.com', ?2, 'admin');"#,
                 params![crate::auth::LEGACY_SEED_PASSWORD_HASH, now],
             )?;
+            Self::upsert_usermeta(&conn, 1, "role", "Administrator")?;
         }
 
         let is_migrated: bool = conn
@@ -570,6 +571,15 @@ impl Database {
             r#"INSERT OR IGNORE INTO users (ID, user_login, user_pass, user_nicename, user_email, user_registered, display_name)
                VALUES (1, 'admin', ?2, 'admin', 'admin@example.com', ?1, 'admin');"#,
             params![now, crate::auth::hash_user_password("admin")],
+        )?;
+        // Backfill the initial built-in admin role explicitly so missing-role lookups never fail open.
+        conn.execute(
+            r#"INSERT INTO usermeta (user_id, meta_key, meta_value)
+               SELECT 1, 'role', 'Administrator'
+               WHERE EXISTS (SELECT 1 FROM users WHERE ID = 1 AND user_login = 'admin')
+                 AND NOT EXISTS (SELECT 1 FROM usermeta WHERE user_id = 1 AND meta_key = 'role')
+                 AND NOT EXISTS (SELECT 1 FROM usermeta WHERE meta_key = 'role' AND LOWER(meta_value) = 'administrator');"#,
+            [],
         )?;
 
         // 3. Ensure reference posts exist

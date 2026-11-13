@@ -473,6 +473,7 @@ async fn test_v070_daystudio_wcag_contrast_broken_link_and_seo_linter() {
             Request::builder()
                 .method("POST")
                 .uri("/wp-json/daypress/v1/seo/audit")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({

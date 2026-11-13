@@ -912,12 +912,25 @@ async fn test_v0_8_5_wp_admin_qol_and_editor_ergonomics() {
         "Trashed post must be permanently deleted"
     );
 
-    // 4. REST user-preferences endpoint
+    // 4. REST user-preferences endpoint (must reject unauthenticated access and serve authenticated users)
     let app = create_app(db.clone());
+    let unauth_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/daypress/v1/user-preferences")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauth_res.status(), StatusCode::UNAUTHORIZED);
+
     let res = app
         .oneshot(
             Request::builder()
                 .uri("/wp-json/daypress/v1/user-preferences")
+                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
                 .body(Body::empty())
                 .unwrap(),
         )

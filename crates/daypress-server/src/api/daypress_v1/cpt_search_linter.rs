@@ -323,9 +323,20 @@ pub(crate) async fn fts_reindex_v1_handler(
 }
 
 pub(crate) async fn seo_audit_v1_handler(
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<crate::adapters::database::search_fts::AuditRequestPayload>,
 ) -> Result<Json<crate::adapters::database::search_fts::AuditReportResponse>, AppError> {
+    if let Some(pid) = payload.post_id.filter(|&id| id > 0) {
+        let Some(existing) = db.get_post_by_id(pid)? else {
+            return Err(AppError::NotFound(format!("Post {} not found", pid)));
+        };
+        if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to audit this post.".to_string(),
+            ));
+        }
+    }
     let report = db.audit_post_wcag_links_seo(&payload);
     Ok(Json(report))
 }
