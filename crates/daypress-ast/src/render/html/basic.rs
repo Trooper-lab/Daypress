@@ -146,12 +146,7 @@ pub(crate) fn render_basic(args: &RenderArgs) -> Option<String> {
             let color_style = color
                 .as_ref()
                 .filter(|c| !c.is_empty())
-                .map(|c| {
-                    format!(
-                        "color: {}; ",
-                        escape_attr(&sanitize_css_value(c))
-                    )
-                })
+                .map(|c| format!("color: {}; ", escape_attr(&sanitize_css_value(c))))
                 .unwrap_or_default();
             let combined = format!("{}{}{}", size_style, color_style, css);
             let cls = with_extra_classes("dp-icon", extra_cls);

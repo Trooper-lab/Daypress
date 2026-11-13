@@ -31,11 +31,10 @@ impl reqwest::dns::Resolve for SsrfSafeDnsResolver {
         Box::pin(async move {
             let allow_private =
                 std::env::var("DAYPRESS_ALLOW_PRIVATE_WEBHOOKS").as_deref() == Ok("1");
-            let addrs: Vec<std::net::SocketAddr> =
-                tokio::net::lookup_host((name.as_str(), 0))
-                    .await
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
-                    .collect();
+            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((name.as_str(), 0))
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
+                .collect();
             if !allow_private {
                 for addr in &addrs {
                     if is_disallowed_webhook_ip(&addr.ip()) {
@@ -833,8 +832,9 @@ impl Database {
                 }
             }
             let start = Instant::now();
-            let client = build_ssrf_safe_http_client(Duration::from_secs(10))
-                .map_err(|e| AppError::Internal(format!("HTTP client initialization failed: {e}")))?;
+            let client = build_ssrf_safe_http_client(Duration::from_secs(10)).map_err(|e| {
+                AppError::Internal(format!("HTTP client initialization failed: {e}"))
+            })?;
             let resp = client
                 .post(&target_url)
                 .header("Content-Type", "application/json")

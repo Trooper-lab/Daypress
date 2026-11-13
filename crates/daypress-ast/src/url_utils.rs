@@ -106,7 +106,10 @@ fn decode_entities_for_scheme_probe(raw: &str) -> String {
             let rest = &raw[i..];
             if let Some(semi) = rest.find(';').filter(|&p| p <= 12) {
                 let inner = &rest[1..semi];
-                if let Some(hex) = inner.strip_prefix("#x").or_else(|| inner.strip_prefix("#X")) {
+                if let Some(hex) = inner
+                    .strip_prefix("#x")
+                    .or_else(|| inner.strip_prefix("#X"))
+                {
                     if let Ok(cp) = u32::from_str_radix(hex, 16) {
                         if let Some(ch) = char::from_u32(cp) {
                             out.push(ch);
@@ -126,8 +129,7 @@ fn decode_entities_for_scheme_probe(raw: &str) -> String {
                     out.push(':');
                     i += semi + 1;
                     continue;
-                } else if inner.eq_ignore_ascii_case("tab")
-                    || inner.eq_ignore_ascii_case("newline")
+                } else if inner.eq_ignore_ascii_case("tab") || inner.eq_ignore_ascii_case("newline")
                 {
                     i += semi + 1;
                     continue;
@@ -358,10 +360,54 @@ pub fn sanitize_untrusted_html(raw: &str) -> String {
         "noscript", "noembed", "xmp", "textarea", "title",
     ];
     const ALLOWED_TAGS: &[&str] = &[
-        "p", "br", "hr", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em",
-        "i", "u", "s", "del", "ins", "mark", "small", "sub", "sup", "code", "pre", "blockquote",
-        "ul", "ol", "li", "dl", "dt", "dd", "table", "thead", "tbody", "tfoot", "tr", "th", "td",
-        "figure", "figcaption", "caption", "details", "summary", "a", "img", "audio", "video",
+        "p",
+        "br",
+        "hr",
+        "div",
+        "span",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "u",
+        "s",
+        "del",
+        "ins",
+        "mark",
+        "small",
+        "sub",
+        "sup",
+        "code",
+        "pre",
+        "blockquote",
+        "ul",
+        "ol",
+        "li",
+        "dl",
+        "dt",
+        "dd",
+        "table",
+        "thead",
+        "tbody",
+        "tfoot",
+        "tr",
+        "th",
+        "td",
+        "figure",
+        "figcaption",
+        "caption",
+        "details",
+        "summary",
+        "a",
+        "img",
+        "audio",
+        "video",
         "source",
     ];
     const VOID_TAGS: &[&str] = &["br", "hr", "img", "source"];

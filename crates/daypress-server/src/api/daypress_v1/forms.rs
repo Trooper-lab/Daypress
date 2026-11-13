@@ -218,9 +218,11 @@ pub(crate) async fn deliver_form_submission_notifications(
     if !wh_url.is_empty() {
         webhook_status = "failed".to_string();
         if Database::validate_webhook_target_url_ssrf(wh_url).is_ok() {
-            if let Ok(client) = crate::adapters::database::webhooks_shortlinks::build_ssrf_safe_http_client(
-                std::time::Duration::from_secs(6),
-            ) {
+            if let Ok(client) =
+                crate::adapters::database::webhooks_shortlinks::build_ssrf_safe_http_client(
+                    std::time::Duration::from_secs(6),
+                )
+            {
                 let wh_payload = serde_json::json!({
                     "event": "form.submitted",
                     "form_id": form_rec.id,

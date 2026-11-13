@@ -632,7 +632,7 @@ pub fn render_base_layout(
     } else {
         format!(
             "\n\t<style id=\"daypress-typography\">{}</style>",
-            crate::templates::utils::escape_style_tag_contents(&typography_css)
+            crate::templates::utils::escape_style_tag_contents(typography_css)
         )
     };
     let custom_css_block = if !settings.custom_css.trim().is_empty() {

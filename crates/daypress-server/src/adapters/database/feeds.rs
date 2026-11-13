@@ -105,7 +105,8 @@ impl Database {
             Self::hydrate_post_relations(&conn, post, &base_url);
             if post.is_content_restricted() {
                 if !post.password.trim().is_empty() {
-                    post.content.rendered = "<p>This content is password protected.</p>".to_string();
+                    post.content.rendered =
+                        "<p>This content is password protected.</p>".to_string();
                     post.excerpt.rendered = String::new();
                 } else {
                     let teaser = if let Some(idx) = post.content.rendered.find("<!--more-->") {

@@ -670,7 +670,12 @@ impl Database {
                     } else {
                         plain_body.chars().take(150).collect::<String>()
                     };
-                    (plain_body, reading_time_minutes, snippet_html, excerpt_plain)
+                    (
+                        plain_body,
+                        reading_time_minutes,
+                        snippet_html,
+                        excerpt_plain,
+                    )
                 };
                 let _ = plain_body;
 

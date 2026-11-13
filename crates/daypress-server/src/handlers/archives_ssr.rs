@@ -373,13 +373,12 @@ pub async fn handle_cpt_single(
         db.get_post_by_slug(clean_slug).ok().flatten()
     };
     if let Some(mut post) = matched_post.filter(|p| crate::auth::can_view_post(p, user.as_ref())) {
-        let (is_restricted, is_locked) =
-            crate::handlers::public_ssr::apply_content_access_guards(
-                &db,
-                &mut post,
-                user.as_ref(),
-                &headers,
-            );
+        let (is_restricted, is_locked) = crate::handlers::public_ssr::apply_content_access_guards(
+            &db,
+            &mut post,
+            user.as_ref(),
+            &headers,
+        );
         if !is_locked
             && (post.template == "page_templates/leeg.php"
                 || post
@@ -598,13 +597,12 @@ pub async fn handle_localized_cpt_single(
     };
 
     if let Some(mut post) = matched_post.filter(|p| crate::auth::can_view_post(p, user.as_ref())) {
-        let (is_restricted, is_locked) =
-            crate::handlers::public_ssr::apply_content_access_guards(
-                &db,
-                &mut post,
-                user.as_ref(),
-                &headers,
-            );
+        let (is_restricted, is_locked) = crate::handlers::public_ssr::apply_content_access_guards(
+            &db,
+            &mut post,
+            user.as_ref(),
+            &headers,
+        );
         if !is_locked
             && (post.template == "page_templates/leeg.php"
                 || post

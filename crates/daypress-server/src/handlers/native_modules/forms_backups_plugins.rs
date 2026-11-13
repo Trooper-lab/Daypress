@@ -303,8 +303,8 @@ pub async fn handle_admin_form_attachment_download(
                 | std::path::Component::Prefix(_)
         )
     });
-    let in_allowed_dir = path.starts_with("data/form-submissions")
-        || path.starts_with("uploads/form-submissions");
+    let in_allowed_dir =
+        path.starts_with("data/form-submissions") || path.starts_with("uploads/form-submissions");
     if has_traversal || !in_allowed_dir || !path.exists() {
         return (StatusCode::NOT_FOUND, "Attachment file missing from disk").into_response();
     }
@@ -479,7 +479,12 @@ pub async fn handle_api_plugin_install_custom(
                 )
                     .into_response()
             }
-            Err(e) => return crate::adapters::web::internal_json_error("Custom plugin uninstall failed", e),
+            Err(e) => {
+                return crate::adapters::web::internal_json_error(
+                    "Custom plugin uninstall failed",
+                    e,
+                )
+            }
         }
     }
 

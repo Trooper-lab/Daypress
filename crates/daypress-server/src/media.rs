@@ -436,11 +436,9 @@ pub fn sanitize_svg_bytes(raw: &[u8]) -> Result<Vec<u8>, AppError> {
                     if matches!(name, "amp" | "lt" | "gt" | "quot" | "apos")
                         || name.starts_with('#')
                     {
-                        writer
-                            .write_event(Event::GeneralRef(e))
-                            .map_err(|err| {
-                                AppError::BadRequest(format!("SVG write error: {}", err))
-                            })?;
+                        writer.write_event(Event::GeneralRef(e)).map_err(|err| {
+                            AppError::BadRequest(format!("SVG write error: {}", err))
+                        })?;
                     }
                 }
             }

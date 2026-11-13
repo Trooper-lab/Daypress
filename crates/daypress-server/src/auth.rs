@@ -933,7 +933,8 @@ pub fn verify_jwt_token(token: &str, secret: &str) -> Result<JwtClaims, AppError
         .map_err(|_| AppError::Unauthorized("Invalid token header encoding".to_string()))?;
     let header: JwtHeader = serde_json::from_slice(&header_bytes)
         .map_err(|_| AppError::Unauthorized("Invalid token header JSON".to_string()))?;
-    if header.alg != "HS256" || (!header.typ.is_empty() && !header.typ.eq_ignore_ascii_case("JWT")) {
+    if header.alg != "HS256" || (!header.typ.is_empty() && !header.typ.eq_ignore_ascii_case("JWT"))
+    {
         return Err(AppError::Unauthorized(
             "Unsupported token algorithm".to_string(),
         ));

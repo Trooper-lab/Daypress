@@ -181,10 +181,9 @@ pub async fn handle_admin_builder(
     let post = if let Some(id) = target_id {
         let found = db.get_post_by_id(id).unwrap_or(None);
         if let Some(ref existing) = found {
-            if !auth_user
-                .as_ref()
-                .is_some_and(|u| u.can_edit_post(existing.author, &existing.status, &existing.post_type))
-            {
+            if !auth_user.as_ref().is_some_and(|u| {
+                u.can_edit_post(existing.author, &existing.status, &existing.post_type)
+            }) {
                 return (
                     StatusCode::FORBIDDEN,
                     Html("<h1>403 Forbidden</h1><p>You do not have permission to edit this content in the builder.</p>".to_string()),
@@ -193,8 +192,7 @@ pub async fn handle_admin_builder(
             }
         }
         found
-    } else if auth_user.as_ref().is_some_and(|u| u.can_edit_pages()) && settings.page_on_front > 0
-    {
+    } else if auth_user.as_ref().is_some_and(|u| u.can_edit_pages()) && settings.page_on_front > 0 {
         db.get_post_by_id(settings.page_on_front)
             .unwrap_or(None)
             .or_else(|| {

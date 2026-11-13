@@ -8,9 +8,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::Engine;
-use daypress_server::{
-    create_app, handlers, CreatePostRequest, CreateUserRequest, Database,
-};
+use daypress_server::{create_app, handlers, CreatePostRequest, CreateUserRequest, Database};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -54,9 +52,7 @@ async fn step1_auth01_missing_role_usermeta_never_grants_admin() {
 
     // Now test a file-backed DB where a user row lacks a `role` entry in `usermeta`
     let file_db = Database::new(&db_path).expect("file DB");
-    file_db
-        .seed_data()
-        .expect("seed data on temp file db");
+    file_db.seed_data().expect("seed data on temp file db");
 
     let created = file_db
         .create_user(&CreateUserRequest {
@@ -304,9 +300,7 @@ async fn step1_authz02_user_preferences_and_seo_audit_require_auth_and_ownership
                 .method("POST")
                 .uri("/wp-json/daypress/v1/seo/audit")
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    json!({ "post_id": admin_draft.id }).to_string(),
-                ))
+                .body(Body::from(json!({ "post_id": admin_draft.id }).to_string()))
                 .unwrap(),
         )
         .await
@@ -337,9 +331,7 @@ async fn step1_authz02_user_preferences_and_seo_audit_require_auth_and_ownership
                 .uri("/wp-json/daypress/v1/seo/audit")
                 .header("Authorization", basic_auth("author1", "AuthorPassword123!"))
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    json!({ "post_id": admin_draft.id }).to_string(),
-                ))
+                .body(Body::from(json!({ "post_id": admin_draft.id }).to_string()))
                 .unwrap(),
         )
         .await
@@ -364,9 +356,7 @@ async fn step1_authz02_user_preferences_and_seo_audit_require_auth_and_ownership
                 .uri("/wp-json/daypress/v1/seo/audit")
                 .header("Authorization", basic_auth("author1", "AuthorPassword123!"))
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    json!({ "post_id": own_draft.id }).to_string(),
-                ))
+                .body(Body::from(json!({ "post_id": own_draft.id }).to_string()))
                 .unwrap(),
         )
         .await
@@ -477,7 +467,11 @@ async fn step2_rbac_bfla_bola_and_user_escalation_blocked() {
             r#"{"action":"delete","comment_ids":[1]}"#,
         ),
         ("GET", "/wp-json/daypress/v1/cache/stats", ""),
-        ("POST", "/wp-json/daypress/v1/cache/purge", r#"{"cf_api_token":"evil"}"#),
+        (
+            "POST",
+            "/wp-json/daypress/v1/cache/purge",
+            r#"{"cf_api_token":"evil"}"#,
+        ),
         ("GET", "/wp-json/daypress/v1/field-groups", ""),
         ("POST", "/wp-json/daypress/v1/search/reindex", r#"{}"#),
         ("GET", "/wp-json/daypress/v1/newsletters/subscribers", ""),
@@ -533,12 +527,20 @@ async fn step2_rbac_bfla_bola_and_user_escalation_blocked() {
             )
             .await
             .unwrap();
-        assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "Expected 401 on {uri}");
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "Expected 401 on {uri}"
+        );
     }
 
     // Also get_template, get_conditions, preview_template, assign-page require AdminUser (Editor rejected with 403)
     for (method, uri, body) in [
-        ("GET", format!("/wp-json/daypress/v1/templates/{}", tpl.id), String::new()),
+        (
+            "GET",
+            format!("/wp-json/daypress/v1/templates/{}", tpl.id),
+            String::new(),
+        ),
         (
             "GET",
             format!("/wp-json/daypress/v1/templates/{}/conditions", tpl.id),
@@ -653,17 +655,26 @@ async fn step2_rbac_bfla_bola_and_user_escalation_blocked() {
     for (method, uri, body) in [
         (
             "POST",
-            format!("/wp-json/daypress/v1/posts/{}/preview-links", admin_draft.id),
+            format!(
+                "/wp-json/daypress/v1/posts/{}/preview-links",
+                admin_draft.id
+            ),
             r#"{"label":"hijack"}"#.to_string(),
         ),
         (
             "GET",
-            format!("/wp-json/daypress/v1/posts/{}/preview-links", admin_draft.id),
+            format!(
+                "/wp-json/daypress/v1/posts/{}/preview-links",
+                admin_draft.id
+            ),
             String::new(),
         ),
         (
             "GET",
-            format!("/wp-json/daypress/v1/posts/{}/revisions/diff", admin_draft.id),
+            format!(
+                "/wp-json/daypress/v1/posts/{}/revisions/diff",
+                admin_draft.id
+            ),
             String::new(),
         ),
         (
@@ -738,7 +749,10 @@ async fn step2_rbac_bfla_bola_and_user_escalation_blocked() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/wp-json/daypress/v1/templates/active?post_id={}", admin_draft.id))
+                .uri(format!(
+                    "/wp-json/daypress/v1/templates/active?post_id={}",
+                    admin_draft.id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -829,16 +843,19 @@ async fn step2_webhook_secrets_redacted_in_rest_and_admin_ui() {
         })
         .expect("publish post");
     let _ = post;
-    let deliveries = db.list_webhook_deliveries(Some(wh.id), 5).expect("deliveries");
+    let deliveries = db
+        .list_webhook_deliveries(Some(wh.id), 5)
+        .expect("deliveries");
     assert_eq!(deliveries.len(), 1);
     let d = &deliveries[0];
     let parsed: Value = serde_json::from_str(&d.payload_json).unwrap();
     let ts = parsed["timestamp"].as_i64().unwrap();
-    let expected = daypress_server::adapters::database::webhooks_shortlinks::compute_webhook_hmac_sha256(
-        raw_secret,
-        ts,
-        &d.payload_json,
-    );
+    let expected =
+        daypress_server::adapters::database::webhooks_shortlinks::compute_webhook_hmac_sha256(
+            raw_secret,
+            ts,
+            &d.payload_json,
+        );
     assert_eq!(d.signature_header, expected);
 }
 
@@ -893,8 +910,13 @@ async fn step3_newsletter_magic_link_no_sync_unlock_no_unsub_cookie_no_enumerati
             )
             .await
             .unwrap();
-        let html = String::from_utf8(to_bytes(res.into_body(), 1024 * 1024).await.unwrap().to_vec())
-            .unwrap();
+        let html = String::from_utf8(
+            to_bytes(res.into_body(), 1024 * 1024)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert!(
             !html.contains("SECRET_MAGIC_PAYWALL_DATA"),
             "Raw unsubscribe/confirm token in cookie must never unlock member gate"
@@ -907,15 +929,22 @@ async fn step3_newsletter_magic_link_no_sync_unlock_no_unsub_cookie_no_enumerati
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/gated-magic-article/?subscriber_token={}", signed_tok))
+                .uri(format!(
+                    "/gated-magic-article/?subscriber_token={}",
+                    signed_tok
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    let qs_html =
-        String::from_utf8(to_bytes(qs_res.into_body(), 1024 * 1024).await.unwrap().to_vec())
-            .unwrap();
+    let qs_html = String::from_utf8(
+        to_bytes(qs_res.into_body(), 1024 * 1024)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(
         !qs_html.contains("SECRET_MAGIC_PAYWALL_DATA"),
         "Query string subscriber_token must be ignored to prevent token leakage in URLs"
@@ -1010,10 +1039,18 @@ async fn step3_newsletter_magic_link_no_sync_unlock_no_unsub_cookie_no_enumerati
 
     // 4. Fetch the rotated magic-link confirm_token generated for Alice & click /newsletter/confirm/{token}
     let refreshed = db
-        .list_subscribers(Some("subscribed"), None, Some("alice-subscriber@example.com"), true)
+        .list_subscribers(
+            Some("subscribed"),
+            None,
+            Some("alice-subscriber@example.com"),
+            true,
+        )
         .unwrap();
     let magic_tok = refreshed[0].confirm_token.clone().expect("magic token");
-    assert_ne!(magic_tok, old_confirm, "Magic link request must rotate token");
+    assert_ne!(
+        magic_tok, old_confirm,
+        "Magic link request must rotate token"
+    );
     // Unsafe source_url (//evil.example.com) must not replace safe source_url
     assert_eq!(refreshed[0].source_url, "/gated-magic-article/");
 
@@ -1034,7 +1071,10 @@ async fn step3_newsletter_magic_link_no_sync_unlock_no_unsub_cookie_no_enumerati
         .and_then(|v| v.to_str().ok())
         .expect("signed subscriber cookie")
         .to_string();
-    assert!(set_cookie.contains("HttpOnly"), "Subscriber cookie must be HttpOnly");
+    assert!(
+        set_cookie.contains("HttpOnly"),
+        "Subscriber cookie must be HttpOnly"
+    );
     assert!(
         !set_cookie.contains(&unsub_tok),
         "Cookie must never contain unsubscribe_token"
@@ -1070,9 +1110,13 @@ async fn step3_newsletter_magic_link_no_sync_unlock_no_unsub_cookie_no_enumerati
         )
         .await
         .unwrap();
-    let unlocked_html =
-        String::from_utf8(to_bytes(unlocked_res.into_body(), 1024 * 1024).await.unwrap().to_vec())
-            .unwrap();
+    let unlocked_html = String::from_utf8(
+        to_bytes(unlocked_res.into_body(), 1024 * 1024)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(unlocked_html.contains("SECRET_MAGIC_PAYWALL_DATA"));
 }
 
@@ -1144,7 +1188,8 @@ async fn step3_member_gate_password_and_draft_isolation_across_ssr_rest_rss_og_s
 
     // Also test front page member gate bypass when static front page is gated
     db.set_option("show_on_front", "page").unwrap();
-    db.set_option("page_on_front", &raw_gated.id.to_string()).unwrap();
+    db.set_option("page_on_front", &raw_gated.id.to_string())
+        .unwrap();
 
     // Anonymous requests across SSR (?page_id=, /, /{slug}/, /{pt}/{slug}/), REST, layout, collection, feed, og-image, search
     for uri in [
@@ -1160,29 +1205,59 @@ async fn step3_member_gate_password_and_draft_isolation_across_ssr_rest_rss_og_s
         "/wp-json/daypress/v1/collection-query?post_type=post".to_string(),
         "/feed/".to_string(),
         format!("/og-image/{}?format=svg", pw_post.slug),
-        format!("/wp-json/daypress/v1/og-image?post_id={}&format=svg", raw_gated.id),
+        format!(
+            "/wp-json/daypress/v1/og-image?post_id={}&format=svg",
+            raw_gated.id
+        ),
     ] {
         let res = app
             .clone()
             .oneshot(Request::builder().uri(&uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
-        let body = String::from_utf8(to_bytes(res.into_body(), 2 * 1024 * 1024).await.unwrap().to_vec())
-            .unwrap();
-        assert!(!body.contains("SECRET_RAW_HTML_PAYWALL"), "Gated raw leak at {uri}");
-        assert!(!body.contains("SECRET_ACF_VALUE"), "Gated ACF leak at {uri}");
-        assert!(!body.contains("SECRET_PASSWORDED_BODY_TOKEN"), "Passworded body leak at {uri}");
-        assert!(!body.contains("SECRET_PW_ACF"), "Passworded ACF leak at {uri}");
-        assert!(!body.contains("SuperSecretPostPass99"), "Plaintext post password leaked at {uri}");
+        let body = String::from_utf8(
+            to_bytes(res.into_body(), 2 * 1024 * 1024)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(
+            !body.contains("SECRET_RAW_HTML_PAYWALL"),
+            "Gated raw leak at {uri}"
+        );
+        assert!(
+            !body.contains("SECRET_ACF_VALUE"),
+            "Gated ACF leak at {uri}"
+        );
+        assert!(
+            !body.contains("SECRET_PASSWORDED_BODY_TOKEN"),
+            "Passworded body leak at {uri}"
+        );
+        assert!(
+            !body.contains("SECRET_PW_ACF"),
+            "Passworded ACF leak at {uri}"
+        );
+        assert!(
+            !body.contains("SuperSecretPostPass99"),
+            "Plaintext post password leaked at {uri}"
+        );
     }
 
     // FTS5 Search must exclude password-protected posts and redact gated bodies even when queried by title or body token
-    for q in ["SECRET_PASSWORDED_BODY_TOKEN", "Passworded", "Gated Landing Doc"] {
+    for q in [
+        "SECRET_PASSWORDED_BODY_TOKEN",
+        "Passworded",
+        "Gated Landing Doc",
+    ] {
         let s_res = app
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri(format!("/wp-json/daypress/v1/search?q={}", q.replace(' ', "%20")))
+                    .uri(format!(
+                        "/wp-json/daypress/v1/search?q={}",
+                        q.replace(' ', "%20")
+                    ))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1237,9 +1312,13 @@ async fn step3_member_gate_password_and_draft_isolation_across_ssr_rest_rss_og_s
         )
         .await
         .unwrap();
-    let drafts_body =
-        String::from_utf8(to_bytes(list_drafts.into_body(), 1024 * 1024).await.unwrap().to_vec())
-            .unwrap();
+    let drafts_body = String::from_utf8(
+        to_bytes(list_drafts.into_body(), 1024 * 1024)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(!drafts_body.contains("SECRET_ADMIN_DRAFT_BODY"));
 
     // Public OG image never leaks unpublished draft title
@@ -1253,8 +1332,13 @@ async fn step3_member_gate_password_and_draft_isolation_across_ssr_rest_rss_og_s
         )
         .await
         .unwrap();
-    let og_svg = String::from_utf8(to_bytes(og_draft.into_body(), 1024 * 1024).await.unwrap().to_vec())
-        .unwrap();
+    let og_svg = String::from_utf8(
+        to_bytes(og_draft.into_body(), 1024 * 1024)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(!og_svg.contains("Secret Admin Draft"));
 
     // Admin/authorized editor can still read layout and passworded post
@@ -1279,8 +1363,8 @@ async fn step4_jwt_alg_validation_and_session_invalidation_on_password_reset() {
     let secret = db.get_auth_secret().unwrap();
 
     // 1. Forged alg=none JWT (or HS512 header over HMAC-SHA256) must be rejected
-    let header_none = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .encode(r#"{"alg":"none","typ":"JWT"}"#);
+    let header_none =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(r#"{"alg":"none","typ":"JWT"}"#);
     let claims_json = serde_json::json!({
         "iss": "http://localhost:8090",
         "iat": chrono::Utc::now().timestamp(),
@@ -1296,8 +1380,8 @@ async fn step4_jwt_alg_validation_and_session_invalidation_on_password_reset() {
         "alg=none JWT must never validate"
     );
 
-    let header_hs512 = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .encode(r#"{"alg":"HS512","typ":"JWT"}"#);
+    let header_hs512 =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(r#"{"alg":"HS512","typ":"JWT"}"#);
     let signing_input = format!("{}.{}", header_hs512, claims_b64);
     let sig_hs256 = daypress_server::auth::hmac_sha256(secret.as_bytes(), signing_input.as_bytes());
     let forged_hs512 = format!(
@@ -1587,10 +1671,7 @@ async fn step4_csrf_origin_null_untrusted_proxy_secure_cookies_and_hot_cache() {
 
     // 3. HotCache must bypass for daypress_admin= and daypress_subscriber= cookies
     let mut admin_headers = axum::http::HeaderMap::new();
-    admin_headers.insert(
-        axum::http::header::COOKIE,
-        admin_cookie.parse().unwrap(),
-    );
+    admin_headers.insert(axum::http::header::COOKIE, admin_cookie.parse().unwrap());
     assert!(
         daypress_server::hot_cache::SsrHotCache::has_session_cookie(&admin_headers),
         "HotCache must detect daypress_admin cookie"
@@ -1598,7 +1679,9 @@ async fn step4_csrf_origin_null_untrusted_proxy_secure_cookies_and_hot_cache() {
     let mut sub_headers = axum::http::HeaderMap::new();
     sub_headers.insert(
         axum::http::header::COOKIE,
-        "daypress_subscriber=sub.1.9999999999.deadbeef".parse().unwrap(),
+        "daypress_subscriber=sub.1.9999999999.deadbeef"
+            .parse()
+            .unwrap(),
     );
     assert!(
         daypress_server::hot_cache::SsrHotCache::has_session_cookie(&sub_headers),
@@ -1650,7 +1733,10 @@ async fn step4_csrf_origin_null_untrusted_proxy_secure_cookies_and_hot_cache() {
     let confirm_res = app
         .oneshot(
             Request::builder()
-                .uri(format!("/newsletter/confirm/{}", sub.confirm_token.unwrap()))
+                .uri(format!(
+                    "/newsletter/confirm/{}",
+                    sub.confirm_token.unwrap()
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1752,7 +1838,9 @@ async fn step5_private_form_uploads_isolated_from_public_media_and_static_export
     }
 
     // 3. Static Edge Publisher never includes form-submissions even if a legacy file sits in uploads/
-    let legacy_dir = std::path::Path::new("uploads").join("form-submissions").join("99999");
+    let legacy_dir = std::path::Path::new("uploads")
+        .join("form-submissions")
+        .join("99999");
     let _ = std::fs::create_dir_all(&legacy_dir);
     let legacy_file = legacy_dir.join("legacy-kyc.txt");
     std::fs::write(&legacy_file, b"LEGACY_SECRET_KYC").unwrap();
@@ -1890,10 +1978,11 @@ async fn step5_client_ip_spoofing_blocked_and_ssrf_dns_redirect_no_default_secre
     // DNS-pinning reqwest client rejects localhost resolution when DAYPRESS_ALLOW_PRIVATE_WEBHOOKS != 1
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let local_port = listener.local_addr().unwrap().port();
-    let ssrf_client = daypress_server::adapters::database::webhooks_shortlinks::build_ssrf_safe_http_client(
-        std::time::Duration::from_secs(2),
-    )
-    .unwrap();
+    let ssrf_client =
+        daypress_server::adapters::database::webhooks_shortlinks::build_ssrf_safe_http_client(
+            std::time::Duration::from_secs(2),
+        )
+        .unwrap();
     let blocked_req = ssrf_client
         .post(format!("http://localhost:{local_port}/metadata"))
         .body("test")
@@ -2051,7 +2140,10 @@ async fn step6_contributor_post_and_layout_xss_sanitized() {
         assert!(!lower.contains("<svg"), "svg tag leaked: {field}");
         assert!(!lower.contains("onerror"), "onerror leaked: {field}");
         assert!(!lower.contains("onload"), "onload leaked: {field}");
-        assert!(!lower.contains("javascript:"), "javascript: leaked: {field}");
+        assert!(
+            !lower.contains("javascript:"),
+            "javascript: leaked: {field}"
+        );
     }
 
     // Also attempt raw rendered_html + malicious AST payload via save_layout_handler as contributor
@@ -2101,9 +2193,18 @@ async fn step6_contributor_post_and_layout_xss_sanitized() {
 
     let updated_post = db.get_post_by_id(post_id).unwrap().expect("post exists");
     let compiled = updated_post.content.rendered.to_ascii_lowercase();
-    assert!(!compiled.contains("<script"), "script in compiled layout: {compiled}");
-    assert!(!compiled.contains("<svg"), "svg in compiled layout: {compiled}");
-    assert!(!compiled.contains("onerror"), "onerror in compiled layout: {compiled}");
+    assert!(
+        !compiled.contains("<script"),
+        "script in compiled layout: {compiled}"
+    );
+    assert!(
+        !compiled.contains("<svg"),
+        "svg in compiled layout: {compiled}"
+    );
+    assert!(
+        !compiled.contains("onerror"),
+        "onerror in compiled layout: {compiled}"
+    );
     assert!(
         !compiled.contains("javascript:alert"),
         "javascript: URL in compiled layout: {compiled}"
@@ -2147,7 +2248,10 @@ async fn step6_svg_avatar_upload_blocked_and_svg_sanitizer_hardened() {
                 Request::builder()
                     .method("POST")
                     .uri(format!("/wp-json/daypress/v1/users/{}/avatar", admin.id))
-                    .header("Authorization", basic_auth("sec_admin", "AdminPassword123!"))
+                    .header(
+                        "Authorization",
+                        basic_auth("sec_admin", "AdminPassword123!"),
+                    )
                     .header(
                         "Content-Type",
                         format!("multipart/form-data; boundary={boundary}"),
@@ -2166,13 +2270,30 @@ async fn step6_svg_avatar_upload_blocked_and_svg_sanitizer_hardened() {
 
     let malicious_svg = br#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><animate attributeName="href" to="javascript:alert(1)"/><set attributeName="onbegin" to="alert(1)"/><feimage href="data:image/svg+xml,<svg onload=alert(1)>"/> <a xlink:href="javascript:alert(2)"><rect width="10" height="10" style="width:expression(alert(3))"/></a></svg>"#;
     let clean = daypress_server::media::sanitize_svg_bytes(malicious_svg).expect("valid svg");
-    let clean_str = String::from_utf8(clean).expect("utf8 svg").to_ascii_lowercase();
-    assert!(!clean_str.contains("<animate"), "animate leaked: {clean_str}");
+    let clean_str = String::from_utf8(clean)
+        .expect("utf8 svg")
+        .to_ascii_lowercase();
+    assert!(
+        !clean_str.contains("<animate"),
+        "animate leaked: {clean_str}"
+    );
     assert!(!clean_str.contains("<set"), "set leaked: {clean_str}");
-    assert!(!clean_str.contains("<feimage"), "feimage leaked: {clean_str}");
-    assert!(!clean_str.contains("javascript:"), "javascript leaked: {clean_str}");
-    assert!(!clean_str.contains("expression("), "expression leaked: {clean_str}");
-    assert!(clean_str.contains("<rect"), "benign rect stripped: {clean_str}");
+    assert!(
+        !clean_str.contains("<feimage"),
+        "feimage leaked: {clean_str}"
+    );
+    assert!(
+        !clean_str.contains("javascript:"),
+        "javascript leaked: {clean_str}"
+    );
+    assert!(
+        !clean_str.contains("expression("),
+        "expression leaked: {clean_str}"
+    );
+    assert!(
+        clean_str.contains("<rect"),
+        "benign rect stripped: {clean_str}"
+    );
 
     drop(db);
     let _ = std::fs::remove_file(&db_path);
@@ -2235,15 +2356,23 @@ async fn step6_shortcodes_style_breakout_and_languages_onclick_hardened() {
             Request::builder()
                 .method("GET")
                 .uri("/d-admin/languages")
-                .header("Authorization", basic_auth("sec_admin", "AdminPassword123!"))
+                .header(
+                    "Authorization",
+                    basic_auth("sec_admin", "AdminPassword123!"),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
-    let body =
-        String::from_utf8(to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    let body = String::from_utf8(
+        to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(
         body.contains("setAsDefaultLangFromBtn(this)")
             && body.contains("removeLang(this.dataset.code)")
@@ -2281,7 +2410,10 @@ async fn step7_cors_origin_allowlist_blocks_arbitrary_third_party_origins() {
             .await
             .unwrap();
         assert!(
-            preflight.headers().get("access-control-allow-origin").is_none(),
+            preflight
+                .headers()
+                .get("access-control-allow-origin")
+                .is_none(),
             "CORS must not echo Access-Control-Allow-Origin for untrusted origin `{bad_origin}`"
         );
     }
@@ -2307,7 +2439,9 @@ async fn step7_cors_origin_allowlist_blocks_arbitrary_third_party_origins() {
         Some("https://site.example.com")
     );
     assert!(
-        good.headers().get("access-control-allow-credentials").is_none(),
+        good.headers()
+            .get("access-control-allow-credentials")
+            .is_none(),
         "CORS must not enable allow-credentials globally"
     );
 }
@@ -2316,15 +2450,18 @@ async fn step7_cors_origin_allowlist_blocks_arbitrary_third_party_origins() {
 async fn step7_internal_500_errors_masked_and_csv_formula_injection_neutralized() {
     use axum::response::IntoResponse;
 
-    let io_resp = daypress_server::errors::AppError::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
+    let io_resp = daypress_server::errors::AppError::Io(std::io::Error::other(
         "permission denied on /var/lib/daypress/secret.sqlite",
     ))
     .into_response();
     assert_eq!(io_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    let io_body =
-        String::from_utf8(to_bytes(io_resp.into_body(), usize::MAX).await.unwrap().to_vec())
-            .unwrap();
+    let io_body = String::from_utf8(
+        to_bytes(io_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(
         io_body.contains("Internal server error.") && !io_body.contains("secret.sqlite"),
         "500 Io response leaked internal details: {io_body}"
@@ -2335,9 +2472,13 @@ async fn step7_internal_500_errors_masked_and_csv_formula_injection_neutralized(
     )
     .into_response();
     assert_eq!(int_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    let int_body =
-        String::from_utf8(to_bytes(int_resp.into_body(), usize::MAX).await.unwrap().to_vec())
-            .unwrap();
+    let int_body = String::from_utf8(
+        to_bytes(int_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
     assert!(
         int_body.contains("Internal server error.") && !int_body.contains("hidden_column_secret"),
         "500 Internal response leaked internal details: {int_body}"
@@ -2391,7 +2532,10 @@ async fn step7_internal_500_errors_masked_and_csv_formula_injection_neutralized(
             Request::builder()
                 .method("GET")
                 .uri("/d-admin/api/forms/export-csv")
-                .header("Authorization", basic_auth("csv_admin", "AdminPassword123!"))
+                .header(
+                    "Authorization",
+                    basic_auth("csv_admin", "AdminPassword123!"),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -2417,7 +2561,10 @@ async fn step7_internal_500_errors_masked_and_csv_formula_injection_neutralized(
             Request::builder()
                 .method("GET")
                 .uri("/d-admin/api/newsletters/export-csv")
-                .header("Authorization", basic_auth("csv_admin", "AdminPassword123!"))
+                .header(
+                    "Authorization",
+                    basic_auth("csv_admin", "AdminPassword123!"),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -2526,7 +2673,10 @@ async fn step7_open_redirect_and_unsigned_updater_fail_closed() {
             Request::builder()
                 .method("POST")
                 .uri("/wp-json/daypress/v1/update/upload")
-                .header("Authorization", basic_auth("upd_admin", "AdminPassword123!"))
+                .header(
+                    "Authorization",
+                    basic_auth("upd_admin", "AdminPassword123!"),
+                )
                 .header(
                     "Content-Type",
                     format!("multipart/form-data; boundary={boundary}"),

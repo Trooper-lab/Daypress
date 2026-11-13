@@ -72,15 +72,16 @@ fn normalize_http_origin(raw: &str) -> Option<String> {
     let trimmed = raw.trim().trim_end_matches('/');
     let (scheme, rest) = if let Some(r) = trimmed.strip_prefix("https://") {
         ("https", r)
-    } else if let Some(r) = trimmed.strip_prefix("http://") {
-        ("http", r)
     } else {
-        return None;
+        let r = trimmed.strip_prefix("http://")?;
+        ("http", r)
     };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
     if authority.is_empty()
         || authority.contains('@')
-        || authority.chars().any(|c| c.is_whitespace() || c.is_control())
+        || authority
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control())
     {
         return None;
     }
@@ -108,10 +109,7 @@ fn is_allowed_cors_origin(
     let Some(norm_origin) = normalize_http_origin(origin_str) else {
         return false;
     };
-    let origin_host = norm_origin
-        .split("://")
-        .nth(1)
-        .unwrap_or("");
+    let origin_host = norm_origin.split("://").nth(1).unwrap_or("");
 
     let req_host = parts
         .headers

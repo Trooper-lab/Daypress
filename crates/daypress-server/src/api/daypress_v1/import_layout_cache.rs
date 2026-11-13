@@ -396,9 +396,22 @@ fn sanitize_layout_value_for_non_editors(val: &mut serde_json::Value) {
                     let kl = k.to_ascii_lowercase();
                     if matches!(
                         kl.as_str(),
-                        "raw" | "content_html" | "text" | "description" | "title" | "content"
-                            | "html" | "quote" | "button_text" | "secondary_button_text"
-                            | "label" | "value" | "comparison" | "period" | "prefix" | "suffix"
+                        "raw"
+                            | "content_html"
+                            | "text"
+                            | "description"
+                            | "title"
+                            | "content"
+                            | "html"
+                            | "quote"
+                            | "button_text"
+                            | "secondary_button_text"
+                            | "label"
+                            | "value"
+                            | "comparison"
+                            | "period"
+                            | "prefix"
+                            | "suffix"
                     ) {
                         *s = daypress_ast::sanitize_untrusted_html(s);
                     } else if matches!(

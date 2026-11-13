@@ -2,6 +2,7 @@ use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
 };
+use base64::Engine as _;
 use daypress_server::{
     create_app,
     updater::{
@@ -14,7 +15,6 @@ use daypress_server::{
     },
     Database,
 };
-use base64::Engine as _;
 use flate2::{write::DeflateEncoder, write::GzEncoder, Compression};
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair};
@@ -302,9 +302,8 @@ fn test_atomic_binary_swap_backup_and_rollback() {
     let target = daypress_server::updater::current_target_triple();
     let asset_name = expected_asset_filename("v0.2.0", &target);
     let sums_manifest = format!("{expected_sha}  {asset_name}\n");
-    let sums_sig = base64::engine::general_purpose::STANDARD.encode(
-        keypair.sign(sums_manifest.as_bytes()).as_ref(),
-    );
+    let sums_sig = base64::engine::general_purpose::STANDARD
+        .encode(keypair.sign(sums_manifest.as_bytes()).as_ref());
     let mut forged_bytes = zip_v2.clone();
     let last = forged_bytes.len() - 1;
     forged_bytes[last] ^= 0xff;
@@ -336,7 +335,8 @@ fn test_atomic_binary_swap_backup_and_rollback() {
         published_at: None,
         assets: vec![GithubAssetDto {
             name: asset_name.clone(),
-            browser_download_url: "https://github.com/Trooper-lab/daypress/releases/download/v0.2.0/asset".to_string(),
+            browser_download_url:
+                "https://github.com/Trooper-lab/daypress/releases/download/v0.2.0/asset".to_string(),
             size: zip_v2.len() as u64,
         }],
     };

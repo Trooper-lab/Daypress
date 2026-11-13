@@ -203,7 +203,11 @@ pub struct LinkTranslationsPayload {
     pub target_lang: Option<String>,
 }
 
-fn verify_can_edit_post_id(db: &Database, user: &AuthUser, post_id: i64) -> Result<DaypressPostResponse, AppError> {
+fn verify_can_edit_post_id(
+    db: &Database,
+    user: &AuthUser,
+    post_id: i64,
+) -> Result<DaypressPostResponse, AppError> {
     let existing = db
         .get_post_by_id(post_id)?
         .ok_or_else(|| AppError::NotFound(format!("Post {} not found", post_id)))?;

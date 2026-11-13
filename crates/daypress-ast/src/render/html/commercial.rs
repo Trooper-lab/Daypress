@@ -158,7 +158,10 @@ pub(crate) fn render_commercial(args: &RenderArgs) -> Option<String> {
                 })
                 .unwrap_or_default();
             let title_html = if !title.trim().is_empty() {
-                format!("<h2 class=\"dp-cta-title\">{}</h2>\n", sanitize_untrusted_html(title))
+                format!(
+                    "<h2 class=\"dp-cta-title\">{}</h2>\n",
+                    sanitize_untrusted_html(title)
+                )
             } else {
                 String::new()
             };

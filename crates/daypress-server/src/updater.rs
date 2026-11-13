@@ -562,9 +562,7 @@ pub async fn check_for_updates_now(db: &Database) -> Result<UpdateState, AppErro
         let url_opt = asset_opt.map(|a| a.browser_download_url.clone());
         let client_ref = &client;
         async move {
-            let Some(url) = url_opt else {
-                return None;
-            };
+            let url = url_opt?;
             match client_ref.get(&url).send().await {
                 Ok(r) if r.status().is_success() => r.text().await.ok(),
                 _ => None,
@@ -725,7 +723,10 @@ fn decode_ed25519_bytes(raw: &str, expected_len: usize, label: &str) -> Result<V
 }
 
 /// Verifies a SHA-256 hex digest and fails closed when no expected 64-char hex digest is provided.
-pub fn verify_sha256_required(bytes: &[u8], expected_hex: Option<&str>) -> Result<String, AppError> {
+pub fn verify_sha256_required(
+    bytes: &[u8],
+    expected_hex: Option<&str>,
+) -> Result<String, AppError> {
     let exp = expected_hex
         .map(str::trim)
         .filter(|s| !s.is_empty())
@@ -773,7 +774,8 @@ pub fn verify_update_signature_with_pubkey(
         })?;
     let proof = proof.ok_or_else(|| {
         AppError::BadRequest(
-            "Missing required Ed25519 release signature: unsigned binary updates are refused.".into(),
+            "Missing required Ed25519 release signature: unsigned binary updates are refused."
+                .into(),
         )
     })?;
     match proof {
@@ -1270,7 +1272,12 @@ pub async fn download_and_apply_github_update(
     } else {
         None
     };
-    if proof.is_none() || state.sha256_digest.as_deref().is_none_or(|s| s.trim().is_empty()) {
+    if proof.is_none()
+        || state
+            .sha256_digest
+            .as_deref()
+            .is_none_or(|s| s.trim().is_empty())
+    {
         return Err(AppError::BadRequest(
             "Release lacks required SHA-256 checksum or Ed25519 signature; refusing automatic update.".into(),
         ));

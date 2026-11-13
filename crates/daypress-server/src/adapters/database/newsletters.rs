@@ -329,7 +329,11 @@ impl Database {
         token: &str,
         is_magic_unlock: bool,
     ) {
-        let confirm_url = format!("{}/newsletter/confirm/{}", base_url.trim_end_matches('/'), token);
+        let confirm_url = format!(
+            "{}/newsletter/confirm/{}",
+            base_url.trim_end_matches('/'),
+            token
+        );
         let safe_site = escape_html(site_title);
         let greeting = if recipient_name.trim().is_empty() {
             "Hello".to_string()
@@ -472,7 +476,10 @@ impl Database {
         let secret = self.get_auth_secret().unwrap_or_default();
         let exp = Utc::now().timestamp() + 31_536_000;
         let payload = format!("daypress-subscriber-v1|{}|{}", sub_id, exp);
-        let sig = hex::encode(crate::auth::hmac_sha256(secret.as_bytes(), payload.as_bytes()));
+        let sig = hex::encode(crate::auth::hmac_sha256(
+            secret.as_bytes(),
+            payload.as_bytes(),
+        ));
         format!("sub.{}.{}.{}", sub_id, exp, sig)
     }
 

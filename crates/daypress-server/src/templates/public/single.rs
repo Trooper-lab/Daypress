@@ -534,23 +534,22 @@ pub fn render_single_post(
         } else {
             String::new()
         };
-        let back_href = if !post.lang_code.trim().is_empty()
-            && !post.lang_code.eq_ignore_ascii_case("en")
-        {
-            let clean_lang: String = post
-                .lang_code
-                .trim()
-                .chars()
-                .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-                .collect();
-            if clean_lang.is_empty() {
-                "/".to_string()
+        let back_href =
+            if !post.lang_code.trim().is_empty() && !post.lang_code.eq_ignore_ascii_case("en") {
+                let clean_lang: String = post
+                    .lang_code
+                    .trim()
+                    .chars()
+                    .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+                    .collect();
+                if clean_lang.is_empty() {
+                    "/".to_string()
+                } else {
+                    format!("/{}/", clean_lang)
+                }
             } else {
-                format!("/{}/", clean_lang)
-            }
-        } else {
-            "/".to_string()
-        };
+                "/".to_string()
+            };
 
         format!(
             r##"
