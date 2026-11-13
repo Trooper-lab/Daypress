@@ -794,7 +794,9 @@ pub fn build_starter_template(starter_id: &str) -> Option<CreateTemplateRequest>
     }
 }
 
-pub async fn list_starters_handler() -> Json<Vec<StarterTemplateInfo>> {
+pub async fn list_starters_handler(
+    _auth: crate::auth::AdminUser,
+) -> Json<Vec<StarterTemplateInfo>> {
     Json(get_starter_catalog())
 }
 

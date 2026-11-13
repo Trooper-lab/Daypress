@@ -417,7 +417,11 @@ pub async fn handle_admin_webhooks(State(db): State<Database>) -> Html<String> {
             url = templates::escape_html(&w.target_url),
             preset = templates::escape_html(&w.preset),
             evts = templates::escape_html(&evts),
-            secret_preview = templates::escape_html(&w.secret.chars().take(10).collect::<String>()),
+            secret_preview = if w.secret.trim().is_empty() {
+                "(none)"
+            } else {
+                "••••••••"
+            },
         ));
     }
     if webhook_rows.is_empty() {

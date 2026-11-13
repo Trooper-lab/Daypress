@@ -21,6 +21,7 @@ use std::io::Cursor;
 use std::path::Path;
 
 pub(crate) async fn list_users(
+    _auth: crate::auth::EditorOrAboveUser,
     State(db): State<Database>,
 ) -> Result<(HeaderMap, Json<Vec<DaypressUserResponse>>), AppError> {
     let base_url = db.get_base_url();
@@ -275,10 +276,15 @@ pub(crate) async fn update_current_user(
 }
 
 pub(crate) async fn get_user_by_id(
-    _auth: crate::auth::EditorUser,
+    auth: AuthUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<DaypressUserDetail>, AppError> {
+    if !auth.is_admin() && auth.user_id != id {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to inspect another user's profile.".to_string(),
+        ));
+    }
     match db.get_user_detail(id)? {
         Some(u) => Ok(Json(u)),
         None => Err(AppError::NotFound(format!("User {} not found", id))),

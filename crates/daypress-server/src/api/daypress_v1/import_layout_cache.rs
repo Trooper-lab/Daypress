@@ -306,12 +306,13 @@ pub(crate) async fn save_layout_handler(
     AxPath(id): AxPath<i64>,
     Json(payload): Json<DaypressLayoutPayload>,
 ) -> Result<Json<Value>, AppError> {
-    if let Some(existing) = db.get_post_by_id(id)? {
-        if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
-            return Err(AppError::Forbidden(
-                "Sorry, you are not allowed to edit the layout of this post.".to_string(),
-            ));
-        }
+    let existing = db
+        .get_post_by_id(id)?
+        .ok_or_else(|| AppError::NotFound(format!("Post {} not found", id)))?;
+    if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to edit the layout of this post.".to_string(),
+        ));
     }
     let layout_str = serde_json::to_string(&payload.layout)
         .map_err(|e| AppError::BadRequest(format!("Invalid layout JSON: {}", e)))?;
@@ -325,17 +326,20 @@ pub(crate) async fn save_layout_handler(
     };
 
     // Persist converged global_styles into options (`daypress_elementor_kit_json` & `daypress_elementor_kit_css`)
-    if let Some(gs) = payload.layout.get("global_styles") {
-        if gs.is_object() {
-            if let Ok(kit) = serde_json::from_value::<daypress_ast::DaystudioKit>(gs.clone()) {
-                let kit_css = kit.compile_to_css();
-                let _ = db.set_option("daypress_elementor_kit_css", &kit_css);
-                if let Ok(kit_json) = serde_json::to_string(&kit) {
-                    let _ = db.set_option("daypress_elementor_kit_json", &kit_json);
-                }
-                if let Some(prim) = kit.system_colors.iter().find(|c| c.id == "primary") {
-                    if !prim.color.trim().is_empty() {
-                        let _ = db.set_option("daypress_brand_color", prim.color.trim());
+    // Only Editors and Administrators may modify site-wide global styling tokens.
+    if user.is_editor_or_above() {
+        if let Some(gs) = payload.layout.get("global_styles") {
+            if gs.is_object() {
+                if let Ok(kit) = serde_json::from_value::<daypress_ast::DaystudioKit>(gs.clone()) {
+                    let kit_css = kit.compile_to_css();
+                    let _ = db.set_option("daypress_elementor_kit_css", &kit_css);
+                    if let Ok(kit_json) = serde_json::to_string(&kit) {
+                        let _ = db.set_option("daypress_elementor_kit_json", &kit_json);
+                    }
+                    if let Some(prim) = kit.system_colors.iter().find(|c| c.id == "primary") {
+                        if !prim.color.trim().is_empty() {
+                            let _ = db.set_option("daypress_brand_color", prim.color.trim());
+                        }
                     }
                 }
             }
@@ -360,12 +364,13 @@ pub(crate) async fn delete_layout_handler(
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
-    if let Some(existing) = db.get_post_by_id(id)? {
-        if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
-            return Err(AppError::Forbidden(
-                "Sorry, you are not allowed to delete the layout of this post.".to_string(),
-            ));
-        }
+    let existing = db
+        .get_post_by_id(id)?
+        .ok_or_else(|| AppError::NotFound(format!("Post {} not found", id)))?;
+    if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to delete the layout of this post.".to_string(),
+        ));
     }
     db.delete_post_layout(id)?;
     Ok(Json(serde_json::json!({
@@ -447,14 +452,14 @@ pub struct PurgeCachePayload {
 }
 
 pub(crate) async fn get_hot_cache_stats_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<crate::hot_cache::HotCacheStats>, AppError> {
     Ok(Json(db.hot_cache_stats()))
 }
 
 pub(crate) async fn purge_hot_cache_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     payload: Option<Json<PurgeCachePayload>>,
 ) -> Result<Json<Value>, AppError> {

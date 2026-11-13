@@ -185,7 +185,7 @@ pub(crate) async fn unlock_newsletter_gate_v1_handler(
 }
 
 pub(crate) async fn list_newsletter_subscribers_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Query(params): Query<SubscribersQueryParams>,
 ) -> Result<Json<Value>, AppError> {
@@ -208,7 +208,7 @@ pub struct UpdateSubscriberStatusPayload {
 }
 
 pub(crate) async fn update_newsletter_subscriber_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<UpdateSubscriberStatusPayload>,
@@ -225,7 +225,7 @@ pub(crate) async fn update_newsletter_subscriber_v1_handler(
 }
 
 pub(crate) async fn delete_newsletter_subscriber_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -240,7 +240,7 @@ pub(crate) async fn delete_newsletter_subscriber_v1_handler(
 }
 
 pub(crate) async fn list_newsletter_campaigns_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<Vec<NewsletterCampaignRecord>>, AppError> {
     let campaigns = db.list_newsletter_campaigns()?;
@@ -248,7 +248,7 @@ pub(crate) async fn list_newsletter_campaigns_v1_handler(
 }
 
 pub(crate) async fn create_newsletter_campaign_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<CreateNewsletterCampaignRequest>,
 ) -> Result<(StatusCode, Json<NewsletterCampaignRecord>), AppError> {
@@ -266,7 +266,7 @@ pub struct SaveNewsletterSettingsPayload {
 }
 
 pub(crate) async fn save_newsletter_settings_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<SaveNewsletterSettingsPayload>,
 ) -> Result<Json<Value>, AppError> {
@@ -305,7 +305,7 @@ pub(crate) async fn save_newsletter_settings_v1_handler(
 // --- Native Subsystems: Branded Shortlinks (`/go/*`) & HMAC-Signed Outbound Webhooks (v0.9) ---
 
 pub(crate) async fn list_shortlinks_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<Vec<ShortlinkRecord>>, AppError> {
     let links = db.list_shortlinks()?;
@@ -313,7 +313,7 @@ pub(crate) async fn list_shortlinks_v1_handler(
 }
 
 pub(crate) async fn save_shortlink_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<CreateShortlinkRequest>,
 ) -> Result<(StatusCode, Json<ShortlinkRecord>), AppError> {
@@ -322,7 +322,7 @@ pub(crate) async fn save_shortlink_v1_handler(
 }
 
 pub(crate) async fn delete_shortlink_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -331,7 +331,7 @@ pub(crate) async fn delete_shortlink_v1_handler(
 }
 
 pub(crate) async fn list_webhooks_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<Vec<WebhookEndpointRecord>>, AppError> {
     let hooks = db.list_webhook_endpoints()?;
@@ -363,7 +363,7 @@ pub struct WebhookDeliveriesQueryParams {
 }
 
 pub(crate) async fn list_webhook_deliveries_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Query(params): Query<WebhookDeliveriesQueryParams>,
 ) -> Result<Json<Vec<WebhookDeliveryRecord>>, AppError> {
@@ -408,7 +408,7 @@ pub struct AbTestsQueryParams {
 }
 
 pub(crate) async fn list_ab_tests_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Query(params): Query<AbTestsQueryParams>,
 ) -> Result<Json<Vec<AbTestRecord>>, AppError> {
@@ -417,7 +417,7 @@ pub(crate) async fn list_ab_tests_v1_handler(
 }
 
 pub(crate) async fn save_ab_test_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<CreateAbTestRequest>,
 ) -> Result<(StatusCode, Json<AbTestRecord>), AppError> {
@@ -426,7 +426,7 @@ pub(crate) async fn save_ab_test_v1_handler(
 }
 
 pub(crate) async fn delete_ab_test_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
@@ -440,7 +440,7 @@ pub struct PromoteAbWinnerPayload {
 }
 
 pub(crate) async fn promote_ab_test_winner_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     payload: Option<Json<PromoteAbWinnerPayload>>,
@@ -469,7 +469,7 @@ pub(crate) async fn record_web_vitals_v1_handler(
 }
 
 pub(crate) async fn get_web_vitals_summary_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<CoreWebVitalsSummary>, AppError> {
     let summary = db.get_core_web_vitals_summary()?;
@@ -479,7 +479,7 @@ pub(crate) async fn get_web_vitals_summary_v1_handler(
 // --- Native Subsystems: Sandboxed WebAssembly (`.wasm`) Extension Crates (v0.9) ---
 
 pub(crate) async fn list_wasm_extensions_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<Vec<WasmExtensionRecord>>, AppError> {
     let exts = db.list_wasm_extensions()?;
@@ -516,7 +516,7 @@ pub struct ExecuteWasmExtensionPayload {
 }
 
 pub(crate) async fn execute_wasm_extension_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(slug): AxPath<String>,
     Json(payload): Json<ExecuteWasmExtensionPayload>,
@@ -529,14 +529,14 @@ pub(crate) async fn execute_wasm_extension_v1_handler(
 // --- Daypress 1.0 Readiness, Security Audit, Schema Contract & Reproducible Benchmark Suite ---
 
 pub(crate) async fn security_audit_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<crate::adapters::database::v10_readiness::SecurityAuditReport>, AppError> {
     Ok(Json(db.run_security_and_readiness_audit()))
 }
 
 pub(crate) async fn schema_contract_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<crate::adapters::database::v10_readiness::SchemaContractReport>, AppError> {
     Ok(Json(db.verify_schema_contract()))
@@ -548,7 +548,7 @@ pub struct RunBenchmarkPayload {
 }
 
 pub(crate) async fn run_benchmark_suite_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     payload: Option<Json<RunBenchmarkPayload>>,
 ) -> Result<Json<crate::adapters::database::v10_readiness::BenchmarkSuiteReport>, AppError> {
@@ -560,14 +560,14 @@ pub(crate) async fn run_benchmark_suite_v1_handler(
 }
 
 pub(crate) async fn get_latest_benchmark_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<crate::adapters::database::v10_readiness::BenchmarkSuiteReport>, AppError> {
     Ok(Json(db.get_or_run_benchmark_suite()))
 }
 
 pub(crate) async fn migration_corpus_signoff_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<crate::adapters::database::v10_readiness::MigrationCorpusSignoffReport>, AppError>
 {

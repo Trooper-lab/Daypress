@@ -126,6 +126,7 @@ async fn test_theme_template_crud_persistence_and_cascading_conditions() {
             Request::builder()
                 .method("GET")
                 .uri(format!("/wp-json/daypress/v1/templates/{}", created.id))
+                .header("Authorization", auth_header())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -364,6 +365,7 @@ async fn test_starter_templates_catalog_and_install() {
             Request::builder()
                 .method("GET")
                 .uri("/wp-json/daypress/v1/templates/starter")
+                .header("Authorization", auth_header())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -474,6 +476,7 @@ async fn test_standalone_preview_endpoint() {
             Request::builder()
                 .method("GET")
                 .uri(format!("/wp-json/daypress/v1/templates/preview/{}", tpl.id))
+                .header("Authorization", auth_header())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -609,6 +612,7 @@ async fn test_header_footer_manager_matrix_page_assignments_and_ssr() {
             Request::builder()
                 .method("GET")
                 .uri("/wp-json/daypress/v1/templates/matrix")
+                .header("Authorization", auth_header())
                 .body(Body::empty())
                 .unwrap(),
         )

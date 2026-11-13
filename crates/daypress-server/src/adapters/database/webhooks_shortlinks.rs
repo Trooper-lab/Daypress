@@ -443,7 +443,7 @@ impl Database {
         Ok(rec)
     }
 
-    pub fn list_webhook_endpoints(&self) -> Result<Vec<WebhookEndpointRecord>> {
+    pub(crate) fn list_webhook_endpoints_internal(&self) -> Result<Vec<WebhookEndpointRecord>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             r#"SELECT id, name, target_url, preset, events_json, secret, is_active, created_at
@@ -464,6 +464,18 @@ impl Database {
             })
         })?;
         Ok(rows.flatten().collect())
+    }
+
+    pub fn list_webhook_endpoints(&self) -> Result<Vec<WebhookEndpointRecord>> {
+        let mut endpoints = self.list_webhook_endpoints_internal()?;
+        for ep in &mut endpoints {
+            ep.secret = if ep.secret.trim().is_empty() {
+                String::new()
+            } else {
+                "••••••••".to_string()
+            };
+        }
+        Ok(endpoints)
     }
 
     pub fn delete_webhook_endpoint(&self, id: i64) -> Result<bool> {
@@ -522,7 +534,7 @@ impl Database {
         event_name: &str,
         data: serde_json::Value,
     ) -> Result<Vec<WebhookDeliveryRecord>> {
-        let endpoints = self.list_webhook_endpoints()?;
+        let endpoints = self.list_webhook_endpoints_internal()?;
         let matching: Vec<WebhookEndpointRecord> = endpoints
             .into_iter()
             .filter(|ep| {

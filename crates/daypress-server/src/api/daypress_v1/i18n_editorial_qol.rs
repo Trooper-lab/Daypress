@@ -63,7 +63,7 @@ pub struct ManageLanguagePayload {
 }
 
 pub(crate) async fn manage_languages_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<ManageLanguagePayload>,
 ) -> Result<Json<Value>, AppError> {
@@ -203,8 +203,20 @@ pub struct LinkTranslationsPayload {
     pub target_lang: Option<String>,
 }
 
+fn verify_can_edit_post_id(db: &Database, user: &AuthUser, post_id: i64) -> Result<DaypressPostResponse, AppError> {
+    let existing = db
+        .get_post_by_id(post_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Post {} not found", post_id)))?;
+    if !user.can_edit_post(existing.author, &existing.status, &existing.post_type) {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to manage this post.".to_string(),
+        ));
+    }
+    Ok(existing)
+}
+
 pub(crate) async fn link_translations_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<LinkTranslationsPayload>,
 ) -> Result<Json<Value>, AppError> {
@@ -219,11 +231,21 @@ pub(crate) async fn link_translations_v1_handler(
         .as_deref()
         .or(payload.translation_group_id.as_deref());
 
+    if obj_type.eq_ignore_ascii_case("term") && !user.can_manage_categories() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to link taxonomy translations.".to_string(),
+        ));
+    }
+
     let src_opt = payload.source_id.or(payload.source_post_id);
     let tgt_opt = payload.target_id.or(payload.target_post_id);
     if let (Some(src_id), Some(tgt_id), Some(tgt_lang)) =
         (src_opt, tgt_opt, payload.target_lang.as_deref())
     {
+        if !obj_type.eq_ignore_ascii_case("term") {
+            verify_can_edit_post_id(&db, &user, src_id)?;
+            verify_can_edit_post_id(&db, &user, tgt_id)?;
+        }
         let mut map = std::collections::HashMap::new();
         let src_lang = payload
             .source_lang
@@ -247,6 +269,11 @@ pub(crate) async fn link_translations_v1_handler(
             return Err(AppError::BadRequest(
                 "translations map cannot be empty.".to_string(),
             ));
+        }
+        if !obj_type.eq_ignore_ascii_case("term") {
+            for &pid in map.values() {
+                verify_can_edit_post_id(&db, &user, pid)?;
+            }
         }
         let group_id = db.link_translation_map(obj_type, explicit_group, &map)?;
         let updated_map = db.get_translation_group_map(obj_type, &group_id)?;
@@ -272,11 +299,12 @@ pub struct CreateTranslationDraftPayload {
 }
 
 pub(crate) async fn create_translation_draft_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Json(payload): Json<CreateTranslationDraftPayload>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let target = if !payload.target_lang.trim().is_empty() {
         payload.target_lang.trim()
     } else {
@@ -299,10 +327,11 @@ pub struct ManagePreviewLinkPayload {
 }
 
 pub(crate) async fn list_preview_links_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let tokens = db.list_preview_tokens(id)?;
     Ok(Json(serde_json::json!({
         "post_id": id,
@@ -316,6 +345,7 @@ pub(crate) async fn manage_preview_links_v1_handler(
     AxPath(id): AxPath<i64>,
     Json(payload): Json<ManagePreviewLinkPayload>,
 ) -> Result<Json<Value>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let action = payload
         .action
         .as_deref()
@@ -355,10 +385,11 @@ pub(crate) async fn manage_preview_links_v1_handler(
 }
 
 pub(crate) async fn get_scheduled_revision_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let scheduled = db.get_scheduled_revision_for_post(id)?;
     Ok(Json(serde_json::json!({
         "post_id": id,
@@ -372,15 +403,17 @@ pub(crate) async fn schedule_revision_v1_handler(
     AxPath(id): AxPath<i64>,
     Json(req): Json<ScheduleRevisionRequest>,
 ) -> Result<Json<ScheduledRevisionSummary>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let summary = db.schedule_published_post_revision(id, &req, Some(user.user_id))?;
     Ok(Json(summary))
 }
 
 pub(crate) async fn cancel_scheduled_revision_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let cancelled = db.cancel_scheduled_revision(id)?;
     Ok(Json(serde_json::json!({
         "post_id": id,
@@ -396,11 +429,12 @@ pub struct DiffRevisionsQueryParams {
 }
 
 pub(crate) async fn diff_post_revisions_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
     Query(params): Query<DiffRevisionsQueryParams>,
 ) -> Result<Json<Value>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     let from_rev_id = match params.rev.or(params.from) {
         Some(fid) => fid,
         None => {
@@ -436,11 +470,12 @@ pub struct CherryPickNodePayload {
 }
 
 pub(crate) async fn cherry_pick_revision_node_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     AxPath((id, rev_id)): AxPath<(i64, i64)>,
     Json(payload): Json<CherryPickNodePayload>,
 ) -> Result<Json<Value>, AppError> {
+    verify_can_edit_post_id(&db, &user, id)?;
     if payload.node_id.trim().is_empty() {
         return Err(AppError::BadRequest("node_id is required.".to_string()));
     }
@@ -500,12 +535,32 @@ pub struct BulkEditPostsPayload {
 }
 
 pub(crate) async fn bulk_edit_posts_v1_handler(
-    _auth: crate::auth::EditorUser,
+    crate::auth::EditorUser(user): crate::auth::EditorUser,
     State(db): State<Database>,
     Json(payload): Json<BulkEditPostsPayload>,
 ) -> Result<Json<Value>, AppError> {
     if payload.post_ids.is_empty() {
         return Err(AppError::BadRequest("post_ids is required.".to_string()));
+    }
+
+    if payload.author.is_some() && !user.is_editor_or_above() {
+        return Err(AppError::Forbidden(
+            "Sorry, you are not allowed to reassign post authors.".to_string(),
+        ));
+    }
+
+    if let Some(ref raw_status) = payload.status {
+        let trimmed = raw_status.trim().to_ascii_lowercase();
+        if matches!(trimmed.as_str(), "publish" | "future" | "private") && !user.can_publish_posts()
+        {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to publish posts.".to_string(),
+            ));
+        }
+    }
+
+    for &post_id in &payload.post_ids {
+        verify_can_edit_post_id(&db, &user, post_id)?;
     }
 
     let mut extra_tag_ids = Vec::new();
@@ -592,7 +647,7 @@ pub struct EmptyTrashPayload {
 }
 
 pub(crate) async fn empty_trash_posts_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::EditorOrAboveUser,
     State(db): State<Database>,
     Json(payload): Json<EmptyTrashPayload>,
 ) -> Result<Json<Value>, AppError> {
@@ -611,7 +666,7 @@ pub struct BulkCommentsPayload {
 }
 
 pub(crate) async fn bulk_comments_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::EditorOrAboveUser,
     State(db): State<Database>,
     Json(payload): Json<BulkCommentsPayload>,
 ) -> Result<Json<Value>, AppError> {

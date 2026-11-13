@@ -121,6 +121,7 @@ pub struct FieldGroupQueryParams {
 }
 
 pub(crate) async fn list_field_groups_v1_handler(
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Query(params): Query<FieldGroupQueryParams>,
 ) -> Result<Json<Vec<FieldGroupDefinition>>, AppError> {
@@ -311,7 +312,7 @@ pub(crate) async fn fts_search_v1_handler(
 }
 
 pub(crate) async fn fts_reindex_v1_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<Value>, AppError> {
     let indexed = db.rebuild_fts_index()?;

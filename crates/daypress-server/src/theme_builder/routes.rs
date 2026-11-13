@@ -80,13 +80,14 @@ pub fn theme_builder_routes() -> Router<Database> {
 }
 
 pub async fn get_matrix_handler(
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
 ) -> Result<Json<HeaderFooterMatrixResponse>, AppError> {
     Ok(Json(super::matrix::build_header_footer_matrix(&db)))
 }
 
 pub async fn assign_page_template_handler(
-    _auth: crate::auth::EditorUser,
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Json(payload): Json<AssignPageTemplateRequest>,
 ) -> Result<Json<HeaderFooterMatrixResponse>, AppError> {
@@ -109,6 +110,7 @@ pub async fn duplicate_template_handler(
 }
 
 pub async fn list_templates_handler(
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     Query(query): Query<ListTemplatesQuery>,
 ) -> Result<Json<Vec<ThemeTemplateRecord>>, AppError> {
@@ -140,6 +142,7 @@ pub async fn create_template_handler(
 }
 
 pub async fn get_template_handler(
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<ThemeTemplateRecord>, AppError> {
@@ -186,6 +189,7 @@ pub async fn delete_template_handler(
 }
 
 pub async fn get_conditions_handler(
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Vec<TemplateCondition>>, AppError> {
@@ -213,10 +217,11 @@ pub async fn set_conditions_handler(
 }
 
 pub async fn resolve_active_handler(
+    crate::auth::OptionalAuthUser(auth): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
     Query(query): Query<ActiveTemplateQuery>,
 ) -> Result<Json<ResolvedTemplatesResponse>, AppError> {
-    let context = build_request_context(&db, &query)?;
+    let context = build_request_context(&db, &query, auth.as_ref())?;
     let repo = ThemeTemplateRepository::from_database(&db);
     let all_active = repo.list(&TemplateFilter {
         template_type: None,
@@ -260,6 +265,7 @@ pub async fn resolve_active_handler(
 fn build_request_context(
     db: &Database,
     query: &ActiveTemplateQuery,
+    auth: Option<&crate::auth::AuthUser>,
 ) -> Result<RequestContext, AppError> {
     let path = query
         .path
@@ -293,7 +299,9 @@ fn build_request_context(
     if let Some(pid) = ctx.post_id {
         if ctx.post_type.is_none() {
             if let Ok(Some(post)) = db.get_post_by_id(pid) {
-                ctx.post_type = Some(post.post_type);
+                if crate::auth::can_view_status(&post.status, auth) {
+                    ctx.post_type = Some(post.post_type);
+                }
             }
         }
     }

@@ -631,6 +631,10 @@ pub fn can_view_status(status: &str, user: Option<&AuthUser>) -> bool {
 #[derive(Debug, Clone)]
 pub struct EditorUser(pub AuthUser);
 
+/// Extractor for endpoints that require Editor or Administrator privileges (`edit_others_posts`, `edit_pages`, `moderate_comments`).
+#[derive(Debug, Clone)]
+pub struct EditorOrAboveUser(pub AuthUser);
+
 /// Extractor for endpoints that require the administrator role.
 #[derive(Debug, Clone)]
 pub struct AdminUser(pub AuthUser);
@@ -1265,6 +1269,23 @@ impl FromRequestParts<Database> for EditorUser {
             ));
         }
         Ok(EditorUser(user))
+    }
+}
+
+impl FromRequestParts<Database> for EditorOrAboveUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Database,
+    ) -> Result<Self, Self::Rejection> {
+        let user = authenticate_request(parts, state).await?;
+        if !user.is_editor_or_above() {
+            return Err(AppError::Forbidden(
+                "Sorry, you are not allowed to perform this editorial action.".to_string(),
+            ));
+        }
+        Ok(EditorOrAboveUser(user))
     }
 }
 

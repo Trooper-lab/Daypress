@@ -151,10 +151,18 @@ pub async fn handle_admin_post_new(
 pub async fn handle_admin_builder(
     State(db): State<Database>,
     Query(params): Query<AdminEditQueryParams>,
-) -> Html<String> {
+    OptionalAuthUser(auth_user): OptionalAuthUser,
+) -> impl IntoResponse {
     let settings = db.get_settings().unwrap_or_default();
 
     if let Some(tpl_id) = params.template_id {
+        if !auth_user.as_ref().is_some_and(|u| u.is_admin()) {
+            return (
+                StatusCode::FORBIDDEN,
+                Html("<h1>403 Forbidden</h1><p>Administrator privileges are required to edit theme templates.</p>".to_string()),
+            )
+                .into_response();
+        }
         let repo = crate::theme_builder::ThemeTemplateRepository::from_database(&db);
         if let Ok(Some(tpl)) = repo.get_by_id(tpl_id) {
             let layout_str =
@@ -164,14 +172,29 @@ pub async fn handle_admin_builder(
                 &settings,
                 &synth_post,
                 Some(&layout_str),
-            ));
+            ))
+            .into_response();
         }
     }
 
     let target_id = params.id.or(params.post).or(params.post_id);
     let post = if let Some(id) = target_id {
-        db.get_post_by_id(id).unwrap_or(None)
-    } else if settings.page_on_front > 0 {
+        let found = db.get_post_by_id(id).unwrap_or(None);
+        if let Some(ref existing) = found {
+            if !auth_user
+                .as_ref()
+                .is_some_and(|u| u.can_edit_post(existing.author, &existing.status, &existing.post_type))
+            {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Html("<h1>403 Forbidden</h1><p>You do not have permission to edit this content in the builder.</p>".to_string()),
+                )
+                    .into_response();
+            }
+        }
+        found
+    } else if auth_user.as_ref().is_some_and(|u| u.can_edit_pages()) && settings.page_on_front > 0
+    {
         db.get_post_by_id(settings.page_on_front)
             .unwrap_or(None)
             .or_else(|| {
@@ -179,10 +202,15 @@ pub async fn handle_admin_builder(
                     .ok()
                     .and_then(|v| v.into_iter().next())
             })
-    } else {
-        db.get_posts("any", Some("any"), None, 1)
+    } else if let Some(ref u) = auth_user {
+        db.get_posts("post", Some("any"), None, 50)
             .ok()
-            .and_then(|v| v.into_iter().next())
+            .and_then(|v| {
+                v.into_iter()
+                    .find(|p| u.can_edit_post(p.author, &p.status, &p.post_type))
+            })
+    } else {
+        None
     };
 
     let post = post.unwrap_or_else(super::admin_extra::placeholder_builder_post);
@@ -196,6 +224,7 @@ pub async fn handle_admin_builder(
         layout_opt.as_deref(),
         Some(&partials),
     ))
+    .into_response()
 }
 
 pub async fn handle_admin_media(State(db): State<Database>) -> Html<String> {
@@ -208,31 +237,25 @@ pub async fn handle_admin_profile(
     State(db): State<Database>,
     Query(params): Query<ProfileQueryParams>,
     OptionalAuthUser(auth_user): OptionalAuthUser,
-) -> Html<String> {
+) -> impl IntoResponse {
+    let Some(auth) = auth_user else {
+        return axum::response::Redirect::to("/login").into_response();
+    };
     let settings = db.get_settings().unwrap_or_default();
     // Only administrators may open another user's profile via `?user_id=`.
-    let is_admin = auth_user.as_ref().is_some_and(|u| u.is_admin());
-    let own_id = auth_user.as_ref().map(|u| u.user_id).unwrap_or(1);
-    let target_id = if is_admin {
-        params.user_id.unwrap_or(own_id)
+    let target_id = if auth.is_admin() {
+        params.user_id.unwrap_or(auth.user_id)
     } else {
-        own_id
+        auth.user_id
     };
-    let user = db
-        .get_user_detail(target_id)
-        .unwrap_or(None)
-        .or_else(|| db.get_user_detail(1).unwrap_or(None))
-        .unwrap_or_else(|| models::DaypressUserDetail {
-            id: target_id,
-            username: "admin".to_string(),
-            display_name: "admin".to_string(),
-            email: "admin@example.com".to_string(),
-            url: "".to_string(),
-            registered: "2026-10-21".to_string(),
-            role: "Administrator".to_string(),
-            ..Default::default()
-        });
-    Html(templates::render_profile_view(&settings, &user))
+    let Some(user) = db.get_user_detail(target_id).ok().flatten() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Html("<h1>404 Not Found</h1><p>User account not found.</p>".to_string()),
+        )
+            .into_response();
+    };
+    Html(templates::render_profile_view(&settings, &user)).into_response()
 }
 
 pub async fn handle_admin_themes(State(db): State<Database>) -> Html<String> {

@@ -14,6 +14,7 @@ use daypress_ast::{compile_layout_css, render_layout_to_html, sanitize_ssr_html}
 use std::collections::HashMap;
 
 pub async fn preview_template_handler(
+    _auth: crate::auth::AdminUser,
     State(db): State<Database>,
     AxPath(id): AxPath<i64>,
 ) -> Result<Html<String>, AppError> {
