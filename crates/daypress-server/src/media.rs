@@ -381,7 +381,7 @@ pub fn sanitize_svg_bytes(raw: &[u8]) -> Result<Vec<u8>, AppError> {
                     skip_depth += 1;
                     continue;
                 }
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let tag_name = e.name().as_ref().to_string();
                 if is_dangerous_svg_tag(&tag_name) {
                     skip_depth = 1;
                     continue;
@@ -398,7 +398,7 @@ pub fn sanitize_svg_bytes(raw: &[u8]) -> Result<Vec<u8>, AppError> {
                 if skip_depth > 0 {
                     continue;
                 }
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let tag_name = e.name().as_ref().to_string();
                 if is_dangerous_svg_tag(&tag_name) {
                     continue;
                 }
@@ -415,7 +415,7 @@ pub fn sanitize_svg_bytes(raw: &[u8]) -> Result<Vec<u8>, AppError> {
                     skip_depth -= 1;
                     continue;
                 }
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let tag_name = e.name().as_ref().to_string();
                 if is_dangerous_svg_tag(&tag_name) {
                     continue;
                 }
@@ -428,6 +428,20 @@ pub fn sanitize_svg_bytes(raw: &[u8]) -> Result<Vec<u8>, AppError> {
                     writer
                         .write_event(Event::Text(e))
                         .map_err(|err| AppError::BadRequest(format!("SVG write error: {}", err)))?;
+                }
+            }
+            Ok(Event::GeneralRef(e)) => {
+                if skip_depth == 0 {
+                    let name = e.as_ref();
+                    if matches!(name, "amp" | "lt" | "gt" | "quot" | "apos")
+                        || name.starts_with('#')
+                    {
+                        writer
+                            .write_event(Event::GeneralRef(e))
+                            .map_err(|err| {
+                                AppError::BadRequest(format!("SVG write error: {}", err))
+                            })?;
+                    }
                 }
             }
             Ok(Event::Decl(e)) => {
@@ -517,11 +531,11 @@ fn sanitize_svg_element<'a>(
     for attr_res in elem.attributes() {
         let attr =
             attr_res.map_err(|e| AppError::BadRequest(format!("Invalid SVG attribute: {}", e)))?;
-        let key_str = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+        let key_str = attr.key.as_ref().to_string();
         let val_str = attr
-            .unescape_value()
+            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
             .map(|v| v.into_owned())
-            .unwrap_or_else(|_| String::from_utf8_lossy(&attr.value).to_string());
+            .unwrap_or_else(|_| attr.value.to_string());
 
         if is_dangerous_svg_attribute(&key_str, &val_str) {
             continue;

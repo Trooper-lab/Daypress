@@ -1468,18 +1468,26 @@ pub async fn admin_session_gate(
     resp
 }
 
-/// Only allow local, same-site redirect targets after login (prevents open redirects).
-pub fn sanitize_redirect_target(raw: Option<&str>) -> String {
+/// Only allow local, same-site redirect targets starting with a single `/` and containing no
+/// control characters or backslashes before query/fragment (prevents open redirects & header/tab smuggling).
+pub fn sanitize_local_redirect(raw: Option<&str>, fallback: &str) -> String {
     let candidate = raw.unwrap_or("").trim();
+    let second_byte = candidate.as_bytes().get(1).copied();
+    let authority_part = candidate.split(['?', '#']).next().unwrap_or(candidate);
     let is_local = candidate.starts_with('/')
-        && !candidate.starts_with("//")
-        && !candidate.starts_with("/\\")
-        && !candidate.contains(['\r', '\n']);
+        && !matches!(second_byte, Some(b'/' | b'\\'))
+        && !candidate.chars().any(|c| c.is_control())
+        && !authority_part.contains('\\');
     if is_local {
         candidate.to_string()
     } else {
-        "/d-admin/".to_string()
+        fallback.to_string()
     }
+}
+
+/// Only allow local, same-site redirect targets after login (prevents open redirects).
+pub fn sanitize_redirect_target(raw: Option<&str>) -> String {
+    sanitize_local_redirect(raw, "/d-admin/")
 }
 
 impl FromRequestParts<Database> for AuthUser {

@@ -372,11 +372,7 @@ pub async fn handle_api_seo_save(
             axum::Json(serde_json::json!({ "success": true, "seo": payload })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("SEO save failed", e),
     }
 }
 
@@ -425,11 +421,7 @@ pub async fn handle_api_redirects(
                     axum::Json(serde_json::json!({ "success": true, "redirect": rule })),
                 )
                     .into_response(),
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(serde_json::json!({ "error": e.to_string() })),
-                )
-                    .into_response(),
+                Err(e) => crate::adapters::web::internal_json_error("Redirect creation failed", e),
             }
         }
     }

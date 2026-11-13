@@ -64,15 +64,120 @@ use axum::{
     Router,
 };
 use std::path::Path;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
+fn normalize_http_origin(raw: &str) -> Option<String> {
+    let trimmed = raw.trim().trim_end_matches('/');
+    let (scheme, rest) = if let Some(r) = trimmed.strip_prefix("https://") {
+        ("https", r)
+    } else if let Some(r) = trimmed.strip_prefix("http://") {
+        ("http", r)
+    } else {
+        return None;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    if authority.is_empty()
+        || authority.contains('@')
+        || authority.chars().any(|c| c.is_whitespace() || c.is_control())
+    {
+        return None;
+    }
+    Some(format!("{scheme}://{}", authority.to_ascii_lowercase()))
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    let h = host.trim().to_ascii_lowercase();
+    let without_port = if h.starts_with('[') {
+        h.split(']').next().map(|s| s.trim_start_matches('['))
+    } else {
+        h.split(':').next()
+    };
+    matches!(without_port, Some("localhost" | "127.0.0.1" | "::1"))
+}
+
+fn is_allowed_cors_origin(
+    origin: &axum::http::HeaderValue,
+    parts: &axum::http::request::Parts,
+    db: &Database,
+) -> bool {
+    let Ok(origin_str) = origin.to_str() else {
+        return false;
+    };
+    let Some(norm_origin) = normalize_http_origin(origin_str) else {
+        return false;
+    };
+    let origin_host = norm_origin
+        .split("://")
+        .nth(1)
+        .unwrap_or("");
+
+    let req_host = parts
+        .headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_ascii_lowercase());
+
+    // 1. Same-origin Host match
+    if let Some(ref host) = req_host {
+        if origin_host == host {
+            return true;
+        }
+    }
+
+    // 2. Configured WordPress/Daypress `siteurl` or `home` options in SQLite
+    for opt in ["siteurl", "home"] {
+        if let Ok(Some(val)) = db.get_option(opt) {
+            if normalize_http_origin(&val).as_deref() == Some(norm_origin.as_str()) {
+                return true;
+            }
+        }
+    }
+
+    // 3. Explicit comma-separated allowlist via `DAYPRESS_CORS_ORIGINS` (exact origins only; never `*`)
+    if let Ok(extra) = std::env::var("DAYPRESS_CORS_ORIGINS") {
+        for candidate in extra.split(',') {
+            if let Some(allowed) = normalize_http_origin(candidate) {
+                if allowed == norm_origin {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 4. Local loopback development origins (only when the request itself targets loopback/localhost or omitted Host in local unit tests)
+    let target_is_loopback = req_host.as_deref().is_none_or(is_loopback_host);
+    target_is_loopback && is_loopback_host(origin_host)
+}
+
+fn build_cors_layer(database: &Database) -> CorsLayer {
+    let cors_db = database.clone();
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(move |origin, parts| {
+            is_allowed_cors_origin(origin, parts, &cors_db)
+        }))
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::PATCH,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::ORIGIN,
+            axum::http::HeaderName::from_static("x-wp-nonce"),
+            axum::http::HeaderName::from_static("x-requested-with"),
+            axum::http::HeaderName::from_static("x-api-key"),
+        ])
+}
+
 pub fn create_app(database: Database) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = build_cors_layer(&database);
 
     let static_dir = if Path::new("crates/daypress-server/static").exists() {
         "crates/daypress-server/static"

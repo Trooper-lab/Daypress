@@ -7,8 +7,10 @@
 
 use crate::db::Database;
 use crate::errors::AppError;
+use base64::Engine as _;
 use chrono::Utc;
 use flate2::read::{DeflateDecoder, GzDecoder};
+use ring::signature::{self, UnparsedPublicKey};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -72,6 +74,12 @@ pub struct UpdateState {
     pub asset_download_url: Option<String>,
     pub asset_size_bytes: Option<u64>,
     pub sha256_digest: Option<String>,
+    #[serde(default)]
+    pub sha256sums_raw: Option<String>,
+    #[serde(default)]
+    pub signature: Option<String>,
+    #[serde(default)]
+    pub asset_signature: Option<String>,
     pub last_error: Option<String>,
 }
 
@@ -410,6 +418,18 @@ pub fn build_update_state_from_release(
     target_triple: &str,
     sums_text: Option<&str>,
 ) -> UpdateState {
+    build_update_state_from_signed_release(release, target_triple, sums_text, None, None)
+}
+
+/// Converts a GitHub release JSON response plus optional `SHA256SUMS` manifest and detached
+/// Ed25519 signatures into an `UpdateState`.
+pub fn build_update_state_from_signed_release(
+    release: &GithubReleaseDto,
+    target_triple: &str,
+    sums_text: Option<&str>,
+    sums_signature: Option<&str>,
+    asset_signature: Option<&str>,
+) -> UpdateState {
     let expected_name = expected_asset_filename(&release.tag_name, target_triple);
     let matched_asset = release
         .assets
@@ -446,6 +466,9 @@ pub fn build_update_state_from_release(
         asset_download_url: matched_asset.map(|a| a.browser_download_url.clone()),
         asset_size_bytes: matched_asset.map(|a| a.size),
         sha256_digest,
+        sha256sums_raw: sums_text.map(|s| s.chars().take(65_536).collect()),
+        signature: sums_signature.map(|s| s.trim().to_string()),
+        asset_signature: asset_signature.map(|s| s.trim().to_string()),
         last_error: None,
     }
 }
@@ -534,22 +557,55 @@ pub async fn check_for_updates_now(db: &Database) -> Result<UpdateState, AppErro
         }
     };
 
-    // Fetch SHA256SUMS asset if present
+    // Fetch SHA256SUMS asset + detached Ed25519 signature assets if present
+    let fetch_text_asset = |asset_opt: Option<&GithubAssetDto>| {
+        let url_opt = asset_opt.map(|a| a.browser_download_url.clone());
+        let client_ref = &client;
+        async move {
+            let Some(url) = url_opt else {
+                return None;
+            };
+            match client_ref.get(&url).send().await {
+                Ok(r) if r.status().is_success() => r.text().await.ok(),
+                _ => None,
+            }
+        }
+    };
+
     let sums_asset = release
         .assets
         .iter()
         .find(|a| a.name.eq_ignore_ascii_case("SHA256SUMS"));
-    let sums_text = if let Some(sums) = sums_asset {
-        match client.get(&sums.browser_download_url).send().await {
-            Ok(r) if r.status().is_success() => r.text().await.ok(),
-            _ => None,
-        }
-    } else {
-        None
-    };
-
+    let sums_sig_asset = release.assets.iter().find(|a| {
+        a.name.eq_ignore_ascii_case("SHA256SUMS.sig")
+            || a.name.eq_ignore_ascii_case("SHA256SUMS.ed25519.sig")
+    });
     let target = current_target_triple();
-    let state = build_update_state_from_release(&release, &target, sums_text.as_deref());
+    let expected_name = expected_asset_filename(&release.tag_name, &target);
+    let matched_asset_name = release
+        .assets
+        .iter()
+        .find(|a| a.name == expected_name)
+        .or_else(|| release.assets.iter().find(|a| a.name.contains(&target)))
+        .map(|a| format!("{}.sig", a.name));
+    let asset_sig_asset = matched_asset_name.as_deref().and_then(|sig_name| {
+        release
+            .assets
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case(sig_name))
+    });
+
+    let sums_text = fetch_text_asset(sums_asset).await;
+    let sums_sig = fetch_text_asset(sums_sig_asset).await;
+    let asset_sig = fetch_text_asset(asset_sig_asset).await;
+
+    let state = build_update_state_from_signed_release(
+        &release,
+        &target,
+        sums_text.as_deref(),
+        sums_sig.as_deref(),
+        asset_sig.as_deref(),
+    );
     save_update_state(db, &state)?;
     Ok(state)
 }
@@ -612,6 +668,137 @@ pub fn verify_sha256(bytes: &[u8], expected_hex: Option<&str>) -> Result<String,
         }
     }
     Ok(actual_hex)
+}
+
+/// Cryptographic Ed25519 proof required before any update archive may be extracted or swapped.
+#[derive(Debug, Clone, Copy)]
+pub enum UpdateSignatureProof<'a> {
+    /// Detached Ed25519 signature (128-char hex or base64) over the raw update archive bytes.
+    ArchiveSignature(&'a str),
+    /// Detached Ed25519 signature over a `SHA256SUMS` manifest whose matching asset entry equals the archive digest.
+    SignedSumsManifest {
+        sums_text: &'a str,
+        sums_signature: &'a str,
+        asset_name: &'a str,
+    },
+}
+
+/// Resolves the trusted Ed25519 public key configured via runtime `DAYPRESS_UPDATER_PUBLIC_KEY`
+/// or compile-time `DAYPRESS_RELEASE_SIGNING_PUBKEY`.
+pub fn effective_updater_pubkey() -> Option<String> {
+    if let Ok(runtime) = std::env::var("DAYPRESS_UPDATER_PUBLIC_KEY") {
+        let trimmed = runtime.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    option_env!("DAYPRESS_RELEASE_SIGNING_PUBKEY")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn decode_ed25519_bytes(raw: &str, expected_len: usize, label: &str) -> Result<Vec<u8>, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.len() == expected_len * 2 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
+        let bytes = hex::decode(trimmed)
+            .map_err(|_| AppError::BadRequest(format!("Invalid hex encoding for {label}.")))?;
+        if bytes.len() == expected_len {
+            return Ok(bytes);
+        }
+    }
+    let b64 = base64::engine::general_purpose::STANDARD
+        .decode(trimmed)
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(trimmed))
+        .map_err(|_| {
+            AppError::BadRequest(format!(
+                "Invalid {label}: expected {expected_len}-byte hex or base64 encoding."
+            ))
+        })?;
+    if b64.len() != expected_len {
+        return Err(AppError::BadRequest(format!(
+            "Invalid {label} byte length: expected {expected_len}, got {}.",
+            b64.len()
+        )));
+    }
+    Ok(b64)
+}
+
+/// Verifies a SHA-256 hex digest and fails closed when no expected 64-char hex digest is provided.
+pub fn verify_sha256_required(bytes: &[u8], expected_hex: Option<&str>) -> Result<String, AppError> {
+    let exp = expected_hex
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "Missing required SHA-256 digest: unverified binary updates are refused.".into(),
+            )
+        })?;
+    if exp.len() != 64 || !exp.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppError::BadRequest(
+            "Invalid SHA-256 digest format: expected 64 hexadecimal characters.".into(),
+        ));
+    }
+    verify_sha256(bytes, Some(exp))
+}
+
+/// Verifies an Ed25519 signature over `payload` using `pubkey_encoded` (hex or base64).
+pub fn verify_ed25519_signature(
+    payload: &[u8],
+    signature_encoded: &str,
+    pubkey_encoded: &str,
+) -> Result<(), AppError> {
+    let pubkey_bytes = decode_ed25519_bytes(pubkey_encoded, 32, "release public key")?;
+    let sig_bytes = decode_ed25519_bytes(signature_encoded, 64, "Ed25519 release signature")?;
+    let public_key = UnparsedPublicKey::new(&signature::ED25519, &pubkey_bytes);
+    public_key.verify(payload, &sig_bytes).map_err(|_| {
+        AppError::BadRequest("Release archive Ed25519 signature verification failed.".into())
+    })
+}
+
+/// Fails closed unless both a trusted Ed25519 public key and a matching signature proof verify cleanly.
+pub fn verify_update_signature_with_pubkey(
+    archive_bytes: &[u8],
+    computed_archive_sha256: &str,
+    proof: Option<UpdateSignatureProof<'_>>,
+    trusted_pubkey: Option<&str>,
+) -> Result<(), AppError> {
+    let pubkey = trusted_pubkey
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "No trusted Ed25519 release signing public key configured (set DAYPRESS_UPDATER_PUBLIC_KEY or build with DAYPRESS_RELEASE_SIGNING_PUBKEY); refusing unverified binary update.".into(),
+            )
+        })?;
+    let proof = proof.ok_or_else(|| {
+        AppError::BadRequest(
+            "Missing required Ed25519 release signature: unsigned binary updates are refused.".into(),
+        )
+    })?;
+    match proof {
+        UpdateSignatureProof::ArchiveSignature(sig) => {
+            verify_ed25519_signature(archive_bytes, sig, pubkey)
+        }
+        UpdateSignatureProof::SignedSumsManifest {
+            sums_text,
+            sums_signature,
+            asset_name,
+        } => {
+            verify_ed25519_signature(sums_text.as_bytes(), sums_signature, pubkey)?;
+            let manifest_digest = parse_sha256sums(sums_text, asset_name).ok_or_else(|| {
+                AppError::BadRequest(format!(
+                    "Signed SHA256SUMS manifest does not contain an entry for asset `{asset_name}`."
+                ))
+            })?;
+            if !manifest_digest.eq_ignore_ascii_case(computed_archive_sha256) {
+                return Err(AppError::BadRequest(format!(
+                    "Signed SHA256SUMS digest mismatch for `{asset_name}`."
+                )));
+            }
+            Ok(())
+        }
+    }
 }
 
 /// Extracts the `daypress` or `daypress.exe` binary from `.tar.gz`, `.zip`, or raw executable bytes.
@@ -819,12 +1006,39 @@ pub fn extract_binary_from_zip(bytes: &[u8]) -> Result<Vec<u8>, AppError> {
     ))
 }
 
-/// Verifies, smoke-tests, backs up SQLite, and atomically swaps `exe_path` with the binary inside `archive_bytes`.
+/// Verifies SHA-256 + Ed25519 signature, smoke-tests, backs up SQLite, and atomically swaps `exe_path`.
 pub fn apply_binary_update_to_path(
     db: &Database,
     exe_path: &Path,
     archive_bytes: &[u8],
     expected_sha256: Option<&str>,
+    signature_proof: Option<UpdateSignatureProof<'_>>,
+    target_version: &str,
+    action_kind: &str,
+) -> Result<UpdateApplyReport, AppError> {
+    let pubkey = effective_updater_pubkey();
+    apply_binary_update_to_path_with_pubkey(
+        db,
+        exe_path,
+        archive_bytes,
+        expected_sha256,
+        signature_proof,
+        pubkey.as_deref(),
+        target_version,
+        action_kind,
+    )
+}
+
+/// Core self-update installer enforcing both required SHA-256 integrity and Ed25519 signature
+/// verification against `trusted_pubkey` before extracting or staging the binary.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_binary_update_to_path_with_pubkey(
+    db: &Database,
+    exe_path: &Path,
+    archive_bytes: &[u8],
+    expected_sha256: Option<&str>,
+    signature_proof: Option<UpdateSignatureProof<'_>>,
+    trusted_pubkey: Option<&str>,
     target_version: &str,
     action_kind: &str,
 ) -> Result<UpdateApplyReport, AppError> {
@@ -837,8 +1051,14 @@ pub fn apply_binary_update_to_path(
         )));
     }
 
-    // 1. Verify SHA-256 digest of the archive
-    let computed_sha256 = verify_sha256(archive_bytes, expected_sha256)?;
+    // 1. Verify required SHA-256 digest and cryptographic Ed25519 signature before unpacking archive
+    let computed_sha256 = verify_sha256_required(archive_bytes, expected_sha256)?;
+    verify_update_signature_with_pubkey(
+        archive_bytes,
+        &computed_sha256,
+        signature_proof,
+        trusted_pubkey,
+    )?;
 
     // 2. Extract executable payload
     let binary_bytes = extract_daypress_binary(archive_bytes)?;
@@ -1023,6 +1243,38 @@ pub async fn download_and_apply_github_update(
             current_target_triple()
         ))
     })?;
+    if !download_url.starts_with("https://") {
+        let test_base = std::env::var("DAYPRESS_GITHUB_API_BASE").ok();
+        let allow_test_http = test_base.as_deref().is_some_and(|b| {
+            (b.starts_with("http://127.0.0.1") || b.starts_with("http://localhost"))
+                && download_url.starts_with(b)
+        });
+        if !allow_test_http {
+            return Err(AppError::BadRequest(
+                "Refusing release download over insecure non-HTTPS URL.".into(),
+            ));
+        }
+    }
+    let proof = if let Some(sig) = state.asset_signature.as_deref() {
+        Some(UpdateSignatureProof::ArchiveSignature(sig))
+    } else if let (Some(sums), Some(sig), Some(asset_name)) = (
+        state.sha256sums_raw.as_deref(),
+        state.signature.as_deref(),
+        state.asset_name.as_deref(),
+    ) {
+        Some(UpdateSignatureProof::SignedSumsManifest {
+            sums_text: sums,
+            sums_signature: sig,
+            asset_name,
+        })
+    } else {
+        None
+    };
+    if proof.is_none() || state.sha256_digest.as_deref().is_none_or(|s| s.trim().is_empty()) {
+        return Err(AppError::BadRequest(
+            "Release lacks required SHA-256 checksum or Ed25519 signature; refusing automatic update.".into(),
+        ));
+    }
     let target_version = state
         .latest_version
         .clone()
@@ -1030,6 +1282,7 @@ pub async fn download_and_apply_github_update(
 
     let client = reqwest::Client::builder()
         .user_agent(format!("Daypress-Updater/{}", current_version()))
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(120))
         .build()
         .map_err(|e| AppError::Internal(format!("HTTP client initialization failed: {e}")))?;
@@ -1056,6 +1309,7 @@ pub async fn download_and_apply_github_update(
         &exe_path,
         &archive_bytes,
         state.sha256_digest.as_deref(),
+        proof,
         &target_version,
         "update",
     )

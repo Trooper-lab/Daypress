@@ -198,11 +198,7 @@ pub async fn handle_api_forms(
                     axum::Json(serde_json::json!({ "success": true, "form": form })),
                 )
                     .into_response(),
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(serde_json::json!({ "error": e.to_string() })),
-                )
-                    .into_response(),
+                Err(e) => crate::adapters::web::internal_json_error("Save form failed", e),
             }
         }
     }
@@ -224,21 +220,27 @@ pub async fn handle_admin_forms_export_csv(
         "Entry ID,Form ID,Form Title,Status,Starred,Email Status,Webhook Status,Source URL,Created At,IP Hash,Payload JSON\n",
     );
     for e in entries {
-        let escaped_json = e.data_json.replace('"', "\"\"");
-        let escaped_title = e.form_title.replace('"', "\"\"");
-        let escaped_source = e.source_url.replace('"', "\"\"");
+        let escaped_title = crate::templates::utils::csv_safe_raw(&e.form_title);
+        let escaped_status = crate::templates::utils::csv_safe_raw(&e.status);
+        let escaped_email_status = crate::templates::utils::csv_safe_raw(&e.email_status);
+        let escaped_webhook_status =
+            crate::templates::utils::csv_safe_raw(e.webhook_status.as_deref().unwrap_or("none"));
+        let escaped_source = crate::templates::utils::csv_safe_raw(&e.source_url);
+        let escaped_created_at = crate::templates::utils::csv_safe_raw(&e.created_at);
+        let escaped_ip_hash = crate::templates::utils::csv_safe_raw(&e.ip_hash);
+        let escaped_json = crate::templates::utils::csv_safe_raw(&e.data_json);
         csv.push_str(&format!(
             "{},{},\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
             e.id,
             e.form_id,
             escaped_title,
-            e.status,
+            escaped_status,
             if e.is_starred { "yes" } else { "no" },
-            e.email_status,
-            e.webhook_status.as_deref().unwrap_or("none"),
+            escaped_email_status,
+            escaped_webhook_status,
             escaped_source,
-            e.created_at,
-            e.ip_hash,
+            escaped_created_at,
+            escaped_ip_hash,
             escaped_json
         ));
     }
@@ -358,11 +360,7 @@ pub async fn handle_api_backups(
                 axum::Json(serde_json::json!({ "success": true, "snapshot": snap })),
             )
                 .into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(serde_json::json!({ "error": e.to_string() })),
-            )
-                .into_response(),
+            Err(e) => crate::adapters::web::internal_json_error("Admin module operation failed", e),
         },
         "delete" => {
             let fname = payload.filename.unwrap_or_default();
@@ -372,11 +370,7 @@ pub async fn handle_api_backups(
                     axum::Json(serde_json::json!({ "success": deleted })),
                 )
                     .into_response(),
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(serde_json::json!({ "error": e.to_string() })),
-                )
-                    .into_response(),
+                Err(e) => crate::adapters::web::internal_json_error("Save form failed", e),
             }
         }
         "restore" => {
@@ -390,11 +384,7 @@ pub async fn handle_api_backups(
                     })),
                 )
                     .into_response(),
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(serde_json::json!({ "error": e.to_string() })),
-                )
-                    .into_response(),
+                Err(e) => crate::adapters::web::internal_json_error("Save form failed", e),
             }
         }
         _ => (
@@ -464,11 +454,7 @@ pub async fn handle_api_plugin_settings_save(
             axum::Json(serde_json::json!({ "success": true })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Plugin settings save failed", e),
     }
 }
 
@@ -493,13 +479,7 @@ pub async fn handle_api_plugin_install_custom(
                 )
                     .into_response()
             }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(serde_json::json!({ "error": e.to_string() })),
-                )
-                    .into_response()
-            }
+            Err(e) => return crate::adapters::web::internal_json_error("Custom plugin uninstall failed", e),
         }
     }
 
@@ -510,11 +490,7 @@ pub async fn handle_api_plugin_install_custom(
                 axum::Json(serde_json::json!({ "success": true, "slug": manifest.slug })),
             )
                 .into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(serde_json::json!({ "error": e.to_string() })),
-            )
-                .into_response(),
+            Err(e) => crate::adapters::web::internal_json_error("Admin module operation failed", e),
         }
     } else {
         (

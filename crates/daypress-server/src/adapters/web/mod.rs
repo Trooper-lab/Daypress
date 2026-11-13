@@ -42,7 +42,7 @@ impl IntoResponse for AppError {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "rest_database_error",
-                    err.to_string(),
+                    "Internal server error.".to_string(),
                 )
             }
             AppError::Io(err) => {
@@ -50,7 +50,7 @@ impl IntoResponse for AppError {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "rest_io_error",
-                    err.to_string(),
+                    "Internal server error.".to_string(),
                 )
             }
             AppError::Internal(msg) => {
@@ -58,7 +58,7 @@ impl IntoResponse for AppError {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "rest_internal_error",
-                    msg,
+                    "Internal server error.".to_string(),
                 )
             }
         };
@@ -73,4 +73,19 @@ impl IntoResponse for AppError {
 
         (status, body).into_response()
     }
+}
+
+/// Logs an internal failure server-side and returns a generic 500 JSON error response
+/// without exposing database paths, SQL errors, or stack details to HTTP clients.
+pub fn internal_json_error(context: &str, err: impl std::fmt::Display) -> Response {
+    tracing::error!("{}: {}", context, err);
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "code": "rest_internal_error",
+            "message": "Internal server error.",
+            "error": "Internal server error."
+        })),
+    )
+        .into_response()
 }

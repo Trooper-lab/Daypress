@@ -679,13 +679,7 @@ impl Database {
         let subs = self.list_subscribers(None, None, None, false)?;
         let mut csv =
             String::from("id,email,name,status,lists,source_url,confirmed_at,created_at\n");
-        let esc = |s: &str| -> String {
-            if s.contains([',', '"', '\n', '\r']) {
-                format!("\"{}\"", s.replace('"', "\"\""))
-            } else {
-                s.to_string()
-            }
-        };
+        let esc = |s: &str| crate::templates::utils::csv_safe_cell(s);
         for s in subs {
             csv.push_str(&format!(
                 "{},{},{},{},{},{},{},{}\n",

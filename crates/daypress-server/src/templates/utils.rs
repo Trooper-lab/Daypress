@@ -124,6 +124,34 @@ pub fn escape_style_tag_contents(raw_css: &str) -> String {
     re.replace_all(&cleaned, r"\3c /style").into_owned()
 }
 
+/// Sanitizes a CSV cell string before placing inside CSV quotes (`"..."`):
+/// strips NUL bytes, prefixes `' ` when the raw or whitespace-trimmed text begins with a
+/// spreadsheet formula trigger (`=`, `+`, `-`, `@`, `\t`, `\r`), and doubles quotes (`""`).
+pub fn csv_safe_raw(raw: &str) -> String {
+    let clean = raw.replace('\0', "");
+    let trimmed = clean.trim_start_matches([' ', '\t', '\r', '\n']);
+    let dangerous = clean.starts_with(['=', '+', '-', '@', '\t', '\r'])
+        || trimmed.starts_with(['=', '+', '-', '@']);
+    let neutralized = if dangerous {
+        format!("'{clean}")
+    } else {
+        clean
+    };
+    neutralized.replace('"', "\"\"")
+}
+
+/// Formats a CSV field using `csv_safe_raw` and wraps it in quotes when required by RFC 4180
+/// or when a leading apostrophe neutralized a spreadsheet formula.
+pub fn csv_safe_cell(raw: &str) -> String {
+    let clean = raw.replace('\0', "");
+    let escaped = csv_safe_raw(&clean);
+    if escaped.starts_with('\'') || clean.contains([',', '"', '\n', '\r', '\t']) {
+        format!("\"{escaped}\"")
+    } else {
+        escaped
+    }
+}
+
 /// Inline tags a visitor's comment may keep; they are restored only in their exact,
 /// attribute-free form after the whole comment has been escaped.
 const COMMENT_ALLOWED_TAGS: [&str; 7] = ["p", "br", "b", "strong", "i", "em", "code"];

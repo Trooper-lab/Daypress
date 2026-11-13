@@ -152,6 +152,7 @@ pub(crate) async fn upload_update_archive_handler(
 ) -> Result<Json<crate::updater::UpdateApplyReport>, AppError> {
     let mut archive_bytes: Option<Vec<u8>> = None;
     let mut expected_sha256: Option<String> = None;
+    let mut expected_signature: Option<String> = None;
     let mut target_version: Option<String> = None;
 
     while let Some(field) = multipart
@@ -183,6 +184,12 @@ pub(crate) async fn upload_update_archive_handler(
                     expected_sha256 = Some(txt.trim().to_string());
                 }
             }
+            "signature" => {
+                let txt = field.text().await.unwrap_or_default();
+                if !txt.trim().is_empty() {
+                    expected_signature = Some(txt.trim().to_string());
+                }
+            }
             "version" => {
                 let txt = field.text().await.unwrap_or_default();
                 if !txt.trim().is_empty() {
@@ -199,11 +206,15 @@ pub(crate) async fn upload_update_archive_handler(
     let ver = target_version.unwrap_or_else(|| "custom".to_string());
     let exe_path = crate::updater::canonical_executable_path()?;
 
+    let proof = expected_signature
+        .as_deref()
+        .map(crate::updater::UpdateSignatureProof::ArchiveSignature);
     let report = crate::updater::apply_binary_update_to_path(
         &db,
         &exe_path,
         &bytes,
         expected_sha256.as_deref(),
+        proof,
         &ver,
         "upload",
     )?;

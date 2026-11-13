@@ -40,11 +40,7 @@ pub async fn handle_api_update_comment(
             axum::Json(serde_json::json!({ "code": "not_found", "message": "Comment not found" })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "code": "error", "message": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Comment action failed", e),
     }
 }
 
@@ -74,11 +70,7 @@ pub async fn handle_api_delete_comment(
             axum::Json(serde_json::json!({ "code": "not_found", "message": "Comment not found" })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "code": "error", "message": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Comment action failed", e),
     }
 }
 
@@ -138,11 +130,7 @@ pub async fn handle_api_theme_save(
             axum::Json(serde_json::json!({ "success": true, "theme": theme })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Admin operation failed", e),
     }
 }
 
@@ -199,11 +187,7 @@ pub async fn handle_api_widgets_save(
             axum::Json(serde_json::json!({ "success": true, "widgets": widgets_val })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Admin operation failed", e),
     }
 }
 
@@ -224,11 +208,7 @@ pub async fn handle_api_menus_save(
             axum::Json(serde_json::json!({ "success": true, "items": items })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Admin operation failed", e),
     }
 }
 
@@ -332,11 +312,7 @@ pub async fn handle_api_theme_file_save(
             axum::Json(serde_json::json!({ "success": true, "file": file })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Admin operation failed", e),
     }
 }
 
@@ -424,11 +400,7 @@ pub async fn handle_api_export_personal_data(
     let identifier = params.user.unwrap_or_default();
     match db.export_personal_data(&identifier) {
         Ok(val) => (StatusCode::OK, axum::Json(val)).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Admin operation failed", e),
     }
 }
 
@@ -442,7 +414,7 @@ pub async fn handle_api_erase_personal_data(
             "items_removed": count,
             "message": format!("Personal data anonymized and scrubbed across {} comments in SQLite", count)
         }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
+        Err(e) => crate::adapters::web::internal_json_error("Erase personal data failed", e),
     }
 }
 

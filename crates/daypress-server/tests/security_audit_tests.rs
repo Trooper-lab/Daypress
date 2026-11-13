@@ -2255,3 +2255,290 @@ async fn step6_shortcodes_style_breakout_and_languages_onclick_hardened() {
     drop(db);
     let _ = std::fs::remove_file(&db_path);
 }
+
+#[tokio::test]
+async fn step7_cors_origin_allowlist_blocks_arbitrary_third_party_origins() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    db.set_option("daypress_setup_completed", "1")
+        .expect("complete setup");
+    db.set_option("siteurl", "https://site.example.com")
+        .expect("set siteurl");
+    let app = create_app(db.clone());
+
+    for bad_origin in ["https://evil.com", "http://evil.com:8080", "null"] {
+        let preflight = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("OPTIONS")
+                    .uri("/wp-json/wp/v2/posts")
+                    .header("Host", "site.example.com")
+                    .header("Origin", bad_origin)
+                    .header("Access-Control-Request-Method", "POST")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            preflight.headers().get("access-control-allow-origin").is_none(),
+            "CORS must not echo Access-Control-Allow-Origin for untrusted origin `{bad_origin}`"
+        );
+    }
+
+    let good = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/wp-json/")
+                .header("Host", "site.example.com")
+                .header("Origin", "https://site.example.com")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(good.status(), StatusCode::OK);
+    assert_eq!(
+        good.headers()
+            .get("access-control-allow-origin")
+            .and_then(|v| v.to_str().ok()),
+        Some("https://site.example.com")
+    );
+    assert!(
+        good.headers().get("access-control-allow-credentials").is_none(),
+        "CORS must not enable allow-credentials globally"
+    );
+}
+
+#[tokio::test]
+async fn step7_internal_500_errors_masked_and_csv_formula_injection_neutralized() {
+    use axum::response::IntoResponse;
+
+    let io_resp = daypress_server::errors::AppError::Io(std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "permission denied on /var/lib/daypress/secret.sqlite",
+    ))
+    .into_response();
+    assert_eq!(io_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let io_body =
+        String::from_utf8(to_bytes(io_resp.into_body(), usize::MAX).await.unwrap().to_vec())
+            .unwrap();
+    assert!(
+        io_body.contains("Internal server error.") && !io_body.contains("secret.sqlite"),
+        "500 Io response leaked internal details: {io_body}"
+    );
+
+    let int_resp = daypress_server::errors::AppError::Internal(
+        "SQLITE_CONSTRAINT hidden_column_secret".to_string(),
+    )
+    .into_response();
+    assert_eq!(int_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let int_body =
+        String::from_utf8(to_bytes(int_resp.into_body(), usize::MAX).await.unwrap().to_vec())
+            .unwrap();
+    assert!(
+        int_body.contains("Internal server error.") && !int_body.contains("hidden_column_secret"),
+        "500 Internal response leaked internal details: {int_body}"
+    );
+
+    // CSV export formula neutralization across both FormStudio and Newsletters
+    let db = Database::new_in_memory().expect("in-memory db");
+    db.set_option("daypress_setup_completed", "1")
+        .expect("complete setup");
+    db.create_user(&CreateUserRequest {
+        username: "csv_admin".to_string(),
+        email: "csv_admin@example.com".to_string(),
+        password: "AdminPassword123!".to_string(),
+        role: Some("administrator".to_string()),
+        ..Default::default()
+    })
+    .expect("create admin");
+
+    let form_id = db
+        .create_form("=cmd|'/C calc'!A0", "[]", "{}")
+        .expect("create form");
+    db.submit_form_entry_full(
+        form_id,
+        "  =HYPERLINK(\"http://evil.com\",\"Go\")",
+        "[]",
+        "unread",
+        "queued",
+        "none",
+        "+1+1",
+        "hash1",
+        "ua",
+    )
+    .expect("submit form entry");
+
+    db.subscribe_newsletter_contact(
+        &daypress_server::models::NewsletterSubscribeRequest {
+            email: "formula-sub@example.com".to_string(),
+            name: "@SUM(1,1)".to_string(),
+            lists: vec!["general".to_string()],
+            source_url: "\t=2+2".to_string(),
+            skip_double_opt_in: true,
+        },
+        "hash2",
+    )
+    .expect("subscribe contact");
+
+    let app = create_app(db.clone());
+    let forms_csv_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/api/forms/export-csv")
+                .header("Authorization", basic_auth("csv_admin", "AdminPassword123!"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(forms_csv_res.status(), StatusCode::OK);
+    let forms_csv = String::from_utf8(
+        to_bytes(forms_csv_res.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(
+        forms_csv.contains("\"'=cmd|'/C calc'!A0\"")
+            && forms_csv.contains("\"'+1+1\"")
+            && forms_csv.contains("\"'  =HYPERLINK"),
+        "Forms CSV must neutralize leading spreadsheet formula triggers: {forms_csv}"
+    );
+
+    let nl_csv_res = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/d-admin/api/newsletters/export-csv")
+                .header("Authorization", basic_auth("csv_admin", "AdminPassword123!"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(nl_csv_res.status(), StatusCode::OK);
+    let nl_csv = String::from_utf8(
+        to_bytes(nl_csv_res.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(
+        nl_csv.contains("\"'@SUM(1,1)\""),
+        "Newsletters CSV must neutralize leading spreadsheet formula triggers: {nl_csv}"
+    );
+    assert_eq!(
+        daypress_server::templates::utils::csv_safe_cell("\t=2+2"),
+        "\"'\t=2+2\""
+    );
+    assert_eq!(
+        daypress_server::templates::utils::csv_safe_cell("-2+3"),
+        "\"'-2+3\""
+    );
+}
+
+#[tokio::test]
+async fn step7_open_redirect_and_unsigned_updater_fail_closed() {
+    for bad in [
+        "//evil.com",
+        "/\\evil.com",
+        "/\tevil.com",
+        "/path\r\nSet-Cookie: a=1",
+        "/sub\\evil?next=1",
+    ] {
+        assert_eq!(
+            daypress_server::auth::sanitize_redirect_target(Some(bad)),
+            "/d-admin/",
+            "Redirect target `{bad:?}` must be rejected"
+        );
+    }
+    assert_eq!(
+        daypress_server::auth::sanitize_redirect_target(Some("/d-admin/edit.php?post_type=page")),
+        "/d-admin/edit.php?post_type=page"
+    );
+
+    let db = Database::new_in_memory().expect("in-memory db");
+    db.set_option("daypress_setup_completed", "1")
+        .expect("complete setup");
+    db.create_user(&CreateUserRequest {
+        username: "upd_admin".to_string(),
+        email: "upd_admin@example.com".to_string(),
+        password: "AdminPassword123!".to_string(),
+        role: Some("administrator".to_string()),
+        ..Default::default()
+    })
+    .expect("create admin");
+
+    let sub = db
+        .subscribe_newsletter_contact(
+            &daypress_server::models::NewsletterSubscribeRequest {
+                email: "redir-test@example.com".to_string(),
+                name: "Redir".to_string(),
+                lists: vec!["general".to_string()],
+                source_url: "/\t//evil.com".to_string(),
+                skip_double_opt_in: false,
+            },
+            "hash3",
+        )
+        .expect("subscribe");
+    let tok = sub.confirm_token.expect("confirm token");
+
+    let app = create_app(db.clone());
+    let confirm_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/newsletter/confirm/{tok}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(confirm_res.status(), StatusCode::OK);
+    let confirm_html = String::from_utf8(
+        to_bytes(confirm_res.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(
+        !confirm_html.contains("evil.com"),
+        "Newsletter confirmation must never reflect untrusted redirect URL: {confirm_html}"
+    );
+
+    // Manual update archive upload without valid Ed25519 signature must fail closed (400 Bad Request)
+    let boundary = "----DaypressSecUpdBoundary";
+    let body_bytes = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"archive\"; filename=\"daypress-v9.9.9-x86_64-unknown-linux-gnu.tar.gz\"\r\nContent-Type: application/gzip\r\n\r\nFAKE_PAYLOAD\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"sha256\"\r\n\r\n0000000000000000000000000000000000000000000000000000000000000000\r\n--{boundary}--\r\n"
+    );
+    let upd_res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/update/upload")
+                .header("Authorization", basic_auth("upd_admin", "AdminPassword123!"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body_bytes))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        upd_res.status(),
+        StatusCode::BAD_REQUEST,
+        "Unsigned update archive upload must fail closed with 400 Bad Request"
+    );
+}

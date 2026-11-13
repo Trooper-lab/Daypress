@@ -892,9 +892,13 @@ pub fn render_updates_view_with_status(
                             <input type="text" id="update-archive-version" name="version" placeholder="e.g. 1.0.0" class="form-input" style="width:100%;font-size:12px;" />
                         </div>
                         <div>
-                            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Expected SHA-256 (optional)</label>
-                            <input type="text" id="update-archive-sha256" name="sha256" placeholder="64-character hex digest from SHA256SUMS" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
+                            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Expected SHA-256 (required)</label>
+                            <input type="text" id="update-archive-sha256" name="sha256" required placeholder="64-character hex digest from SHA256SUMS" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
                         </div>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Ed25519 Signature (required)</label>
+                        <input type="text" id="update-archive-signature" name="signature" required placeholder="128-char hex or base64 Ed25519 signature over the archive" class="form-input" style="width:100%;font-size:12px;font-family:var(--font-mono, monospace);" />
                     </div>
                     <div style="margin-top:4px;">
                         <button type="submit" id="btn-upload-update" class="btn btn-secondary">⬆ Verify, Backup &amp; Install Archive</button>
@@ -1097,6 +1101,9 @@ pub fn render_updates_view_with_status(
                 if (ver) fd.append('version', ver);
                 const sha = document.getElementById('update-archive-sha256').value.trim();
                 if (sha) fd.append('sha256', sha);
+                const sigEl = document.getElementById('update-archive-signature');
+                const sig = sigEl ? sigEl.value.trim() : '';
+                if (sig) fd.append('signature', sig);
 
                 const btn = document.getElementById('btn-upload-update');
                 if (btn) btn.disabled = true;

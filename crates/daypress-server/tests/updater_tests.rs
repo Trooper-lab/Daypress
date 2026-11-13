@@ -5,15 +5,19 @@ use axum::{
 use daypress_server::{
     create_app,
     updater::{
-        apply_binary_update_to_path, build_update_state_from_release,
-        cached_available_update_version, expected_asset_filename, extract_daypress_binary,
-        get_update_status, is_newer_version, load_update_history, load_update_settings,
-        load_update_state, parse_sha256sums, previous_binary_path, rollback_binary_at_path,
-        save_update_state, verify_sha256, GithubAssetDto, GithubReleaseDto, UpdateSettings,
+        apply_binary_update_to_path_with_pubkey, build_update_state_from_release,
+        build_update_state_from_signed_release, cached_available_update_version,
+        expected_asset_filename, extract_daypress_binary, get_update_status, is_newer_version,
+        load_update_history, load_update_settings, load_update_state, parse_sha256sums,
+        previous_binary_path, rollback_binary_at_path, save_update_state, verify_sha256,
+        GithubAssetDto, GithubReleaseDto, UpdateSettings, UpdateSignatureProof,
     },
     Database,
 };
+use base64::Engine as _;
 use flate2::{write::DeflateEncoder, write::GzEncoder, Compression};
+use ring::rand::SystemRandom;
+use ring::signature::{Ed25519KeyPair, KeyPair};
 use std::io::Write;
 use tower::ServiceExt;
 
@@ -200,16 +204,74 @@ fn test_atomic_binary_swap_backup_and_rollback() {
     );
     let expected_sha = verify_sha256(&zip_v2, None).unwrap();
 
-    // Apply update to v0.2.0
-    let report = apply_binary_update_to_path(
+    // Generate an ephemeral Ed25519 release signing keypair for cryptographic update verification.
+    let rng = SystemRandom::new();
+    let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("Ed25519 PKCS#8 generation");
+    let keypair = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("Ed25519 keypair");
+    let pubkey_hex = hex::encode(keypair.public_key().as_ref());
+    let sig_hex = hex::encode(keypair.sign(&zip_v2).as_ref());
+
+    // Fail-closed checks: unsigned, missing digest, tampered archive, or wrong signature must all fail BEFORE modifying `exe_path`.
+    assert!(
+        apply_binary_update_to_path_with_pubkey(
+            &db,
+            &exe_path,
+            &zip_v2,
+            Some(&expected_sha),
+            None,
+            Some(&pubkey_hex),
+            "0.2.0",
+            "update",
+        )
+        .is_err(),
+        "Unsigned update archive must be rejected"
+    );
+    assert!(
+        apply_binary_update_to_path_with_pubkey(
+            &db,
+            &exe_path,
+            &zip_v2,
+            None,
+            Some(UpdateSignatureProof::ArchiveSignature(&sig_hex)),
+            Some(&pubkey_hex),
+            "0.2.0",
+            "update",
+        )
+        .is_err(),
+        "Update archive without required SHA-256 digest must be rejected"
+    );
+    assert!(
+        apply_binary_update_to_path_with_pubkey(
+            &db,
+            &exe_path,
+            &zip_v2,
+            Some(&expected_sha),
+            Some(UpdateSignatureProof::ArchiveSignature(&sig_hex)),
+            None,
+            "0.2.0",
+            "update",
+        )
+        .is_err(),
+        "Update must fail closed when no trusted release public key is provided"
+    );
+    assert_eq!(
+        std::fs::read(&exe_path).unwrap(),
+        v1_bytes,
+        "Original binary must remain untouched on verification failure"
+    );
+
+    // Apply signed update to v0.2.0
+    let report = apply_binary_update_to_path_with_pubkey(
         &db,
         &exe_path,
         &zip_v2,
         Some(&expected_sha),
+        Some(UpdateSignatureProof::ArchiveSignature(&sig_hex)),
+        Some(&pubkey_hex),
         "0.2.0",
         "update",
     )
-    .expect("Binary update should succeed");
+    .expect("Signed binary update should succeed");
 
     assert!(report.success);
     assert_eq!(report.to_version, "0.2.0");
@@ -235,6 +297,73 @@ fn test_atomic_binary_swap_backup_and_rollback() {
     let history_after = load_update_history(&db);
     assert_eq!(history_after.len(), 2);
     assert_eq!(history_after[0].action, "rollback");
+
+    // Verify SignedSumsManifest proof path (`SHA256SUMS` + `SHA256SUMS.sig`) and tamper rejection
+    let target = daypress_server::updater::current_target_triple();
+    let asset_name = expected_asset_filename("v0.2.0", &target);
+    let sums_manifest = format!("{expected_sha}  {asset_name}\n");
+    let sums_sig = base64::engine::general_purpose::STANDARD.encode(
+        keypair.sign(sums_manifest.as_bytes()).as_ref(),
+    );
+    let mut forged_bytes = zip_v2.clone();
+    let last = forged_bytes.len() - 1;
+    forged_bytes[last] ^= 0xff;
+    assert!(
+        apply_binary_update_to_path_with_pubkey(
+            &db,
+            &exe_path,
+            &forged_bytes,
+            Some(&expected_sha),
+            Some(UpdateSignatureProof::SignedSumsManifest {
+                sums_text: &sums_manifest,
+                sums_signature: &sums_sig,
+                asset_name: &asset_name,
+            }),
+            Some(&pubkey_hex),
+            "0.2.0",
+            "update",
+        )
+        .is_err(),
+        "Tampered archive must be rejected even against signed SHA256SUMS"
+    );
+
+    let signed_release = GithubReleaseDto {
+        tag_name: "v0.2.0".to_string(),
+        html_url: "https://github.com/Trooper-lab/daypress/releases/tag/v0.2.0".to_string(),
+        body: None,
+        prerelease: false,
+        draft: false,
+        published_at: None,
+        assets: vec![GithubAssetDto {
+            name: asset_name.clone(),
+            browser_download_url: "https://github.com/Trooper-lab/daypress/releases/download/v0.2.0/asset".to_string(),
+            size: zip_v2.len() as u64,
+        }],
+    };
+    let signed_state = build_update_state_from_signed_release(
+        &signed_release,
+        &target,
+        Some(&sums_manifest),
+        Some(&sums_sig),
+        None,
+    );
+    assert_eq!(signed_state.signature.as_deref(), Some(sums_sig.as_str()));
+    let manifest_report = apply_binary_update_to_path_with_pubkey(
+        &db,
+        &exe_path,
+        &zip_v2,
+        signed_state.sha256_digest.as_deref(),
+        Some(UpdateSignatureProof::SignedSumsManifest {
+            sums_text: signed_state.sha256sums_raw.as_deref().unwrap(),
+            sums_signature: signed_state.signature.as_deref().unwrap(),
+            asset_name: &asset_name,
+        }),
+        Some(&pubkey_hex),
+        "0.2.0",
+        "update",
+    )
+    .expect("Signed SHA256SUMS manifest update should succeed");
+    assert!(manifest_report.success);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

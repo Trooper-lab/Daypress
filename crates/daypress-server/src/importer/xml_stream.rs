@@ -200,6 +200,7 @@ pub fn parse_wxr_stream<R: BufRead>(
 
     let mut buf = Vec::new();
     let mut tag_stack: Vec<String> = Vec::new();
+    let mut pending_text = String::new();
 
     let mut site_settings = ImportSiteSettings::default();
     let mut source_site_tracked = Option::<(String, u8)>::None;
@@ -219,7 +220,8 @@ pub fn parse_wxr_stream<R: BufRead>(
     loop {
         match xml_reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                pending_text.clear();
+                let tag_name = e.name().as_ref().to_string();
                 if tag_name == "item" {
                     current_item = Some(ParsedWxrItem {
                         post_status: "publish".to_string(),
@@ -250,8 +252,11 @@ pub fn parse_wxr_stream<R: BufRead>(
                     current_category_domain.clear();
                     current_category_nicename.clear();
                     for attr in e.attributes().flatten() {
-                        let k = String::from_utf8_lossy(attr.key.as_ref()).to_string();
-                        let v = String::from_utf8_lossy(&attr.value).to_string();
+                        let k = attr.key.as_ref().to_string();
+                        let v = attr
+                            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            .map(|cow| cow.into_owned())
+                            .unwrap_or_else(|_| attr.value.to_string());
                         if k == "domain" {
                             current_category_domain = v;
                         } else if k == "nicename" {
@@ -262,46 +267,43 @@ pub fn parse_wxr_stream<R: BufRead>(
                 tag_stack.push(tag_name);
             }
             Ok(Event::Text(e)) => {
-                let text = match e.unescape() {
-                    Ok(cow) => cow.to_string(),
-                    Err(_) => String::from_utf8_lossy(e.as_ref()).to_string(),
-                };
-                process_xml_text(
-                    text.trim(),
-                    &tag_stack,
-                    &mut site_settings,
-                    &mut source_site_tracked,
-                    &mut site_language,
-                    &mut site_favicon_url,
-                    &mut current_term,
-                    &mut current_item,
-                    &mut current_comment,
-                    &mut current_meta_key,
-                    &mut current_meta_value,
-                    &current_category_domain,
-                    &current_category_nicename,
-                );
+                let raw = e.xml10_content();
+                let text = quick_xml::escape::unescape(raw.as_ref())
+                    .map(|cow| cow.into_owned())
+                    .unwrap_or_else(|_| raw.into_owned());
+                pending_text.push_str(&text);
+            }
+            Ok(Event::GeneralRef(e)) => {
+                let raw_ref = format!("&{};", e.as_ref());
+                let resolved = quick_xml::escape::unescape(&raw_ref)
+                    .map(|cow| cow.into_owned())
+                    .unwrap_or(raw_ref);
+                pending_text.push_str(&resolved);
             }
             Ok(Event::CData(e)) => {
-                let text = String::from_utf8_lossy(e.as_ref()).to_string();
-                process_xml_text(
-                    text.trim(),
-                    &tag_stack,
-                    &mut site_settings,
-                    &mut source_site_tracked,
-                    &mut site_language,
-                    &mut site_favicon_url,
-                    &mut current_term,
-                    &mut current_item,
-                    &mut current_comment,
-                    &mut current_meta_key,
-                    &mut current_meta_value,
-                    &current_category_domain,
-                    &current_category_nicename,
-                );
+                pending_text.push_str(e.as_ref());
             }
             Ok(Event::End(e)) => {
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let text_trimmed = pending_text.trim();
+                if !text_trimmed.is_empty() {
+                    process_xml_text(
+                        text_trimmed,
+                        &tag_stack,
+                        &mut site_settings,
+                        &mut source_site_tracked,
+                        &mut site_language,
+                        &mut site_favicon_url,
+                        &mut current_term,
+                        &mut current_item,
+                        &mut current_comment,
+                        &mut current_meta_key,
+                        &mut current_meta_value,
+                        &current_category_domain,
+                        &current_category_nicename,
+                    );
+                }
+                pending_text.clear();
+                let tag_name = e.name().as_ref().to_string();
                 if tag_name == "item" {
                     if let Some(item) = current_item.take() {
                         posts_to_insert.push(item);

@@ -1237,15 +1237,7 @@ pub async fn handle_newsletter_confirm(
                 ),
                 secure,
             );
-            let trimmed_ret = sub.source_url.trim();
-            let return_url = if trimmed_ret.starts_with('/')
-                && !trimmed_ret.starts_with("//")
-                && !trimmed_ret.starts_with("/\\")
-            {
-                trimmed_ret.to_string()
-            } else {
-                "/".to_string()
-            };
+            let return_url = crate::auth::sanitize_local_redirect(Some(&sub.source_url), "/");
             let html = format!(
                 r#"<!DOCTYPE html>
 <html lang="en">

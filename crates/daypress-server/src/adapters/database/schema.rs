@@ -417,8 +417,14 @@ impl Database {
             if from_env {
                 eprintln!("🔐 Admin password for '{login}' set from DAYPRESS_ADMIN_PASSWORD.");
             } else {
-                eprintln!("🔐 Generated a password for '{login}' (shown only once):");
-                eprintln!("   {password}");
+                eprintln!("🔐 Generated a secure bootstrap password for '{login}'.");
+                if crate::legacy::env_var("DAYPRESS_PRINT_INIT_PASSWORD")
+                    .is_some_and(|v| v.trim() == "1" || v.trim().eq_ignore_ascii_case("true"))
+                {
+                    eprintln!("   Initial password (shown once): {password}");
+                } else {
+                    eprintln!("   Run `daypress reset-password {login}` or set DAYPRESS_ADMIN_PASSWORD if needed.");
+                }
             }
             eprintln!("   Log in at /login, then change it under Users → Profile.");
             eprintln!("============================================================");

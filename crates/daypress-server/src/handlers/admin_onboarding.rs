@@ -64,14 +64,17 @@ pub async fn handle_api_getting_started_agent_key(
             })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({
-                "success": false,
-                "error": e.to_string()
-            })),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!("Application password creation failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({
+                    "success": false,
+                    "error": "Internal server error."
+                })),
+            )
+                .into_response()
+        }
     }
 }
 
