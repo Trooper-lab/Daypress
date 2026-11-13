@@ -28,6 +28,15 @@ fn parse_lists_json(raw: &str) -> Vec<String> {
         .unwrap_or_else(|| vec!["general".to_string()])
 }
 
+fn sanitize_internal_return_url(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.starts_with('/') && !trimmed.starts_with("//") && !trimmed.starts_with("/\\") {
+        trimmed.chars().take(500).collect()
+    } else {
+        String::new()
+    }
+}
+
 impl Database {
     /// Checks whether Double Opt-In is enabled for public newsletter signups (default: `true`).
     pub fn is_newsletter_double_opt_in_enabled(&self) -> bool {
@@ -112,6 +121,15 @@ impl Database {
         req: &NewsletterSubscribeRequest,
         ip_hash: &str,
     ) -> std::result::Result<SubscriberRecord, AppError> {
+        let (rec, _) = self.subscribe_newsletter_contact_checked(req, ip_hash)?;
+        Ok(rec)
+    }
+
+    pub(crate) fn subscribe_newsletter_contact_checked(
+        &self,
+        req: &NewsletterSubscribeRequest,
+        ip_hash: &str,
+    ) -> std::result::Result<(SubscriberRecord, bool), AppError> {
         let email = req.email.trim().to_ascii_lowercase();
         if email.is_empty()
             || !email.contains('@')
@@ -123,7 +141,7 @@ impl Database {
             ));
         }
         let name: String = req.name.trim().chars().take(120).collect();
-        let source_url: String = req.source_url.trim().chars().take(500).collect();
+        let source_url = sanitize_internal_return_url(&req.source_url);
         let mut lists: Vec<String> = req
             .lists
             .iter()
@@ -140,7 +158,7 @@ impl Database {
             !req.skip_double_opt_in && self.is_newsletter_double_opt_in_enabled();
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        let (record, should_send_confirm_email, base_url, site_title) = {
+        let (record, already_active_before, should_send_confirm_email, base_url, site_title) = {
             let conn = self.conn.lock().unwrap();
             Self::activate_builtin_plugin_with_conn(&conn, "daypress-newsletters");
             let base_url = Self::get_base_url_with_conn(&conn);
@@ -197,7 +215,13 @@ impl Database {
                     |r| Self::map_subscriber_row(r, true),
                 )?;
                 let _ = (existing_confirm, existing_unsub);
-                (rec, send_confirm, base_url, site_title)
+                (
+                    rec,
+                    old_status == "subscribed",
+                    send_confirm,
+                    base_url,
+                    site_title,
+                )
             } else {
                 let confirm_token = generate_subscriber_token(&email, "confirm");
                 let unsubscribe_token = generate_subscriber_token(&email, "unsubscribe");
@@ -233,7 +257,7 @@ impl Database {
                     params![sub_id],
                     |r| Self::map_subscriber_row(r, true),
                 )?;
-                (rec, require_double_opt_in, base_url, site_title)
+                (rec, false, require_double_opt_in, base_url, site_title)
             }
         };
 
@@ -293,10 +317,63 @@ impl Database {
             Some("newsletter_signup"),
         );
 
-        Ok(record)
+        Ok((record, already_active_before))
     }
 
-    /// Confirms a pending subscriber via `/newsletter/confirm/{token}` and returns the updated record.
+    fn send_confirmation_or_magic_link_email(
+        &self,
+        base_url: &str,
+        site_title: &str,
+        recipient_email: &str,
+        recipient_name: &str,
+        token: &str,
+        is_magic_unlock: bool,
+    ) {
+        let confirm_url = format!("{}/newsletter/confirm/{}", base_url.trim_end_matches('/'), token);
+        let safe_site = escape_html(site_title);
+        let greeting = if recipient_name.trim().is_empty() {
+            "Hello".to_string()
+        } else {
+            format!("Hi {}", escape_html(recipient_name))
+        };
+        let (subject, heading, cta, desc) = if is_magic_unlock {
+            (
+                format!("Your access link for {}", site_title),
+                format!("Sign in to read subscriber posts on {}", safe_site),
+                "Unlock Article &rarr;",
+                format!("{greeting}, click the one-time link below to verify your email and unlock subscriber-only posts on <strong>{safe_site}</strong>."),
+            )
+        } else {
+            (
+                format!("Confirm your subscription to {}", site_title),
+                format!("Confirm your subscription to {}", safe_site),
+                "Confirm Subscription &rarr;",
+                format!("{greeting}, please confirm your email address to start receiving updates and unlock subscriber-only posts on <strong>{safe_site}</strong>."),
+            )
+        };
+        let body_html = format!(
+            r#"<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 28px; color: #18181b; border: 1px solid #e4e4e7; border-radius: 12px;">
+                <h2 style="margin: 0 0 12px; font-size: 20px;">{heading}</h2>
+                <p style="font-size: 15px; line-height: 1.6; color: #3f3f46;">{desc}</p>
+                <p style="margin: 24px 0;">
+                    <a href="{confirm_url}" style="display: inline-block; background: #a8401b; color: #ffffff; font-weight: 600; text-decoration: none; padding: 12px 22px; border-radius: 8px;">{cta}</a>
+                </p>
+                <p style="font-size: 12px; color: #71717a;">If you did not request this link, you can safely ignore this email.</p>
+            </div>"#
+        );
+        let _ = dispatch_newsletter_email(
+            self,
+            EmailMessage {
+                to: recipient_email.to_string(),
+                subject,
+                body_html,
+                body_text: format!("{}: {}", heading, confirm_url),
+            },
+        );
+    }
+
+    /// Confirms a pending subscriber or verifies a returning subscriber magic-link token
+    /// via `/newsletter/confirm/{token}`, rotates the one-time `confirm_token`, and returns the record.
     pub fn confirm_subscriber_by_token(&self, token: &str) -> Result<Option<SubscriberRecord>> {
         let clean = token.trim();
         if clean.is_empty() {
@@ -304,23 +381,25 @@ impl Database {
         }
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let sub_id: Option<i64> = conn
+        let sub_row: Option<(i64, String)> = conn
             .query_row(
-                "SELECT id FROM daypress_subscribers WHERE confirm_token = ?1",
+                "SELECT id, email FROM daypress_subscribers WHERE confirm_token = ?1",
                 params![clean],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .ok();
-        let Some(id) = sub_id else {
+        let Some((id, sub_email)) = sub_row else {
             return Ok(None);
         };
+        let rotated_token = generate_subscriber_token(&sub_email, "used_confirm");
         conn.execute(
             r#"UPDATE daypress_subscribers
                SET status = 'subscribed',
-                   confirmed_at = COALESCE(confirmed_at, ?1),
+                   confirm_token = ?1,
+                   confirmed_at = COALESCE(confirmed_at, ?2),
                    unsubscribed_at = NULL
-               WHERE id = ?2"#,
-            params![now, id],
+               WHERE id = ?3"#,
+            params![rotated_token, now, id],
         )?;
         let rec = conn.query_row(
             r#"SELECT id, email, name, status, lists_json, confirm_token, unsubscribe_token, source_url, confirmed_at, unsubscribed_at, created_at
@@ -352,7 +431,7 @@ impl Database {
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let sub_id: Option<i64> = conn
             .query_row(
-                "SELECT id FROM daypress_subscribers WHERE unsubscribe_token = ?1 OR confirm_token = ?1",
+                "SELECT id FROM daypress_subscribers WHERE unsubscribe_token = ?1",
                 params![clean],
                 |r| r.get(0),
             )
@@ -387,10 +466,43 @@ impl Database {
         Ok(Some(rec))
     }
 
-    /// Returns `true` when `token` belongs to a confirmed (`status = 'subscribed'`) newsletter subscriber.
+    /// Issues an HMAC-SHA256 signed `daypress_subscriber` session cookie token (`sub.<id>.<exp>.<sig>`),
+    /// keeping `unsubscribe_token` and `confirm_token` strictly out of cookies.
+    pub fn issue_subscriber_cookie_token(&self, sub_id: i64) -> String {
+        let secret = self.get_auth_secret().unwrap_or_default();
+        let exp = Utc::now().timestamp() + 31_536_000;
+        let payload = format!("daypress-subscriber-v1|{}|{}", sub_id, exp);
+        let sig = hex::encode(crate::auth::hmac_sha256(secret.as_bytes(), payload.as_bytes()));
+        format!("sub.{}.{}.{}", sub_id, exp, sig)
+    }
+
+    /// Returns `true` when `token` is a valid HMAC-signed subscriber session token for an active
+    /// (`status = 'subscribed'`) newsletter subscriber.
     pub fn verify_subscriber_token(&self, token: &str) -> bool {
         let clean = token.trim();
-        if clean.is_empty() {
+        let mut parts = clean.splitn(4, '.');
+        let (Some("sub"), Some(id_raw), Some(exp_raw), Some(sig)) =
+            (parts.next(), parts.next(), parts.next(), parts.next())
+        else {
+            return false;
+        };
+        let Ok(sub_id) = id_raw.parse::<i64>() else {
+            return false;
+        };
+        let Ok(exp) = exp_raw.parse::<i64>() else {
+            return false;
+        };
+        if sub_id <= 0 || exp < Utc::now().timestamp() {
+            return false;
+        }
+        let Ok(secret) = self.get_auth_secret() else {
+            return false;
+        };
+        let expected = hex::encode(crate::auth::hmac_sha256(
+            secret.as_bytes(),
+            format!("daypress-subscriber-v1|{}|{}", sub_id, exp).as_bytes(),
+        ));
+        if !crate::auth::constant_time_eq(expected.as_bytes(), sig.as_bytes()) {
             return false;
         }
         let Ok(conn) = self.conn.lock() else {
@@ -398,33 +510,89 @@ impl Database {
         };
         conn.query_row(
             r#"SELECT 1 FROM daypress_subscribers
-               WHERE (unsubscribe_token = ?1 OR confirm_token = ?1)
-                 AND status = 'subscribed'
+               WHERE id = ?1 AND status = 'subscribed'
                LIMIT 1"#,
-            params![clean],
+            params![sub_id],
             |_| Ok(true),
         )
         .unwrap_or(false)
     }
 
-    /// Finds an active (`status = 'subscribed'`) subscriber by email so returning readers can unlock member-gated posts.
-    pub fn unlock_subscriber_by_email(&self, email: &str) -> Result<Option<SubscriberRecord>> {
-        let clean = email.trim().to_ascii_lowercase();
-        if clean.is_empty() {
-            return Ok(None);
+    /// Sends a one-time emailed confirmation / magic unlock link for a gated post instead of
+    /// granting unlock access or revealing subscriber presence synchronously from an email string.
+    pub fn request_subscriber_magic_unlock(
+        &self,
+        email_raw: &str,
+        source_url_raw: &str,
+        ip_hash: &str,
+    ) -> std::result::Result<(), AppError> {
+        let email = email_raw.trim().to_ascii_lowercase();
+        if email.is_empty()
+            || !email.contains('@')
+            || !email.contains('.')
+            || email.contains([' ', ',', ';', '<', '>'])
+        {
+            return Err(AppError::BadRequest(
+                "Please enter a valid email address.".to_string(),
+            ));
         }
-        let conn = self.conn.lock().unwrap();
-        let rec = conn
-            .query_row(
-                r#"SELECT id, email, name, status, lists_json, confirm_token, unsubscribe_token, source_url, confirmed_at, unsubscribed_at, created_at
-                   FROM daypress_subscribers
-                   WHERE email = ?1 COLLATE NOCASE AND status = 'subscribed'
-                   LIMIT 1"#,
-                params![clean],
-                |r| Self::map_subscriber_row(r, true),
-            )
-            .ok();
-        Ok(rec)
+        let safe_source = sanitize_internal_return_url(source_url_raw);
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        let (base_url, site_title, name, magic_token, is_existing_subscribed) = {
+            let conn = self.conn.lock().unwrap();
+            Self::activate_builtin_plugin_with_conn(&conn, "daypress-newsletters");
+            let base_url = Self::get_base_url_with_conn(&conn);
+            let site_title: String = conn
+                .query_row(
+                    "SELECT option_value FROM options WHERE option_name = 'blogname'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or_else(|_| "Daypress".to_string());
+
+            let existing: Option<(i64, String, String)> = conn
+                .query_row(
+                    "SELECT id, status, name FROM daypress_subscribers WHERE email = ?1 COLLATE NOCASE",
+                    params![email],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .ok();
+
+            let magic_token = generate_subscriber_token(&email, "magic_unlock");
+            if let Some((sub_id, old_status, sub_name)) = existing {
+                let is_sub = old_status == "subscribed";
+                let target_status = if is_sub { "subscribed" } else { "pending" };
+                conn.execute(
+                    r#"UPDATE daypress_subscribers
+                       SET status = ?1,
+                           confirm_token = ?2,
+                           source_url = CASE WHEN ?3 != '' THEN ?3 ELSE source_url END
+                       WHERE id = ?4"#,
+                    params![target_status, magic_token, safe_source, sub_id],
+                )?;
+                (base_url, site_title, sub_name, magic_token, is_sub)
+            } else {
+                let unsub_token = generate_subscriber_token(&email, "unsubscribe");
+                conn.execute(
+                    r#"INSERT INTO daypress_subscribers
+                       (email, name, status, lists_json, confirm_token, unsubscribe_token, source_url, ip_hash, confirmed_at, created_at)
+                       VALUES (?1, '', 'pending', '["general"]', ?2, ?3, ?4, ?5, NULL, ?6)"#,
+                    params![email, magic_token, unsub_token, safe_source, ip_hash, now],
+                )?;
+                (base_url, site_title, String::new(), magic_token, false)
+            }
+        };
+
+        self.send_confirmation_or_magic_link_email(
+            &base_url,
+            &site_title,
+            &email,
+            &name,
+            &magic_token,
+            is_existing_subscribed,
+        );
+        Ok(())
     }
 
     /// Lists subscribers for the Admin Portal (`/d-admin/newsletters`), REST API, and MCP tools.

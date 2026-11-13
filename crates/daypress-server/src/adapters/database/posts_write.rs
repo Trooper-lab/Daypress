@@ -102,8 +102,25 @@ impl Database {
             .unwrap_or_else(|| Self::get_default_language_code_with_conn(&conn));
         let slug = Self::unique_post_slug_for_lang(&conn, &desired, None, &req_lang)?;
 
+        let is_pw = !req.password.as_deref().unwrap_or("").trim().is_empty();
+        let is_gated = matches!(
+            req.member_gate
+                .as_deref()
+                .map(str::trim)
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
+            Some("subscribers_only" | "members_only")
+        );
         let excerpt = req.excerpt.clone().unwrap_or_else(|| {
-            if req.content.chars().count() > 140 {
+            if is_pw {
+                String::new()
+            } else if is_gated {
+                if let Some(more_idx) = req.content.find("<!--more-->") {
+                    req.content[..more_idx].to_string()
+                } else {
+                    String::new()
+                }
+            } else if req.content.chars().count() > 140 {
                 let prefix: String = req.content.chars().take(140).collect();
                 format!("{}...", prefix)
             } else {

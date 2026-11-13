@@ -253,12 +253,26 @@ pub(crate) async fn analyze_import_handler(
 pub(crate) async fn get_layout_handler(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<Value>, AppError> {
-    // Layouts of unpublished posts are only readable by content editors.
-    if let Some(post) = db.get_post_by_id(id)? {
-        if !crate::auth::can_view_status(&post.status, user.as_ref()) {
+    // Layouts of unpublished posts are hidden (404), and passworded/member-gated layouts
+    // require authorized viewer credentials.
+    if let Some(mut post) = db.get_post_by_id(id)? {
+        if !crate::auth::can_view_post(&post, user.as_ref()) {
             return Err(AppError::NotFound(format!("Post {} not found", id)));
+        }
+        let (_is_restricted, is_locked) = crate::handlers::public_ssr::apply_content_access_guards(
+            &db,
+            &mut post,
+            user.as_ref(),
+            &headers,
+        );
+        if is_locked {
+            return Err(AppError::Forbidden(
+                "Authentication or subscription is required to access this protected layout."
+                    .to_string(),
+            ));
         }
     }
     let layout_opt = db.get_post_layout(id)?;

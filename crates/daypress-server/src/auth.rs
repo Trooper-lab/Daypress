@@ -627,6 +627,26 @@ pub fn can_view_status(status: &str, user: Option<&AuthUser>) -> bool {
     }
 }
 
+/// Strict post-level visibility check: published/inherited items are public, trash is hidden,
+/// and drafts/pending/future/private items are visible only to Editors/Admins or the item's own author.
+pub fn can_view_post(post: &crate::models::DaypressPostResponse, user: Option<&AuthUser>) -> bool {
+    match post.status.trim().to_ascii_lowercase().as_str() {
+        "publish" | "inherit" => true,
+        "trash" => false,
+        _ => user.is_some_and(|u| {
+            u.is_editor_or_above() || (u.can_edit_content() && post.author == u.user_id)
+        }),
+    }
+}
+
+/// Whether the user may bypass post passwords and member-gate paywalls on `post`.
+pub fn can_bypass_content_locks(
+    post: &crate::models::DaypressPostResponse,
+    user: Option<&AuthUser>,
+) -> bool {
+    user.is_some_and(|u| u.can_edit_post(post.author, &post.status, &post.post_type))
+}
+
 /// Extractor for endpoints that require a content-editing role (not a subscriber).
 #[derive(Debug, Clone)]
 pub struct EditorUser(pub AuthUser);

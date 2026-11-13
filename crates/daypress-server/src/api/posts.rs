@@ -20,9 +20,26 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
+fn filter_and_redact_posts(
+    db: &Database,
+    posts: Vec<DaypressPostResponse>,
+    user: Option<&AuthUser>,
+    headers: &HeaderMap,
+) -> Vec<DaypressPostResponse> {
+    posts
+        .into_iter()
+        .filter(|p| crate::auth::can_view_post(p, user))
+        .map(|mut p| {
+            crate::handlers::public_ssr::redact_post_for_api(db, &mut p, user, headers);
+            p
+        })
+        .collect()
+}
+
 pub(crate) async fn list_posts(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     Query(mut params): Query<PostQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<DaypressPostResponse>>), AppError> {
     restrict_status_for_visitor(&mut params, user.as_ref());
@@ -34,10 +51,12 @@ pub(crate) async fn list_posts(
             && params.categories.is_none()
             && params.tags.is_none()
         {
-            let p = db
-                .get_post_by_slug(slug)?
-                .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()));
-            let vec: Vec<DaypressPostResponse> = p.into_iter().collect();
+            let vec = filter_and_redact_posts(
+                &db,
+                db.get_post_by_slug(slug)?.into_iter().collect(),
+                user.as_ref(),
+                &headers,
+            );
             let total = vec.len() as i64;
             return Ok(rest_list_response(vec, total, per_page as i64));
         }
@@ -65,16 +84,35 @@ pub(crate) async fn list_posts(
         offset,
         per_page,
     )?;
-    Ok(rest_list_response(posts, total as i64, per_page as i64))
+    let safe_posts = filter_and_redact_posts(&db, posts, user.as_ref(), &headers);
+    let adjusted_total = if user.is_some_and(|u| u.is_editor_or_above()) {
+        total as i64
+    } else {
+        safe_posts.len().max(total.min(safe_posts.len())) as i64
+    };
+    Ok(rest_list_response(
+        safe_posts,
+        adjusted_total,
+        per_page as i64,
+    ))
 }
 
 pub(crate) async fn get_post(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
     match db.get_post_by_id(id)? {
-        Some(post) if crate::auth::can_view_status(&post.status, user.as_ref()) => Ok(Json(post)),
+        Some(mut post) if crate::auth::can_view_post(&post, user.as_ref()) => {
+            crate::handlers::public_ssr::redact_post_for_api(
+                &db,
+                &mut post,
+                user.as_ref(),
+                &headers,
+            );
+            Ok(Json(post))
+        }
         _ => Err(AppError::NotFound(format!("Post {} not found", id))),
     }
 }
@@ -209,6 +247,7 @@ pub(crate) async fn delete_post(
 pub(crate) async fn list_pages(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     Query(mut params): Query<PostQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<DaypressPostResponse>>), AppError> {
     restrict_status_for_visitor(&mut params, user.as_ref());
@@ -235,19 +274,35 @@ pub(crate) async fn list_pages(
         offset,
         per_page,
     )?;
-    Ok(rest_list_response(pages, total as i64, per_page as i64))
+    let safe_pages = filter_and_redact_posts(&db, pages, user.as_ref(), &headers);
+    let adjusted_total = if user.is_some_and(|u| u.is_editor_or_above()) {
+        total as i64
+    } else {
+        safe_pages.len() as i64
+    };
+    Ok(rest_list_response(
+        safe_pages,
+        adjusted_total,
+        per_page as i64,
+    ))
 }
 
 pub(crate) async fn get_page(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     AxPath(id): AxPath<i64>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
     match db.get_post_by_id(id)? {
-        Some(page)
-            if page.post_type == "page"
-                && crate::auth::can_view_status(&page.status, user.as_ref()) =>
+        Some(mut page)
+            if page.post_type == "page" && crate::auth::can_view_post(&page, user.as_ref()) =>
         {
+            crate::handlers::public_ssr::redact_post_for_api(
+                &db,
+                &mut page,
+                user.as_ref(),
+                &headers,
+            );
             Ok(Json(page))
         }
         _ => Err(AppError::NotFound(format!("Page {} not found", id))),
@@ -424,6 +479,7 @@ fn resolve_rest_cpt_slug(db: &Database, raw_slug: &str) -> Result<String, AppErr
 pub(crate) async fn list_cpt_posts(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     AxPath(cpt_slug): AxPath<String>,
     Query(mut params): Query<PostQueryParams>,
 ) -> Result<(HeaderMap, Json<Vec<DaypressPostResponse>>), AppError> {
@@ -452,20 +508,37 @@ pub(crate) async fn list_cpt_posts(
         offset,
         per_page,
     )?;
-    Ok(rest_list_response(items, total as i64, per_page as i64))
+    let safe_items = filter_and_redact_posts(&db, items, user.as_ref(), &headers);
+    let adjusted_total = if user.is_some_and(|u| u.is_editor_or_above()) {
+        total as i64
+    } else {
+        safe_items.len() as i64
+    };
+    Ok(rest_list_response(
+        safe_items,
+        adjusted_total,
+        per_page as i64,
+    ))
 }
 
 pub(crate) async fn get_cpt_post(
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: HeaderMap,
     AxPath((cpt_slug, id)): AxPath<(String, i64)>,
 ) -> Result<Json<DaypressPostResponse>, AppError> {
     let post_type = resolve_rest_cpt_slug(&db, &cpt_slug)?;
     match db.get_post_by_id(id)? {
-        Some(item)
+        Some(mut item)
             if item.post_type.eq_ignore_ascii_case(&post_type)
-                && crate::auth::can_view_status(&item.status, user.as_ref()) =>
+                && crate::auth::can_view_post(&item, user.as_ref()) =>
         {
+            crate::handlers::public_ssr::redact_post_for_api(
+                &db,
+                &mut item,
+                user.as_ref(),
+                &headers,
+            );
             Ok(Json(item))
         }
         _ => Err(AppError::NotFound(format!(

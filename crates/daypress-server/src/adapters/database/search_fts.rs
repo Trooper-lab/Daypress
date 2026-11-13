@@ -623,37 +623,56 @@ impl Database {
                     continue;
                 }
                 Self::hydrate_post_relations(&conn, &mut post, &base_url);
-                let plain_body = conn
-                    .query_row(
-                        "SELECT post_content FROM posts_fts WHERE rowid = ?1",
-                        params![pid],
-                        |r| r.get::<_, String>(0),
-                    )
-                    .unwrap_or_else(|_| strip_html_for_fts(&post.content.rendered));
-                let (_, reading_time_minutes) = estimate_reading_time_minutes(&plain_body);
-
-                let snippet_html = if typo_matched {
-                    if raw_snippet.trim().is_empty() {
-                        highlight_terms_in_plain_text(&plain_body, &highlight_terms, 160)
+                if !post.password.trim().is_empty() {
+                    continue;
+                }
+                let is_gated = post.is_content_restricted();
+                let (plain_body, reading_time_minutes, snippet_html, excerpt_plain) = if is_gated {
+                    let teaser_src = if let Some(idx) = post.content.rendered.find("<!--more-->") {
+                        strip_html_for_fts(&post.content.rendered[..idx])
+                    } else if !post.excerpt.rendered.trim().is_empty() {
+                        strip_html_for_fts(&post.excerpt.rendered)
                     } else {
-                        raw_snippet
-                    }
+                        "Subscriber-exclusive article.".to_string()
+                    };
+                    let (_, mins) = estimate_reading_time_minutes(&teaser_src);
+                    let snip = escape_html(&teaser_src.chars().take(160).collect::<String>());
+                    (teaser_src.clone(), mins, snip, teaser_src)
                 } else {
-                    let clean_snip = escape_html(&raw_snippet)
-                        .replace("[[DP_HL_START]]", "<mark class=\"dp-search-hl\">")
-                        .replace("[[DP_HL_END]]", "</mark>");
-                    if clean_snip.trim().is_empty() {
-                        highlight_terms_in_plain_text(&plain_body, &highlight_terms, 160)
-                    } else {
-                        clean_snip
-                    }
-                };
+                    let plain_body = conn
+                        .query_row(
+                            "SELECT post_content FROM posts_fts WHERE rowid = ?1",
+                            params![pid],
+                            |r| r.get::<_, String>(0),
+                        )
+                        .unwrap_or_else(|_| strip_html_for_fts(&post.content.rendered));
+                    let (_, reading_time_minutes) = estimate_reading_time_minutes(&plain_body);
 
-                let excerpt_plain = if !post.excerpt.rendered.trim().is_empty() {
-                    strip_html_for_fts(&post.excerpt.rendered)
-                } else {
-                    plain_body.chars().take(150).collect::<String>()
+                    let snippet_html = if typo_matched {
+                        if raw_snippet.trim().is_empty() {
+                            highlight_terms_in_plain_text(&plain_body, &highlight_terms, 160)
+                        } else {
+                            raw_snippet
+                        }
+                    } else {
+                        let clean_snip = escape_html(&raw_snippet)
+                            .replace("[[DP_HL_START]]", "<mark class=\"dp-search-hl\">")
+                            .replace("[[DP_HL_END]]", "</mark>");
+                        if clean_snip.trim().is_empty() {
+                            highlight_terms_in_plain_text(&plain_body, &highlight_terms, 160)
+                        } else {
+                            clean_snip
+                        }
+                    };
+
+                    let excerpt_plain = if !post.excerpt.rendered.trim().is_empty() {
+                        strip_html_for_fts(&post.excerpt.rendered)
+                    } else {
+                        plain_body.chars().take(150).collect::<String>()
+                    };
+                    (plain_body, reading_time_minutes, snippet_html, excerpt_plain)
                 };
+                let _ = plain_body;
 
                 let post_type_label =
                     cpt_labels.get(&post.post_type).cloned().unwrap_or_else(|| {

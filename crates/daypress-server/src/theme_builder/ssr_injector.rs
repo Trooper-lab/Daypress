@@ -1126,7 +1126,7 @@ impl SsrInjector {
             });
         let active_page = ctx.collection_page.unwrap_or(1).max(1);
 
-        let (posts, total_items, resolved_filter_tax, term_counts) = db
+        let (mut posts, total_items, resolved_filter_tax, term_counts) = db
             .query_collection_posts(
                 post_type,
                 resolved_tax.as_deref(),
@@ -1138,6 +1138,10 @@ impl SsrInjector {
                 &ctx.settings.url,
             )
             .unwrap_or_else(|_| (Vec::new(), 0, String::new(), Vec::new()));
+        let empty_headers = axum::http::HeaderMap::new();
+        for p in &mut posts {
+            crate::handlers::public_ssr::redact_post_for_api(db, p, None, &empty_headers);
+        }
         if resolved_tax.is_none() && !resolved_filter_tax.is_empty() {
             // Keep resolved_filter_tax for pill links
         }

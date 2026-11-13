@@ -78,6 +78,17 @@ pub struct DaypressPostResponse {
     pub member_gate: String,
 }
 
+impl DaypressPostResponse {
+    /// Returns `true` when the post requires a password or member/subscriber authentication.
+    pub fn is_content_restricted(&self) -> bool {
+        !self.password.trim().is_empty()
+            || matches!(
+                self.member_gate.trim().to_ascii_lowercase().as_str(),
+                "subscribers_only" | "members_only"
+            )
+    }
+}
+
 pub fn default_member_gate() -> String {
     "public".to_string()
 }

@@ -358,7 +358,9 @@ pub async fn handle_cpt_single(
         return (status, resp_headers, Html(String::new())).into_response();
     }
 
-    if user.is_none() {
+    if user.is_none()
+        && crate::handlers::public_ssr::extract_subscriber_token(&headers, None).is_none()
+    {
         if let Some(hit) = db.hot_cache.try_serve(&req_path, &headers) {
             return hit;
         }
@@ -370,45 +372,59 @@ pub async fn handle_cpt_single(
     } else {
         db.get_post_by_slug(clean_slug).ok().flatten()
     };
-    if let Some(mut post) =
-        matched_post.filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
-    {
-        if post.template == "page_templates/leeg.php"
-            || post
-                .content
-                .rendered
-                .trim_start()
-                .starts_with("<!DOCTYPE html")
+    if let Some(mut post) = matched_post.filter(|p| crate::auth::can_view_post(p, user.as_ref())) {
+        let (is_restricted, is_locked) =
+            crate::handlers::public_ssr::apply_content_access_guards(
+                &db,
+                &mut post,
+                user.as_ref(),
+                &headers,
+            );
+        if !is_locked
+            && (post.template == "page_templates/leeg.php"
+                || post
+                    .content
+                    .rendered
+                    .trim_start()
+                    .starts_with("<!DOCTYPE html"))
         {
             return db.hot_cache.store_and_serve(
                 &req_path,
                 &headers,
-                user.is_some(),
+                user.is_some() || is_restricted,
                 post.content.rendered,
             );
         }
         let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
-            &post.content.rendered,
-            &db,
-            &settings,
-            Some(&post),
-        );
+        let expanded = if raw_layout.is_none() || is_locked {
+            crate::plugins::expand_shortcodes_in_content_for_post(
+                &post.content.rendered,
+                &db,
+                &settings,
+                Some(&post),
+            )
+        } else {
+            post.content.rendered.clone()
+        };
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html
         );
         let terms = hydrate_post_terms(&db, &post);
         let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
-        let layout_json = SsrInjector::hydrate_post_layout_json(
-            &db,
-            &req_ctx,
-            &settings,
-            Some(&post),
-            raw_layout.as_deref(),
-        )
-        .or(raw_layout);
+        let layout_json = if is_locked {
+            None
+        } else {
+            SsrInjector::hydrate_post_layout_json(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&post),
+                raw_layout.as_deref(),
+            )
+            .or(raw_layout)
+        };
         let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
             &db,
             &req_ctx,
@@ -424,9 +440,12 @@ pub async fn handle_cpt_single(
         );
         let final_html =
             crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
-        return db
-            .hot_cache
-            .store_and_serve(&req_path, &headers, user.is_some(), final_html);
+        return db.hot_cache.store_and_serve(
+            &req_path,
+            &headers,
+            user.is_some() || is_restricted,
+            final_html,
+        );
     }
 
     if db.is_registered_language_code(pt) {
@@ -483,7 +502,9 @@ pub async fn handle_localized_cpt_single(
     let clean_slug = slug.trim_matches('/');
     let req_path = format!("/{}/{}/{}/", clean_lang, clean_pt, clean_slug);
 
-    if user.is_none() {
+    if user.is_none()
+        && crate::handlers::public_ssr::extract_subscriber_token(&headers, None).is_none()
+    {
         if let Some(hit) = db.hot_cache.try_serve(&req_path, &headers) {
             return hit;
         }
@@ -576,31 +597,59 @@ pub async fn handle_localized_cpt_single(
         db.get_post_by_slug(clean_slug).ok().flatten()
     };
 
-    if let Some(mut post) =
-        matched_post.filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
-    {
+    if let Some(mut post) = matched_post.filter(|p| crate::auth::can_view_post(p, user.as_ref())) {
+        let (is_restricted, is_locked) =
+            crate::handlers::public_ssr::apply_content_access_guards(
+                &db,
+                &mut post,
+                user.as_ref(),
+                &headers,
+            );
+        if !is_locked
+            && (post.template == "page_templates/leeg.php"
+                || post
+                    .content
+                    .rendered
+                    .trim_start()
+                    .starts_with("<!DOCTYPE html"))
+        {
+            return db.hot_cache.store_and_serve(
+                &req_path,
+                &headers,
+                user.is_some() || is_restricted,
+                post.content.rendered,
+            );
+        }
         let raw_layout = db.get_post_layout(post.id).unwrap_or(None);
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
-            &post.content.rendered,
-            &db,
-            &settings,
-            Some(&post),
-        );
+        let expanded = if raw_layout.is_none() || is_locked {
+            crate::plugins::expand_shortcodes_in_content_for_post(
+                &post.content.rendered,
+                &db,
+                &settings,
+                Some(&post),
+            )
+        } else {
+            post.content.rendered.clone()
+        };
         post.content.rendered = format!(
             "{}{}{}",
             hooks.content_before_html, expanded, hooks.content_after_html
         );
         let terms = hydrate_post_terms(&db, &post);
         let req_ctx = RequestContext::for_post(post.id, &post.post_type, false, terms);
-        let layout_json = SsrInjector::hydrate_post_layout_json(
-            &db,
-            &req_ctx,
-            &settings,
-            Some(&post),
-            raw_layout.as_deref(),
-        )
-        .or(raw_layout);
+        let layout_json = if is_locked {
+            None
+        } else {
+            SsrInjector::hydrate_post_layout_json(
+                &db,
+                &req_ctx,
+                &settings,
+                Some(&post),
+                raw_layout.as_deref(),
+            )
+            .or(raw_layout)
+        };
         let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
             &db,
             &req_ctx,
@@ -616,9 +665,12 @@ pub async fn handle_localized_cpt_single(
         );
         let final_html =
             crate::plugins::inject_plugin_hooks_into_html(&db, &settings, Some(&post), html);
-        return db
-            .hot_cache
-            .store_and_serve(&req_path, &headers, user.is_some(), final_html);
+        return db.hot_cache.store_and_serve(
+            &req_path,
+            &headers,
+            user.is_some() || is_restricted,
+            final_html,
+        );
     }
 
     if let Some(resp) = super::taxonomy_archive_render::try_handle_taxonomy_archive(

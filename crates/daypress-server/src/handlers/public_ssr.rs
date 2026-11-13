@@ -212,16 +212,26 @@ pub async fn handle_home_or_query(
             .get_post_by_id(id)
             .ok()
             .flatten()
-            .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+            .filter(|p| crate::auth::can_view_post(p, user.as_ref()))
         {
+            let (is_restricted, is_locked) =
+                apply_content_access_guards(&db, &mut post, user.as_ref(), &headers);
+            if !is_locked
+                && (post.template == "page_templates/leeg.php"
+                    || post
+                        .content
+                        .rendered
+                        .trim_start()
+                        .starts_with("<!DOCTYPE html"))
+            {
+                return db.hot_cache.store_and_serve(
+                    &cache_key,
+                    &headers,
+                    user.is_some() || has_dp_filter || is_restricted,
+                    post.content.rendered,
+                );
+            }
             let raw_layout = db.get_post_layout(id).unwrap_or(None);
-            let (is_gated, is_gate_locked) = apply_member_gate_to_post(
-                &db,
-                &mut post,
-                user.as_ref(),
-                &headers,
-                params.subscriber_token.as_deref(),
-            );
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
             let expanded = crate::plugins::expand_shortcodes_in_content_for_post(
                 &post.content.rendered,
@@ -240,7 +250,7 @@ pub async fn handle_home_or_query(
                 settings.page_on_front > 0 && post.id == settings.page_on_front,
                 terms,
             );
-            let layout_json = if is_gate_locked {
+            let layout_json = if is_locked {
                 None
             } else {
                 SsrInjector::hydrate_post_layout_json_with_query(
@@ -278,7 +288,7 @@ pub async fn handle_home_or_query(
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some() || has_dp_filter || is_gated || !ab_assignments.is_empty(),
+                user.is_some() || has_dp_filter || is_restricted || !ab_assignments.is_empty(),
                 final_html,
             );
         } else {
@@ -301,11 +311,28 @@ pub async fn handle_home_or_query(
             .get_post_by_id(id)
             .ok()
             .flatten()
-            .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+            .filter(|p| crate::auth::can_view_post(p, user.as_ref()))
         {
+            let (is_restricted, is_locked) =
+                apply_content_access_guards(&db, &mut page, user.as_ref(), &headers);
+            if !is_locked
+                && (page.template == "page_templates/leeg.php"
+                    || page
+                        .content
+                        .rendered
+                        .trim_start()
+                        .starts_with("<!DOCTYPE html"))
+            {
+                return db.hot_cache.store_and_serve(
+                    &cache_key,
+                    &headers,
+                    user.is_some() || has_dp_filter || is_restricted,
+                    page.content.rendered,
+                );
+            }
             let raw_layout = db.get_post_layout(id).unwrap_or(None);
             let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&page));
-            let expanded = if raw_layout.is_none() {
+            let expanded = if raw_layout.is_none() || is_locked {
                 crate::plugins::expand_shortcodes_in_content(&page.content.rendered, &db, &settings)
             } else {
                 page.content.rendered.clone()
@@ -320,19 +347,23 @@ pub async fn handle_home_or_query(
                 settings.page_on_front > 0 && page.id == settings.page_on_front,
                 vec![],
             );
-            let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
-                &db,
-                &req_ctx,
-                &settings,
-                Some(&page),
-                raw_layout.as_deref(),
-                params.dp_tax.clone(),
-                params.dp_term.clone(),
-                params.dp_sort.clone(),
-                params.dp_q.clone(),
-                params.dp_page,
-            )
-            .or(raw_layout);
+            let layout_json = if is_locked {
+                None
+            } else {
+                SsrInjector::hydrate_post_layout_json_with_query(
+                    &db,
+                    &req_ctx,
+                    &settings,
+                    Some(&page),
+                    raw_layout.as_deref(),
+                    params.dp_tax.clone(),
+                    params.dp_term.clone(),
+                    params.dp_sort.clone(),
+                    params.dp_q.clone(),
+                    params.dp_page,
+                )
+                .or(raw_layout)
+            };
             let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                 &db,
                 &req_ctx,
@@ -361,7 +392,7 @@ pub async fn handle_home_or_query(
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some() || has_dp_filter || !ab_assignments.is_empty(),
+                user.is_some() || has_dp_filter || is_restricted || !ab_assignments.is_empty(),
                 final_html,
             );
         } else {
@@ -384,12 +415,14 @@ pub async fn handle_home_or_query(
             .get_post_by_id(settings.page_on_front)
             .ok()
             .flatten()
-            .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+            .filter(|p| crate::auth::can_view_post(p, user.as_ref()))
         {
+            let (is_restricted, is_locked) =
+                apply_content_access_guards(&db, &mut front_page, user.as_ref(), &headers);
             let raw_layout = db.get_post_layout(front_page.id).unwrap_or(None);
             let hooks =
                 crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&front_page));
-            let expanded = if raw_layout.is_none() {
+            let expanded = if raw_layout.is_none() || is_locked {
                 crate::plugins::expand_shortcodes_in_content(
                     &front_page.content.rendered,
                     &db,
@@ -403,19 +436,23 @@ pub async fn handle_home_or_query(
                 hooks.content_before_html, expanded, hooks.content_after_html
             );
             let req_ctx = RequestContext::for_front_page_post(front_page.id, &front_page.post_type);
-            let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
-                &db,
-                &req_ctx,
-                &settings,
-                Some(&front_page),
-                raw_layout.as_deref(),
-                params.dp_tax.clone(),
-                params.dp_term.clone(),
-                params.dp_sort.clone(),
-                params.dp_q.clone(),
-                params.dp_page,
-            )
-            .or(raw_layout);
+            let layout_json = if is_locked {
+                None
+            } else {
+                SsrInjector::hydrate_post_layout_json_with_query(
+                    &db,
+                    &req_ctx,
+                    &settings,
+                    Some(&front_page),
+                    raw_layout.as_deref(),
+                    params.dp_tax.clone(),
+                    params.dp_term.clone(),
+                    params.dp_sort.clone(),
+                    params.dp_q.clone(),
+                    params.dp_page,
+                )
+                .or(raw_layout)
+            };
             let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                 &db,
                 &req_ctx,
@@ -448,7 +485,7 @@ pub async fn handle_home_or_query(
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some() || has_dp_filter || !ab_assignments.is_empty(),
+                user.is_some() || has_dp_filter || is_restricted || !ab_assignments.is_empty(),
                 final_html,
             );
         }
@@ -545,7 +582,7 @@ pub async fn handle_single_paged(
         .get_post_by_slug(clean_slug)
         .ok()
         .flatten()
-        .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+        .filter(|p| crate::auth::can_view_post(p, user.as_ref()))
         .filter(|p| settings.show_on_front == "page" && p.id == settings.page_for_posts)
         .filter(|_| page >= 1);
     match posts_page {
@@ -727,11 +764,13 @@ pub async fn handle_single(
     // 1b. Multilingual Locale Prefix Front Page (e.g., `/de/` or `/nl/`)
     if db.is_registered_language_code(clean_slug) {
         if let Ok(Some(mut loc_front)) = db.get_localized_front_page(clean_slug) {
-            if crate::auth::can_view_status(&loc_front.status, user.as_ref()) {
+            if crate::auth::can_view_post(&loc_front, user.as_ref()) {
+                let (is_restricted, is_locked) =
+                    apply_content_access_guards(&db, &mut loc_front, user.as_ref(), &headers);
                 let raw_layout = db.get_post_layout(loc_front.id).unwrap_or(None);
                 let hooks =
                     crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&loc_front));
-                let expanded = if raw_layout.is_none() {
+                let expanded = if raw_layout.is_none() || is_locked {
                     crate::plugins::expand_shortcodes_in_content_for_post(
                         &loc_front.content.rendered,
                         &db,
@@ -747,19 +786,23 @@ pub async fn handle_single(
                 );
                 let req_ctx =
                     RequestContext::for_front_page_post(loc_front.id, &loc_front.post_type);
-                let layout_json = SsrInjector::hydrate_post_layout_json_with_query(
-                    &db,
-                    &req_ctx,
-                    &settings,
-                    Some(&loc_front),
-                    raw_layout.as_deref(),
-                    paged.dp_tax.clone(),
-                    paged.dp_term.clone(),
-                    paged.dp_sort.clone(),
-                    paged.dp_q.clone(),
-                    paged.dp_page,
-                )
-                .or(raw_layout);
+                let layout_json = if is_locked {
+                    None
+                } else {
+                    SsrInjector::hydrate_post_layout_json_with_query(
+                        &db,
+                        &req_ctx,
+                        &settings,
+                        Some(&loc_front),
+                        raw_layout.as_deref(),
+                        paged.dp_tax.clone(),
+                        paged.dp_term.clone(),
+                        paged.dp_sort.clone(),
+                        paged.dp_q.clone(),
+                        paged.dp_page,
+                    )
+                    .or(raw_layout)
+                };
                 let partials = SsrInjector::resolve_and_hydrate_partials_with_post(
                     &db,
                     &req_ctx,
@@ -782,7 +825,7 @@ pub async fn handle_single(
                 return db.hot_cache.store_and_serve(
                     &cache_key,
                     &headers,
-                    user.is_some() || has_dp_filter,
+                    user.is_some() || has_dp_filter || is_restricted,
                     final_html,
                 );
             }
@@ -821,7 +864,7 @@ pub async fn handle_single(
         .get_post_by_slug(&slug)
         .ok()
         .flatten()
-        .filter(|p| crate::auth::can_view_status(&p.status, user.as_ref()))
+        .filter(|p| crate::auth::can_view_post(p, user.as_ref()))
     {
         // WordPress canonical redirect: when a static front page is configured,
         // direct requests to /{front-page-slug}/ (e.g., /home/) 301 redirect to /
@@ -841,17 +884,21 @@ pub async fn handle_single(
             )
                 .into_response();
         }
-        if post.template == "page_templates/leeg.php"
-            || post
-                .content
-                .rendered
-                .trim_start()
-                .starts_with("<!DOCTYPE html")
+        // Enforce password & member-gate locks BEFORE leeg.php / raw <!DOCTYPE html> bypasses!
+        let (is_restricted, is_locked) =
+            apply_content_access_guards(&db, &mut post, user.as_ref(), &headers);
+        if !is_locked
+            && (post.template == "page_templates/leeg.php"
+                || post
+                    .content
+                    .rendered
+                    .trim_start()
+                    .starts_with("<!DOCTYPE html"))
         {
             return db.hot_cache.store_and_serve(
                 &cache_key,
                 &headers,
-                user.is_some(),
+                user.is_some() || has_dp_filter || is_restricted,
                 post.content.rendered,
             );
         }
@@ -873,16 +920,8 @@ pub async fn handle_single(
             );
         }
 
-        let (is_gated, is_gate_locked) = apply_member_gate_to_post(
-            &db,
-            &mut post,
-            user.as_ref(),
-            &headers,
-            paged.subscriber_token.as_deref(),
-        );
-
         let hooks = crate::plugins::render_active_plugin_hooks(&db, &settings, Some(&post));
-        let expanded = if raw_layout.is_none() || is_gate_locked {
+        let expanded = if raw_layout.is_none() || is_locked {
             crate::plugins::expand_shortcodes_in_content_for_post(
                 &post.content.rendered,
                 &db,
@@ -904,7 +943,7 @@ pub async fn handle_single(
             settings.page_on_front > 0 && post.id == settings.page_on_front,
             terms,
         );
-        let layout_json = if is_gate_locked {
+        let layout_json = if is_locked {
             None
         } else {
             SsrInjector::hydrate_post_layout_json_with_query(
@@ -950,7 +989,7 @@ pub async fn handle_single(
         return db.hot_cache.store_and_serve(
             &cache_key,
             &headers,
-            user.is_some() || has_dp_filter || is_gated || !ab_assignments.is_empty(),
+            user.is_some() || has_dp_filter || is_restricted || !ab_assignments.is_empty(),
             final_html,
         );
     }
@@ -1072,11 +1111,9 @@ pub fn compute_visitor_hash_from_headers(headers: &HeaderMap) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Extracts a newsletter subscriber verification token from `?subscriber_token=` or `Cookie: daypress_subscriber=...`.
-pub fn extract_subscriber_token(headers: &HeaderMap, query_token: Option<&str>) -> Option<String> {
-    if let Some(qt) = query_token.map(str::trim).filter(|s| !s.is_empty()) {
-        return Some(qt.to_string());
-    }
+/// Extracts the `daypress_subscriber` session cookie (query parameters are intentionally
+/// ignored so subscriber credentials cannot leak into URLs, Referer headers, or server logs).
+pub fn extract_subscriber_token(headers: &HeaderMap, _query_token: Option<&str>) -> Option<String> {
     let cookie_hdr = headers.get(header::COOKIE)?.to_str().ok()?;
     for part in cookie_hdr.split(';') {
         let trimmed = part.trim();
@@ -1090,6 +1127,44 @@ pub fn extract_subscriber_token(headers: &HeaderMap, query_token: Option<&str>) 
     None
 }
 
+/// Applies both post-password protection and `post.member_gate`, redacting protected body/ACF
+/// fields when the viewer is unauthorized and stripping `post.password` for non-editors.
+/// Returns `(is_restricted, is_locked)`.
+pub fn apply_content_access_guards(
+    db: &Database,
+    post: &mut models::DaypressPostResponse,
+    user: Option<&crate::auth::AuthUser>,
+    headers: &HeaderMap,
+) -> (bool, bool) {
+    let can_bypass = crate::auth::can_bypass_content_locks(post, user);
+    let has_password = !post.password.trim().is_empty();
+    if !can_bypass {
+        post.password = String::new();
+    }
+    if has_password && !can_bypass {
+        post.content.rendered = r#"<section class="dp-password-gate-card" style="margin:32px 0;padding:28px;border-radius:12px;border:1px solid #d4d4d8;text-align:center;"><h3>Password Protected</h3><p>This content is password protected.</p></section>"#.to_string();
+        post.content.protected = true;
+        post.excerpt.rendered = String::new();
+        post.excerpt.protected = true;
+        post.seo_description = String::new();
+        post.meta = serde_json::json!({});
+        post.acf = serde_json::json!({});
+        return (true, true);
+    }
+    apply_member_gate_to_post(db, post, user, headers, None)
+}
+
+/// Redacts restricted or password-protected post fields before returning them over REST APIs.
+pub fn redact_post_for_api(
+    db: &Database,
+    post: &mut models::DaypressPostResponse,
+    user: Option<&crate::auth::AuthUser>,
+    headers: &HeaderMap,
+) -> bool {
+    let (_is_restricted, is_locked) = apply_content_access_guards(db, post, user, headers);
+    is_locked
+}
+
 /// Applies `post.member_gate` (`"public"`, `"subscribers_only"`, `"members_only"`).
 /// Returns `(is_gated, is_locked)`. When `is_locked` is `true`, `post.content.rendered` is replaced
 /// with a teaser preview + the Member Gate Paywall / Subscriber Unlock card.
@@ -1098,7 +1173,7 @@ pub fn apply_member_gate_to_post(
     post: &mut models::DaypressPostResponse,
     user: Option<&crate::auth::AuthUser>,
     headers: &HeaderMap,
-    query_subscriber_token: Option<&str>,
+    _query_subscriber_token: Option<&str>,
 ) -> (bool, bool) {
     let gate = post.member_gate.trim().to_ascii_lowercase();
     if gate != "subscribers_only" && gate != "members_only" {
@@ -1109,7 +1184,7 @@ pub fn apply_member_gate_to_post(
         user.is_some()
     } else {
         user.is_some()
-            || extract_subscriber_token(headers, query_subscriber_token)
+            || extract_subscriber_token(headers, None)
                 .is_some_and(|tok| db.verify_subscriber_token(&tok))
     };
 
@@ -1130,7 +1205,17 @@ pub fn apply_member_gate_to_post(
         )
     };
     let gate_card = crate::plugins::render_member_gate_paywall_html(&post.title.rendered, &gate);
+    post.excerpt.rendered = if raw.contains("<!--more-->") {
+        teaser.clone()
+    } else {
+        String::new()
+    };
+    post.excerpt.protected = true;
+    post.seo_description = String::new();
+    post.meta = serde_json::json!({});
     post.content.rendered = format!("{}\n{}", teaser, gate_card);
+    post.content.protected = true;
+    post.acf = serde_json::json!({});
     (true, true)
 }
 
@@ -1142,17 +1227,17 @@ pub async fn handle_newsletter_confirm(
     let settings = db.get_settings().unwrap_or_default();
     match db.confirm_subscriber_by_token(&token) {
         Ok(Some(sub)) => {
-            let cookie_tok = sub
-                .unsubscribe_token
-                .as_deref()
-                .or(sub.confirm_token.as_deref())
-                .unwrap_or(&token);
+            let cookie_tok = db.issue_subscriber_cookie_token(sub.id);
             let cookie_val = format!(
-                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax",
+                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly",
                 cookie_tok
             );
-            let return_url = if sub.source_url.trim().starts_with('/') {
-                sub.source_url.trim().to_string()
+            let trimmed_ret = sub.source_url.trim();
+            let return_url = if trimmed_ret.starts_with('/')
+                && !trimmed_ret.starts_with("//")
+                && !trimmed_ret.starts_with("/\\")
+            {
+                trimmed_ret.to_string()
             } else {
                 "/".to_string()
             };
@@ -1203,7 +1288,7 @@ pub async fn handle_newsletter_unsubscribe(
     match db.unsubscribe_by_token(&token) {
         Ok(Some(sub)) => {
             let mut resp_headers = HeaderMap::new();
-            if let Ok(hv) = "daypress_subscriber=; Path=/; Max-Age=0; SameSite=Lax".parse() {
+            if let Ok(hv) = "daypress_subscriber=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly".parse() {
                 resp_headers.insert(header::SET_COOKIE, hv);
             }
             let html = format!(

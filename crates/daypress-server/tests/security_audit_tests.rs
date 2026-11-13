@@ -841,3 +841,433 @@ async fn step2_webhook_secrets_redacted_in_rest_and_admin_ui() {
     );
     assert_eq!(d.signature_header, expected);
 }
+
+#[tokio::test]
+async fn step3_newsletter_magic_link_no_sync_unlock_no_unsub_cookie_no_enumeration() {
+    use daypress_server::models::NewsletterSubscribeRequest;
+
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+
+    db.create_post(&CreatePostRequest {
+        title: "Subscriber Paywall Article".to_string(),
+        slug: Some("gated-magic-article".to_string()),
+        content: "<p>Public teaser paragraph.</p><!--more--><p>SECRET_MAGIC_PAYWALL_DATA</p>"
+            .to_string(),
+        status: "publish".to_string(),
+        post_type: "post".to_string(),
+        member_gate: Some("subscribers_only".to_string()),
+        ..Default::default()
+    })
+    .expect("create gated post");
+
+    // Pre-existing active subscriber created by admin / confirmed previously
+    let alice = db
+        .subscribe_newsletter_contact(
+            &NewsletterSubscribeRequest {
+                email: "alice-subscriber@example.com".to_string(),
+                name: "Alice".to_string(),
+                lists: vec!["general".to_string()],
+                source_url: "/gated-magic-article/".to_string(),
+                skip_double_opt_in: true,
+            },
+            "127.0.0.1",
+        )
+        .expect("subscribe alice");
+    let old_confirm = alice.confirm_token.clone().expect("confirm_token");
+    let unsub_tok = alice.unsubscribe_token.clone().expect("unsub_token");
+
+    // 1. Forged cookie with raw unsubscribe_token or confirm_token or ?subscriber_token MUST NOT unlock!
+    for hdr_or_qs in [
+        ("cookie", format!("daypress_subscriber={}", unsub_tok)),
+        ("cookie", format!("daypress_subscriber={}", old_confirm)),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/gated-magic-article/")
+                    .header("Cookie", hdr_or_qs.1)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let html = String::from_utf8(to_bytes(res.into_body(), 1024 * 1024).await.unwrap().to_vec())
+            .unwrap();
+        assert!(
+            !html.contains("SECRET_MAGIC_PAYWALL_DATA"),
+            "Raw unsubscribe/confirm token in cookie must never unlock member gate"
+        );
+    }
+
+    // Also `?subscriber_token=` in query string must not unlock even with a real signed token
+    let signed_tok = db.issue_subscriber_cookie_token(alice.id);
+    let qs_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/gated-magic-article/?subscriber_token={}", signed_tok))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let qs_html =
+        String::from_utf8(to_bytes(qs_res.into_body(), 1024 * 1024).await.unwrap().to_vec())
+            .unwrap();
+    assert!(
+        !qs_html.contains("SECRET_MAGIC_PAYWALL_DATA"),
+        "Query string subscriber_token must be ignored to prevent token leakage in URLs"
+    );
+
+    // 2. Attacker posting Alice's email to /newsletters/unlock gets NO cookie, unlocked=false, and uniform response
+    let unlock_existing = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/newsletters/unlock")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "email": "alice-subscriber@example.com",
+                        "source_url": "//evil.example.com/phish"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unlock_existing.status(), StatusCode::OK);
+    assert!(
+        unlock_existing
+            .headers()
+            .get(axum::http::header::SET_COOKIE)
+            .is_none(),
+        "/newsletters/unlock must NOT issue Set-Cookie before email link click"
+    );
+    let existing_json = body_to_json(unlock_existing).await;
+    assert_eq!(existing_json["unlocked"], false);
+    assert_eq!(existing_json["status"], "verification_sent");
+
+    let unlock_unknown = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/newsletters/unlock")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "email": "nonexistent-visitor@example.com",
+                        "source_url": "/gated-magic-article/"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unlock_unknown.status(), StatusCode::OK);
+    assert!(unlock_unknown
+        .headers()
+        .get(axum::http::header::SET_COOKIE)
+        .is_none());
+    let unknown_json = body_to_json(unlock_unknown).await;
+    assert_eq!(
+        existing_json, unknown_json,
+        "/newsletters/unlock must return uniform response without email enumeration"
+    );
+
+    // 3. Public /newsletters/subscribe with existing email OR skip_double_opt_in=true must NOT unlock or set cookie
+    let sub_existing = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/wp-json/daypress/v1/newsletters/subscribe")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "email": "alice-subscriber@example.com",
+                        "skip_double_opt_in": true
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(sub_existing
+        .headers()
+        .get(axum::http::header::SET_COOKIE)
+        .is_none());
+    let sub_existing_json = body_to_json(sub_existing).await;
+    assert_eq!(sub_existing_json["unlocked"], false);
+    assert_eq!(sub_existing_json["status"], "pending");
+
+    // 4. Fetch the rotated magic-link confirm_token generated for Alice & click /newsletter/confirm/{token}
+    let refreshed = db
+        .list_subscribers(Some("subscribed"), None, Some("alice-subscriber@example.com"), true)
+        .unwrap();
+    let magic_tok = refreshed[0].confirm_token.clone().expect("magic token");
+    assert_ne!(magic_tok, old_confirm, "Magic link request must rotate token");
+    // Unsafe source_url (//evil.example.com) must not replace safe source_url
+    assert_eq!(refreshed[0].source_url, "/gated-magic-article/");
+
+    let confirm_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/newsletter/confirm/{}", magic_tok))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(confirm_res.status(), StatusCode::OK);
+    let set_cookie = confirm_res
+        .headers()
+        .get(axum::http::header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .expect("signed subscriber cookie")
+        .to_string();
+    assert!(set_cookie.contains("HttpOnly"), "Subscriber cookie must be HttpOnly");
+    assert!(
+        !set_cookie.contains(&unsub_tok),
+        "Cookie must never contain unsubscribe_token"
+    );
+    assert!(
+        !set_cookie.contains(&magic_tok),
+        "Cookie must never contain confirm_token"
+    );
+
+    // One-time magic link cannot be replayed
+    let replay_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/newsletter/confirm/{}", magic_tok))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(replay_res.status(), StatusCode::NOT_FOUND);
+
+    // Real signed HttpOnly cookie unlocks the article!
+    let cookie_pair = set_cookie.split(';').next().unwrap().to_string();
+    let unlocked_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/gated-magic-article/")
+                .header("Cookie", &cookie_pair)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let unlocked_html =
+        String::from_utf8(to_bytes(unlocked_res.into_body(), 1024 * 1024).await.unwrap().to_vec())
+            .unwrap();
+    assert!(unlocked_html.contains("SECRET_MAGIC_PAYWALL_DATA"));
+}
+
+#[tokio::test]
+async fn step3_member_gate_password_and_draft_isolation_across_ssr_rest_rss_og_search() {
+    let db = Database::new_in_memory().expect("in-memory db");
+    let app = create_app(db.clone());
+    let admin_auth = basic_auth("admin", "admin");
+
+    let contrib = db
+        .create_user(&CreateUserRequest {
+            username: "contrib_s3".to_string(),
+            email: "contrib_s3@example.com".to_string(),
+            password: "Password123!".to_string(),
+            role: Some("contributor".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+    let contrib_auth = basic_auth(&contrib.username, "Password123!");
+
+    // 1. Gated leeg.php / raw <!DOCTYPE html page
+    let raw_gated = db
+        .create_post(&CreatePostRequest {
+            title: "Gated Landing Doc".to_string(),
+            slug: Some("gated-raw-doc".to_string()),
+            content: "<!DOCTYPE html><html><body><p>PUBLIC_GATE_HEAD</p><!--more--><p>SECRET_RAW_HTML_PAYWALL</p></body></html>"
+                .to_string(),
+            status: "publish".to_string(),
+            post_type: "page".to_string(),
+            template: Some("page_templates/leeg.php".to_string()),
+            member_gate: Some("members_only".to_string()),
+            acf: Some(json!({ "secret_field": "SECRET_ACF_VALUE" })),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // 2. Password-protected post + gated post with layout AST
+    let pw_post = db
+        .create_post(&CreatePostRequest {
+            title: "Passworded Post Title".to_string(),
+            slug: Some("pw-locked-post".to_string()),
+            content: "<p>SECRET_PASSWORDED_BODY_TOKEN</p>".to_string(),
+            status: "publish".to_string(),
+            post_type: "post".to_string(),
+            password: Some("SuperSecretPostPass99".to_string()),
+            acf: Some(json!({ "private_acf": "SECRET_PW_ACF" })),
+            ..Default::default()
+        })
+        .unwrap();
+    db.save_post_layout(
+        pw_post.id,
+        r#"{"version":1,"root":{"id":"sec_pw","type":"Section","children":[{"id":"txt_pw","type":"Text","data":{"content":"SECRET_AST_NODE_TEXT"}}]}}"#,
+        None,
+    )
+    .unwrap();
+
+    // 3. Another user's private/draft post (owned by admin=1)
+    let admin_draft = db
+        .create_post(&CreatePostRequest {
+            title: "Secret Admin Draft".to_string(),
+            slug: Some("secret-admin-draft".to_string()),
+            content: "<p>SECRET_ADMIN_DRAFT_BODY</p>".to_string(),
+            status: "draft".to_string(),
+            post_type: "post".to_string(),
+            author: Some(1),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Also test front page member gate bypass when static front page is gated
+    db.set_option("show_on_front", "page").unwrap();
+    db.set_option("page_on_front", &raw_gated.id.to_string()).unwrap();
+
+    // Anonymous requests across SSR (?page_id=, /, /{slug}/, /{pt}/{slug}/), REST, layout, collection, feed, og-image, search
+    for uri in [
+        format!("/?page_id={}", raw_gated.id),
+        "/".to_string(),
+        "/gated-raw-doc/".to_string(),
+        format!("/?p={}", pw_post.id),
+        "/pw-locked-post/".to_string(),
+        format!("/post/{}/", pw_post.slug),
+        format!("/wp-json/wp/v2/pages/{}", raw_gated.id),
+        format!("/wp-json/wp/v2/posts/{}", pw_post.id),
+        "/wp-json/wp/v2/posts".to_string(),
+        "/wp-json/daypress/v1/collection-query?post_type=post".to_string(),
+        "/feed/".to_string(),
+        format!("/og-image/{}?format=svg", pw_post.slug),
+        format!("/wp-json/daypress/v1/og-image?post_id={}&format=svg", raw_gated.id),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(Request::builder().uri(&uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let body = String::from_utf8(to_bytes(res.into_body(), 2 * 1024 * 1024).await.unwrap().to_vec())
+            .unwrap();
+        assert!(!body.contains("SECRET_RAW_HTML_PAYWALL"), "Gated raw leak at {uri}");
+        assert!(!body.contains("SECRET_ACF_VALUE"), "Gated ACF leak at {uri}");
+        assert!(!body.contains("SECRET_PASSWORDED_BODY_TOKEN"), "Passworded body leak at {uri}");
+        assert!(!body.contains("SECRET_PW_ACF"), "Passworded ACF leak at {uri}");
+        assert!(!body.contains("SuperSecretPostPass99"), "Plaintext post password leaked at {uri}");
+    }
+
+    // FTS5 Search must exclude password-protected posts and redact gated bodies even when queried by title or body token
+    for q in ["SECRET_PASSWORDED_BODY_TOKEN", "Passworded", "Gated Landing Doc"] {
+        let s_res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/wp-json/daypress/v1/search?q={}", q.replace(' ', "%20")))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(s_res.status(), StatusCode::OK);
+        let s_json = body_to_json(s_res).await;
+        let results_str = serde_json::to_string(&s_json["results"]).unwrap();
+        assert!(!results_str.contains("SECRET_PASSWORDED_BODY_TOKEN"));
+        assert!(!results_str.contains("SECRET_RAW_HTML_PAYWALL"));
+    }
+
+    // Layout API rejects locked passworded/gated post for anon (`403`)
+    let layout_anon = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/wp-json/daypress/v1/layout/{}", pw_post.id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(layout_anon.status(), StatusCode::FORBIDDEN);
+
+    // Contributor cannot read admin's draft via REST, list?status=draft, layout API, SSR, or OG card!
+    for uri in [
+        format!("/wp-json/wp/v2/posts/{}", admin_draft.id),
+        format!("/wp-json/daypress/v1/layout/{}", admin_draft.id),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&uri)
+                    .header("Authorization", &contrib_auth)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND, "Expected 404 on {uri}");
+    }
+    let list_drafts = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/wp-json/wp/v2/posts?status=draft")
+                .header("Authorization", &contrib_auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let drafts_body =
+        String::from_utf8(to_bytes(list_drafts.into_body(), 1024 * 1024).await.unwrap().to_vec())
+            .unwrap();
+    assert!(!drafts_body.contains("SECRET_ADMIN_DRAFT_BODY"));
+
+    // Public OG image never leaks unpublished draft title
+    let og_draft = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/og-image/{}?format=svg", admin_draft.id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let og_svg = String::from_utf8(to_bytes(og_draft.into_body(), 1024 * 1024).await.unwrap().to_vec())
+        .unwrap();
+    assert!(!og_svg.contains("Secret Admin Draft"));
+
+    // Admin/authorized editor can still read layout and passworded post
+    let admin_layout = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/wp-json/daypress/v1/layout/{}", pw_post.id))
+                .header("Authorization", &admin_auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(admin_layout.status(), StatusCode::OK);
+}

@@ -183,7 +183,9 @@ pub struct CollectionQueryV1Params {
 }
 
 pub(crate) async fn collection_query_v1_handler(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(db): State<Database>,
+    headers: axum::http::HeaderMap,
     Query(params): Query<CollectionQueryV1Params>,
 ) -> Result<Json<Value>, AppError> {
     let post_type = params
@@ -233,7 +235,7 @@ pub(crate) async fn collection_query_v1_handler(
         .get_settings()
         .map(|s| s.url)
         .unwrap_or_else(|_| "http://localhost:8090".to_string());
-    let (posts, total, filter_taxonomy, term_counts) = db.query_collection_posts(
+    let (mut posts, total, filter_taxonomy, term_counts) = db.query_collection_posts(
         post_type,
         taxonomy,
         term,
@@ -243,6 +245,9 @@ pub(crate) async fn collection_query_v1_handler(
         per_page,
         &base_url,
     )?;
+    for p in &mut posts {
+        crate::handlers::public_ssr::redact_post_for_api(&db, p, user.as_ref(), &headers);
+    }
     let total_pages = if total == 0 {
         1
     } else {

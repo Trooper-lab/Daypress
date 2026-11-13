@@ -103,6 +103,26 @@ impl Database {
 
         for post in &mut posts {
             Self::hydrate_post_relations(&conn, post, &base_url);
+            if post.is_content_restricted() {
+                if !post.password.trim().is_empty() {
+                    post.content.rendered = "<p>This content is password protected.</p>".to_string();
+                    post.excerpt.rendered = String::new();
+                } else {
+                    let teaser = if let Some(idx) = post.content.rendered.find("<!--more-->") {
+                        post.content.rendered[..idx].to_string()
+                    } else if !post.excerpt.rendered.trim().is_empty() {
+                        format!("<p>{}</p>", post.excerpt.rendered.trim())
+                    } else {
+                        String::new()
+                    };
+                    post.content.rendered = format!(
+                        "{}<p><em>This is a subscriber/member-exclusive post. Visit the website to read the full article.</em></p>",
+                        teaser
+                    );
+                }
+                post.password = String::new();
+                post.acf = serde_json::json!({});
+            }
         }
         Ok(posts)
     }
@@ -122,6 +142,7 @@ impl Database {
                  FROM comments c
                  JOIN posts p ON p.ID = c.comment_post_ID
                  WHERE p.post_status = 'publish'
+                   AND COALESCE(p.post_password, '') = ''
                    AND (c.comment_approved = '1' OR c.comment_approved = 'approved')
                    AND c.comment_post_ID = ?1
                  ORDER BY c.comment_date_gmt DESC, c.comment_ID DESC
@@ -133,6 +154,7 @@ impl Database {
                  FROM comments c
                  JOIN posts p ON p.ID = c.comment_post_ID
                  WHERE p.post_status = 'publish'
+                   AND COALESCE(p.post_password, '') = ''
                    AND (c.comment_approved = '1' OR c.comment_approved = 'approved')
                  ORDER BY c.comment_date_gmt DESC, c.comment_ID DESC
                  LIMIT ?1"

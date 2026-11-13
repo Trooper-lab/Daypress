@@ -49,7 +49,8 @@ pub(crate) async fn subscribe_newsletter_v1_handler(
     headers: HeaderMap,
     Json(mut payload): Json<NewsletterSubscribeRequest>,
 ) -> Result<(HeaderMap, Json<Value>), AppError> {
-    if payload.skip_double_opt_in && !user.as_ref().is_some_and(|u| u.can_edit_content()) {
+    let is_admin = user.as_ref().is_some_and(|u| u.is_admin());
+    if payload.skip_double_opt_in && !is_admin {
         payload.skip_double_opt_in = false;
     }
     let ip_raw = resolve_safe_client_ip(socket_ip.as_deref(), &headers);
@@ -59,22 +60,35 @@ pub(crate) async fn subscribe_newsletter_v1_handler(
                 .to_string(),
         ));
     }
-    let rec = db.subscribe_newsletter_contact(&payload, &ip_raw)?;
+    let req_email = payload.email.clone();
+    let req_source = payload.source_url.clone();
+    let (rec, already_active) = db.subscribe_newsletter_contact_checked(&payload, &ip_raw)?;
+
+    // Public callers must not discover whether an email is already subscribed or receive an
+    // unlock cookie synchronously for an existing subscriber without clicking their email link.
+    if !is_admin && already_active {
+        let _ = db.request_subscriber_magic_unlock(&req_email, &req_source, &ip_raw);
+        return Ok((
+            HeaderMap::new(),
+            Json(serde_json::json!({
+                "status": "pending",
+                "unlocked": false,
+                "message": "✓ Almost done! Please check your email inbox and click the confirmation link.",
+                "subscriber": Value::Null,
+            })),
+        ));
+    }
+
     let is_unlocked = rec.status == "subscribed";
     let mut resp_headers = HeaderMap::new();
-    if is_unlocked {
-        if let Some(ref tok) = rec
-            .unsubscribe_token
-            .as_ref()
-            .or(rec.confirm_token.as_ref())
-        {
-            let cookie_val = format!(
-                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax",
-                tok
-            );
-            if let Ok(hv) = cookie_val.parse() {
-                resp_headers.insert(header::SET_COOKIE, hv);
-            }
+    if is_unlocked && (is_admin || !already_active) {
+        let cookie_tok = db.issue_subscriber_cookie_token(rec.id);
+        let cookie_val = format!(
+            "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly",
+            cookie_tok
+        );
+        if let Ok(hv) = cookie_val.parse() {
+            resp_headers.insert(header::SET_COOKIE, hv);
         }
     }
     let msg = if is_unlocked {
@@ -83,7 +97,7 @@ pub(crate) async fn subscribe_newsletter_v1_handler(
         "✓ Almost done! Please check your email inbox and click the confirmation link."
     };
     let mut safe_rec = rec.clone();
-    if !user.as_ref().is_some_and(|u| u.can_edit_content()) {
+    if !is_admin {
         safe_rec.confirm_token = None;
         safe_rec.unsubscribe_token = None;
     }
@@ -117,69 +131,13 @@ pub(crate) async fn unlock_newsletter_gate_v1_handler(
             "Too many unlock attempts from this IP. Please try again in a minute.".to_string(),
         ));
     }
-    if let Some(existing) = db.unlock_subscriber_by_email(&payload.email)? {
-        let mut resp_headers = HeaderMap::new();
-        if let Some(ref tok) = existing
-            .unsubscribe_token
-            .as_ref()
-            .or(existing.confirm_token.as_ref())
-        {
-            let cookie_val = format!(
-                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax",
-                tok
-            );
-            if let Ok(hv) = cookie_val.parse() {
-                resp_headers.insert(header::SET_COOKIE, hv);
-            }
-        }
-        return Ok((
-            resp_headers,
-            Json(serde_json::json!({
-                "status": "subscribed",
-                "unlocked": true,
-                "message": "✓ Welcome back! Unlocking article...",
-            })),
-        ));
-    }
-
-    let rec = db.subscribe_newsletter_contact(
-        &NewsletterSubscribeRequest {
-            email: payload.email,
-            name: String::new(),
-            lists: vec!["general".to_string()],
-            source_url: payload.source_url,
-            skip_double_opt_in: false,
-        },
-        &ip_raw,
-    )?;
-    let is_unlocked = rec.status == "subscribed";
-    let mut resp_headers = HeaderMap::new();
-    if is_unlocked {
-        if let Some(ref tok) = rec
-            .unsubscribe_token
-            .as_ref()
-            .or(rec.confirm_token.as_ref())
-        {
-            let cookie_val = format!(
-                "daypress_subscriber={}; Path=/; Max-Age=31536000; SameSite=Lax",
-                tok
-            );
-            if let Ok(hv) = cookie_val.parse() {
-                resp_headers.insert(header::SET_COOKIE, hv);
-            }
-        }
-    }
-    let msg = if is_unlocked {
-        "✓ Subscribed! Unlocking article..."
-    } else {
-        "✓ Check your inbox and click the confirmation link to unlock this article."
-    };
+    db.request_subscriber_magic_unlock(&payload.email, &payload.source_url, &ip_raw)?;
     Ok((
-        resp_headers,
+        HeaderMap::new(),
         Json(serde_json::json!({
-            "status": rec.status,
-            "unlocked": is_unlocked,
-            "message": msg,
+            "status": "verification_sent",
+            "unlocked": false,
+            "message": "✓ Check your inbox and click the one-time unlock link we sent to your email.",
         })),
     ))
 }

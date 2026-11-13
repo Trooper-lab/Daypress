@@ -299,7 +299,7 @@ fn build_request_context(
     if let Some(pid) = ctx.post_id {
         if ctx.post_type.is_none() {
             if let Ok(Some(post)) = db.get_post_by_id(pid) {
-                if crate::auth::can_view_status(&post.status, auth) {
+                if crate::auth::can_view_post(&post, auth) {
                     ctx.post_type = Some(post.post_type);
                 }
             }

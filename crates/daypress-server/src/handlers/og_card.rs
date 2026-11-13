@@ -116,7 +116,11 @@ impl OgCardSpec {
             None
         };
 
+        let resolved_post = resolved_post.filter(|p| p.status.eq_ignore_ascii_case("publish"));
+
         if let Some(post) = resolved_post {
+            let is_restricted = post.is_content_restricted();
+            let has_password = !post.password.trim().is_empty();
             let is_front = settings.show_on_front == "page"
                 && settings.page_on_front > 0
                 && post.id == settings.page_on_front;
@@ -145,10 +149,18 @@ impl OgCardSpec {
                 .filter(|s| !s.trim().is_empty())
                 .map(String::from)
                 .unwrap_or_else(|| {
-                    if !post.seo_description.trim().is_empty() {
+                    if has_password {
+                        "Password protected content.".to_string()
+                    } else if !post.seo_description.trim().is_empty() {
                         post.seo_description.trim().to_string()
                     } else if !post.excerpt.rendered.trim().is_empty() {
                         strip_html_for_fts(&post.excerpt.rendered)
+                    } else if is_restricted {
+                        if !settings.description.trim().is_empty() {
+                            settings.description.clone()
+                        } else {
+                            "Subscriber-exclusive article.".to_string()
+                        }
                     } else {
                         let body = strip_html_for_fts(&post.content.rendered);
                         if !body.is_empty() {
@@ -191,8 +203,13 @@ impl OgCardSpec {
                     }
                 });
 
-            let plain_body = strip_html_for_fts(&post.content.rendered);
-            let (_, mins) = estimate_reading_time_minutes(&plain_body);
+            let reading_time = if is_restricted {
+                "EXCLUSIVE READ".to_string()
+            } else {
+                let plain_body = strip_html_for_fts(&post.content.rendered);
+                let (_, mins) = estimate_reading_time_minutes(&plain_body);
+                format!("{} MIN READ", mins)
+            };
             let date = post.date.chars().take(10).collect::<String>();
 
             Self {
@@ -203,7 +220,7 @@ impl OgCardSpec {
                 excerpt: raw_excerpt,
                 author,
                 date,
-                reading_time: format!("{} MIN READ", mins),
+                reading_time,
                 is_dark,
                 brand_hex,
             }

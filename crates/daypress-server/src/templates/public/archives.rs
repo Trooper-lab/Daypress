@@ -61,7 +61,19 @@ pub fn render_archive_page_paginated(
         );
     } else {
         for post in posts {
-            let excerpt = plain_text_excerpt(&post.content.rendered, 140);
+            let excerpt = if !post.password.trim().is_empty() {
+                "This content is password protected.".to_string()
+            } else if !post.excerpt.rendered.trim().is_empty() {
+                plain_text_excerpt(&post.excerpt.rendered, 140)
+            } else if post.is_content_restricted() {
+                if let Some(idx) = post.content.rendered.find("<!--more-->") {
+                    plain_text_excerpt(&post.content.rendered[..idx], 140)
+                } else {
+                    "Subscriber-exclusive article.".to_string()
+                }
+            } else {
+                plain_text_excerpt(&post.content.rendered, 140)
+            };
             let date_short: String = post.date.chars().take(10).collect();
             let author_display = if post.author_name.is_empty() {
                 "admin".to_string()

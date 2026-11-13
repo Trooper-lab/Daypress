@@ -156,8 +156,16 @@ pub fn render_home_page_paginated(
         .filter(|p| p.post_type == "post" || p.post_type.is_empty())
         .take(max_posts)
     {
-        let excerpt = if !post.excerpt.rendered.trim().is_empty() {
+        let excerpt = if !post.password.trim().is_empty() {
+            "This content is password protected.".to_string()
+        } else if !post.excerpt.rendered.trim().is_empty() {
             plain_text_excerpt(&post.excerpt.rendered, 140)
+        } else if post.is_content_restricted() {
+            if let Some(idx) = post.content.rendered.find("<!--more-->") {
+                plain_text_excerpt(&post.content.rendered[..idx], 140)
+            } else {
+                "Subscriber-exclusive article.".to_string()
+            }
         } else {
             plain_text_excerpt(&post.content.rendered, 140)
         };
